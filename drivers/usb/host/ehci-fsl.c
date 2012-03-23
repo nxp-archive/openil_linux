@@ -121,7 +121,7 @@ static int usb_hcd_fsl_probe(const struct hc_driver *driver,
 
 	/* Don't need to set host mode here. It will be done by tdi_reset() */
 
-	retval = usb_add_hcd(hcd, irq, IRQF_SHARED);
+	retval = usb_add_hcd(hcd, irq, IRQF_SHARED | IRQF_NO_SUSPEND);
 	if (retval != 0)
 		goto err2;
 	device_wakeup_enable(hcd->self.controller);
