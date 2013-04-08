@@ -88,6 +88,9 @@ static const struct of_device_id of_device_ids[] = {
 		.compatible	= "simple-bus"
 	},
 	{
+		.compatible	= "fsl,dpaa",
+	},
+	{
 		.compatible	= "mdio-mux-gpio"
 	},
 	{
