@@ -335,6 +335,8 @@ int pme_ctx_init(struct pme_ctx *ctx, u32 flags, u32 bpid, u8 qosin,
 #ifdef CONFIG_FSL_PME_BUG_4K_SCAN_REV_2_1_4
 	if (is_version_2_1_4(ctx->pme_rev1, ctx->pme_rev2))
 		ctx->max_scan_size = PME_MAX_SCAN_SIZE_BUG_2_1_4;
+	else
+		ctx->max_scan_size = 0;
 #endif
 	ctx->us_data = kzalloc(sizeof(struct pme_nostash), GFP_KERNEL);
 	if (!ctx->us_data)
