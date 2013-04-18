@@ -38,7 +38,7 @@
 #include <linux/of_platform.h>
 #include <linux/io.h>
 
-#ifdef CONFIG_PPC
+#ifdef CONFIG_PM
 #include <asm/fsl_pm.h>
 #include <linux/suspend.h>
 #endif
@@ -114,19 +114,19 @@ return container_of(ehci, struct ehci_fsl, ehci);
 #if defined(CONFIG_FSL_USB2_OTG) || defined(CONFIG_FSL_USB2_OTG_MODULE)
 static void do_change_hcd(struct work_struct *work)
 {
-struct ehci_hcd *ehci = container_of(work, struct ehci_hcd,
-				     change_hcd_work);
-struct usb_hcd *hcd = ehci_to_hcd(ehci);
-struct ehci_fsl *ehci_fsl = hcd_to_ehci_fsl(hcd);
-void __iomem *non_ehci = hcd->regs;
-int retval;
+	struct ehci_hcd *ehci = container_of(work, struct ehci_hcd,
+			change_hcd_work);
+	struct usb_hcd *hcd = ehci_to_hcd(ehci);
+	struct ehci_fsl *ehci_fsl = hcd_to_ehci_fsl(hcd);
+	void __iomem *non_ehci = hcd->regs;
+	int retval;
 
 	if (ehci_fsl->hcd_add && !ehci_fsl->have_hcd) {
-	writel(USBMODE_CM_HOST, non_ehci + FSL_SOC_USB_USBMODE);
-	/* host, gadget and otg share same int line */
-	retval = usb_add_hcd(hcd, hcd->irq, IRQF_SHARED);
-	if (retval == 0)
-		ehci_fsl->have_hcd = 1;
+		writel(USBMODE_CM_HOST, non_ehci + FSL_SOC_USB_USBMODE);
+		/* host, gadget and otg share same int line */
+		retval = usb_add_hcd(hcd, hcd->irq, IRQF_SHARED);
+		if (retval == 0)
+			ehci_fsl->have_hcd = 1;
 	} else if (!ehci_fsl->hcd_add && ehci_fsl->have_hcd) {
 		usb_remove_hcd(hcd);
 		ehci_fsl->have_hcd = 0;
@@ -534,7 +534,6 @@ static int ehci_fsl_setup(struct usb_hcd *hcd)
 #ifdef CONFIG_PM
 void __iomem *phy_reg;
 
-#ifdef CONFIG_PPC
 /* save usb registers */
 static int ehci_fsl_save_context(struct usb_hcd *hcd)
 {
@@ -580,7 +579,6 @@ static int ehci_fsl_restore_context(struct usb_hcd *hcd)
 
 	return 0;
 }
-#endif
 
 #ifdef CONFIG_PPC_MPC512x
 static int ehci_fsl_mpc512x_drv_suspend(struct device *dev)
@@ -736,15 +734,13 @@ static int ehci_fsl_drv_suspend(struct device *dev)
 	struct usb_bus host = hcd->self;
 #endif
 
-#ifdef CONFIG_PPC
-suspend_state_t pm_state;
-/* FIXME:Need to port fsl_pm.h before enable below code. */
-/*pm_state = pm_suspend_state();*/
-pm_state = PM_SUSPEND_MEM;
+	suspend_state_t pm_state;
+	/* FIXME:Need to port fsl_pm.h before enable below code. */
+	/*pm_state = pm_suspend_state();*/
+	pm_state = PM_SUSPEND_MEM;
 
 if (pm_state == PM_SUSPEND_MEM)
 	ehci_fsl_save_context(hcd);
-#endif
 
 	if (of_device_is_compatible(dev->parent->of_node,
 				    "fsl,mpc5121-usb2-dr")) {
@@ -783,15 +779,13 @@ static int ehci_fsl_drv_resume(struct device *dev)
 	struct usb_bus host = hcd->self;
 #endif
 
-#ifdef CONFIG_PPC
-suspend_state_t pm_state;
-/* FIXME:Need to port fsl_pm.h before enable below code.*/
-/* pm_state = pm_suspend_state(); */
-pm_state = PM_SUSPEND_MEM;
+	suspend_state_t pm_state;
+	/* FIXME:Need to port fsl_pm.h before enable below code.*/
+	/* pm_state = pm_suspend_state(); */
+	pm_state = PM_SUSPEND_MEM;
 
-if (pm_state == PM_SUSPEND_MEM)
-	ehci_fsl_restore_context(hcd);
-#endif
+	if (pm_state == PM_SUSPEND_MEM)
+		ehci_fsl_restore_context(hcd);
 
 	if (of_device_is_compatible(dev->parent->of_node,
 				    "fsl,mpc5121-usb2-dr")) {
