@@ -204,6 +204,7 @@ static const struct of_device_id mpc85xx_l2ctlr_of_match[] = {
 	{	.compatible = "fsl,p1015-l2-cache-controller",},
 	{	.compatible = "fsl,p1010-l2-cache-controller",},
 	{	.compatible = "fsl,bsc9131-l2-cache-controller",},
+	{	.compatible = "fsl,bsc9132-l2-cache-controller",},
 	{},
 };
 
