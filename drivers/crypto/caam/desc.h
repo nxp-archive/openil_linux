@@ -534,6 +534,7 @@ struct sec4_sg_entry {
 #define OP_PCL_IPSEC_DES_IV64			 0x0100
 #define OP_PCL_IPSEC_DES			 0x0200
 #define OP_PCL_IPSEC_3DES			 0x0300
+#define OP_PCL_IPSEC_NULL_ENC			 0x0b00
 #define OP_PCL_IPSEC_AES_CBC			 0x0c00
 #define OP_PCL_IPSEC_AES_CTR			 0x0d00
 #define OP_PCL_IPSEC_AES_XTS			 0x1600
