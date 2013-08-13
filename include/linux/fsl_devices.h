@@ -94,6 +94,7 @@ struct fsl_usb2_platform_data {
 	unsigned	already_suspended:1;
 	unsigned	has_fsl_erratum_a005275:1;
 	unsigned	has_fsl_erratum_a006918:1;
+	unsigned	has_fsl_erratum_a005697:1;
 
 	/* register save area for suspend/resume */
 	u32		pm_command;
