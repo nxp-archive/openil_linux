@@ -1,0 +1,25 @@
+config FSL_DCE
+	tristate "Freescale Decompression Compression Engine support"
+	depends on FSL_QMAN
+	help
+	  Say Y here to include support for the Freescale DCE driver.
+	  To compile this driver as a module, choose M here: the module
+	  will be called dce
+
+if FSL_DCE
+
+config FSL_DCE_CONFIG
+	tristate "Freescale DCE device management"
+	default y
+	help
+	  Say Y here to include support for the Freescale DCE driver.
+	  To compile this driver as a module, choose M here: the module
+	  will be called dce
+
+config FSL_DCE_DEBUGFS
+	tristate "Freescale Decompression Compression Engine DebugFS interface"
+	default y
+	help
+	  Say Y here to include debugfs interface
+
+endif # FSL_DCE
