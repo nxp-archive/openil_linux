@@ -22,4 +22,11 @@ config FSL_DCE_DEBUGFS
 	help
 	  Say Y here to include debugfs interface
 
+config FSL_DCE_TESTS
+	tristate "Build dce test"
+	depends on m
+	default m
+	help
+	  Build dce test module
+
 endif # FSL_DCE
