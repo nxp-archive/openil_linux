@@ -32,7 +32,7 @@
  */
 #define SET_BF64(dest, field, value)	\
 	(dest = \
-	((dest & ~field##_MASK) | (((uint64_t)value << field##_SHIFT) & \
+	((dest & ~field##_MASK) | ((((uint64_t)value) << field##_SHIFT) & \
 					field##_MASK)))
 
 #define SET_BF64_IDX(dest, field, value)	\
@@ -52,12 +52,12 @@
 
 #define SET_BF32(dest, field, value) \
 	(dest = \
-	((dest & ~field##_MASK) | ((value << field##_SHIFT) & field##_MASK)))
+	((dest & ~field##_MASK) | (((value) << field##_SHIFT) & field##_MASK)))
 
 #define SET_BF32_IDX(dest, field, value) \
 	((*(dest+field##_32IDX)) = \
 	(((*(dest+field##_32IDX)) & ~field##_MASK) | \
-			((value << field##_SHIFT) & field##_MASK)))
+			(((value) << field##_SHIFT) & field##_MASK)))
 
 #define SET_BF32_TK(dest, field, token)	\
 	(dest = \
@@ -71,12 +71,12 @@
 
 #define SET_BF16(dest, field, value)	\
 	(dest = \
-	((dest & ~field##_MASK) | ((value << field##_SHIFT) & field##_MASK)))
+	((dest & ~field##_MASK) | (((value) << field##_SHIFT) & field##_MASK)))
 
 #define SET_BF16_IDX(dest, field, value)	\
 	((*(dest+field##_16IDX)) = \
 	(((*(dest+field##_16IDX)) & ~field##_MASK) | \
-			((value << field##_SHIFT) & field##_MASK)))
+			(((value) << field##_SHIFT) & field##_MASK)))
 
 #define SET_BF16_TK(dest, field, token)	\
 	(dest = \
@@ -90,12 +90,12 @@
 
 #define SET_BF8(dest, field, value)	\
 	(dest = \
-	((dest & ~field##_MASK) | ((value << field##_SHIFT) & field##_MASK)))
+	((dest & ~field##_MASK) | (((value) << field##_SHIFT) & field##_MASK)))
 
 #define SET_BF8_IDX(dest, field, value)	\
 	((*(dest+field##_8IDX)) = \
 	(((*(dest+field##_8IDX)) & ~field##_MASK) | \
-			((value << field##_SHIFT) & field##_MASK)))
+			(((value) << field##_SHIFT) & field##_MASK)))
 
 #define SET_BF8_TK(dest, field, token)	\
 	(dest = \
