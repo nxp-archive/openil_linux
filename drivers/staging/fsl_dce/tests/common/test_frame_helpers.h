@@ -47,6 +47,7 @@
 struct dce_data_item_t {
 	void *cpumem;
 	size_t size;
+	size_t d_size;
 };
 
 /**
@@ -72,7 +73,10 @@ void print_decompression_output_scf_debug(struct scf_128b *scf);
 void print_dce_data_list(struct dce_data_list_t *data_list);
 void print_dce_fd(struct qm_fd fd);
 void print_dce_sg(struct qm_sg_entry sg);
+void print_multi_buffer(struct qm_sg_entry *sg, int level);
 
+size_t total_allocated_dce_data(struct dce_data_list_t *dce_data);
+size_t total_size_dce_data(struct dce_data_list_t *dce_data);
 
 bool is_multi_buffer(struct dce_data_list_t *data);
 
@@ -157,9 +161,16 @@ struct dce_process_cf_gzip_req {
 	struct dce_data_item_t extra_data_ptr;
 	struct dce_data_list_t output_data;
 	struct dce_data_list_t input_data;
+	struct list_head node;
 };
 
 struct dce_nop_req {
+	struct qm_fd output_fd;
+	struct completion cb_done;
+};
+
+struct dce_scr_invalidate_req {
+	struct qm_fd input_fd;
 	struct qm_fd output_fd;
 	struct completion cb_done;
 };

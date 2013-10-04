@@ -257,6 +257,31 @@ void print_dce_sg(struct qm_sg_entry sg)
 }
 EXPORT_SYMBOL(print_dce_sg);
 
+void print_multi_buffer(struct qm_sg_entry *sg, int level)
+{
+	struct qm_sg_entry *entry = sg;
+
+	pr_info("multi-buffer level %d\n", level);
+print_next:
+	print_dce_sg(*entry);
+	if (entry->extension) {
+		dma_addr_t phy_addr;
+		void *cpumem;
+
+		phy_addr = qm_sg_addr(sg);
+		cpumem = phys_to_virt(phy_addr);
+		print_multi_buffer(cpumem, ++level);
+	} else {
+		if (entry->final)
+			pr_info("Done level %d\n", level);
+		else {
+			entry++;
+			goto print_next;
+		}
+	}
+}
+EXPORT_SYMBOL(print_multi_buffer);
+
 void print_dce_data_list(struct dce_data_list_t *data_list)
 {
 	int i;
@@ -266,12 +291,16 @@ void print_dce_data_list(struct dce_data_list_t *data_list)
 	pr_info("  sg = %p, nents = %u, data_item = %p\n",
 		data_list->sg, data_list->nents, data_list->data_item);
 
+	if (data_list->data_item == NULL)
+		return;
+
 	if (data_list->sg) {
 		pr_info("Multi-Buffer\n");
 		for (i = 0; i < data_list->nents; i++) {
-			pr_info("    cpumem = %p, size = %zu\n",
+			pr_info("    cpumem = %p, size = %zu, d_size = %zu\n",
 				data_list->data_item[i].cpumem,
-				data_list->data_item[i].size);
+				data_list->data_item[i].size,
+				data_list->data_item[i].d_size);
 			print_hex_dump(KERN_ERR, "      data@"AT": ",
 				DUMP_PREFIX_ADDRESS, 16, 4,
 				data_list->data_item[i].cpumem, 16, false);
@@ -280,9 +309,10 @@ void print_dce_data_list(struct dce_data_list_t *data_list)
 			print_dce_sg(data_list->sg[i]);
 	} else {
 		pr_info("Single Buffer\n");
-		pr_info("    cpumem = %p, size = %zu\n",
+		pr_info("    cpumem = %p, size = %zu, d_size = %zu\n",
 			data_list->data_item->cpumem,
-			data_list->data_item->size);
+			data_list->data_item->size,
+			data_list->data_item->d_size);
 		print_hex_dump(KERN_ERR, "      data@"AT": ",
 				DUMP_PREFIX_ADDRESS, 16, 4,
 				data_list->data_item->cpumem, 16, false);
@@ -313,21 +343,24 @@ int alloc_dce_data(size_t length, size_t block_size,
 
 	if (block_size >= length) {
 		num_entries = 1;
-		last_buf_size = length;
+		last_buf_size = block_size;
 	} else {
 		num_entries = length / block_size;
 		last_buf_size = length - (num_entries * block_size);
 		if (last_buf_size == 0)
 			last_buf_size = block_size;
-		else
+		else {
 			num_entries++;
+			last_buf_size = block_size;
+		}
+
 	}
 
 	/* determine if multi-buffer or not */
 	if (num_entries == 1) {
 		dce_data->sg = NULL;
 		dce_data->nents = 0;
-		dce_data->data_item = kmalloc(sizeof(struct dce_data_item_t),
+		dce_data->data_item = kzalloc(sizeof(struct dce_data_item_t),
 					GFP_KERNEL);
 		if (!dce_data->data_item)
 			return -ENOMEM;
@@ -400,7 +433,7 @@ int free_dce_data(struct dce_data_list_t *dce_data)
 }
 EXPORT_SYMBOL(free_dce_data);
 
-size_t total_size_dce_data(struct dce_data_list_t *dce_data)
+size_t total_allocated_dce_data(struct dce_data_list_t *dce_data)
 {
 	size_t total_size = 0;
 	int i;
@@ -416,6 +449,24 @@ size_t total_size_dce_data(struct dce_data_list_t *dce_data)
 
 	return total_size;
 }
+EXPORT_SYMBOL(total_allocated_dce_data);
+
+size_t total_size_dce_data(struct dce_data_list_t *dce_data)
+{
+	size_t total_size = 0;
+	int i;
+
+	if (!dce_data->sg) {
+		if (!dce_data->data_item)
+			return 0;
+		return dce_data->data_item->d_size;
+	}
+
+	for (i = 0; i < dce_data->nents; i++)
+		total_size += dce_data->data_item[i].d_size;
+
+	return total_size;
+}
 EXPORT_SYMBOL(total_size_dce_data);
 
 int copy_input_to_dce_data(char *input, size_t ilen,
@@ -428,14 +479,13 @@ int copy_input_to_dce_data(char *input, size_t ilen,
 	if (!data_p || !data_list || !data_list->data_item)
 		return -EINVAL;
 
-	if (total_size_dce_data(data_list) < ilen)
+	if (total_allocated_dce_data(data_list) < ilen)
 		return -EINVAL;
 
 	while (len) {
 		size_t to_copy = min(data_list->data_item[i].size, len);
 		memcpy(data_list->data_item[i].cpumem, data_p, to_copy);
-		if (to_copy != data_list->data_item[i].size)
-			pr_err("Size not the same\n");
+		data_list->data_item[i].d_size = to_copy;
 		data_p += to_copy;
 		len -= to_copy;
 		i++;
@@ -444,6 +494,10 @@ int copy_input_to_dce_data(char *input, size_t ilen,
 }
 EXPORT_SYMBOL(copy_input_to_dce_data);
 
+/*
+ * @data_list is the source data. @cpylen is how much data from data_list to copy
+ * @buffer is the destination. @buf_size is the size of the destination buffer
+ */
 int copy_dce_data_to_buffer(struct dce_data_list_t *data_list, size_t cpylen,
 			char *buffer, size_t buf_size)
 {
@@ -464,7 +518,7 @@ int copy_dce_data_to_buffer(struct dce_data_list_t *data_list, size_t cpylen,
 	}
 
 	while (cpylen) {
-		size_t to_copy = min(data_list->data_item[i].size, cpylen);
+		size_t to_copy = min(data_list->data_item[i].d_size, cpylen);
 		memcpy(buffer, data_list->data_item[i].cpumem, to_copy);
 		cpylen -= to_copy;
 		buffer += to_copy;
@@ -581,6 +635,9 @@ int detach_data_list_from_sg(struct qm_sg_entry *sg,
 
 	if (!data_list || !dce_device)
 		return -EINVAL;
+
+	if (data_list->data_item == NULL)
+		return 0;
 
 	if (is_multi_buffer(data_list)) {
 		addr = qm_sg_addr(sg);
