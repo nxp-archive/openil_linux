@@ -35,8 +35,10 @@
 #include <linux/cpumask.h>
 #include <linux/rbtree.h>
 #include <linux/export.h>
+#include "dce_private.h"
 #include "fsl_dce_stream.h"
-#include "dce_sys.h"
+
+#define DCE_FIFO_DEPTH	256
 
 static void stream_base_cb(struct fsl_dce_flow *flow, const struct qm_fd *fd,
 			void *callback_tag)
@@ -187,6 +189,14 @@ int fsl_dce_stream_setup2(struct fsl_dce_stream *stream,
 	int ret = 0;
 	struct fsl_dce_flow_init_params flow_params;
 
+	if (dce_ip_rev == DCE_REV10) {
+		/* only truncation mode supported */
+		if (pmode == DCE_RECYCLING) {
+			pr_debug("dce: recyle mode unsupported dce rev 1.0\n");
+			return -EINVAL;
+		}
+	}
+
 	memset(&flow_params, 0, sizeof(flow_params));
 
 	if (!stream)
@@ -194,6 +204,7 @@ int fsl_dce_stream_setup2(struct fsl_dce_stream *stream,
 	memset(stream, 0, sizeof(*stream));
 
 	stream->pmode = pmode;
+	stream->cf = cf;
 
 	ret = allocate_stateful_dma_resources(stream, mode, pmode);
 	if (ret) {
@@ -205,7 +216,7 @@ int fsl_dce_stream_setup2(struct fsl_dce_stream *stream,
 	if (bcfg)
 		fsl_dce_flow_setopt_bcfg(&stream->flow, *bcfg);
 	flow_params.mode = mode;
-	flow_params.fifo_depth = 1;
+	flow_params.fifo_depth = DCE_FIFO_DEPTH;
 	flow_params.state_config = DCE_STATEFUL;
 	flow_params.base_cb = stream_base_cb;
 	flow_params.process_cb = process_cb;
@@ -225,6 +236,12 @@ int fsl_dce_stream_setup2(struct fsl_dce_stream *stream,
 	return 0;
 }
 EXPORT_SYMBOL(fsl_dce_stream_setup2);
+
+int fsl_dce_stream_fifo_len(struct fsl_dce_stream *stream)
+{
+	return fsl_dce_flow_fifo_len(&stream->flow);
+}
+EXPORT_SYMBOL(fsl_dce_stream_fifo_len);
 
 int fsl_dce_stream_destroy(struct fsl_dce_stream *stream, uint32_t flags,
 			void *callback_tag)
@@ -248,9 +265,14 @@ int fsl_dce_stream_init_scr(struct fsl_dce_stream *stream, struct qm_fd *fd,
 }
 EXPORT_SYMBOL(fsl_dce_stream_init_scr);
 
-int fsl_dce_stream_process(struct fsl_dce_stream *stream, struct qm_fd *fd,
-	bool initial_frame, int z_flush, void *callback_tag)
+int fsl_dce_stream_process(struct fsl_dce_stream *stream, uint32_t flags,
+	struct qm_fd *fd, bool initial_frame, int z_flush, void *callback_tag)
 {
+	if (stream->cf == DCE_CF_ZLIB)
+		SET_BF32_TK(fd->cmd, DCE_PROCESS_CF, ZLIB);
+	else if (stream->cf == DCE_CF_GZIP)
+		SET_BF32_TK(fd->cmd, DCE_PROCESS_CF, GZIP);
+
 	switch (z_flush) {
 	case DCE_PROCESS_Z_FLUSH_NO_FLUSH:
 	case DCE_PROCESS_Z_FLUSH_PARTIAL_FLUSH:
@@ -267,7 +289,7 @@ int fsl_dce_stream_process(struct fsl_dce_stream *stream, struct qm_fd *fd,
 
 	if (initial_frame)
 		SET_BF32_TK(fd->cmd, DCE_PROCESS_INITIAL, SET);
-	return fsl_dce_process(&stream->flow, 0, fd, callback_tag);
+	return fsl_dce_process(&stream->flow, flags, fd, callback_tag);
 }
 EXPORT_SYMBOL(fsl_dce_stream_process);
 
@@ -278,12 +300,27 @@ int fsl_dce_stream_nop(struct fsl_dce_stream *stream, uint32_t flags,
 }
 EXPORT_SYMBOL(fsl_dce_stream_nop);
 
+int fsl_dce_stream_scr_invalidate(struct fsl_dce_stream *stream, uint32_t flags,
+	void *callback_tag)
+{
+	return fsl_dce_scr_invalidate(&stream->flow, flags, callback_tag);
+}
+EXPORT_SYMBOL(fsl_dce_stream_scr_invalidate);
+
 int fsl_dce_stream_deflate_params(struct fsl_dce_stream *stream,
 	uint32_t bman_output_offset,
 	bool bman_release_input,
 	bool base64,
 	uint32_t ce)
 {
+	if (dce_ip_rev == DCE_REV10) {
+		/* B64 unsupported */
+		if (base64) {
+			pr_debug("dce: base64 unsupported in dce rev 1.0\n");
+			return -EINVAL;
+		}
+	}
+
 	fsl_dce_flow_setopt_outputoffset(&stream->flow, bman_output_offset);
 	fsl_dce_flow_setopt_release_input(&stream->flow, bman_release_input);
 	fsl_dce_flow_setopt_base64(&stream->flow, base64);
@@ -297,6 +334,14 @@ int fsl_dce_stream_inflate_params(struct fsl_dce_stream *stream,
 	bool bman_release_input,
 	bool base64)
 {
+	if (dce_ip_rev == DCE_REV10) {
+		/* B64 unsupported */
+		if (base64) {
+			pr_debug("dce: base64 unsupported in dce rev 1.0\n");
+			return -EINVAL;
+		}
+	}
+
 	fsl_dce_flow_setopt_outputoffset(&stream->flow, bman_output_offset);
 	fsl_dce_flow_setopt_release_input(&stream->flow, bman_release_input);
 	fsl_dce_flow_setopt_base64(&stream->flow, base64);

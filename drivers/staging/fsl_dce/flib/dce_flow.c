@@ -449,17 +449,15 @@ int fsl_dce_process(struct fsl_dce_flow *flow, uint32_t flags, struct qm_fd *fd,
 	return submit_job(flow, flags, fd, &token);
 }
 
-int fsl_dce_src_invalidate(struct fsl_dce_flow *flow, uint32_t flags,
+int fsl_dce_scr_invalidate(struct fsl_dce_flow *flow, uint32_t flags,
 			void *callback_tag)
 {
 	struct qm_fd fd;
 	struct fsl_dce_cmd_token token;
 
 	memset(&fd, 0, sizeof(fd));
-
 	token.callback_tag = callback_tag;
 	/* enqueue the DCE_CMD_CTX_INVALIDATE command to DCE */
-	memset(&fd, 0, sizeof(fd));
 	fsl_dce_cmd_set_ctx_invalidate(&fd.cmd);
 	return submit_job(flow, flags, &fd, &token);
 }

@@ -147,6 +147,8 @@ int fsl_dce_stream_setup2(struct fsl_dce_stream *stream,
 	fsl_dce_nop_cb nop_cb,
 	fsl_dce_scr_invalidate_cb scr_invalidate_cb);
 
+int fsl_dce_stream_fifo_len(struct fsl_dce_stream *stream);
+
 int fsl_dce_stream_destroy(struct fsl_dce_stream *stream, uint32_t flags,
 			void *callback_tag);
 
@@ -165,6 +167,7 @@ int fsl_dce_stream_inflate_params(struct fsl_dce_stream *stream,
  * This is the mission mode api.
  */
 int fsl_dce_stream_process(struct fsl_dce_stream *stream,
+	uint32_t flags,
 	struct qm_fd *fd,
 	bool initial_frame, /* if initial frame, sets I bit */
 	int z_flush, /* one of DCE_PROCESS_Z_* values */
@@ -172,6 +175,10 @@ int fsl_dce_stream_process(struct fsl_dce_stream *stream,
 
 int fsl_dce_stream_nop(struct fsl_dce_stream *stream, uint32_t flags,
 	void *callback_tag); /* optional callback tag */
+
+int fsl_dce_stream_scr_invalidate(struct fsl_dce_stream *stream,
+	uint32_t flags, void *callback_tag);
+
 
 /* helper apis */
 int fsl_dce_stream_init_scr(struct fsl_dce_stream *stream, struct qm_fd *fd,
