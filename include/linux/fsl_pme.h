@@ -770,6 +770,9 @@ enum pme_attr {
 	pme_attr_scbarl,
 	pme_attr_bsc_first, /* create 64-wide space for bsc */
 	pme_attr_bsc_last = pme_attr_bsc_first + 63,
+	pme_attr_faconf_rst,
+	pme_attr_faconf_en,
+	pme_attr_efqc
 };
 
 #define pme_attr_bsc(n) (pme_attr_bsc_first + (n))

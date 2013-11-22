@@ -29,6 +29,9 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef PME2_PRIVATE_H
+#define PME2_PRIVATE_H
+
 #include "pme2_sys.h"
 #include <linux/fsl_pme.h>
 
@@ -48,6 +51,218 @@
 int pme2_create_sysfs_dev_files(struct platform_device *ofdev);
 void pme2_remove_sysfs_dev_files(struct platform_device *ofdev);
 void accumulator_update_interval(u32 interval);
+#endif
+
+#ifdef CONFIG_PM
+
+struct pme_save_regs_pmfa {
+	uint32_t isr;
+	uint32_t ier;
+	uint32_t isdr;
+	uint32_t iir;
+	uint32_t ifr;
+	uint32_t rll;
+	uint32_t cdcr;
+	uint32_t reserved1[2];
+	uint32_t trunci;
+	uint32_t rbc;
+	uint32_t esr;
+	uint32_t ecr0;
+	uint32_t ecr1;
+	uint32_t reserved2[6];
+	uint32_t efqc;
+	uint32_t sram_addr;
+	uint32_t sram_rdat;
+	uint32_t sram_wdat;
+	uint32_t faconf;
+	uint32_t pmstat;
+	uint32_t famcr;
+	uint32_t pmtr;
+	uint32_t reserved3;
+	uint32_t pehd;
+	uint32_t reserved4[2];
+	uint32_t bsc0;
+	uint32_t bsc1;
+	uint32_t bsc2;
+	uint32_t bsc3;
+	uint32_t bsc4;
+	uint32_t bsc5;
+	uint32_t bsc6;
+	uint32_t bsc7;
+	uint32_t reserved5[16];
+	uint32_t qmbfd0;
+	uint32_t qmbfd1;
+	uint32_t qmbfd2;
+	uint32_t qmbfd3;
+	uint32_t qmbctxtah;
+	uint32_t qmbctxtal;
+	uint32_t qmbctxtb;
+	uint32_t qmbctl;
+	uint32_t ecc1bes;
+	uint32_t ecc2bes;
+	uint32_t reserved6[2];
+	uint32_t eccaddr;
+	uint32_t reserved7[27];
+	uint32_t tbt0ecc1th;
+	uint32_t tbt0ecc1ec;
+	uint32_t tbt1ecc1th;
+	uint32_t tbt1ecc1ec;
+	uint32_t vlt0ecc1th;
+	uint32_t vlt0ecc1ec;
+	uint32_t vlt1ecc1th;
+	uint32_t vlt1ecc1ec;
+	uint32_t cmecc1th;
+	uint32_t cmecc1ec;
+	uint32_t reserved8[2];
+	uint32_t dxcmecc1th;
+	uint32_t dxcmecc1ec;
+	uint32_t reserved9[2];
+	uint32_t dxemecc1th;
+	uint32_t dxemecc1ec;
+	uint32_t reserved10[14];
+};
+
+struct pme_save_regs_kes {
+	uint32_t stnib;
+	uint32_t stnis;
+	uint32_t stnth1;
+	uint32_t stnth2;
+	uint32_t stnthv;
+	uint32_t stnths;
+	uint32_t stnch;
+	uint32_t swdb;
+	uint32_t kvlts;
+	uint32_t kec;
+	uint32_t reserved1[22];
+};
+
+struct pme_save_regs_dxe {
+	uint32_t stnpm;
+	uint32_t stns1m;
+	uint32_t drcic;
+	uint32_t drcmc;
+	uint32_t stnpmr;
+	uint32_t reserved1[3];
+	uint32_t pdsrbah;
+	uint32_t pdsrbal;
+	uint32_t dmcr;
+	uint32_t dec0;
+	uint32_t dec1;
+	uint32_t reserved2[3];
+	uint32_t dlc;
+	uint32_t reserved3[15];
+};
+
+struct pme_save_regs_sre {
+	uint32_t stndrs;
+	uint32_t stnesr;
+	uint32_t stns1r;
+	uint32_t stnob;
+	uint32_t scbarh;
+	uint32_t scbarl;
+	uint32_t smcr;
+	uint32_t reserved1;
+	uint32_t srec;
+	uint32_t reserved2;
+	uint32_t esrp;
+	uint32_t reserved3[3];
+	uint32_t srrv0;
+	uint32_t srrv1;
+	uint32_t srrv2;
+	uint32_t srrv3;
+	uint32_t srrv4;
+	uint32_t srrv5;
+	uint32_t srrv6;
+	uint32_t srrv7;
+	uint32_t srrfi;
+	uint32_t reserved4;
+	uint32_t srri;
+	uint32_t srrr;
+	uint32_t srrwc;
+	uint32_t sfrcc;
+	uint32_t sec1;
+	uint32_t sec2;
+	uint32_t sec3;
+	uint32_t reserved5;
+};
+
+struct pme_save_regs_mia {
+	uint32_t mia_byc;
+	uint32_t mia_blc;
+	uint32_t mia_ce;
+	uint32_t reserved1;
+	uint32_t mia_cr;
+	uint32_t reserved2[284];
+};
+
+struct pme_save_regs_gen {
+	uint32_t liodnbr;
+	uint32_t reserved1[126];
+	uint32_t srcidr;
+	uint32_t reserved2[2];
+	uint32_t liodnr;
+	uint32_t reserved3[122];
+	uint32_t pm_ip_rev_1;
+	uint32_t pm_ip_rev_2;
+};
+
+struct pme_save_reg_all {
+	struct pme_save_regs_pmfa pmfa;
+	struct pme_save_regs_kes kes;
+	struct pme_save_regs_dxe dxe;
+	struct pme_save_regs_sre sre;
+	struct pme_save_regs_mia mia;
+	struct pme_save_regs_gen gen;
+};
+
+struct pme_pwrmgmt_ctx {
+	struct qman_fq tx_fq;
+	struct qman_fq rx_fq;
+	struct qm_fd result_fd;
+	struct completion done;
+};
+
+struct pmtcc_raw_db {
+	/* vmalloc's memory. Save PME's sram data */
+	uint8_t *alldb;
+};
+
+struct ccsr_backup_info {
+	uint32_t save_faconf_en;
+	uint32_t save_cdcr;
+	struct pme_save_reg_all regdb;
+};
+
+struct portal_backup_info {
+	/* vmalloc's memory. Save PME's sram data */
+	struct pmtcc_raw_db db;
+	struct pme_pwrmgmt_ctx *ctx;
+	struct platform_device *pdev;
+};
+
+#endif /* CONFIG_PM */
+
+struct pme2_private_data {
+	uint32_t pme_rev1;
+	uint32_t __iomem *regs;
+#ifdef CONFIG_PM
+	struct ccsr_backup_info save_ccsr;
+	struct portal_backup_info save_db;
+#endif
+};
+
+#ifdef CONFIG_PM
+/* Hooks from pme_ctrl to pme_suspend */
+int init_pme_suspend(struct pme2_private_data *priv_data);
+void exit_pme_suspend(struct pme2_private_data *priv_data);
+int pme_suspend(struct pme2_private_data *priv_data);
+int pme_resume(struct pme2_private_data *priv_data);
+
+/* Hooks from pme_suspend into pme_ctrl */
+void restore_all_ccsr(struct ccsr_backup_info *save_ccsr,
+			uint32_t __iomem *regs);
+void save_all_ccsr(struct ccsr_backup_info *save_ccsr,
+			uint32_t __iomem *regs);
 #endif
 
 static inline void set_fd_addr(struct qm_fd *fd, dma_addr_t addr)
@@ -215,3 +430,10 @@ static inline int is_version_2_1_4(u32 pme_rev1, u32 pme_rev2)
 		(get_errata_rev(pme_rev2) == 4);
 }
 
+static inline int is_version(u32 pme_rev1, int major, int minor)
+{
+	return  (get_major_rev(pme_rev1) == major) &&
+		(get_minor_rev(pme_rev1) == minor);
+}
+
+#endif

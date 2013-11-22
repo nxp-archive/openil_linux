@@ -1,5 +1,5 @@
 # PME
-obj-$(CONFIG_FSL_PME2_CTRL)	+= pme2_ctrl.o pme2_sysfs.o
+obj-$(CONFIG_FSL_PME2_CTRL)	+= pme2_ctrl.o pme2_sysfs.o pme2_suspend.o
 obj-$(CONFIG_FSL_PME2_PORTAL)	+= pme2.o
 pme2-y				:= pme2_low.o pme2_high.o
 obj-$(CONFIG_FSL_PME2_TEST_HIGH) += pme2_test_high.o
