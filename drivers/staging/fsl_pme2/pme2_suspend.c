@@ -1108,8 +1108,6 @@ int pme_resume(struct pme2_private_data *priv_data)
 	/* restore pme enable state */
 	pme_attr_set(pme_attr_faconf_en, ccsr_info->save_faconf_en);
 
-	free_databases(db_info);
-
 	return 0;
 }
 
