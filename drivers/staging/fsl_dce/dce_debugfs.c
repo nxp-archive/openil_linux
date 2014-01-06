@@ -29,6 +29,7 @@
  * this software, even if advised of the possibility of such damage.
  */
 
+#include <linux/of_address.h>
 #include <linux/seq_file.h>
 #include <linux/uaccess.h>
 #include <linux/of.h>
