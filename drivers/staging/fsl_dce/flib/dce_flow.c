@@ -401,7 +401,7 @@ struct qman_precommit_arg {
 static int _pre_commit_cb(void *arg)
 {
 	struct qman_precommit_arg *fifo_arg = (struct qman_precommit_arg *)arg;
-	if (unlikely(kfifo_put(&fifo_arg->flow->fifo, fifo_arg->token) == 0))
+	if (unlikely(kfifo_put(&fifo_arg->flow->fifo, *fifo_arg->token) == 0))
 		return -ENOMEM;
 	return 0;
 }
