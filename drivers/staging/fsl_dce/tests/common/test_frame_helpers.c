@@ -269,7 +269,7 @@ void print_dce_data_list(struct dce_data_list_t *data_list)
 	if (data_list->sg) {
 		pr_info("Multi-Buffer\n");
 		for (i = 0; i < data_list->nents; i++) {
-			pr_info("    cpumem = %p, size = %lu\n",
+			pr_info("    cpumem = %p, size = %zu\n",
 				data_list->data_item[i].cpumem,
 				data_list->data_item[i].size);
 			print_hex_dump(KERN_ERR, "      data@"AT": ",
@@ -280,7 +280,7 @@ void print_dce_data_list(struct dce_data_list_t *data_list)
 			print_dce_sg(data_list->sg[i]);
 	} else {
 		pr_info("Single Buffer\n");
-		pr_info("    cpumem = %p, size = %lu\n",
+		pr_info("    cpumem = %p, size = %zu\n",
 			data_list->data_item->cpumem,
 			data_list->data_item->size);
 		print_hex_dump(KERN_ERR, "      data@"AT": ",

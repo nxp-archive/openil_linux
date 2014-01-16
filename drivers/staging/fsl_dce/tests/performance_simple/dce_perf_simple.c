@@ -385,7 +385,7 @@ static int copy_bman_output_to_buffer(struct qm_sg_entry *sg, size_t cpylen,
 		} while (1);
 
 		if (cpylen != cal_total_lenght) {
-			pr_info("total frame length != calulated length (%lu)"
+			pr_info("total frame length != calulated length (%zu)"
 				" (%llu)\n", cpylen, cal_total_lenght);
 		}
 	} else {
@@ -395,7 +395,7 @@ static int copy_bman_output_to_buffer(struct qm_sg_entry *sg, size_t cpylen,
 		fsl_dce_unmap(phy_addr);
 		cpumem = phys_to_virt(phy_addr);
 		if (cpylen != sg->length) {
-			pr_info("sg length != frame output length (%lu) (%u)\n",
+			pr_info("sg length != frame output length (%zu) (%u)\n",
 				cpylen, sg->length);
 		}
 		memcpy(buffer, cpumem, sg->length);
@@ -519,7 +519,7 @@ static int write_file(const char *file, char *data, size_t data_len)
 	rc = vfs_write(filp, data, data_len, &pos);
 	if (rc != data_len) {
 		pr_info("Failed to write '%s'.\n", file);
-		pr_info("Error %d, data_len %lu\n", rc, data_len);
+		pr_info("Error %d, data_len %zu\n", rc, data_len);
 		goto out;
 	}
 
@@ -684,8 +684,8 @@ void dce_loopback_shutdown(void)
 	uint64_t decomp_Mbps = 0;
 	unsigned int cpufreq = 0;
 	uint64_t run_time_usec = 0;
-	uint32_t sysfreq = 0, dce_freq = 0;
-	uint64_t dce_max_freq = 400000000; /* Hz */
+	uint32_t sysfreq = 0;
+	uint64_t dce_freq = 0, dce_max_freq = 400000000;	/* Hz */
 	uint64_t scaled_val;
 	uint64_t temp;
 
@@ -705,7 +705,7 @@ void dce_loopback_shutdown(void)
 	scaled_val = dce_max_freq * 1000;
 	do_div(scaled_val, dce_freq);
 
-	pr_info("DCE Freq = %u hz\n", dce_freq);
+	pr_info("DCE Freq = %llu hz\n", dce_freq);
 	pr_info("CPU Freq: %u\n", cpufreq);
 	pr_info("Cycles to complete = %llu\n", run_time_cycle);
 	pr_info("Time (usec) to complete = %llu\n", run_time_usec);
