@@ -200,6 +200,8 @@ APPEND_CMD_LEN(seq_load, SEQ_LOAD)
 APPEND_CMD_LEN(seq_store, SEQ_STORE)
 APPEND_CMD_LEN(seq_fifo_load, SEQ_FIFO_LOAD)
 APPEND_CMD_LEN(seq_fifo_store, SEQ_FIFO_STORE)
+APPEND_CMD_LEN(seq_out_ptr_pre_rto, SEQ_OUT_PTR)
+APPEND_CMD_LEN(seq_in_ptr_pre_rto, SEQ_IN_PTR)
 
 #define APPEND_CMD_PTR(cmd, op) \
 static inline void append_##cmd(u32 *desc, dma_addr_t ptr, unsigned int len, \
