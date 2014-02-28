@@ -238,6 +238,7 @@ struct portal_backup_info {
 	struct pmtcc_raw_db db;
 	struct pme_pwrmgmt_ctx *ctx;
 	struct platform_device *pdev;
+	int backup_failed;
 };
 
 #endif /* CONFIG_PM */

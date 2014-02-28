@@ -338,8 +338,8 @@ static int of_fsl_pme_probe(struct platform_device *ofdev)
 
 	if (likely(pme_err_irq != NO_IRQ)) {
 		/* Register the pme ISR handler */
-		err = request_irq(pme_err_irq, pme_isr, IRQF_SHARED, "pme-err",
-				  dev);
+		err = request_irq(pme_err_irq, pme_isr,
+			IRQF_SHARED | IRQF_PERCPU, "pme-err", dev);
 		if (err) {
 			dev_err(dev, "request_irq() failed\n");
 			goto out_unmap_ctrl_region;
@@ -471,14 +471,31 @@ void restore_all_ccsr(struct ccsr_backup_info *save_ccsr,
 {
 	int i;
 	int num_regs = sizeof(save_ccsr->regdb)/sizeof(uint32_t);
-
 	uint32_t *pme_reg = &save_ccsr->regdb.pmfa.isr;
+#ifdef CONFIG_PM_DEBUG
+	int diff_count = 0;
+#endif
 
 	for (i = 0; i < num_regs; i++) {
+#ifdef CONFIG_PM_DEBUG
+		/* skip enable register */
+		if ((pme_reg + i) != (&save_ccsr->regdb.pmfa.faconf)) {
+			uint32_t pme_reg_val;
+			pme_reg_val = in_be32(regs + i);
+			if (pme_reg_val != *(pme_reg + i))
+				diff_count++;
+			out_be32(regs + i, *(pme_reg + i));
+		}
+#else
 		/* skip enable register */
 		if ((pme_reg + i) != (&save_ccsr->regdb.pmfa.faconf))
 			out_be32(regs + i, *(pme_reg + i));
+#endif
 	}
+
+#ifdef CONFIG_PM_DEBUG
+	pr_info("pme ccsr restore: %d registers were different\n", diff_count);
+#endif
 }
 
 void save_all_ccsr(struct ccsr_backup_info *save_ccsr, uint32_t __iomem *regs)

@@ -40,49 +40,6 @@ static dma_addr_t pme_suspend_map(struct platform_device *pdev, void *ptr)
 	return dma_map_single(&pdev->dev, ptr, 1, DMA_BIDIRECTIONAL);
 }
 
-#ifdef PME_SUSPEND_DEBUG
-
-static inline void __hexdump(unsigned long start, unsigned long end,
-			     unsigned long p, size_t sz, const unsigned char *c)
-{
-	while (start < end) {
-		unsigned int pos = 0;
-		char buf[64];
-		int nl = 0;
-		pos += sprintf(buf + pos, "%08lx: ", start);
-		do {
-			if ((start < p) || (start >= (p + sz)))
-				pos += sprintf(buf + pos, "..");
-			else
-				pos += sprintf(buf + pos, "%02x", *(c++));
-			if (!(++start & 15)) {
-				buf[pos++] = '\n';
-				nl = 1;
-			} else {
-				nl = 0;
-				if (!(start & 1))
-					buf[pos++] = ' ';
-				if (!(start & 3))
-					buf[pos++] = ' ';
-			}
-		} while (start & 15);
-		if (!nl)
-			buf[pos++] = '\n';
-		buf[pos] = '\0';
-		pr_info("%s", buf);
-	}
-}
-
-static inline void hexdump(const void *ptr, size_t sz)
-{
-	unsigned long p = (unsigned long)ptr;
-	unsigned long start = p & ~(unsigned long)15;
-	unsigned long end = (p + sz + 15) & ~(unsigned long)15;
-	const unsigned char *c = ptr;
-	__hexdump(start, end, p, sz, c);
-}
-#endif
-
 /*
  * The following SRAM tables need to be saved
  *	1-byte trigger table
@@ -197,6 +154,8 @@ struct pme_pmtcc_write_request_msg_t {
 #define PME_SPECIAL_CONFIDENCE_ENTRY_NUM           64
 #define PME_ONE_BYTE_CONFIDENCE_ENTRY_NUM          64
 
+#define PME_SPECIAL_CONFIDENCE_ENTRY_NUM_V2_2      32
+
 #define PME_CONFIDENCE_ENTRY_NUM_V1		\
 	((PME_TWO_BYTE_TRIGGER_ENTRY_NUM_V1 +	\
 	PME_VARIABLE_TRIGGER_ENTRY_NUM_V1 +	\
@@ -222,7 +181,7 @@ struct pme_pmtcc_write_request_msg_t {
 	((PME_TWO_BYTE_TRIGGER_ENTRY_NUM_V2_2 +		\
 	PME_VARIABLE_TRIGGER_ENTRY_NUM_V2_2 +		\
 	PME_ONE_BYTE_CONFIDENCE_ENTRY_NUM +		\
-	PME_SPECIAL_CONFIDENCE_ENTRY_NUM) *		\
+	PME_SPECIAL_CONFIDENCE_ENTRY_NUM_V2_2) *	\
 	PME_CONFIDENCE_ENTRY_NUM_PER_TRIGGER_ENTRY)
 
 #define PME_EQUIVALENCE_ENTRY_NUM                  1
@@ -351,13 +310,11 @@ static enum qman_cb_dqrr_result cb_dqrr(struct qman_portal *portal,
 	struct  pme_pwrmgmt_ctx *ctx = (struct pme_pwrmgmt_ctx *)fq;
 
 	if (unlikely(flags & PME_STATUS_UNRELIABLE))
-		pr_err("pme error %d\n", __LINE__);
+		pr_err("pme status error 0x%x\n", (u32)flags);
 	else if (unlikely((serious_error_vec[status])))
-		pr_err("pme error %d\n", __LINE__);
-	else {
-		memcpy(&ctx->result_fd, &dq->fd, sizeof(*&dq->fd));
-		complete(&ctx->done);
-	}
+		pr_err("pme error status 0x%x\n", (u32)status);
+	memcpy(&ctx->result_fd, &dq->fd, sizeof(*&dq->fd));
+	complete(&ctx->done);
 	return qman_cb_dqrr_consume;
 }
 
@@ -830,12 +787,16 @@ static int save_all_tables(struct portal_backup_info *save_db,
 			if (status) {
 				ret = -EINVAL;
 				pr_err("PMTCC read status failed %d\n", status);
+				save_db->backup_failed = 1;
+				break;
 			}
 			if (pme_fd_res_flags(&save_db->ctx->result_fd) &
 			    PME_STATUS_UNRELIABLE) {
 				pr_err("pme %x\n", pme_fd_res_flags(
 					&save_db->ctx->result_fd));
 				ret = -EINVAL;
+				save_db->backup_failed = 1;
+				break;
 			}
 			/* copy the response */
 			if (tbl_id == PME_UDG_TBL ||
@@ -859,8 +820,11 @@ static int save_all_tables(struct portal_backup_info *save_db,
 		kfree(output_data);
 		kfree(input_data);
 		kfree(sg_table);
+		/* if failed, stop saving database */
+		if (ret)
+			break;
 	}
-	return 0;
+	return ret;
 }
 
 /* don't need to write zero to PME sram since POR is all zero */
@@ -938,20 +902,25 @@ static int restore_all_tables(struct portal_backup_info *save_db,
 			if (status) {
 				ret = -EINVAL;
 				pr_err("PMTCC write status fail %d\n", status);
+				break;
 			}
 			if (pme_fd_res_flags(&save_db->ctx->result_fd) &
 			    PME_STATUS_UNRELIABLE) {
 				pr_err("pme %x\n", pme_fd_res_flags(
 					&save_db->ctx->result_fd));
 				ret = -EINVAL;
+				break;
 			}
 		}
 		current_tbl += num_write_entries * write_entry_size;
 
 		/* Free input and output frame data */
 		kfree(input_data);
+		/* if failed, stop restoring database */
+		if (ret)
+			break;
 	}
-	return 0;
+	return ret;
 }
 
 int fsl_pme_save_db(struct pme2_private_data *priv_data)
@@ -980,6 +949,11 @@ static int is_pme_active(void)
 	return val;
 }
 
+static void reset_db_saved_state(struct portal_backup_info *db_info)
+{
+	db_info->backup_failed = 0;
+}
+
 /**
  * pme_suspend - power management suspend function
  *
@@ -996,6 +970,8 @@ int pme_suspend(struct pme2_private_data *priv_data)
 
 	ccsr_info = &priv_data->save_ccsr;
 	db_info = &priv_data->save_db;
+
+	reset_db_saved_state(db_info);
 
 	pme_attr_get(pme_attr_faconf_en, &ccsr_info->save_faconf_en);
 	pme_attr_get(pme_attr_cdcr, &ccsr_info->save_cdcr);
@@ -1045,13 +1021,18 @@ int pme_suspend(struct pme2_private_data *priv_data)
 	pr_info("PME is quiescent\n");
 #endif
 
-#ifdef PME_SUSPEND_DEBUG
-	/* set the PME reset bit */
-	pme_attr_set(pme_attr_faconf_rst, 1);
-	/* clear the PME reset bit */
-	pme_attr_set(pme_attr_faconf_rst, 0);
-#endif
-
+	/* if saving db failed, reset internal state explicitly */
+	if (db_info->backup_failed) {
+		/* set the PME reset bit */
+		pme_attr_set(pme_attr_faconf_rst, 1);
+		/* clear the PME reset bit */
+		pme_attr_set(pme_attr_faconf_rst, 0);
+		/* wait until device is not active */
+		while (is_pme_active()) {
+			cpu_relax();
+			/* TODO: sanity check */
+		}
+	}
 	return 0;
 }
 
@@ -1068,6 +1049,7 @@ int pme_resume(struct pme2_private_data *priv_data)
 	int ret;
 	struct ccsr_backup_info *ccsr_info;
 	struct portal_backup_info *db_info;
+	int db_restore_failed = 0;
 
 	ccsr_info = &priv_data->save_ccsr;
 	db_info = &priv_data->save_db;
@@ -1082,6 +1064,9 @@ int pme_resume(struct pme2_private_data *priv_data)
 	/* restore caching state */
 	pme_attr_set(pme_attr_cdcr, ccsr_info->save_cdcr);
 
+	/* Don't restore database if it wasn't saved properly */
+	if (db_info->backup_failed)
+		goto skip_db_restore;
 	/* set private exclusive mode before enabling pme */
 	/* save sram, must first configure the new exclusive fq before
 	 * enabling pme */
@@ -1093,6 +1078,8 @@ int pme_resume(struct pme2_private_data *priv_data)
 	pme_attr_set(pme_attr_faconf_en, 1);
 
 	ret = restore_all_tables(db_info, priv_data->pme_rev1);
+	if (ret)
+		db_restore_failed = 1;
 
 	/* disable pme */
 	pme_attr_set(pme_attr_faconf_en, 0);
@@ -1101,10 +1088,22 @@ int pme_resume(struct pme2_private_data *priv_data)
 		cpu_relax();
 		/* TODO: sanity check */
 	}
+	if (db_restore_failed) {
+		/* set the PME reset bit */
+		pme_attr_set(pme_attr_faconf_rst, 1);
+		/* clear the PME reset bit */
+		pme_attr_set(pme_attr_faconf_rst, 0);
+		/* when PME was saved, it was disabled. Therefore it will
+		 * remain disabled */
+		restore_all_ccsr(ccsr_info, priv_data->regs);
+		/* restore caching state */
+		pme_attr_set(pme_attr_cdcr, ccsr_info->save_cdcr);
+	}
 
 	/* restore EFQC register */
 	pme_attr_set(pme_attr_efqc, ccsr_info->regdb.pmfa.efqc);
 
+skip_db_restore:
 	/* restore pme enable state */
 	pme_attr_set(pme_attr_faconf_en, ccsr_info->save_faconf_en);
 
