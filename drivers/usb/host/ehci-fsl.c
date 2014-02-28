@@ -248,42 +248,13 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 	usb_put_hcd(hcd);
 }
 
-static bool usb_phy_clk_valid(struct usb_hcd *hcd,
-			enum fsl_usb2_phy_modes phy_mode)
+static bool usb_phy_clk_valid(struct usb_hcd *hcd)
 {
 	void __iomem *non_ehci = hcd->regs;
-	struct device *dev = hcd->self.controller;
-	struct fsl_usb2_platform_data *pdata = dev->platform_data;
 	bool ret = true;
-	int retry = UTMI_PHY_CLK_VALID_CHK_RETRY;
 
-	if (phy_mode == FSL_USB2_PHY_ULPI) {
-		/* check PHY_CLK_VALID to get phy clk valid */
-		if (!(spin_event_timeout(in_be32(non_ehci + FSL_SOC_USB_CTRL) &
-				PHY_CLK_VALID, FSL_USB_PHY_CLK_TIMEOUT, 0) ||
-				in_be32(non_ehci + FSL_SOC_USB_PRICTRL))) {
-			ret = false;
-		}
-	} else if (phy_mode == FSL_USB2_PHY_UTMI) {
-		if (!(in_be32(non_ehci + FSL_SOC_USB_CTRL) & PHY_CLK_VALID)) {
-			ret = false;
-			if (pdata->controller_ver < FSL_USB_VER_2_4) {
-				while (retry--) {
-					clrbits32(non_ehci + FSL_SOC_USB_CTRL,
-							      CTRL_UTMI_PHY_EN);
-					setbits32(non_ehci + FSL_SOC_USB_CTRL,
-							      CTRL_UTMI_PHY_EN);
-					/* delay required for Clk to appear */
-					mdelay(FSL_UTMI_PHY_DLY);
-					if ((in_be32(non_ehci +
-					   FSL_SOC_USB_CTRL) & PHY_CLK_VALID)) {
-						ret = true;
-						break;
-					}
-				}
-			}
-		}
-	}
+	if (!(in_be32(non_ehci + FSL_SOC_USB_CTRL) & PHY_CLK_VALID))
+		ret = false;
 
 	return ret;
 }
@@ -329,6 +300,16 @@ static int ehci_fsl_setup_phy(struct usb_hcd *hcd,
 			return -EINVAL;
 		}
 
+		/* PHY_CLK_VALID bit is de-featured from all controller
+		 * versions below 2.4 and is to be checked only for
+		 * internal UTMI phy */
+		if (pdata->controller_ver > FSL_USB_VER_2_4 &&
+			pdata->have_sysif_regs && !usb_phy_clk_valid(hcd)) {
+			pr_err("fsl-ehci: USB PHY clock invalid\n");
+			return -EINVAL;
+		}
+
+
 		if (pdata->have_sysif_regs && pdata->controller_ver) {
 			/* controller version 1.6 or above */
 			setbits32(non_ehci + FSL_SOC_USB_CTRL, UTMI_PHY_EN);
@@ -343,14 +324,6 @@ static int ehci_fsl_setup_phy(struct usb_hcd *hcd,
 		break;
 	case FSL_USB2_PHY_NONE:
 		break;
-	}
-
-	if (pdata->have_sysif_regs &&
-	    pdata->controller_ver > FSL_USB_VER_1_6 &&
-	    !usb_phy_clk_valid(hcd, phy_mode)) {
-			dev_warn(hcd->self.controller, "USB PHY clock invalid\n");
-			return -EINVAL;
-		}
 	}
 
 	ehci_writel(ehci, portsc, &ehci->regs->port_status[port_offset]);
