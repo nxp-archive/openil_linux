@@ -802,6 +802,16 @@ static int __init setup_one_pamu(unsigned long pamu_reg_base, unsigned long pamu
 	pamu_regs = (struct pamu_mmap_regs *)
 		(pamu_reg_base + PAMU_MMAP_REGS_BASE);
 
+	/*
+	 * As per PAMU errata A-005982, writing the PAACT and SPAACT
+	 * base address registers wouldn't invalidate the corresponding
+	 * caches if the OMT cache is disabled. The workaround is to
+	 * enable the OMT cache before setting the base registers.
+	 * This can be done without actually enabling PAMU.
+	 */
+
+	out_be32(pc, PAMU_PC_OCE);
+
 	/* set up pointers to corenet control blocks */
 
 	out_be32(&pamu_regs->ppbah, upper_32_bits(ppaact_phys));
