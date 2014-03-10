@@ -71,6 +71,15 @@ static const struct of_device_id l3_device_ids[] = {
 	{}
 };
 
+#ifdef CONFIG_FSL_FMAN_CPC_STASH
+/* Table for matching FMAN rx port compatible */
+static const struct of_device_id fman_device_ids[] = {
+	{ .compatible = "fsl,fman-port-10g-rx", },
+	{ .compatible = "fsl,fman-port-1g-rx", },
+	{}
+};
+#endif
+
 /* maximum subwindows permitted per liodn */
 static u32 max_subwindow_count;
 
@@ -609,13 +618,15 @@ found_cpu_node:
 #define QMAN_PAACE 1
 #define QMAN_PORTAL_PAACE 2
 #define BMAN_PAACE 3
+#define FMAN_PAACE 4
 
 /**
- * Setup operation mapping and stash destinations for QMAN and QMAN portal.
+ * Setup operation mapping and stash destinations for DPAA (QMAN, QMAN portal,
+ * FMAN, BMAN) and PMAN.
  * Memory accesses to QMAN and BMAN private memory need not be coherent, so
  * clear the PAACE entry coherency attribute for them.
  */
-static void __init setup_qbman_paace(struct paace *ppaace, int  paace_type)
+static void __init setup_dpaa_paace(struct paace *ppaace, int  paace_type)
 {
 	switch (paace_type) {
 	case QMAN_PAACE:
@@ -635,6 +646,13 @@ static void __init setup_qbman_paace(struct paace *ppaace, int  paace_type)
 	case BMAN_PAACE:
 		set_bf(ppaace->domain_attr.to_host.coherency_required, PAACE_DA_HOST_CR,
 		       0);
+		break;
+	case FMAN_PAACE:
+		set_bf(ppaace->impl_attr, PAACE_IA_OTM, PAACE_OTM_INDEXED);
+		ppaace->op_encode.index_ot.omi = OMI_FMAN;
+		/*Set frame stashing for the L3 cache */
+		set_bf(ppaace->impl_attr, PAACE_IA_CID,
+		       get_stash_id(PAMU_ATTR_CACHE_L3, 0));
 		break;
 	}
 }
@@ -779,11 +797,15 @@ static void __init setup_liodns(void)
 			setup_default_ppaace(ppaace);
 
 			if (of_device_is_compatible(node, "fsl,qman-portal"))
-				setup_qbman_paace(ppaace, QMAN_PORTAL_PAACE);
+				setup_dpaa_paace(ppaace, QMAN_PORTAL_PAACE);
 			if (of_device_is_compatible(node, "fsl,qman"))
-				setup_qbman_paace(ppaace, QMAN_PAACE);
+				setup_dpaa_paace(ppaace, QMAN_PAACE);
 			if (of_device_is_compatible(node, "fsl,bman"))
-				setup_qbman_paace(ppaace, BMAN_PAACE);
+				setup_dpaa_paace(ppaace, BMAN_PAACE);
+#ifdef CONFIG_FSL_FMAN_CPC_STASH
+			if (of_match_node(fman_device_ids, node))
+				setup_dpaa_paace(ppaace, FMAN_PAACE);
+#endif
 			mb();
 			pamu_enable_liodn(liodn);
 		}
