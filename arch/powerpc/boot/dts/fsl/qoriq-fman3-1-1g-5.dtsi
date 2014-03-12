@@ -56,7 +56,7 @@ fman@500000 {
 	mdio@eb000 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		compatible = "fsl,fman-memac-tbi";
+		compatible = "fsl,fman-memac-mdio";
 		reg = <0xeb000 0x1000>;
 	};
 };
