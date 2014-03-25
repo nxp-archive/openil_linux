@@ -346,17 +346,63 @@ static struct fsl_dma_domain *iommu_alloc_dma_domain(void)
 	return domain;
 }
 
+/* Disable device DMA capability and enable default DMA window */
+static void disable_device_dma(struct device_domain_info *info,
+				int enable_dma_window)
+{
+#ifdef CONFIG_PCI
+	if (info->dev->bus == &pci_bus_type) {
+		struct pci_dev *pdev = NULL;
+		u16 pci_command;
+
+		pdev = to_pci_dev(info->dev);
+		pci_read_config_word(pdev, PCI_COMMAND, &pci_command);
+		/* disable device bus master capability */
+		if (pci_command & PCI_COMMAND_MASTER) {
+			pci_command &= ~PCI_COMMAND_MASTER;
+			pci_write_config_word(pdev, PCI_COMMAND, pci_command);
+		}
+	}
+#endif
+
+	if (enable_dma_window)
+		enable_default_dma_window(info->liodn);
+}
+
+static int check_for_shared_liodn(struct device_domain_info *info)
+{
+	struct device_domain_info *tmp;
+
+	/*
+	 * Sanity check, to ensure that this is not a
+	 * shared LIODN. In case of a PCIe controller
+	 * it's possible that all PCIe devices share
+	 * the same LIODN.
+	 */
+	list_for_each_entry(tmp, &info->domain->devices, link) {
+		if (info->liodn == tmp->liodn)
+			return 1;
+	}
+
+	return 0;
+}
+
 static void remove_device_ref(struct device_domain_info *info, u32 win_cnt)
 {
 	unsigned long flags;
+	int enable_dma_window = 0;
 
 	list_del(&info->link);
 	spin_lock_irqsave(&iommu_lock, flags);
-	if (win_cnt > 1)
-		pamu_free_subwins(info->liodn);
-	pamu_disable_liodn(info->liodn);
+	if (!check_for_shared_liodn(info)) {
+		if (win_cnt > 1)
+			pamu_free_subwins(info->liodn);
+		pamu_disable_liodn(info->liodn);
+		enable_dma_window = 1;
+	}
 	spin_unlock_irqrestore(&iommu_lock, flags);
 	spin_lock_irqsave(&device_domain_lock, flags);
+	disable_device_dma(info, enable_dma_window);
 	info->dev->archdata.iommu_domain = NULL;
 	kmem_cache_free(iommu_devinfo_cache, info);
 	spin_unlock_irqrestore(&device_domain_lock, flags);

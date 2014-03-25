@@ -413,5 +413,6 @@ void get_ome_index(u32 *omi_index, struct device *dev);
 int  pamu_update_paace_field(int liodn, u32 subwin, int field, u32 value);
 int pamu_disable_spaace(int liodn, u32 subwin);
 u32 pamu_get_max_subwin_cnt(void);
+void enable_default_dma_window(int liodn);
 
 #endif  /* __FSL_PAMU_H */
