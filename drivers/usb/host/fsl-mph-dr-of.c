@@ -190,6 +190,14 @@ static bool has_erratum_a005697(void)
 	return flag;
 }
 
+static bool has_erratum_a007792(int controller_ver)
+{
+	if (controller_ver == FSL_USB_VER_2_5)
+		return true;
+	else
+		return false;
+}
+
 static int usb_get_ver_info(struct device_node *np)
 {
 	int ver = -1;
@@ -297,6 +305,11 @@ static int fsl_usb2_mph_dr_of_probe(struct platform_device *ofdev)
 		pdata->has_fsl_erratum_a005697 = 1;
 	else
 		pdata->has_fsl_erratum_a005697 = 0;
+
+	if (has_erratum_a007792(pdata->controller_ver))
+		pdata->has_fsl_erratum_a007792 = 1;
+	else
+		pdata->has_fsl_erratum_a007792 = 0;
 
 	if (of_get_property(np, "fsl,erratum_a006918", NULL))
 		pdata->has_fsl_erratum_a006918 = 1;
