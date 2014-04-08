@@ -1012,6 +1012,11 @@ int pme_suspend(struct pme2_private_data *priv_data)
 	/* disable pme */
 	pme_attr_set(pme_attr_faconf_en, 0);
 
+	/* Set IIR to mask any pending interrupts, required to have idle
+	 * line asserted
+	 */
+	pme_attr_set(pme_attr_iir, 1);
+
 	/* wait until device is not active */
 	while (is_pme_active()) {
 		cpu_relax();

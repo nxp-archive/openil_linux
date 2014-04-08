@@ -889,6 +889,9 @@ int pme_attr_set(enum pme_attr attr, u32 val)
 	case pme_attr_efqc:
 		pme_out(global_pme, EFQC, val);
 		break;
+	case pme_attr_iir:
+		pme_out(global_pme, IIR, val);
+		break;
 	default:
 		pr_err("pme: Unknown attr %u\n", attr);
 		return -EINVAL;
@@ -1381,6 +1384,9 @@ int pme_attr_get(enum pme_attr attr, u32 *val)
 		attr_val = pme_in(global_pme, EFQC);
 		break;
 
+	case pme_attr_iir:
+		attr_val = pme_in(global_pme, IIR);
+		break;
 
 	default:
 		pr_err("pme: Unknown attr %u\n", attr);
