@@ -40,6 +40,11 @@ static dma_addr_t pme_suspend_map(struct platform_device *pdev, void *ptr)
 	return dma_map_single(&pdev->dev, ptr, 1, DMA_BIDIRECTIONAL);
 }
 
+static void pme_suspend_unmap(struct platform_device *pdev, dma_addr_t data)
+{
+	dma_unmap_single(&pdev->dev, data, 1, DMA_TO_DEVICE);
+}
+
 /*
  * The following SRAM tables need to be saved
  *	1-byte trigger table
@@ -724,13 +729,29 @@ static int alloc_databases(struct pme2_private_data *priv_data)
 	return 0;
 }
 
+/* We can send a series of PMTCC commands in contiguous memory. MAX_PMTCC_SIZE
+ * sets this amount of memory to use. This will be allocate for both the
+ * input and output frames. Since the output frames are larger the number of
+ * entries is based on the read response */
+#define MAX_PMTCC_SIZE	(4096 * 4)
+
 static int save_all_tables(struct portal_backup_info *save_db,
 			   uint32_t pme_rev1)
 {
 	struct pmtcc_raw_db *db = &save_db->db;
 	enum pme_pmtcc_table_id tbl_id;
-	int i, ret;
+	int i, ret = 0;
 	uint8_t *current_tbl = db->alldb;
+	struct qm_sg_entry *sg_table = NULL;
+	uint8_t *input_data, *output_data;
+
+	/* Allocate input and output frame data */
+	output_data = kmalloc(MAX_PMTCC_SIZE, GFP_KERNEL);
+	input_data = kmalloc(MAX_PMTCC_SIZE, GFP_KERNEL);
+	sg_table = kzalloc(2 * sizeof(*sg_table), GFP_KERNEL);
+
+	if (!output_data || !input_data || !sg_table)
+		goto err_alloc;
 
 	for (i = 0; i < ARRAY_SIZE(table_list); i++) {
 		int num_read_entries, read_size, read_reply_size, write_size,
@@ -738,51 +759,73 @@ static int save_all_tables(struct portal_backup_info *save_db,
 		int idx;
 		struct pme_pmtcc_read_request_msg_t *entry;
 		struct qm_fd fd;
-		struct qm_sg_entry *sg_table = NULL;
-		uint8_t *input_data, *output_data;
 		enum pme_status status;
+		int num_contig_elem, num_loops;
 
 		tbl_id = table_list[i];
 		ret = get_table_attributes(tbl_id, pme_rev1, &num_read_entries,
 			&num_write_entries, &read_size, &read_reply_size,
 			&write_size, &read_entry_size, &write_entry_size);
 
-		/* Allocate input and output frame data */
-		output_data = kzalloc(read_reply_size, GFP_KERNEL);
-		input_data = kzalloc(read_size, GFP_KERNEL);
-		sg_table = kzalloc(2 * sizeof(*sg_table), GFP_KERNEL);
+		/* try to read as many entries as possible */
+		num_contig_elem = min_t(int, MAX_PMTCC_SIZE/read_reply_size,
+					num_read_entries);
+		num_loops = DIV_ROUND_UP(num_read_entries, num_contig_elem);
+		for (idx = 0; idx < num_loops; idx++) {
+			int j, actual_entry_cnt;
+			struct pme_pmtcc_read_reply_msg_t *rentry;
 
-		entry = (struct pme_pmtcc_read_request_msg_t *)
-				input_data;
-		entry->header.protocol_version = pme_rev1;
-		entry->header.msg_length = read_size;
-		entry->table_id = tbl_id;
+			if (idx == (num_loops - 1)) {
+				actual_entry_cnt = num_read_entries -
+					(idx * num_contig_elem);
+			} else {
+				actual_entry_cnt = num_contig_elem;
+			}
+			/* setup all entries */
+			entry = (struct pme_pmtcc_read_request_msg_t *)
+					input_data;
+			for (j = 0; j < actual_entry_cnt; j++) {
+				entry[j].header.protocol_version = pme_rev1;
+				entry[j].header.msg_type = 0;
+				entry[j].header.msg_length = read_size;
+				entry[j].table_id = tbl_id;
+				entry[j].index = (idx * num_contig_elem) + j;
+			}
+			/* build fd */
+			memset(&fd, 0, sizeof(fd));
+			qm_sg_entry_set64(&sg_table[0],
+				pme_suspend_map(save_db->pdev, output_data));
+			sg_table[0].length = read_reply_size * actual_entry_cnt;
+			qm_sg_entry_set64(&sg_table[1],
+				pme_suspend_map(save_db->pdev, input_data));
+			sg_table[1].length = read_size * actual_entry_cnt;
+			sg_table[1].final = 1;
+			fd.format = qm_fd_compound;
+			qm_fd_addr_set64(&fd,
+				pme_suspend_map(save_db->pdev, sg_table));
 
-		/* build fd */
-		memset(&fd, 0, sizeof(fd));
-		qm_sg_entry_set64(&sg_table[0], pme_suspend_map(save_db->pdev,
-				output_data));
-		sg_table[0].length = read_reply_size;
-		qm_sg_entry_set64(&sg_table[1], pme_suspend_map(save_db->pdev,
-				input_data));
-		sg_table[1].length = read_size;
-		sg_table[1].final = 1;
-		fd.format = qm_fd_compound;
-		qm_fd_addr_set64(&fd, pme_suspend_map(save_db->pdev, sg_table));
-#ifdef PME_SUSPEND_DEBUG
-		pr_info("Doing table %d\n", tbl_id);
-#endif
-		for (idx = 0; idx < num_read_entries; idx++) {
-			entry->index = idx;
-			memset(output_data, 0, read_reply_size);
 			ret = pme_pwrmgmt_ctx_pmtcc(save_db->ctx,
 				QMAN_ENQUEUE_FLAG_WAIT, &fd);
 
-			if (ret)
-				pr_err("error with pme_pwrmgmt_ctx_pmtcc\n");
+			if (ret) {
+				pr_err("error with pmtcc 0x%x\n", ret);
+				pme_suspend_unmap(save_db->pdev,
+					qm_fd_addr(&fd));
+				pme_suspend_unmap(save_db->pdev,
+					qm_sg_addr(&sg_table[0]));
+				pme_suspend_unmap(save_db->pdev,
+					qm_sg_addr(&sg_table[1]));
+				save_db->backup_failed = 1;
+				break;
+			}
 
 			wait_for_completion(&save_db->ctx->done);
 
+			pme_suspend_unmap(save_db->pdev, qm_fd_addr(&fd));
+			pme_suspend_unmap(save_db->pdev,
+				qm_sg_addr(&sg_table[0]));
+			pme_suspend_unmap(save_db->pdev,
+				qm_sg_addr(&sg_table[1]));
 			status = pme_fd_res_status(&save_db->ctx->result_fd);
 			if (status) {
 				ret = -EINVAL;
@@ -798,44 +841,45 @@ static int save_all_tables(struct portal_backup_info *save_db,
 				save_db->backup_failed = 1;
 				break;
 			}
-			/* copy the response */
-			if (tbl_id == PME_UDG_TBL ||
-			    tbl_id == PME_EQUIVALENT_BYTE_TBL) {
-				/* Only copy over 8 lower bits to first byte */
-				uint32_t tmp32;
-				uint8_t tmp8;
-				memcpy(&tmp32, output_data + read_size,
-				       read_entry_size);
-				tmp8 = (uint8_t)tmp32;
-				memcpy(current_tbl + (idx * 1), &tmp8, 1);
-			} else {
-				memcpy(current_tbl + (idx * write_entry_size),
-				       output_data + read_size,
-				       write_entry_size);
+			/* Iterate the output data */
+			rentry = (struct pme_pmtcc_read_reply_msg_t *)
+					output_data;
+			for (j = 0; j < actual_entry_cnt; j++) {
+				rentry = (struct pme_pmtcc_read_reply_msg_t *)
+					(output_data + (j * read_reply_size));
+				/* copy the response */
+				if (rentry->table_id == PME_EQUIVALENT_BYTE_TBL
+				 || rentry->table_id == PME_UDG_TBL) {
+					/* Only copy over 8 lower bits to first
+					 * byte */
+					uint32_t tmp32;
+					uint8_t tmp8;
+					memcpy(&tmp32,
+						&rentry->indexed_entry.entry,
+						read_entry_size);
+					tmp8 = (uint8_t)tmp32;
+					memcpy(current_tbl, &tmp8, 1);
+					current_tbl++;
+				} else {
+					memcpy(current_tbl,
+						&rentry->indexed_entry.entry,
+						write_entry_size);
+					current_tbl += write_entry_size;
+				}
 			}
 		}
-		current_tbl += num_write_entries * write_entry_size;
-
-		/* Free input and output frame data */
-		kfree(output_data);
-		kfree(input_data);
-		kfree(sg_table);
 		/* if failed, stop saving database */
 		if (ret)
 			break;
 	}
-	return ret;
-}
 
-/* don't need to write zero to PME sram since POR is all zero */
-static int is_all_zero(uint8_t *buf, int size)
-{
-	int i;
-	for (i = 0; i < size; i++) {
-		if (buf[i] != 0)
-			return 0;
-	}
-	return 1;
+err_alloc:
+	/* Free input and output frame data */
+	kfree(output_data);
+	kfree(input_data);
+	kfree(sg_table);
+
+	return ret;
 }
 
 static int restore_all_tables(struct portal_backup_info *save_db,
@@ -845,6 +889,13 @@ static int restore_all_tables(struct portal_backup_info *save_db,
 	enum pme_pmtcc_table_id tbl_id;
 	int i, ret;
 	uint8_t *current_tbl = db->alldb;
+	uint8_t *input_data;
+
+	/* Allocate input and output frame data */
+	input_data = kmalloc(MAX_PMTCC_SIZE, GFP_KERNEL);
+
+	if (!input_data)
+		return -ENOMEM;
 
 	for (i = 0; i < ARRAY_SIZE(table_list); i++) {
 		int num_read_entries, read_size, read_reply_size, write_size,
@@ -852,43 +903,50 @@ static int restore_all_tables(struct portal_backup_info *save_db,
 		int idx;
 		struct pme_pmtcc_write_request_msg_t *entry;
 		struct qm_fd fd;
-		uint8_t *input_data;
 		enum pme_status status;
+		int num_contig_elem, num_loops;
 
 		tbl_id = table_list[i];
 		ret = get_table_attributes(tbl_id, pme_rev1, &num_read_entries,
 			&num_write_entries, &read_size, &read_reply_size,
 			&write_size, &read_entry_size, &write_entry_size);
 
-		/* Allocate input frame data */
-		input_data = kzalloc(write_size, GFP_KERNEL);
+		/* try to write as many entries as possible */
+		num_contig_elem =  min_t(int, MAX_PMTCC_SIZE/write_size,
+						num_write_entries);
+		num_loops = DIV_ROUND_UP(num_write_entries, num_contig_elem);
 
-		entry = (struct pme_pmtcc_write_request_msg_t *)
-				input_data;
-		entry->header.protocol_version = pme_rev1;
-		entry->header.msg_type = 0x01; /* write */
-		entry->header.msg_length = write_size;
-		entry->table_id = tbl_id;
+		for (idx = 0; idx < num_loops; idx++) {
+			int j, actual_entry_cnt;
 
-		/* build fd */
-		memset(&fd, 0, sizeof(fd));
-		qm_fd_addr_set64(&fd, pme_suspend_map(save_db->pdev,
-				input_data));
-		fd.format = qm_fd_contig_big;
-		fd.length29 = write_size;
-#ifdef PME_SUSPEND_DEBUG
-		pr_info("Doing table %d\n", tbl_id);
-#endif
-		for (idx = 0; idx < num_write_entries; idx++) {
-			if (is_all_zero(current_tbl + (idx * write_entry_size),
-					write_entry_size)) {
-				continue;
+			if (idx == (num_loops - 1)) {
+				actual_entry_cnt = num_write_entries -
+					(idx * num_contig_elem);
+			} else {
+				actual_entry_cnt = num_contig_elem;
 			}
-			entry->indexed_entry.index = idx;
 
-			memcpy(input_data + (write_size - write_entry_size),
-			       current_tbl + (idx * write_entry_size),
-			       write_entry_size);
+			/* setup all entries */
+			for (j = 0; j < actual_entry_cnt; j++) {
+				entry = (struct pme_pmtcc_write_request_msg_t *)
+					(input_data + (j * write_size));
+				entry->header.protocol_version = pme_rev1;
+				entry->header.msg_type = 0x01; /* write */
+				entry->header.msg_length = write_size;
+				entry->table_id = tbl_id;
+				entry->indexed_entry.index =
+					(idx * num_contig_elem) + j;
+				memcpy(&entry->indexed_entry.entry,
+					current_tbl, write_entry_size);
+					current_tbl += write_entry_size;
+			}
+
+			/* build fd */
+			memset(&fd, 0, sizeof(fd));
+			qm_fd_addr_set64(&fd, pme_suspend_map(save_db->pdev,
+					input_data));
+			fd.format = qm_fd_contig_big;
+			fd.length29 = write_size * actual_entry_cnt;
 
 			ret = pme_pwrmgmt_ctx_pmtcc(save_db->ctx,
 				QMAN_ENQUEUE_FLAG_WAIT, &fd);
@@ -898,6 +956,7 @@ static int restore_all_tables(struct portal_backup_info *save_db,
 
 			wait_for_completion(&save_db->ctx->done);
 
+			pme_suspend_unmap(save_db->pdev, qm_fd_addr(&fd));
 			status = pme_fd_res_status(&save_db->ctx->result_fd);
 			if (status) {
 				ret = -EINVAL;
@@ -912,14 +971,13 @@ static int restore_all_tables(struct portal_backup_info *save_db,
 				break;
 			}
 		}
-		current_tbl += num_write_entries * write_entry_size;
-
-		/* Free input and output frame data */
-		kfree(input_data);
-		/* if failed, stop restoring database */
 		if (ret)
 			break;
 	}
+
+	/* Free input and output frame data */
+	kfree(input_data);
+
 	return ret;
 }
 
@@ -932,7 +990,6 @@ int fsl_pme_save_db(struct pme2_private_data *priv_data)
 	print_debug(priv_data->pme_rev1);
 #endif
 	ret = save_all_tables(save_db, priv_data->pme_rev1);
-
 	return ret;
 }
 
