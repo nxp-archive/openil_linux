@@ -27,6 +27,7 @@
 
 #include <asm/mpc85xx.h>
 #include <asm/fsl_kibo.h>
+#include <asm/reg.h>
 
 /* define indexes for each operation mapping scenario */
 #define OMI_QMAN        0x00
@@ -664,6 +665,16 @@ static u32 get_dsp_l2_stash_id(u32 vcpu)
 	return ~(u32)0;
 }
 
+static bool has_erratum_a007907(void)
+{
+	u32 pvr = mfspr(SPRN_PVR);
+
+	if (PVR_VER(pvr) == PVR_VER_E6500 && PVR_REV(pvr) <= 0x20)
+		return true;
+
+	return false;
+}
+
 /**
  * get_stash_id - Returns stash destination id corresponding to a
  *                cache type and vcpu.
@@ -680,6 +691,10 @@ u32 get_stash_id(u32 stash_dest_hint, u32 vcpu)
 	u32 cache_level;
 	int len, found = 0;
 	int i;
+
+	if (stash_dest_hint == PAMU_ATTR_CACHE_L1 &&
+	    has_erratum_a007907())
+		stash_dest_hint = PAMU_ATTR_CACHE_L2;
 
 	/* check for DSP L2 cache */
 	if (stash_dest_hint == PAMU_ATTR_CACHE_DSP_L2) {
