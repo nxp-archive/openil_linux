@@ -339,7 +339,7 @@ static int of_fsl_pme_probe(struct platform_device *ofdev)
 	if (likely(pme_err_irq != NO_IRQ)) {
 		/* Register the pme ISR handler */
 		err = request_irq(pme_err_irq, pme_isr,
-			IRQF_SHARED | IRQF_PERCPU, "pme-err", dev);
+			IRQF_SHARED, "pme-err", dev);
 		if (err) {
 			dev_err(dev, "request_irq() failed\n");
 			goto out_unmap_ctrl_region;
