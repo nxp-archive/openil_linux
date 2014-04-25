@@ -216,10 +216,8 @@ void fsl_rstcr_restart(char *cmd)
 }
 #endif
 
-#if defined(CONFIG_FB_FSL_DIU) || defined(CONFIG_FB_FSL_DIU_MODULE)
 struct platform_diu_data_ops diu_ops;
 EXPORT_SYMBOL(diu_ops);
-#endif
 
 #ifdef CONFIG_EPAPR_PARAVIRT
 /*
