@@ -36,23 +36,49 @@
 #include <linux/fsl_bman.h>
 #include "flib/dce_flow.h"
 
-/*
- *  DCE chunk is a stateless compressor/decompressor object. Each Frame which
- *  is compressed/decompressed is one complete work item and doesn't depend
- *  on previous Frames. As an example a Frame should be considered as one
- *  complete file.
+/**
+ * struct fsl_dce_chunk - stateless (streamless)
+ *
+ * @flow: Underlining dce flib object which contains a pair of QMan frame
+ *	queues.
+ * @cf: The (de)compression format used for this flow. DCE_CF_DEFLATE,
+ *	DCE_CF_ZLIB and DCE_CF_GZIP.
+ * @use_bman_output: (currently not used) Use BMan buffers for output. Optional
+ *	setting.
+ * @flags: internal value
+ * @lock: internal value
+ * @queue: internal value
+ *
+ * DCE chunk is a stateless (de)compressor object. Each frame which is
+ * (de)compressed is one complete work item and doesn't depend on previous
+ * frames. For instance a frame should be considered as one complete file.
  */
 struct fsl_dce_chunk {
 	struct fsl_dce_flow flow;
 
-	enum dce_compression_format cf; /* deflate, zlib or gzip */
-	/* optional BMan output settings */
+	enum dce_compression_format cf;
 	bool use_bman_output;
-	uint32_t flags; /* internal state */
+	/* internal state */
+	uint32_t flags;
 	spinlock_t lock;
 	wait_queue_head_t queue;
 };
 
+/**
+ * fsl_dce_chunk_setup2 - initialize a @chunk object for usage.
+ * @chunk: object to initialize
+ * @flags: (currently not used)
+ * @mode: compression or decompression mode.
+ * @cf: The (de)compression format used for this flow. DCE_CF_DEFLATE,
+ *	DCE_CF_ZLIB and DCE_CF_GZIP.
+ * @bcfg: optional bman configuration parameters.
+ * @process_cb: callback function when PROCESS operations are performed.
+ * @nop_cb: callback function when NOP operations are performed.
+ *
+ * This is another version of the @fsl_dce_chunk_setup with more options.
+ *
+ * Returns 0 on success
+ */
 int fsl_dce_chunk_setup2(struct fsl_dce_chunk *chunk,
 	uint32_t flags,
 	enum dce_mode mode,
@@ -61,26 +87,85 @@ int fsl_dce_chunk_setup2(struct fsl_dce_chunk *chunk,
 	fsl_dce_process_cb process_cb,
 	fsl_dce_nop_cb nop_cb);
 
+/**
+ * fsl_dce_chunk_fifo_len - length of internal outstanding requests to send
+ *
+ * @chunk: the object to query against
+ *
+ * Returns the number of elements in the list
+ */
 int fsl_dce_chunk_fifo_len(struct fsl_dce_chunk *chunk);
 
+/**
+ * fsl_dce_chunk_destroy - terminates a chunk object and the underlining
+ *	flow object.
+ *
+ * @chunk: object to destroy
+ * @flags: (currently not used)
+ * @callback_tag: (currently not used)
+ *
+ * Returns 0 on success
+ */
 int fsl_dce_chunk_destroy(struct fsl_dce_chunk *chunk, uint32_t flags,
 			void *callback_tag);
 
+/**
+ * fsl_dce_chunk_deflate_params - set deflate options
+ *
+ * @chunk: object to set options in
+ * @bman_output_offset: when using bman output start at an offset.
+ * @bman_release_input: release input frame to bman
+ * @base64: use base64 (de)coding
+ * @ce: compression effort: DCE_PROCESS_CE_*
+ *
+ * Returns 0 on success
+ */
 int fsl_dce_chunk_deflate_params(struct fsl_dce_chunk *chunk,
 	uint32_t bman_output_offset,
 	bool bman_release_input,
 	bool base64,
-	uint32_t ce); /* DCE_PROCESS_CE_* value */
+	uint32_t ce);
 
+/**
+ * fsl_dce_chunk_inflate_params - set inflate options
+ *
+ * @chunk: object to set options in
+ * @bman_output_offset: when using bman output start at an offset.
+ * @bman_release_input: release input frame to bman
+ * @base64: use base64 (de)coding
+ *
+ * Returns 0 on success
+ */
 int fsl_dce_chunk_inflate_params(struct fsl_dce_chunk *chunk,
 	uint32_t bman_output_offset,
 	bool bman_release_input,
 	bool base64);
 
+/**
+ * fsl_dce_chunk_process - de(compression) the input frame via DCE PROCESS
+ *
+ * @chunk: object to send process request
+ * @flags: (currently not used)
+ * @fd: frame descriptor to enqueue
+ * @callback_tag: optional, returned to the caller in the associated callback
+ *	function.
+ *
+ * Returns 0 on success
+ */
 int fsl_dce_chunk_process(struct fsl_dce_chunk *chunk, uint32_t flags,
-	struct qm_fd *fd, void *callback_tag); /* optional callback tag */
+	struct qm_fd *fd, void *callback_tag);
 
+/**
+ * fsl_dce_chunk_nop - send a DCE NOP request
+ *
+ * @chunk: object to send request
+ * @flags: (currently not used)
+ * @callback_tag: optional, returned to the caller in the associated callback
+ *	function.
+ *
+ * Returns 0 on success
+ */
 int fsl_dce_chunk_nop(struct fsl_dce_chunk *chunk, uint32_t flags,
-	void *callback_tag); /* optional callback tag */
+	void *callback_tag);
 
 #endif /* FSL_DCE_CHUNK_H */

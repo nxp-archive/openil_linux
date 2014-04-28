@@ -63,57 +63,78 @@ void fsl_dce_hw_decomp_ctxt_free(struct fsl_dce_hw_decomp_ctxt *);
 /************************/
 struct fsl_dce_stream;
 
-/* DCE stream is a stateful compressor/decompressor object */
+/**
+ * struct fsl_dce_stream - stateful (stream based) (de)compressor object
+ *
+ * @flow: Underlining dce flib object which contains a pair of QMan frame
+ *	queues.
+ * @cf: The (de)compression format used for this flow. DCE_CF_DEFLATE,
+ *	DCE_CF_ZLIB and DCE_CF_GZIP.
+ * @pmode: processing mode. trunction or recycle mode
+ * @use_bman_output: (not supported) Use BMan buffers for output. Optional
+ *	setting.
+ * @process_params: (not used)
+ * @hw_comp_scr: This is the stream context record used by hw when compressing
+ * @hw_decomp_scr: This is the stream context record used by hw when
+ *	decompressing
+ * @comp_hist: History window when compressing
+ * @decomp_hist: History window when decompressing
+ * @pending_output_ptr: pending output data. For decompression it is 8256 bytes
+ *	for compression this is 8202 bytes. No hard requirement on alignment but
+ *	64 bytes is optimal. Only needed in recycle mode.
+ * @decomp_ctx_ptr: decompression context pointer. Used to store the alphabet.
+ *	This is a 256 byte buffer with no alignment requirement.
+ * @flags: internal state
+ * @lock: internal value
+ * @queue: internal value
+ *
+ * A @fsl_dce_stream in DCE HW terminology is an object which is able to perform
+ * statful (de)compression in either recycle or truncation processing mode.
+ * In recycle mode, only synchronous processing is permitted and therefore
+ * a fifo_depth of 1 is only permitted.
+ */
 struct fsl_dce_stream {
 	struct fsl_dce_flow flow;
 
-	enum dce_compression_format cf; /* deflate, zlib or gzip */
-	enum dce_processing_mode pmode; /* recycle, trunc */
+	enum dce_compression_format cf;
+	enum dce_processing_mode pmode;
 
-	/* optional BMan output settings */
 	bool use_bman_output;
-	uint32_t process_params; /* inflate, deflate parameters */
+	uint32_t process_params;
 
-	/* hw dma scr structure */
 	union {
 		struct fsl_dce_hw_scr_64b *hw_comp_scr;
 		struct fsl_dce_hw_scr_128b *hw_decomp_scr;
 	};
 
-	/*
-	 * history window
-	 *	decompression: 32k size 64B aligned
-	 *	compression: 4k size, 64B aligned
-	 */
 	union {
 		struct fsl_dce_hw_compress_history *comp_hist;
 		struct fsl_dce_hw_decompress_history *decomp_hist;
 	};
 
-	/*
-	 * Pending Ouput Data
-	 * decomp: 8256 bytes, comp: 8202. No hard requirement on alignment,
-	 * but 64 is optimal. Only needed in recycle mode.
-	 */
 	struct fsl_dce_hw_pending_output *pending_output_ptr;
-
-	/*
-	 *  Decompression Context Pointer, used to store the alphabet
-	 *  This is a 256 byte buffer with no alignment requirement
-	 */
 	struct fsl_dce_hw_decomp_ctxt *decomp_ctx_ptr;
 
-	uint32_t flags; /* internal state */
+	/* internal state */
+	uint32_t flags;
 	spinlock_t lock;
 	wait_queue_head_t queue;
 };
+
 /**
  * fsl_dce_stream_setup - setup for dce stream object
- * @stream:
- * @mode:
- * @cf:
  *
- * Simple dce stream setup function
+ * @stream: object to setup
+ * @flags: (not used)
+ * @mode: compression or decompression mode
+ * @cf: The (de)compression format used for this flow. DCE_CF_DEFLATE,
+ *	DCE_CF_ZLIB and DCE_CF_GZIP.
+ * @process_cb: callback function when PROCESS operations are performed.
+ * @nop_cb: callback function when NOP operations are performed.
+ * @scr_invalidate_cb: callback function when SCR_INVALIDATE operations are
+ *	performed.
+ *
+ * Setup a @stream object for usage
  */
 int fsl_dce_stream_setup(struct fsl_dce_stream *stream,
 	uint32_t flags,
@@ -125,17 +146,20 @@ int fsl_dce_stream_setup(struct fsl_dce_stream *stream,
 
 /**
  * fsl_dce_stream_setup2 - Advanced setup for dce stream object
- * @stream:
- * @mode:
- * @cf:
- * @pmode:
- * @bcfg
  *
- * Advanced dce stream setup function.
- * A dce_stream in DCE HW terminology is an object which is able to perform
- * statful (de)compression in either recycle or truncation processing mode.
- * In recycle mode, only synchronous processing is permitted and therefore
- * a fifo_depth of 1 is only permitted.
+ * @stream: object to setup
+ * @flags: (not used)
+ * @mode: compression or decompression mode
+ * @cf: The (de)compression format used for this flow. DCE_CF_DEFLATE,
+ *	DCE_CF_ZLIB and DCE_CF_GZIP.
+ * @pmode: truncation or recycle mode (recycle not supported)
+ * @bcfg:  optional bman configuration parameters.
+ * @process_cb: callback function when PROCESS operations are performed.
+ * @nop_cb: callback function when NOP operations are performed.
+ * @scr_invalidate_cb: callback function when SCR_INVALIDATE operations are
+ *	performed.
+ *
+ * Returns 0 in success
  */
 int fsl_dce_stream_setup2(struct fsl_dce_stream *stream,
 	uint32_t flags,
@@ -147,32 +171,91 @@ int fsl_dce_stream_setup2(struct fsl_dce_stream *stream,
 	fsl_dce_nop_cb nop_cb,
 	fsl_dce_scr_invalidate_cb scr_invalidate_cb);
 
+/**
+ * fsl_dce_stream_fifo_len - length of internal outstanding requests to send
+ *
+ * @stream: the object to query against
+ *
+ * Returns the number of elements in the list
+ */
 int fsl_dce_stream_fifo_len(struct fsl_dce_stream *stream);
 
+/**
+ * fsl_dce_stream_destroy - terminates a stream object and the underlining
+ *	flow object.
+ *
+ * @stream: object to destroy
+ * @flags: (currently not used)
+ * @callback_tag: (currently not used)
+ *
+ * Returns 0 on success
+ */
 int fsl_dce_stream_destroy(struct fsl_dce_stream *stream, uint32_t flags,
 			void *callback_tag);
 
+/**
+ * fsl_dce_stream_deflate_params - set deflate options
+ *
+ * @stream: object to set options in
+ * @bman_output_offset: when using bman output start at an offset.
+ * @bman_release_input: release input frame to bman
+ * @base64: use base64 (de)coding
+ * @ce: compression effort: DCE_PROCESS_CE_*
+ *
+ * Returns 0 on success
+ */
 int fsl_dce_stream_deflate_params(struct fsl_dce_stream *stream,
 	uint32_t bman_output_offset,
 	bool bman_release_input,
 	bool base64,
 	uint32_t ce); /* DCE_PROCESS_CE_* value */
 
+/**
+ * fsl_dce_stream_inflate_params - set inflate options
+ *
+ * @stream: object to set options in
+ * @bman_output_offset: when using bman output start at an offset.
+ * @bman_release_input: release input frame to bman
+ * @base64: use base64 (de)coding
+ *
+ * Returns 0 on success
+ */
 int fsl_dce_stream_inflate_params(struct fsl_dce_stream *stream,
 	uint32_t bman_output_offset,
 	bool bman_release_input,
 	bool base64);
 
-/*
- * This is the mission mode api.
+/**
+ * fsl_dce_stream_process - de(compression) the input frame via DCE PROCESS
+ *
+ * @stream: object to send process request
+ * @flags: (currently not used)
+ * @fd: frame descriptor to enqueue
+ * @initial_frame: set to true if this is the first frame of a stream.
+ *	Causes the I bit to be set in the PROCESS request.
+ * @z_flush: possible values are DCE_PROCESS_Z_* values.
+ * @callback_tag: optional, returned to the caller in the associated callback
+ *	function.
+ *
+ * Returns 0 on success
  */
 int fsl_dce_stream_process(struct fsl_dce_stream *stream,
 	uint32_t flags,
 	struct qm_fd *fd,
-	bool initial_frame, /* if initial frame, sets I bit */
-	int z_flush, /* one of DCE_PROCESS_Z_* values */
-	void *callback_tag); /* optional callback tag */
+	bool initial_frame,
+	int z_flush,
+	void *callback_tag);
 
+/**
+ * fsl_dce_stream_nop - send a DCE NOP request
+ *
+ * @stream: object to send request
+ * @flags: (currently not used)
+ * @callback_tag: optional, returned to the caller in the associated callback
+ *	function.
+ *
+ * Returns 0 on success
+ */
 int fsl_dce_stream_nop(struct fsl_dce_stream *stream, uint32_t flags,
 	void *callback_tag); /* optional callback tag */
 
