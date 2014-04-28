@@ -230,7 +230,7 @@ void accumulator_update_interval(u32 interval);
 static DECLARE_DELAYED_WORK(accumulator_work, accumulator_update);
 u32 pme_stat_interval = CONFIG_FSL_PME2_STAT_ACCUMULATOR_UPDATE_INTERVAL;
 #define PME_SBE_ERR 0x01000000
-#define PME_DBE_ERR 0x00080000
+#define PME_DBE_ERR 0x00800000
 #define PME_PME_ERR 0x00000100
 #define PME_ALL_ERR (PME_SBE_ERR | PME_DBE_ERR | PME_PME_ERR)
 
