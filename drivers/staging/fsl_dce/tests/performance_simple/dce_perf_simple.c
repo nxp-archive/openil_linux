@@ -65,26 +65,28 @@ MODULE_AUTHOR("Freescale Semiconductor, Inc");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("DCE loopback example");
 
-#define USE_BMAN_OUTPUT
-#undef VERBOSE
-
 static int test_mode;
 module_param(test_mode, int, S_IRUGO);
-MODULE_PARM_DESC(test_mode, "test_mode: 0 is compression, 1 is decompression"
-		 " (default=0)");
+MODULE_PARM_DESC(test_mode, "test_mode: 0 is compression, 1 is decompression (default=0)");
+
+static int verbose_level; /* 0 low, 1 high */
+module_param(verbose_level, int, 0);
+MODULE_PARM_DESC(verbose_level, "verbosity level: 0 low, 1 is high (default=0)");
+
+static int bman_output = 1;
+module_param(bman_output, int, S_IRUGO);
+MODULE_PARM_DESC(test_mode, "bman_output: 0 don't use Bman, 1 use Bman output (default=1)");
 
 static int b_sg_block_size_code = DCE_TSIZE_4096B;
 module_param(b_sg_block_size_code, int, S_IRUGO);
-MODULE_PARM_DESC(b_sg_block_size_code, "Size of bman buffers used to create"
-		 " s/g tables (default=4096)");
+MODULE_PARM_DESC(b_sg_block_size_code, "Size of bman buffers used to create s/g tables (default=4096)");
 
 /* This is used for actual kmalloc */
 static int b_sg_block_size = 4096;
 
 static int b_sg_block_count = 50;
 module_param(b_sg_block_count, int, S_IRUGO);
-MODULE_PARM_DESC(b_sg_block_count, "Number of s/g bman buffers to release"
-		 " (default=50)");
+MODULE_PARM_DESC(b_sg_block_count, "Number of s/g bman buffers to release (default=50)");
 
 static int b_dexp = 12;
 module_param(b_dexp, int, S_IRUGO);
@@ -98,14 +100,11 @@ static uint32_t bman_data_buff_size;
 
 static int block_size = 4096;
 module_param(block_size, int, S_IRUGO);
-MODULE_PARM_DESC(block_size, "Size of individual input data blocks in s/g"
-		"  (default=4096)");
+MODULE_PARM_DESC(block_size, "Size of individual input data blocks in s/g (default=4096)");
 
 static int use_local_file;
 module_param(use_local_file, int, S_IRUGO);
-MODULE_PARM_DESC(use_local_file, "Use the included local header file for"
-		 " (de)compression. The value specifies the input size."
-		 " Supported value are 0, 2, 4, 8, 12 (default=0)");
+MODULE_PARM_DESC(use_local_file, "Use the included local header file for (de)compression. The value specifies the input size. Supported value are 0, 2, 4, 8, 12 (default=0)");
 
 static int comp_effort = DCE_PROCESS_CE_STATIC_HUFF_STRMATCH;
 module_param(comp_effort, int, S_IRUGO);
@@ -121,8 +120,7 @@ MODULE_PARM_DESC(out_file, "Output file result of (de)compression");
 
 static int comp_ratio = 4;
 module_param(comp_ratio, int, S_IRUGO);
-MODULE_PARM_DESC(comp_ratio, "The compresstion ratio to be used for allocat"
-		 " output data buffer");
+MODULE_PARM_DESC(comp_ratio, "The compresstion ratio to be used for allocat output data buffer");
 
 static int output_size;
 module_param(output_size, int, S_IRUGO);
@@ -133,8 +131,6 @@ module_param(bman_data_size, int, S_IRUGO);
 MODULE_PARM_DESC(bman_data_size, "The size of the data buffer pool");
 
 static int b_data_block_count;
-
-extern unsigned long ppc_proc_freq;
 
 /* Break up data used for each channel to avoid contention for the
  * cache lines */
@@ -189,11 +185,12 @@ static int setup_buffer_pools(void)
 		pr_err("can't get sg buffer pool\n");
 		return -EINVAL;
 	}
-#ifdef VERBOSE
-	pr_info("Allocated bpool data %d and bpool sg %d\n",
-		bman_get_params(pool_data)->bpid,
-		bman_get_params(pool_sg)->bpid);
-#endif
+
+	if (verbose_level) {
+		pr_info("Allocated bpool data %d and bpool sg %d\n",
+			bman_get_params(pool_data)->bpid,
+			bman_get_params(pool_sg)->bpid);
+	}
 	return 0;
 }
 
@@ -254,9 +251,10 @@ static int empty_bman_data_pool(void)
 			count++;
 		}
 	} while (ret > 0);
-#ifdef VERBOSE
-	pr_info("Freed %d data buffers\n", count);
-#endif
+
+	if (verbose_level)
+		pr_info("Freed %d data buffers\n", count);
+
 	return 0;
 }
 
@@ -267,7 +265,7 @@ static int populate_bman_sg_pool(void)
 	void *cpumem;
 	int ret;
 
-	for (i = 0; i < b_sg_block_count ; i++) {
+	for (i = 0; i < b_sg_block_count; i++) {
 		cpumem = kmalloc(b_sg_block_size, GFP_KERNEL);
 		if (!cpumem) {
 			pr_err("Can't allocate s/g buffers\n");
@@ -300,9 +298,10 @@ static int empty_bman_sg_pool(void)
 			count++;
 		}
 	} while (ret > 0);
-#ifdef VERBOSE
-	pr_info("Freed %d sg entries\n", count);
-#endif
+
+	if (verbose_level)
+		pr_info("Freed %d sg entries\n", count);
+
 	return 0;
 }
 
@@ -385,8 +384,8 @@ static int copy_bman_output_to_buffer(struct qm_sg_entry *sg, size_t cpylen,
 		} while (1);
 
 		if (cpylen != cal_total_lenght) {
-			pr_info("total frame length != calulated length (%zu)"
-				" (%llu)\n", cpylen, cal_total_lenght);
+			pr_info("total frame length != calulated length (%zu) (%llu)\n",
+				cpylen, cal_total_lenght);
 		}
 	} else {
 		pr_info("output is simple frame from bman pool %u\n",
@@ -547,8 +546,7 @@ static int validate_module_params(void)
 	b_sg_block_size = 1 << (6 + b_sg_block_size_code);
 
 	if (!bman_data_size) {
-		pr_err("bman_data_size is zero. This is the size of all the"
-			" data in the bman data pool.\n");
+		pr_err("bman_data_size is zero. This is the size of all the data in the bman data pool.\n");
 		return -EINVAL;
 	}
 
@@ -738,8 +736,7 @@ void dce_loopback_shutdown(void)
 		estimate_Mbps *= scaled_val;
 		do_div(estimate_Mbps, 1000);
 
-		pr_info("Compression thoughput:      %llu Mbps"
-			" (%llu Mbps for 400 Mhz DCE)\n",
+		pr_info("Compression thoughput:      %llu Mbps (%llu Mbps for 400 Mhz DCE)\n",
 			comp_Mbps, estimate_Mbps);
 
 	} else {
@@ -757,8 +754,7 @@ void dce_loopback_shutdown(void)
 		estimate_Mbps *= scaled_val;
 		do_div(estimate_Mbps, 1000);
 
-		pr_info("Decompression thoughput:    %llu Mbps"
-			" (%llu Mbps for 400 Mhz DCE)\n",
+		pr_info("Decompression thoughput:    %llu Mbps (%llu Mbps for 400 Mhz DCE)\n",
 			decomp_Mbps, estimate_Mbps);
 	} else {
 		pr_info("Decompression thoughput: None\n");
@@ -828,69 +824,76 @@ static int do_operation(void)
 		&def_process_req->input_data);
 	if (ret)
 		pr_err("Error Allocating input data Line %d\n", __LINE__);
-#if 0
-	pr_info("Printing input_list info\n");
-	print_dce_data_list(&def_process_req->input_data);
-#endif
 
-#ifndef USE_BMAN_OUTPUT
-	/* allocate output dma contiguous memory. If compression allocate
-	 * 512 bytes more. If decompression, allocate x times more. */
-	if (test_mode == COMP_ONLY) {
-		ret = alloc_dce_data(test_data->input_data_len + output_size,
-			block_size,
-			&def_process_req->output_data);
-	} else {
-		/* maximum decompression size is 20 MB */
-		ret = alloc_dce_data(test_data->input_data_len * comp_ratio,
-			block_size,
-			&def_process_req->output_data);
+	if (verbose_level == 3) {
+		pr_info("Printing input_list info\n");
+		print_dce_data_list(&def_process_req->input_data);
 	}
-	if (ret)
-		pr_err("Error Allocating Output Mem Line %d\n", __LINE__);
-#endif
 
-#if 0
-	pr_info("Printing output_list info\n");
-	print_dce_data_list(&def_process_req->output_data);
-#endif
+	if (!bman_output) {
+		/* allocate output dma contiguous memory. If compression
+		 * allocate 512 bytes more. If decompression, allocate x times
+		 * more.
+		 */
+		if (test_mode == COMP_ONLY) {
+			ret = alloc_dce_data(
+				test_data->input_data_len + output_size,
+				block_size, &def_process_req->output_data);
+		} else {
+			/* maximum decompression size is 20 MB */
+			ret = alloc_dce_data(
+				test_data->input_data_len * comp_ratio,
+				block_size, &def_process_req->output_data);
+		}
+		if (ret)
+			pr_err("Error Allocating Output Mem Line %d\n",
+				__LINE__);
+	}
+
+	if (verbose_level == 3) {
+		pr_info("Printing output_list info\n");
+		print_dce_data_list(&def_process_req->output_data);
+	}
 
 	ret = copy_input_to_dce_data(test_data->input_data,
 		test_data->input_data_len, &def_process_req->input_data);
 	if (ret)
 		pr_err("Line %d\n", __LINE__);
-#if 0
-	pr_info("Printing input after copy info\n");
-	print_dce_data_list(&def_process_req->input_data);
-#endif
+
+	if (verbose_level == 3) {
+		pr_info("Printing input after copy info\n");
+		print_dce_data_list(&def_process_req->input_data);
+	}
 
 	ret = dma_map_dce_data(&def_process_req->input_data, DMA_BIDIRECTIONAL);
 	if (ret)
 		pr_err("Line %d\n", __LINE__);
-#if 0
-	pr_info("Printing input after dma_map info\n");
-	print_dce_data_list(&def_process_req->input_data);
-#endif
 
-#ifndef USE_BMAN_OUTPUT
-	ret = dma_map_dce_data(&def_process_req->output_data,
+	if (verbose_level == 3) {
+		pr_info("Printing input after dma_map info\n");
+		print_dce_data_list(&def_process_req->input_data);
+	}
+
+	if (!bman_output) {
+		ret = dma_map_dce_data(&def_process_req->output_data,
 				DMA_BIDIRECTIONAL);
-	if (ret)
-		pr_err("Line %d\n", __LINE__);
+		if (ret)
+			pr_err("Line %d\n", __LINE__);
 
-#ifdef VERBOSE
-	pr_info("Printing output after dma_map info\n");
-	print_dce_data_list(&def_process_req->output_data);
-#endif
-	ret = attach_data_list_to_sg(&def_process_req->dce_cf[0],
-			&def_process_req->output_data,
+		if (verbose_level) {
+			pr_info("Printing output after dma_map info\n");
+			print_dce_data_list(&def_process_req->output_data);
+		}
+
+		ret = attach_data_list_to_sg(&def_process_req->dce_cf[0],
+			&def_process_req->output_data, true,
 			DMA_BIDIRECTIONAL);
-	if (ret)
-		pr_err("Line %d\n", __LINE__);
-#endif /* !USE_BMAN_OUTPUT */
+		if (ret)
+			pr_err("Line %d\n", __LINE__);
+	}
 
 	ret = attach_data_list_to_sg(&def_process_req->dce_cf[1],
-			&def_process_req->input_data,
+			&def_process_req->input_data, false,
 			DMA_BIDIRECTIONAL);
 	if (ret)
 		pr_err("Line %d\n", __LINE__);
@@ -906,12 +909,14 @@ static int do_operation(void)
 	def_process_req->input_fd.cong_weight = 1;
 	qm_fd_addr_set64(&def_process_req->input_fd,
 		fsl_dce_map(def_process_req->dce_cf));
-#if 0
-	print_dce_fd(def_process_req->input_fd);
-	print_dce_sg(def_process_req->dce_cf[0]);
-	print_dce_sg(def_process_req->dce_cf[1]);
-	print_dce_sg(def_process_req->dce_cf[2]);
-#endif
+
+	if (verbose_level == 3) {
+		print_dce_fd(def_process_req->input_fd);
+		print_dce_sg(def_process_req->dce_cf[0]);
+		print_dce_sg(def_process_req->dce_cf[1]);
+		print_dce_sg(def_process_req->dce_cf[2]);
+	}
+
 	start_time = mfatb();
 
 	ret = fsl_dce_chunk_process(&test_data->ctx, 0,
@@ -943,21 +948,22 @@ done:
 		pr_err("Unable to allocate output data\n");
 	test_data->out_data_len = def_process_req->dce_cf[0].length;
 
-#ifndef USE_BMAN_OUTPUT
-	ret = copy_dce_data_to_buffer(&def_process_req->output_data,
-		test_data->out_data_len,
-		test_data->out_data, test_data->out_data_len);
+	if (!bman_output) {
+		ret = copy_output_dce_data_to_buffer(
+			&def_process_req->output_data,
+			test_data->out_data_len,
+			test_data->out_data, test_data->out_data_len);
 
-	if (ret)
-		pr_err("Error %d\n", __LINE__);
-#else
-	ret = copy_bman_output_to_buffer(&def_process_req->dce_cf[0],
-		test_data->out_data_len,
-		test_data->out_data, test_data->out_data_len);
+		if (ret)
+			pr_err("Error %d\n", __LINE__);
+	} else {
+		ret = copy_bman_output_to_buffer(&def_process_req->dce_cf[0],
+			test_data->out_data_len,
+			test_data->out_data, test_data->out_data_len);
 
-	if (ret)
-		pr_err("Error %d\n", __LINE__);
-#endif
+		if (ret)
+			pr_err("Error %d\n", __LINE__);
+	}
 
 	ret = detach_scf64_from_sg(&def_process_req->dce_cf[2],
 			&def_process_req->scf,
@@ -965,19 +971,18 @@ done:
 	ret = detach_data_list_from_sg(&def_process_req->dce_cf[1],
 		&def_process_req->input_data, DMA_BIDIRECTIONAL);
 
-#ifndef USE_BMAN_OUTPUT
-	ret = detach_data_list_from_sg(&def_process_req->dce_cf[0],
+	if (!bman_output) {
+		ret = detach_data_list_from_sg(&def_process_req->dce_cf[0],
 			&def_process_req->output_data, DMA_BIDIRECTIONAL);
-	ret = dma_unmap_dce_data(&def_process_req->output_data,
+		ret = dma_unmap_dce_data(&def_process_req->output_data,
 				DMA_BIDIRECTIONAL);
-#endif
+	}
 
 	ret = dma_unmap_dce_data(&def_process_req->input_data,
 				DMA_BIDIRECTIONAL);
 
-#ifndef USE_BMAN_OUTPUT
-	free_dce_data(&def_process_req->output_data);
-#endif
+	if (!bman_output)
+		free_dce_data(&def_process_req->output_data);
 
 	free_dce_data(&def_process_req->input_data);
 	kfree(def_process_req);

@@ -69,6 +69,10 @@ static int test_mode;
 module_param(test_mode, int, S_IRUGO);
 MODULE_PARM_DESC(test_mode, "test_mode: 0 is compression, 1 is decompression (default=0)");
 
+static int verbose_level; /* 0 low, 1 high */
+module_param(verbose_level, int, 0);
+MODULE_PARM_DESC(verbose_level, "verbosity level: 0 low, 1 is high (default=0)");
+
 static int bman_output = 1;
 module_param(bman_output, int, S_IRUGO);
 MODULE_PARM_DESC(test_mode, "bman_output: 0 don't use Bman, 1 use Bman output (default=1)");
@@ -86,10 +90,10 @@ MODULE_PARM_DESC(b_sg_block_count, "Number of s/g bman buffers to release (defau
 
 static int b_dexp = 12;
 module_param(b_dexp, int, S_IRUGO);
-MODULE_PARM_DESC(b_dexp, "Bman dexp value, default=");
+MODULE_PARM_DESC(b_dexp, "Bman dexp value, default=12");
 static int b_dmant = 1;
 module_param(b_dmant, int, S_IRUGO);
-MODULE_PARM_DESC(b_dmant, "Bman dmant value, default=");
+MODULE_PARM_DESC(b_dmant, "Bman dmant value, default=1");
 
 static uint32_t bman_data_buff_size;
 
@@ -127,7 +131,7 @@ MODULE_PARM_DESC(bman_data_size, "The size of the data buffer pool in bytes");
 
 static int chunking_size = 4096;
 module_param(chunking_size, int, S_IRUGO);
-MODULE_PARM_DESC(chunking_size, "How much input to send at a time");
+MODULE_PARM_DESC(chunking_size, "How much input bytes to send at a time");
 
 static int b_data_block_count;
 
@@ -1001,14 +1005,14 @@ static int do_operation(void)
 
 			ret = attach_data_list_to_sg(
 				&def_process_req->dce_cf[0],
-				&def_process_req->output_data,
+				&def_process_req->output_data, true,
 				DMA_BIDIRECTIONAL);
 			if (ret)
 				pr_err("Line %d\n", __LINE__);
 		}
 
 		ret = attach_data_list_to_sg(&def_process_req->dce_cf[1],
-				&def_process_req->input_data,
+				&def_process_req->input_data, false,
 				DMA_BIDIRECTIONAL);
 		if (ret)
 			pr_err("Line %d\n", __LINE__);
@@ -1101,7 +1105,7 @@ done:
 		/* Need to determine if this output is pre-built or Bman */
 		if (!def_process_req->dce_cf[0].bpid) {
 			if (def_process_req->dce_cf[0].length) {
-				ret = copy_dce_data_to_buffer(
+				ret = copy_output_dce_data_to_buffer(
 					&def_process_req->output_data,
 					def_process_req->dce_cf[0].length,
 					p_out,

@@ -495,38 +495,48 @@ int copy_input_to_dce_data(char *input, size_t ilen,
 EXPORT_SYMBOL(copy_input_to_dce_data);
 
 /*
- * @data_list is the source data. @cpylen is how much data from data_list to copy
- * @buffer is the destination. @buf_size is the size of the destination buffer
+ * @data_list is the source data.
+ * @cpylen is how much data from data_list to copy
+ * @buffer is the destination.
+ * @buf_size is the size of the destination buffer
  */
-int copy_dce_data_to_buffer(struct dce_data_list_t *data_list, size_t cpylen,
-			char *buffer, size_t buf_size)
+int copy_output_dce_data_to_buffer(struct dce_data_list_t *data_list,
+		size_t cpylen, char *buffer, size_t buf_size)
 {
 	int i = 0;
 
-	if (!buffer || !data_list || !data_list->data_item)
+	if (!buffer || !data_list || !data_list->data_item) {
+		pr_info("%d\n", __LINE__);
 		return -EINVAL;
+	}
 
-	if (cpylen > total_size_dce_data(data_list))
+	if (cpylen > total_allocated_dce_data(data_list)) {
+		pr_info("%d\n", __LINE__);
 		return -EINVAL;
+	}
 
-	if (cpylen > buf_size)
+	if (cpylen > buf_size) {
+		pr_info("%d\n", __LINE__);
 		return -EINVAL;
+	}
 
 	if (!is_multi_buffer(data_list)) {
 		memcpy(buffer, data_list->data_item->cpumem, cpylen);
+		 data_list->data_item->d_size = cpylen;
 		return 0;
 	}
 
 	while (cpylen) {
-		size_t to_copy = min(data_list->data_item[i].d_size, cpylen);
+		size_t to_copy = min(data_list->data_item[i].size, cpylen);
 		memcpy(buffer, data_list->data_item[i].cpumem, to_copy);
+		data_list->data_item[i].d_size = to_copy;
 		cpylen -= to_copy;
 		buffer += to_copy;
 		i++;
 	}
 	return 0;
 }
-EXPORT_SYMBOL(copy_dce_data_to_buffer);
+EXPORT_SYMBOL(copy_output_dce_data_to_buffer);
 
 int dma_map_dce_data(struct dce_data_list_t *data_list,
 		enum dma_data_direction dir)
@@ -589,6 +599,7 @@ EXPORT_SYMBOL(dma_unmap_dce_data);
 
 int attach_data_list_to_sg(struct qm_sg_entry *sg,
 			struct dce_data_list_t *data_list,
+			bool use_raw_size,
 			enum dma_data_direction dir)
 {
 	dma_addr_t addr;
@@ -608,7 +619,6 @@ int attach_data_list_to_sg(struct qm_sg_entry *sg,
 				return -ENOMEM;
 		}
 		qm_sg_entry_set64(sg, addr);
-		sg->length = total_size_dce_data(data_list);
 	} else {
 		sg->extension = 0;
 		addr = dma_map_single(dce_device,
@@ -620,8 +630,12 @@ int attach_data_list_to_sg(struct qm_sg_entry *sg,
 				return -ENOMEM;
 		}
 		qm_sg_entry_set64(sg, addr);
-		sg->length = total_size_dce_data(data_list);
 	}
+	if (use_raw_size)
+		sg->length = total_allocated_dce_data(data_list);
+	else
+		sg->length = total_size_dce_data(data_list);
+
 	return 0;
 }
 EXPORT_SYMBOL(attach_data_list_to_sg);

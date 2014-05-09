@@ -50,8 +50,10 @@ MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("FSL DCE test: stateless trunc deflate compoundframes");
 
 static int block_size = 4096;
+static int verbose_level; /* 0 low, 1 high */
 
 module_param(block_size, int, 0);
+module_param(verbose_level, int, 0);
 
 static void chunk_process_cb(struct fsl_dce_flow *flow,
 		const struct qm_fd *fd, void *callback_tag)
@@ -167,6 +169,9 @@ static int do_test(struct dce_test_ctx *ctx,
 	struct dce_process_cf_req *def_process_req, *inf_process_req;
 	struct dce_nop_req *nop_req;
 
+	pr_info("do_test: format %d input_len %zu\n", format, input_len);
+	pr_info("  block_len %zu, output_len %zu\n", block_len, output_len);
+
 	ret = init_test_ctx(ctx, format);
 	if (ret)
 		goto fail_init_test_ctx;
@@ -226,18 +231,22 @@ static int do_test(struct dce_test_ctx *ctx,
 		goto fail_alloc_dce_data_input;
 	}
 
-	pr_info("Printing input_list info\n");
-	print_dce_data_list(&def_process_req->input_data);
+	if (verbose_level == 1) {
+		pr_info("Printing input_list info\n");
+		print_dce_data_list(&def_process_req->input_data);
+	}
 
-	ret = alloc_dce_data(input_len, block_len,
+	ret = alloc_dce_data(output_len, block_len,
 		&def_process_req->output_data);
 	if (ret) {
 		BUG();
 		goto fail_alloc_dce_data_output;
 	}
 
-	pr_info("Printing output_list info\n");
-	print_dce_data_list(&def_process_req->output_data);
+	if (verbose_level == 1) {
+		pr_info("Printing output_list info\n");
+		print_dce_data_list(&def_process_req->output_data);
+	}
 
 	ret = copy_input_to_dce_data(input_data, input_len,
 					&def_process_req->input_data);
@@ -246,8 +255,10 @@ static int do_test(struct dce_test_ctx *ctx,
 		goto fail_alloc_dce_data_output;
 	}
 
-	pr_info("Printing input after copy info\n");
-	print_dce_data_list(&def_process_req->input_data);
+	if (verbose_level == 1) {
+		pr_info("Printing input after copy info\n");
+		print_dce_data_list(&def_process_req->input_data);
+	}
 
 	ret = dma_map_dce_data(&def_process_req->input_data, DMA_BIDIRECTIONAL);
 	if (ret) {
@@ -255,8 +266,10 @@ static int do_test(struct dce_test_ctx *ctx,
 		goto fail_alloc_dce_data_output;
 	}
 
-	pr_info("Printing input after dma_map info\n");
-	print_dce_data_list(&def_process_req->input_data);
+	if (verbose_level == 1) {
+		pr_info("Printing input after dma_map info\n");
+		print_dce_data_list(&def_process_req->input_data);
+	}
 
 	ret = dma_map_dce_data(&def_process_req->output_data,
 				DMA_BIDIRECTIONAL);
@@ -265,11 +278,13 @@ static int do_test(struct dce_test_ctx *ctx,
 		goto fail_dma_map_deflate_output_data;
 	}
 
-	pr_info("Printing output after dma_map info\n");
-	print_dce_data_list(&def_process_req->output_data);
+	if (verbose_level == 1) {
+		pr_info("Printing output after dma_map info\n");
+		print_dce_data_list(&def_process_req->output_data);
+	}
 
 	ret = attach_data_list_to_sg(&def_process_req->dce_cf[0],
-			&def_process_req->output_data,
+			&def_process_req->output_data, true,
 			DMA_BIDIRECTIONAL);
 	if (ret) {
 		BUG();
@@ -277,7 +292,7 @@ static int do_test(struct dce_test_ctx *ctx,
 	}
 
 	ret = attach_data_list_to_sg(&def_process_req->dce_cf[1],
-			&def_process_req->input_data,
+			&def_process_req->input_data, false,
 			DMA_BIDIRECTIONAL);
 	if (ret) {
 		BUG();
@@ -287,6 +302,7 @@ static int do_test(struct dce_test_ctx *ctx,
 	def_process_req->dce_cf[2].final = 1;
 
 	def_process_req->input_fd._format2 = qm_fd_compound;
+	def_process_req->input_fd.cong_weight = 1;
 	qm_fd_addr_set64(&def_process_req->input_fd,
 		fsl_dce_map(def_process_req->dce_cf));
 
@@ -349,9 +365,14 @@ static int do_test(struct dce_test_ctx *ctx,
 		def_process_req->dce_cf[0].length);
 
 	print_dce_sg(def_process_req->dce_cf[0]);
-	print_dce_data_list(&def_process_req->output_data);
+
+	if (verbose_level == 1)
+		print_dce_data_list(&def_process_req->output_data);
 
 	/* Save Output */
+	pr_info("Saving output\n");
+	pr_info("Output length is %u\n", def_process_req->dce_cf[0].length);
+
 	def_process_req->v_output = vmalloc(def_process_req->dce_cf[0].length);
 	if (!def_process_req->v_output) {
 		pr_err("Error %d\n", __LINE__);
@@ -359,7 +380,7 @@ static int do_test(struct dce_test_ctx *ctx,
 	}
 	def_process_req->v_output_size = def_process_req->dce_cf[0].length;
 
-	ret = copy_dce_data_to_buffer(&def_process_req->output_data,
+	ret = copy_output_dce_data_to_buffer(&def_process_req->output_data,
 		def_process_req->v_output_size,
 		def_process_req->v_output, def_process_req->v_output_size);
 
@@ -397,8 +418,10 @@ static int do_test(struct dce_test_ctx *ctx,
 		return ret;
 	}
 
-	pr_info("Printing input_list info\n");
-	print_dce_data_list(&inf_process_req->input_data);
+	if (verbose_level == 1) {
+		pr_info("Printing input_list info\n");
+		print_dce_data_list(&inf_process_req->input_data);
+	}
 
 	ret = alloc_dce_data(input_len, block_len,
 			&inf_process_req->output_data);
@@ -407,8 +430,10 @@ static int do_test(struct dce_test_ctx *ctx,
 		return ret;
 	}
 
-	pr_info("Printing output_list info\n");
-	print_dce_data_list(&inf_process_req->output_data);
+	if (verbose_level == 1) {
+		pr_info("Printing output_list info\n");
+		print_dce_data_list(&inf_process_req->output_data);
+	}
 
 	ret = copy_input_to_dce_data(def_process_req->v_output,
 		def_process_req->v_output_size, &inf_process_req->input_data);
@@ -417,8 +442,10 @@ static int do_test(struct dce_test_ctx *ctx,
 		return ret;
 	}
 
-	pr_info("Printing inflate input after copy info\n");
-	print_dce_data_list(&inf_process_req->input_data);
+	if (verbose_level == 1) {
+		pr_info("Printing inflate input after copy info\n");
+		print_dce_data_list(&inf_process_req->input_data);
+	}
 
 	ret = dma_map_dce_data(&inf_process_req->input_data, DMA_BIDIRECTIONAL);
 	if (ret) {
@@ -426,8 +453,10 @@ static int do_test(struct dce_test_ctx *ctx,
 		return ret;
 	}
 
-	pr_info("Printing input after dma_map info\n");
-	print_dce_data_list(&inf_process_req->input_data);
+	if (verbose_level == 1) {
+		pr_info("Printing input after dma_map info\n");
+		print_dce_data_list(&inf_process_req->input_data);
+	}
 
 	ret = dma_map_dce_data(&inf_process_req->output_data,
 				DMA_BIDIRECTIONAL);
@@ -436,18 +465,20 @@ static int do_test(struct dce_test_ctx *ctx,
 		return ret;
 	}
 
-	pr_info("Printing output after dma_map info\n");
-	print_dce_data_list(&inf_process_req->output_data);
+	if (verbose_level == 1) {
+		pr_info("Printing output after dma_map info\n");
+		print_dce_data_list(&inf_process_req->output_data);
+	}
 
 	ret = attach_data_list_to_sg(&inf_process_req->dce_cf[0],
-			&inf_process_req->output_data, DMA_BIDIRECTIONAL);
+			&inf_process_req->output_data, true, DMA_BIDIRECTIONAL);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
 		return ret;
 	}
 
 	ret = attach_data_list_to_sg(&inf_process_req->dce_cf[1],
-			&inf_process_req->input_data, DMA_BIDIRECTIONAL);
+			&inf_process_req->input_data, false, DMA_BIDIRECTIONAL);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
 		return ret;
@@ -500,7 +531,7 @@ static int do_test(struct dce_test_ctx *ctx,
 		return ret;
 	}
 
-	pr_info("Got chunk process, status = %d, sg_table[0].length = %d\n",
+	pr_info("Got chunk process, status = 0x%x, sg_table[0].length = %d\n",
 		inf_process_req->output_fd.status,
 		inf_process_req->dce_cf[0].length);
 
@@ -519,7 +550,7 @@ static int do_test(struct dce_test_ctx *ctx,
 	}
 	inf_process_req->v_output_size = inf_process_req->dce_cf[0].length;
 
-	ret = copy_dce_data_to_buffer(&inf_process_req->output_data,
+	ret = copy_output_dce_data_to_buffer(&inf_process_req->output_data,
 		inf_process_req->v_output_size, inf_process_req->v_output,
 		input_len);
 	if (ret) {

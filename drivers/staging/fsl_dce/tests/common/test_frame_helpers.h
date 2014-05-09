@@ -80,6 +80,12 @@ size_t total_size_dce_data(struct dce_data_list_t *dce_data);
 
 bool is_multi_buffer(struct dce_data_list_t *data);
 
+/**
+ * alloc_dce_data - allocate memory to use with dce
+ * @length: total bytes to allocates
+ * @block_size: contiguous blocks to allocate
+ * @dce_data: storage for allocated memory
+ */
 int alloc_dce_data(size_t length, size_t block_size,
 			struct dce_data_list_t *dce_data);
 
@@ -88,17 +94,37 @@ int free_dce_data(struct dce_data_list_t *dce_data);
 int copy_input_to_dce_data(char *input, size_t ilen,
 			struct dce_data_list_t *data_list);
 
-int copy_dce_data_to_buffer(struct dce_data_list_t *data_list, size_t cpylen,
-			char *buffer, size_t buf_size);
+int copy_output_dce_data_to_buffer(struct dce_data_list_t *data_list,
+		size_t cpylen, char *buffer, size_t buf_size);
 
+/**
+ * dma_map_dce_data - dma_map the data entries
+ * @data_list: list of data items
+ * @dir: direction of dma mapping
+ *
+ * Each data item will have a dma_map invoked and the resulting mapping
+ * will be added to the sg table.
+ */
 int dma_map_dce_data(struct dce_data_list_t *data_list,
 		enum dma_data_direction dir);
 
 int dma_unmap_dce_data(struct dce_data_list_t *data_list,
 		enum dma_data_direction dir);
 
+/**
+ * attach_data_list_to_sg - set the dma address of data list to sg
+ * @sg: the sg to attach data_list to. The dma_addr of the data_list
+ *	and the length field will be set.
+ * @data_list: this can be a single buffer or multi buffer data list.
+ * @use_raw_size: if true use the allocated size of data_list when setting
+ *	length in @sg. Otherwise calculate the data length in @data_list
+ *	and use that value. Typically an input frame will use a value of false
+ *	and an output frame will use a value of true.
+ * @dir: direction of dma mapping
+ */
 int attach_data_list_to_sg(struct qm_sg_entry *sg,
 			struct dce_data_list_t *data_list,
+			bool use_raw_size,
 			enum dma_data_direction dir);
 
 int detach_data_list_from_sg(struct qm_sg_entry *sg,
