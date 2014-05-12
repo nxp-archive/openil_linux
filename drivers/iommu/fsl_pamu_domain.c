@@ -353,15 +353,9 @@ static void disable_device_dma(struct device_domain_info *info,
 #ifdef CONFIG_PCI
 	if (info->dev->bus == &pci_bus_type) {
 		struct pci_dev *pdev = NULL;
-		u16 pci_command;
 
 		pdev = to_pci_dev(info->dev);
-		pci_read_config_word(pdev, PCI_COMMAND, &pci_command);
-		/* disable device bus master capability */
-		if (pci_command & PCI_COMMAND_MASTER) {
-			pci_command &= ~PCI_COMMAND_MASTER;
-			pci_write_config_word(pdev, PCI_COMMAND, pci_command);
-		}
+		pci_clear_master(pdev);
 	}
 #endif
 
