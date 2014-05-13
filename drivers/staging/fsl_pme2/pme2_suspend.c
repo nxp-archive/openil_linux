@@ -35,6 +35,8 @@
 #include "pme2_regs.h"
 #include <linux/vmalloc.h>
 
+#define LOOP_CNT 100000
+
 static dma_addr_t pme_suspend_map(struct platform_device *pdev, void *ptr)
 {
 	return dma_map_single(&pdev->dev, ptr, 1, DMA_BIDIRECTIONAL);
@@ -1006,6 +1008,22 @@ static int is_pme_active(void)
 	return val;
 }
 
+static inline int wait_pme_not_active(int loop_count)
+{
+	int ret;
+
+	do {
+		ret = is_pme_active();
+		if (ret <= 0)
+			return ret;
+		if (!loop_count--) {
+			pr_err("wait_pme_not_active: pme still active\n");
+			return -EBUSY;
+		}
+		cpu_relax();
+	} while (1);
+}
+
 static void reset_db_saved_state(struct portal_backup_info *db_info)
 {
 	db_info->backup_failed = 0;
@@ -1039,10 +1057,7 @@ int pme_suspend(struct pme2_private_data *priv_data)
 	pme_attr_set(pme_attr_cdcr, 0xffffffff);
 
 	/* wait until device is not active */
-	while (is_pme_active()) {
-		cpu_relax();
-		/* TODO: sanity check */
-	}
+	wait_pme_not_active(LOOP_CNT);
 #ifdef PME_SUSPEND_DEBUG
 	pr_info("PME is quiescent\n");
 #endif
@@ -1075,10 +1090,7 @@ int pme_suspend(struct pme2_private_data *priv_data)
 	pme_attr_set(pme_attr_iir, 1);
 
 	/* wait until device is not active */
-	while (is_pme_active()) {
-		cpu_relax();
-		/* TODO: sanity check */
-	}
+	wait_pme_not_active(LOOP_CNT);
 #ifdef PME_SUSPEND_DEBUG
 	pr_info("PME is quiescent\n");
 #endif
@@ -1090,10 +1102,7 @@ int pme_suspend(struct pme2_private_data *priv_data)
 		/* clear the PME reset bit */
 		pme_attr_set(pme_attr_faconf_rst, 0);
 		/* wait until device is not active */
-		while (is_pme_active()) {
-			cpu_relax();
-			/* TODO: sanity check */
-		}
+		wait_pme_not_active(LOOP_CNT);
 	}
 	return 0;
 }
@@ -1146,10 +1155,7 @@ int pme_resume(struct pme2_private_data *priv_data)
 	/* disable pme */
 	pme_attr_set(pme_attr_faconf_en, 0);
 	/* wait until device is not active */
-	while (is_pme_active()) {
-		cpu_relax();
-		/* TODO: sanity check */
-	}
+	wait_pme_not_active(LOOP_CNT);
 	if (db_restore_failed) {
 		/* set the PME reset bit */
 		pme_attr_set(pme_attr_faconf_rst, 1);
