@@ -940,9 +940,11 @@ done:
 
 	/* unmap the ouput frame */
 	fsl_dce_unmap(qm_fd_addr_get64(&def_process_req->output_fd));
-
-	/* save output */
 	pr_info("Output length is %u\n", def_process_req->dce_cf[0].length);
+
+	/* save output if no error*/
+	if (fsl_dce_get_status(def_process_req->output_fd.status) != STREAM_END)
+		goto skip_output_copy;
 	test_data->out_data = vmalloc(def_process_req->dce_cf[0].length);
 	if (!test_data->out_data)
 		pr_err("Unable to allocate output data\n");
@@ -964,6 +966,7 @@ done:
 		if (ret)
 			pr_err("Error %d\n", __LINE__);
 	}
+skip_output_copy:
 
 	ret = detach_scf64_from_sg(&def_process_req->dce_cf[2],
 			&def_process_req->scf,
