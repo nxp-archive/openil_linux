@@ -150,9 +150,10 @@ static bool has_erratum_a005697(void)
 	bool flag = false;
 
 	switch (SVR_SOC_VER(svr)) {
-	case SVR_P1010:
 	case SVR_P1014:
 	case SVR_T1040:
+	case SVR_T2080:
+	case SVR_T2081:
 		if (SVR_REV(svr) == 0x10)
 			flag = true;
 		break;
@@ -166,6 +167,7 @@ static bool has_erratum_a005697(void)
 				(SVR_REV(svr) == 0x21))
 			flag = true;
 		break;
+	case SVR_P1010:
 	case SVR_T4240:
 	case SVR_T4160:
 	case SVR_P5020:
@@ -183,6 +185,12 @@ static bool has_erratum_a005697(void)
 	case SVR_P4080:
 		if ((SVR_REV(svr) == 0x10) || (SVR_REV(svr) == 0x20) ||
 				(SVR_REV(svr) == 0x30))
+			flag = true;
+		break;
+	case SVR_B4860:
+	case SVR_B4420:
+		if ((SVR_REV(svr) == 0x10) || (SVR_REV(svr) == 0x20) ||
+		    (SVR_REV(svr) == 0x21) || (SVR_REV(svr) == 0x22))
 			flag = true;
 		break;
 	}
