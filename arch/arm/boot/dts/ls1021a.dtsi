@@ -335,6 +335,15 @@
 			status = "disabled";
 		};
 
+		ftm0: ftm0@29d0000 {
+			compatible = "fsl,ftm-alarm";
+			reg = <0x0 0x29d0000 0x0 0x10000>;
+			interrupts = <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH>;
+			big-endian;
+			rcpm-wakeup = <&rcpm 0x0 0x20000000>;
+			status = "okay";
+		};
+
 		wdog0: watchdog@2ad0000 {
 			compatible = "fsl,imx21-wdt";
 			reg = <0x0 0x2ad0000 0x0 0x10000>;
