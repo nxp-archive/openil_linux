@@ -809,7 +809,11 @@ static void __init setup_omt(struct ome *omt)
 	/* Configure OMI_FMAN */
 	ome = &omt[OMI_FMAN];
 	ome->moe[IOE_READ_IDX]  = EOE_VALID | EOE_READI;
+#ifdef CONFIG_FSL_FMAN_CPC_STASH
+	ome->moe[IOE_WRITE_IDX] = EOE_VALID | EOE_WWSAO;
+#else
 	ome->moe[IOE_WRITE_IDX] = EOE_VALID | EOE_WRITE;
+#endif
 
 	/* Configure OMI_QMAN private */
 	ome = &omt[OMI_QMAN_PRIV];
