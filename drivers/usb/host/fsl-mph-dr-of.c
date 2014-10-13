@@ -17,7 +17,6 @@
 #include <linux/of_platform.h>
 #include <linux/clk.h>
 #include <linux/module.h>
-#include <asm/mpc85xx.h>
 
 struct fsl_usb2_dev_data {
 	char *dr_mode;		/* controller mode */
@@ -120,92 +119,6 @@ error:
 
 static const struct of_device_id fsl_usb2_mph_dr_of_match[];
 
-static bool has_erratum_a005275(struct device_node *node)
-{
-	unsigned int svr = mfspr(SPRN_SVR);
-	bool flag = false;
-	/* Deal with USB Erratum USB A-005275
-	 * Packet corruption in HS mode, default to
-	 * FS mode for the following
-	 * P3041 and P2041 rev 1.0 and 1.1
-	 * P5020 and P5010 rev 1.0 and 2.0
-	 * P5040 and P1010 rev 1.0
-	 */
-	if ((fsl_svr_is(SVR_P3041)) || (fsl_svr_is(SVR_P3041_E)) ||
-			(fsl_svr_is(SVR_P2041)) || (fsl_svr_is(SVR_P2041_E)))
-		flag = (IS_SVR_REV(svr, 1, 0)) || (IS_SVR_REV(svr, 1, 1));
-	else if ((fsl_svr_is(SVR_P5020)) || (fsl_svr_is(SVR_P5020_E)) ||
-			(fsl_svr_is(SVR_P5010)) || (fsl_svr_is(SVR_P5010_E)))
-		flag = (IS_SVR_REV(svr, 1, 0)) || (IS_SVR_REV(svr, 2, 0));
-	else if ((fsl_svr_is(SVR_P5040)) || (fsl_svr_is(SVR_P5040_E)) ||
-			(fsl_svr_is(SVR_P1010)) || (fsl_svr_is(SVR_P1010_E)))
-		flag = IS_SVR_REV(svr, 1, 0);
-
-	return flag;
-}
-
-static bool has_erratum_a005697(void)
-{
-	unsigned int svr = mfspr(SPRN_SVR);
-	bool flag = false;
-
-	switch (SVR_SOC_VER(svr)) {
-	case SVR_P1014:
-	case SVR_T1040:
-	case SVR_T2080:
-	case SVR_T2081:
-		if (SVR_REV(svr) == 0x10)
-			flag = true;
-		break;
-	case SVR_9132:
-		if ((SVR_REV(svr) == 0x10) || (SVR_REV(svr) == 0x11))
-			flag = true;
-		break;
-	case SVR_P5040:
-	case SVR_P5021:
-		if ((SVR_REV(svr) == 0x10) || (SVR_REV(svr) == 0x20) ||
-				(SVR_REV(svr) == 0x21))
-			flag = true;
-		break;
-	case SVR_P1010:
-	case SVR_T4240:
-	case SVR_T4160:
-	case SVR_P5020:
-	case SVR_P5010:
-		if ((SVR_REV(svr) == 0x10) || (SVR_REV(svr) == 0x20))
-			flag = true;
-		break;
-	case SVR_P2040:
-	case SVR_P2041:
-	case SVR_P3041:
-		if ((SVR_REV(svr) == 0x10) || (SVR_REV(svr) == 0x11) ||
-				(SVR_REV(svr) == 0x20))
-			flag = true;
-		break;
-	case SVR_P4080:
-		if ((SVR_REV(svr) == 0x10) || (SVR_REV(svr) == 0x20) ||
-				(SVR_REV(svr) == 0x30))
-			flag = true;
-		break;
-	case SVR_B4860:
-	case SVR_B4420:
-		if ((SVR_REV(svr) == 0x10) || (SVR_REV(svr) == 0x20) ||
-		    (SVR_REV(svr) == 0x21) || (SVR_REV(svr) == 0x22))
-			flag = true;
-		break;
-	}
-
-	return flag;
-}
-
-static bool has_erratum_a007792(int controller_ver)
-{
-	if (controller_ver == FSL_USB_VER_2_5)
-		return true;
-	else
-		return false;
-}
-
 static int usb_get_ver_info(struct device_node *np)
 {
 	int ver = -1;
@@ -299,30 +212,34 @@ static int fsl_usb2_mph_dr_of_probe(struct platform_device *ofdev)
 	pdata->phy_mode = determine_usb_phy(prop);
 	pdata->controller_ver = usb_get_ver_info(np);
 
-	/* Activate workaround for USB erratum-A005275 if
-	 * fsl,no-erratum-a005275 property not defined for
+	/* Activate workaround for USB erratum-A00XXXX if
+	 * fsl,erratum-a00XXXX property is defined for
 	 * affected socs
 	 */
-	if (!of_get_property(np, "fsl,no-erratum-a005275", NULL) &&
-			has_erratum_a005275(np))
+	if (of_get_property(np, "fsl,usb_erratum-a005275", NULL))
 		pdata->has_fsl_erratum_a005275 = 1;
 	else
 		pdata->has_fsl_erratum_a005275 = 0;
 
-	if (has_erratum_a005697())
+	if (of_get_property(np, "fsl,usb_erratum-a005697", NULL))
 		pdata->has_fsl_erratum_a005697 = 1;
 	else
 		pdata->has_fsl_erratum_a005697 = 0;
 
-	if (has_erratum_a007792(pdata->controller_ver))
+	if (of_get_property(np, "fsl,usb_erratum-a007792", NULL))
 		pdata->has_fsl_erratum_a007792 = 1;
 	else
 		pdata->has_fsl_erratum_a007792 = 0;
 
-	if (of_get_property(np, "fsl,erratum_a006918", NULL))
+	if (of_get_property(np, "fsl,usb_erratum_a006918", NULL))
 		pdata->has_fsl_erratum_a006918 = 1;
 	else
 		pdata->has_fsl_erratum_a006918 = 0;
+
+	if (of_get_property(np, "fsl,usb_erratum_14", NULL))
+		pdata->has_fsl_erratum_14 = 1;
+	else
+		pdata->has_fsl_erratum_14 = 0;
 
 	if (pdata->have_sysif_regs) {
 		if (pdata->controller_ver < 0) {
