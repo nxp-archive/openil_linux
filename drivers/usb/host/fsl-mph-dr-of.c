@@ -218,30 +218,30 @@ static int fsl_usb2_mph_dr_of_probe(struct platform_device *ofdev)
 	pdata->controller_ver = usb_get_ver_info(np);
 
 	/* Activate workaround for USB erratum-A00XXXX if
-	 * fsl,erratum-a00XXXX property is defined for
+	 * fsl,usb-erratum-a00XXXX property is defined for
 	 * affected socs
 	 */
-	if (of_get_property(np, "fsl,usb_erratum-a005275", NULL))
+	if (of_get_property(np, "fsl,usb-erratum-a005275", NULL))
 		pdata->has_fsl_erratum_a005275 = 1;
 	else
 		pdata->has_fsl_erratum_a005275 = 0;
 
-	if (of_get_property(np, "fsl,usb_erratum-a005697", NULL))
+	if (of_get_property(np, "fsl,usb-erratum-a005697", NULL))
 		pdata->has_fsl_erratum_a005697 = 1;
 	else
 		pdata->has_fsl_erratum_a005697 = 0;
 
-	if (of_get_property(np, "fsl,usb_erratum-a007792", NULL))
+	if (of_get_property(np, "fsl,usb-erratum-a007792", NULL))
 		pdata->has_fsl_erratum_a007792 = 1;
 	else
 		pdata->has_fsl_erratum_a007792 = 0;
 
-	if (of_get_property(np, "fsl,usb_erratum_a006918", NULL))
+	if (of_get_property(np, "fsl,usb-erratum-a006918", NULL))
 		pdata->has_fsl_erratum_a006918 = 1;
 	else
 		pdata->has_fsl_erratum_a006918 = 0;
 
-	if (of_get_property(np, "fsl,usb_erratum_14", NULL))
+	if (of_get_property(np, "fsl,usb-erratum-14", NULL))
 		pdata->has_fsl_erratum_14 = 1;
 	else
 		pdata->has_fsl_erratum_14 = 0;
