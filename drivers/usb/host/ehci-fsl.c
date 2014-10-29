@@ -167,7 +167,8 @@ static int usb_hcd_fsl_probe(const struct hc_driver *driver,
 
 	/* Enable USB controller, 83xx or 8536 */
 	if (pdata->have_sysif_regs && pdata->controller_ver < FSL_USB_VER_1_6)
-		setbits32(hcd->regs + FSL_SOC_USB_CTRL, 0x4);
+		clrsetbits_be32(hcd->regs + FSL_SOC_USB_CTRL,
+				CONTROL_REGISTER_W1C_MASK, 0x4);
 
 	/* Set USB_EN bit to select ULPI phy for USB controller version 2.5 */
 	if (pdata->controller_ver == FSL_USB_VER_2_5 &&
@@ -179,7 +180,8 @@ static int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	 * controller reset for USB Controller version 2.5
 	 */
 	if (pdata->has_fsl_erratum_a007792) {
-		setbits32(hcd->regs + FSL_SOC_USB_CTRL, CTRL_UTMI_PHY_EN);
+		clrsetbits_be32(hcd->regs + FSL_SOC_USB_CTRL,
+				CONTROL_REGISTER_W1C_MASK, CTRL_UTMI_PHY_EN);
 		writel(PORT_PTS_UTMI, hcd->regs + FSL_SOC_USB_PORTSC1);
 	}
 
@@ -298,9 +300,11 @@ static int ehci_fsl_setup_phy(struct usb_hcd *hcd,
 	case FSL_USB2_PHY_ULPI:
 		if (pdata->have_sysif_regs && pdata->controller_ver) {
 			/* controller version 1.6 or above */
-			clrbits32(non_ehci + FSL_SOC_USB_CTRL, UTMI_PHY_EN);
-			setbits32(non_ehci + FSL_SOC_USB_CTRL,
-				ULPI_PHY_CLK_SEL | USB_CTRL_USB_EN);
+			clrbits32(non_ehci + FSL_SOC_USB_CTRL,
+				  CONTROL_REGISTER_W1C_MASK | UTMI_PHY_EN);
+			clrsetbits_be32(non_ehci + FSL_SOC_USB_CTRL,
+					CONTROL_REGISTER_W1C_MASK,
+					ULPI_PHY_CLK_SEL | USB_CTRL_USB_EN);
 		}
 		portsc |= PORT_PTS_ULPI;
 		break;
@@ -328,14 +332,16 @@ static int ehci_fsl_setup_phy(struct usb_hcd *hcd,
 
 		if (pdata->have_sysif_regs && pdata->controller_ver) {
 			/* controller version 1.6 or above */
-			setbits32(non_ehci + FSL_SOC_USB_CTRL, UTMI_PHY_EN);
+			clrsetbits_be32(non_ehci + FSL_SOC_USB_CTRL,
+					CONTROL_REGISTER_W1C_MASK, UTMI_PHY_EN);
 			mdelay(FSL_UTMI_PHY_DLY);  /* Delay for UTMI PHY CLK to
 						become stable - 10ms*/
 		}
 		/* enable UTMI PHY */
 		if (pdata->have_sysif_regs)
-			setbits32(non_ehci + FSL_SOC_USB_CTRL,
-				  CTRL_UTMI_PHY_EN);
+			clrsetbits_be32(non_ehci + FSL_SOC_USB_CTRL,
+					CONTROL_REGISTER_W1C_MASK,
+					CTRL_UTMI_PHY_EN);
 		portsc |= PORT_PTS_UTMI;
 		break;
 	case FSL_USB2_PHY_NONE:
@@ -345,7 +351,8 @@ static int ehci_fsl_setup_phy(struct usb_hcd *hcd,
 	ehci_writel(ehci, portsc, &ehci->regs->port_status[port_offset]);
 
 	if (phy_mode != FSL_USB2_PHY_ULPI && pdata->have_sysif_regs)
-		setbits32(non_ehci + FSL_SOC_USB_CTRL, USB_CTRL_USB_EN);
+		clrsetbits_be32(non_ehci + FSL_SOC_USB_CTRL,
+				CONTROL_REGISTER_W1C_MASK, USB_CTRL_USB_EN);
 
 	return 0;
 }
