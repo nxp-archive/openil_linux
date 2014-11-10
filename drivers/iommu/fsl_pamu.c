@@ -64,12 +64,20 @@ static const struct of_device_id guts_device_ids[] __initconst = {
 /*
  * Table for matching compatible strings, for device tree
  * L3 cache controller node.
+ * "fsl,t1024-l3-cache-controller" corresponds to T1024,
+ * "fsl,t1040-l3-cache-controller" corresponds to T1040,
+ * "fsl,b4420-l3-cache-controller" corresponds to B4420,
+ * "fsl,t2080-l3-cache-controller" corresponds to T2080,
  * "fsl,t4240-l3-cache-controller" corresponds to T4,
  * "fsl,b4860-l3-cache-controller" corresponds to B4 &
  * "fsl,p4080-l3-cache-controller" corresponds to other,
  * SOCs.
  */
 static const struct of_device_id l3_device_ids[] = {
+	{ .compatible = "fsl,t1024-l3-cache-controller", },
+	{ .compatible = "fsl,t1040-l3-cache-controller", },
+	{ .compatible = "fsl,b4420-l3-cache-controller", },
+	{ .compatible = "fsl,t2080-l3-cache-controller", },
 	{ .compatible = "fsl,t4240-l3-cache-controller", },
 	{ .compatible = "fsl,b4860-l3-cache-controller", },
 	{ .compatible = "fsl,p4080-l3-cache-controller", },
@@ -692,6 +700,7 @@ u32 get_stash_id(u32 stash_dest_hint, u32 vcpu)
 			of_node_put(node);
 			return be32_to_cpup(prop);
 		}
+		pr_err("Failed to get L3 cache controller information\n");
 		return ~(u32)0;
 	}
 
