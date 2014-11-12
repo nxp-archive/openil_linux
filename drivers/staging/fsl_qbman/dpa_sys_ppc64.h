@@ -1,4 +1,4 @@
-/* Copyright 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright 2014 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -29,17 +29,51 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <linux/kernel.h>
-#include <linux/errno.h>
-#include <linux/io.h>
-#include <linux/slab.h>
-#include <linux/module.h>
-#include <linux/interrupt.h>
-#include <linux/delay.h>
-#include <linux/sched.h>
+#ifndef DPA_SYS_PPC64_H
+#define DPA_SYS_PPC64_H
 
-#include <linux/fsl_qman.h>
+/* Implementation of PowerPC 64 bit specific routines */
 
-void qman_test_hotpotato(void);
-void qman_test_high(void);
+/* TODO: NB, we currently assume that hwsync() and lwsync() imply compiler
+ * barriers and that dcb*() won't fall victim to compiler or execution
+ * reordering with respect to other code/instructions that manipulate the same
+ * cacheline. */
+#define hwsync() __asm__ __volatile__ ("sync" : : : "memory")
+#define lwsync() __asm__ __volatile__ (stringify_in_c(LWSYNC) : : : "memory")
+#define dcbf(p) __asm__ __volatile__ ("dcbf 0,%0" : : "r" (p) : "memory")
+#define dcbt_ro(p) __asm__ __volatile__ ("dcbt 0,%0" : : "r" (p))
+#define dcbt_rw(p) __asm__ __volatile__ ("dcbtst 0,%0" : : "r" (p))
+#define dcbi(p) dcbf(p)
 
+#define dcbz(p) __asm__ __volatile__ ("dcbz 0,%0" : : "r" (p))
+#define dcbz_64(p) \
+	do { \
+		dcbz((void*)p + 32);	\
+		dcbz(p);	\
+	} while (0)
+#define dcbf_64(p) \
+	do { \
+		dcbf((void*)p + 32); \
+		dcbf(p); \
+	} while (0)
+/* Commonly used combo */
+#define dcbit_ro(p) \
+	do { \
+		dcbi(p); \
+		dcbi((void*)p + 32); \
+		dcbt_ro(p); \
+		dcbt_ro((void*)p + 32); \
+	} while (0)
+
+static inline u64 mfatb(void)
+{
+	u32 hi, lo, chk;
+	do {
+		hi = mfspr(SPRN_ATBU);
+		lo = mfspr(SPRN_ATBL);
+		chk = mfspr(SPRN_ATBU);
+	} while (unlikely(hi != chk));
+	return ((u64)hi << 32) | (u64)lo;
+}
+
+#endif

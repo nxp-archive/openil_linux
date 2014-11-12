@@ -93,9 +93,9 @@ static __init int fsl_fqid_range_init(struct device_node *node)
 		pr_err(STR_ERR_CELL, STR_FQID_RANGE, 2, node->full_name);
 		return -EINVAL;
 	}
-	qman_seed_fqid_range(range[0], range[1]);
+	qman_seed_fqid_range(be32_to_cpu(range[0]), be32_to_cpu(range[1]));
 	pr_info("Qman: FQID allocator includes range %d:%d\n",
-		range[0], range[1]);
+		be32_to_cpu(range[0]), be32_to_cpu(range[1]));
 	return 0;
 }
 
@@ -112,8 +112,8 @@ static __init int fsl_pool_channel_range_sdqcr(struct device_node *node)
 		pr_err(STR_ERR_CELL, STR_POOL_CHAN_RANGE, 1, node->full_name);
 		return -EINVAL;
 	}
-	for (ret = 0; ret < chanid[1]; ret++)
-		pools_sdqcr |= QM_SDQCR_CHANNELS_POOL_CONV(chanid[0] + ret);
+	for (ret = 0; ret < be32_to_cpu(chanid[1]); ret++)
+		pools_sdqcr |= QM_SDQCR_CHANNELS_POOL_CONV(be32_to_cpu(chanid[0]) + ret);
 	return 0;
 }
 
@@ -130,9 +130,9 @@ static __init int fsl_pool_channel_range_init(struct device_node *node)
 		pr_err(STR_ERR_CELL, STR_POOL_CHAN_RANGE, 1, node->full_name);
 		return -EINVAL;
 	}
-	qman_seed_pool_range(chanid[0], chanid[1]);
+	qman_seed_pool_range(be32_to_cpu(chanid[0]), be32_to_cpu(chanid[1]));
 	pr_info("Qman: pool channel allocator includes range %d:%d\n",
-		chanid[0], chanid[1]);
+		be32_to_cpu(chanid[0]), be32_to_cpu(chanid[1]));
 	return 0;
 }
 
@@ -150,9 +150,9 @@ static __init int fsl_cgrid_range_init(struct device_node *node)
 		pr_err(STR_ERR_CELL, STR_CGRID_RANGE, 2, node->full_name);
 		return -EINVAL;
 	}
-	qman_seed_cgrid_range(range[0], range[1]);
+	qman_seed_cgrid_range(be32_to_cpu(range[0]), be32_to_cpu(range[1]));
 	pr_info("Qman: CGRID allocator includes range %d:%d\n",
-		range[0], range[1]);
+		be32_to_cpu(range[0]), be32_to_cpu(range[1]));
 	for (cgr.cgrid = 0; cgr.cgrid < __CGR_NUM; cgr.cgrid++) {
 		ret = qman_modify_cgr(&cgr, QMAN_CGR_FLAG_USE_INIT, NULL);
 		if (ret)
@@ -185,18 +185,18 @@ static __init int fsl_ceetm_init(struct device_node *node)
 		return -EINVAL;
 	}
 
-	dcp_portal = (range[0] & 0x0F0000) >> 16;
+	dcp_portal = (be32_to_cpu(range[0]) & 0x0F0000) >> 16;
 	if (dcp_portal > qm_dc_portal_fman1) {
 		pr_err("The DCP portal %d doesn't support CEETM\n", dcp_portal);
 		return -EINVAL;
 	}
 
 	if (dcp_portal == qm_dc_portal_fman0)
-		qman_seed_ceetm0_lfqid_range(range[0], range[1]);
+		qman_seed_ceetm0_lfqid_range(be32_to_cpu(range[0]), be32_to_cpu(range[1]));
 	if (dcp_portal == qm_dc_portal_fman1)
-		qman_seed_ceetm1_lfqid_range(range[0], range[1]);
+		qman_seed_ceetm1_lfqid_range(be32_to_cpu(range[0]), be32_to_cpu(range[1]));
 	pr_debug("Qman: The lfqid allocator of CEETM %d includes range"
-			" 0x%x:0x%x\n", dcp_portal, range[0], range[1]);
+		 " 0x%x:0x%x\n", dcp_portal, be32_to_cpu(range[0]), be32_to_cpu(range[1]));
 
 	qman_ceetms[dcp_portal].idx = dcp_portal;
 	INIT_LIST_HEAD(&qman_ceetms[dcp_portal].sub_portals);
@@ -221,16 +221,16 @@ static __init int fsl_ceetm_init(struct device_node *node)
 							range[0] + i);
 			return -ENOMEM;
 		}
-		sp->idx = range[0] + i;
+		sp->idx = be32_to_cpu(range[0]) + i;
 		sp->dcp_idx = dcp_portal;
 		sp->is_claimed = 0;
 		list_add_tail(&sp->node, &qman_ceetms[dcp_portal].sub_portals);
 		sp++;
 	}
 	pr_debug("Qman: Reserve sub-portal %d:%d for CEETM %d\n",
-					range[0], range[1], dcp_portal);
-	qman_ceetms[dcp_portal].sp_range[0] = range[0];
-	qman_ceetms[dcp_portal].sp_range[1] = range[1];
+		 be32_to_cpu(range[0]), be32_to_cpu(range[1]), dcp_portal);
+	qman_ceetms[dcp_portal].sp_range[0] = be32_to_cpu(range[0]);
+	qman_ceetms[dcp_portal].sp_range[1] = be32_to_cpu(range[1]);
 
 	/* Find LNI range */
 	range = of_get_property(node, "fsl,ceetm-lni-range", &ret);
@@ -251,7 +251,7 @@ static __init int fsl_ceetm_init(struct device_node *node)
 							range[0] + i);
 			return -ENOMEM;
 		}
-		lni->idx = range[0] + i;
+		lni->idx = be32_to_cpu(range[0]) + i;
 		lni->dcp_idx = dcp_portal;
 		lni->is_claimed = 0;
 		INIT_LIST_HEAD(&lni->channels);
@@ -259,9 +259,9 @@ static __init int fsl_ceetm_init(struct device_node *node)
 		lni++;
 	}
 	pr_debug("Qman: Reserve LNI %d:%d for CEETM %d\n",
-					range[0], range[1], dcp_portal);
-	qman_ceetms[dcp_portal].lni_range[0] = range[0];
-	qman_ceetms[dcp_portal].lni_range[1] = range[1];
+		 be32_to_cpu(range[0]), be32_to_cpu(range[1]), dcp_portal);
+	qman_ceetms[dcp_portal].lni_range[0] = be32_to_cpu(range[0]);
+	qman_ceetms[dcp_portal].lni_range[1] = be32_to_cpu(range[1]);
 
 	/* Find CEETM channel range */
 	range = of_get_property(node, "fsl,ceetm-channel-range", &ret);
@@ -277,11 +277,11 @@ static __init int fsl_ceetm_init(struct device_node *node)
 	}
 
 	if (dcp_portal == qm_dc_portal_fman0)
-		qman_seed_ceetm0_channel_range(range[0], range[1]);
+		qman_seed_ceetm0_channel_range(be32_to_cpu(range[0]), be32_to_cpu(range[1]));
 	if (dcp_portal == qm_dc_portal_fman1)
-		qman_seed_ceetm1_channel_range(range[0], range[1]);
+		qman_seed_ceetm1_channel_range(be32_to_cpu(range[0]), be32_to_cpu(range[1]));
 	pr_debug("Qman: The channel allocator of CEETM %d includes"
-			" range %d:%d\n", dcp_portal, range[0], range[1]);
+		 " range %d:%d\n", dcp_portal, be32_to_cpu(range[0]), be32_to_cpu(range[1]));
 
 	/* Set CEETM PRES register */
 	ret = qman_ceetm_set_prescaler(dcp_portal);
@@ -341,6 +341,11 @@ static void qman_get_ip_revision(struct device_node *dn)
 			ip_rev = QMAN_REV31;
 			qman_portal_max = 10;
 			ip_cfg = QMAN_REV_CFG_3;
+		} else if (of_device_is_compatible(dn,
+						"fsl,qman-portal-3.2.0")) {
+			ip_rev = QMAN_REV32;
+			qman_portal_max = 10;
+			ip_cfg = QMAN_REV_CFG_3; // TODO: Verify for ls1043
 		} else {
 			pr_warn("unknown QMan version in portal node,"
 				"default to rev1.1\n");
@@ -373,7 +378,8 @@ static void qman_get_ip_revision(struct device_node *dn)
 static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 {
 	struct qm_portal_config *pcfg;
-	const u32 *index, *channel;
+	const u32 *index_p, *channel_p;
+	u32 index, channel;
 	int irq, ret;
 	resource_size_t len;
 
@@ -393,7 +399,7 @@ static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 	 */
 	pcfg->dev.bus = &platform_bus_type;
 	pcfg->dev.of_node = node;
-#ifdef CONFIG_IOMMU_API
+#ifdef CONFIG_FSL_PAMU
 	pcfg->dev.archdata.iommu_domain = NULL;
 #endif
 
@@ -411,34 +417,39 @@ static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 			"reg::CI");
 		goto err;
 	}
-	index = of_get_property(node, "cell-index", &ret);
-	if (!index || (ret != 4)) {
+	index_p = of_get_property(node, "cell-index", &ret);
+	if (!index_p || (ret != 4)) {
 		pr_err("Can't get %s property '%s'\n", node->full_name,
 			"cell-index");
 		goto err;
 	}
-	if (*index >= qman_portal_max)
+	index = be32_to_cpu(*index_p);
+	if (index >= qman_portal_max) {
+		pr_err("QMan portal index %d is beyond max (%d)\n",
+		       index, qman_portal_max);
 		goto err;
+	}
 
-	channel = of_get_property(node, "fsl,qman-channel-id", &ret);
-	if (!channel || (ret != 4)) {
+	channel_p = of_get_property(node, "fsl,qman-channel-id", &ret);
+	if (!channel_p || (ret != 4)) {
 		pr_err("Can't get %s property '%s'\n", node->full_name,
 			"fsl,qman-channel-id");
 		goto err;
 	}
-	if (*channel != (*index + QM_CHANNEL_SWPORTAL0))
+	channel = be32_to_cpu(*channel_p);
+	if (channel != (index + QM_CHANNEL_SWPORTAL0))
 		pr_err("Warning: node %s has mismatched %s and %s\n",
 			node->full_name, "cell-index", "fsl,qman-channel-id");
-	pcfg->public_cfg.channel = *channel;
+	pcfg->public_cfg.channel = channel;
 	pcfg->public_cfg.cpu = -1;
 	irq = irq_of_parse_and_map(node, 0);
-	if (irq == NO_IRQ) {
+	if (irq == 0) {
 		pr_err("Can't get %s property '%s'\n", node->full_name,
 			"interrupts");
 		goto err;
 	}
 	pcfg->public_cfg.irq = irq;
-	pcfg->public_cfg.index = *index;
+	pcfg->public_cfg.index = index;
 #ifdef CONFIG_FSL_QMAN_CONFIG
 	/* We need the same LIODN offset for all portals */
 	qman_liodn_fixup(pcfg->public_cfg.channel);
@@ -447,6 +458,16 @@ static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 	len = resource_size(&pcfg->addr_phys[DPA_PORTAL_CE]);
 	if (len != (unsigned long)len)
 		goto err;
+
+#ifdef CONFIG_ARM64
+	pcfg->addr_virt[DPA_PORTAL_CE] = ioremap_cache_ns(
+                                pcfg->addr_phys[DPA_PORTAL_CE].start,
+                                resource_size(&pcfg->addr_phys[DPA_PORTAL_CE]));
+
+        pcfg->addr_virt[DPA_PORTAL_CI] = ioremap(
+                                pcfg->addr_phys[DPA_PORTAL_CI].start,
+                                resource_size(&pcfg->addr_phys[DPA_PORTAL_CI]));
+#else
 	pcfg->addr_virt[DPA_PORTAL_CE] = ioremap_prot(
 				pcfg->addr_phys[DPA_PORTAL_CE].start,
 				(unsigned long)len,
@@ -455,7 +476,7 @@ static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 				pcfg->addr_phys[DPA_PORTAL_CI].start,
 				resource_size(&pcfg->addr_phys[DPA_PORTAL_CI]),
 				_PAGE_GUARDED | _PAGE_NO_CACHE);
-
+#endif
 	return pcfg;
 err:
 	kfree(pcfg);
@@ -674,9 +695,9 @@ static void qman_portal_update_sdest(const struct qm_portal_config *pcfg,
 			return;
 		}
 	}
+#endif
 #ifdef CONFIG_FSL_QMAN_CONFIG
 	if (qman_set_sdest(pcfg->public_cfg.channel, cpu))
-#endif
 		pr_warn("Failed to update portal's stash request queue\n");
 #endif
 }
@@ -775,6 +796,7 @@ __init int qman_init(void)
 		qm_channel_caam = QMAN_CHANNEL_CAAM_REV3;
 		qm_channel_pme = QMAN_CHANNEL_PME_REV3;
 	}
+
 	if ((qman_ip_rev == QMAN_REV31) && (qman_ip_cfg == QMAN_REV_CFG_2))
 		qm_channel_dce = QMAN_CHANNEL_DCE_QMANREV312;
 
@@ -827,7 +849,7 @@ __init int qman_init(void)
 		}
 	}
 	if (list_empty(&shared_pcfgs) && list_empty(&unshared_pcfgs)) {
-		for_each_possible_cpu(cpu) {
+		for_each_online_cpu(cpu) {
 			pcfg = get_pcfg(&unused_pcfgs);
 			if (!pcfg)
 				break;
