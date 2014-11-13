@@ -66,7 +66,7 @@ struct ipsec_encap_ctr {
 
 struct ipsec_encap_ccm {
 	u32 salt; /* lower 24 bits */
-#ifdef CONFIG_CPU_BIG_ENDIAN
+#ifdef __BIG_ENDIAN
 	u8 b0_flags;
 	u8 ctr_flags;
 	u16 ctr_initial;
@@ -85,7 +85,7 @@ struct ipsec_encap_gcm {
 };
 
 struct ipsec_encap_pdb {
-#ifdef CONFIG_CPU_BIG_ENDIAN
+#ifdef __BIG_ENDIAN
 	u8 hmo_rsvd;
 	u8 ip_nh;
 	u8 ip_nh_offset;
@@ -105,7 +105,7 @@ struct ipsec_encap_pdb {
 		struct ipsec_encap_gcm gcm;
 	};
 	u32 spi;
-#ifdef CONFIG_CPU_BIG_ENDIAN
+#ifdef __BIG_ENDIAN
 	u16 rsvd1;
 	u16 ip_hdr_len;
 #else
@@ -126,7 +126,7 @@ struct ipsec_decap_ctr {
 
 struct ipsec_decap_ccm {
 	u32 salt;
-#ifdef CONFIG_CPU_BIG_ENDIAN
+#ifdef __BIG_ENDIAN
 	u8 iv_flags;
 	u8 ctr_flags;
 	u16 ctr_initial;
@@ -143,7 +143,7 @@ struct ipsec_decap_gcm {
 };
 
 struct ipsec_decap_pdb {
-#ifdef CONFIG_CPU_BIG_ENDIAN
+#ifdef __BIG_ENDIAN
 	u16 hmo_ip_hdr_len;
 	u8 ip_nh_offset;
 	u8 options;
