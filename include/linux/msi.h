@@ -3,6 +3,7 @@
 
 #include <linux/kobject.h>
 #include <linux/list.h>
+#include <linux/pci.h>
 
 struct msi_msg {
 	u32	address_lo;	/* low 32 bits of msi message address */
@@ -37,15 +38,15 @@ struct msi_desc {
 		void __iomem *mask_base;
 		u8 mask_pos;
 	};
-	struct pci_dev *dev;
+	struct device *dev;
 
 	/* Last set MSI message */
 	struct msi_msg msg;
 };
 
 /* Helpers to hide struct msi_desc implementation details */
-#define msi_desc_to_dev(desc)		(&(desc)->dev.dev)
-#define dev_to_msi_list(dev)		(&to_pci_dev((dev))->msi_list)
+#define msi_desc_to_dev(desc)		((desc)->dev)
+#define dev_to_msi_list(dev)		(&(dev)->msi_list)
 #define first_msi_entry(dev)		\
 	list_first_entry(dev_to_msi_list((dev)), struct msi_desc, list)
 #define for_each_msi_entry(desc, dev)	\
@@ -58,7 +59,7 @@ struct msi_desc {
 
 static inline struct pci_dev *msi_desc_to_pci_dev(struct msi_desc *desc)
 {
-	return desc->dev;
+	return to_pci_dev(desc->dev);
 }
 #endif /* CONFIG_PCI_MSI */
 
@@ -111,7 +112,6 @@ struct msi_controller {
 #ifdef CONFIG_GENERIC_MSI_IRQ_DOMAIN
 	struct irq_domain *domain;
 #endif
-
 	int (*setup_irq)(struct msi_controller *chip, struct pci_dev *dev,
 			 struct msi_desc *desc);
 	void (*teardown_irq)(struct msi_controller *chip, unsigned int irq);
