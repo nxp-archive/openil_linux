@@ -1236,13 +1236,44 @@ static int its_get_pci_alias(struct pci_dev *pdev, u16 alias, void *data)
 	return 0;
 }
 
+int __its_msi_prepare(struct irq_domain *domain, u32 dev_id,
+	struct device *dev, int nvec, msi_alloc_info_t *info)
+{
+	struct its_node *its;
+	struct its_device *its_dev;
+
+	its = domain->parent->host_data;
+
+	its_dev = its_find_device(its, dev_id);
+	if (its_dev) {
+		/*
+		 * We already have seen this ID, probably through
+		 * another alias (PCI bridge of some sort). No need to
+		 * create the device.
+		 */
+		dev_dbg(dev, "Reusing ITT for devID %x\n", dev_id);
+		goto out;
+	}
+
+	its_dev = its_create_device(its, dev_id, nvec);
+	if (!its_dev)
+		return -ENOMEM;
+
+	dev_dbg(dev, "ITT %d entries, %d bits\n",
+		nvec, ilog2(nvec));
+out:
+	info->scratchpad[0].ptr = its_dev;
+	info->scratchpad[1].ptr = dev;
+
+	return 0;
+}
+
 static int its_msi_prepare(struct irq_domain *domain, struct device *dev,
 			   int nvec, msi_alloc_info_t *info)
 {
 	struct pci_dev *pdev;
-	struct its_node *its;
-	struct its_device *its_dev;
 	struct its_pci_alias dev_alias;
+	u32 dev_id;
 
 	if (!dev_is_pci(dev))
 		return -EINVAL;
@@ -1252,29 +1283,10 @@ static int its_msi_prepare(struct irq_domain *domain, struct device *dev,
 	dev_alias.count = nvec;
 
 	pci_for_each_dma_alias(pdev, its_get_pci_alias, &dev_alias);
-	its = domain->parent->host_data;
 
-	its_dev = its_find_device(its, dev_alias.dev_id);
-	if (its_dev) {
-		/*
-		 * We already have seen this ID, probably through
-		 * another alias (PCI bridge of some sort). No need to
-		 * create the device.
-		 */
-		dev_dbg(dev, "Reusing ITT for devID %x\n", dev_alias.dev_id);
-		goto out;
-	}
-
-	its_dev = its_create_device(its, dev_alias.dev_id, dev_alias.count);
-	if (!its_dev)
-		return -ENOMEM;
-
-	dev_dbg(&pdev->dev, "ITT %d entries, %d bits\n",
-		dev_alias.count, ilog2(dev_alias.count));
-out:
-	info->scratchpad[0].ptr = its_dev;
-	info->scratchpad[1].ptr = dev;
-	return 0;
+	dev_dbg(dev, "ITT %d entries, %d bits\n", nvec, ilog2(nvec));
+	dev_id = PCI_DEVID(pdev->bus->number, pdev->devfn);
+	return __its_msi_prepare(domain->parent, dev_alias.dev_id, dev, dev_alias.count, info);
 }
 
 static struct msi_domain_ops its_pci_msi_ops = {
