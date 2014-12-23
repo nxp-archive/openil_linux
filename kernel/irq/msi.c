@@ -89,8 +89,10 @@ static int msi_domain_alloc(struct irq_domain *domain, unsigned int virq,
 	irq_hw_number_t hwirq = ops->get_hwirq(info, arg);
 	int i, ret;
 
+#if 0
 	if (irq_find_mapping(domain, hwirq) > 0)
 		return -EEXIST;
+#endif
 
 	ret = irq_domain_alloc_irqs_parent(domain, virq, nr_irqs, arg);
 	if (ret < 0)
