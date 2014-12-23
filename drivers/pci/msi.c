@@ -425,17 +425,6 @@ static void free_msi_irqs(struct pci_dev *dev)
 	}
 }
 
-static struct msi_desc *alloc_msi_entry(struct pci_dev *dev)
-{
-	struct msi_desc *desc = kzalloc(sizeof(*desc), GFP_KERNEL);
-	if (!desc)
-		return NULL;
-
-	INIT_LIST_HEAD(&desc->list);
-	desc->dev = dev;
-
-	return desc;
-}
 
 static void pci_intx_for_msi(struct pci_dev *dev, int enable)
 {
