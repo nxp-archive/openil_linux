@@ -34,6 +34,13 @@
 
 /include/ "t1023si-post.dtsi"
 
+/ {
+	aliases {
+		vga = &display;
+		display = &display;
+	};
+};
+
 &soc {
 /include/ "qoriq-tdm1.0.dtsi"
 

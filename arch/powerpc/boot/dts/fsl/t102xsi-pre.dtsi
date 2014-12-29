@@ -67,8 +67,6 @@
 		ethernet1 = &fm1mac2;
 		ethernet2 = &fm1mac3;
 		ethernet3 = &fm1mac4;
-		vga = &display;
-		display = &display;
 	};
 
 	cpus {
