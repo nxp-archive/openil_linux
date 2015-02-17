@@ -186,19 +186,35 @@ struct qm_fd {
 		u32 opaque;
 		/* If 'format' is _contig or _sg, 20b length and 9b offset */
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			enum qm_fd_format format:3;
 			u16 offset:9;
 			u32 length20:20;
+#else
+			u32 length20:20;
+			u16 offset:9;
+			enum qm_fd_format format:3;
+#endif
 		};
 		/* If 'format' is _contig_big or _sg_big, 29b length */
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			enum qm_fd_format _format1:3;
 			u32 length29:29;
+#else
+			u32 length29:29;
+			enum qm_fd_format _format1:3;
+#endif
 		};
 		/* If 'format' is _compound, 29b "congestion weight" */
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			enum qm_fd_format _format2:3;
 			u32 cong_weight:29;
+#else
+			u32 cong_weight:29;
+			enum qm_fd_format _format2:3;
+#endif
 		};
 	};
 	union {
