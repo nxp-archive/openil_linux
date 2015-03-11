@@ -167,3 +167,4 @@ obj-$(CONFIG_CORESIGHT)		+= hwtracing/coresight/
 obj-$(CONFIG_ANDROID)		+= android/
 
 obj-$(CONFIG_XENOMAI) += xenomai/
+obj-$(CONFIG_TEE)		+= tee/
