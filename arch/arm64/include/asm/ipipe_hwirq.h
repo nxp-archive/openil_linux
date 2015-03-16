@@ -27,94 +27,39 @@
 
 #define hard_local_irq_restore_notrace(x)				\
 	__asm__ __volatile__(						\
-	"msr	cpsr_c, %0		@ hard_local_irq_restore\n"	\
+	"msr	daif, %0"	\
 	:								\
 	: "r" (x)							\
 	: "memory", "cc")
 
 static inline void hard_local_irq_disable_notrace(void)
 {
-#if __LINUX_ARM_ARCH__ >= 6
-	__asm__("cpsid i	@ __cli" : : : "memory", "cc");
-#else /* linux arch <= 5 */
-	unsigned long temp;
-	__asm__ __volatile__(
-		"mrs	%0, cpsr		@ hard_local_irq_disable\n"
-		"orr	%0, %0, #128\n"
-		"msr	cpsr_c, %0"
-		: "=r" (temp)
-		:
-		: "memory", "cc");
-#endif /* linux arch <= 5 */
+	__asm__ __volatile__("msr daifset, #2" : : : "memory", "cc");
 }
 
 static inline void hard_local_irq_enable_notrace(void)
 {
-#if __LINUX_ARM_ARCH__ >= 6
-	__asm__("cpsie i	@ __sti" : : : "memory", "cc");
-#else /* linux arch <= 5 */
-	unsigned long temp;
-	__asm__ __volatile__(
-		"mrs	%0, cpsr		@ hard_local_irq_enable\n"
-		"bic	%0, %0, #128\n"
-		"msr	cpsr_c, %0"
-		: "=r" (temp)
-		:
-		: "memory", "cc");
-#endif /* linux arch <= 5 */
+	__asm__ __volatile__("msr daifclr, #2" : : : "memory", "cc");
 }
 
 static inline void hard_local_fiq_disable_notrace(void)
 {
-#if __LINUX_ARM_ARCH__ >= 6
-	__asm__("cpsid f	@ __clf" : : : "memory", "cc");
-#else /* linux arch <= 5 */
-	unsigned long temp;
-	__asm__ __volatile__(
-		"mrs	%0, cpsr		@ clf\n"
-		"orr	%0, %0, #64\n"
-		"msr	cpsr_c, %0"
-		: "=r" (temp)
-		:
-		: "memory", "cc");
-#endif /* linux arch <= 5 */
+	__asm__ __volatile__("msr daifset, #1" : : : "memory", "cc");
 }
 
 static inline void hard_local_fiq_enable_notrace(void)
 {
-#if __LINUX_ARM_ARCH__ >= 6
-	__asm__("cpsie f	@ __stf" : : : "memory", "cc");
-#else /* linux arch <= 5 */
-	unsigned long temp;
-	__asm__ __volatile__(
-		"mrs	%0, cpsr		@ stf\n"
-		"bic	%0, %0, #64\n"
-		"msr	cpsr_c, %0"
-		: "=r" (temp)
-		:
-		: "memory", "cc");
-#endif /* linux arch <= 5 */
+	__asm__ __volatile__("msr daifclr, #1" : : : "memory", "cc");
 }
 
 static inline unsigned long hard_local_irq_save_notrace(void)
 {
 	unsigned long res;
-#if __LINUX_ARM_ARCH__ >= 6
 	__asm__ __volatile__(
-		"mrs	%0, cpsr		@ hard_local_irq_save\n"
-		"cpsid	i"
+		"mrs	%0, daif\n"
+		"msr daifset, #2"
 		: "=r" (res) : : "memory", "cc");
-#else /* linux arch <= 5 */
-	unsigned long temp;
-	__asm__ __volatile__(
-		"mrs	%0, cpsr		@ hard_local_irq_save\n"
-		"orr	%1, %0, #128\n"
-		"msr	cpsr_c, %1"
-		: "=r" (res), "=r" (temp)
-		:
-		: "memory", "cc");
-#endif /* linux arch <= 5 */
-	  return res;
+	return res;
 }
 
 #ifdef CONFIG_IPIPE
@@ -130,7 +75,7 @@ static inline unsigned long hard_local_save_flags(void)
 {
 	unsigned long flags;
 	__asm__ __volatile__(
-		"mrs	%0, cpsr		@ hard_local_save_flags"
+		"mrs	%0, daif"
 		: "=r" (flags) : : "memory", "cc");
 	return flags;
 }
