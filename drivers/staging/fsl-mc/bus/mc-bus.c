@@ -58,6 +58,12 @@ static int fsl_mc_bus_match(struct device *dev, struct device_driver *drv)
 	if (WARN_ON(!fsl_mc_bus_type.dev_root))
 		goto out;
 
+	/* When driver_override is set, only bind to the matching driver */
+	if (mc_dev->driver_override) {
+		found = !strcmp(mc_dev->driver_override, mc_drv->driver.name);
+		goto out;
+	}
+
 	if (!mc_drv->match_id_table)
 		goto out;
 
@@ -116,10 +122,69 @@ static int fsl_mc_bus_uevent(struct device *dev, struct kobj_uevent_env *env)
 	return 0;
 }
 
+static ssize_t driver_override_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	struct fsl_mc_device *mc_dev = to_fsl_mc_device(dev);
+	const char *driver_override, *old = mc_dev->driver_override;
+	char *cp;
+
+	if (WARN_ON(dev->bus != &fsl_mc_bus_type))
+		return -EINVAL;
+
+	if (count > PATH_MAX)
+		return -EINVAL;
+
+	driver_override = kstrndup(buf, count, GFP_KERNEL);
+	if (!driver_override)
+		return -ENOMEM;
+
+	cp = strchr(driver_override, '\n');
+	if (cp)
+		*cp = '\0';
+
+	if (strlen(driver_override)) {
+		mc_dev->driver_override = driver_override;
+	} else {
+		kfree(driver_override);
+		mc_dev->driver_override = NULL;
+	}
+
+	kfree(old);
+
+	return count;
+}
+
+static ssize_t driver_override_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	struct fsl_mc_device *mc_dev = to_fsl_mc_device(dev);
+
+	return sprintf(buf, "%s\n", mc_dev->driver_override);
+}
+
+static DEVICE_ATTR_RW(driver_override);
+
+static struct attribute *fsl_mc_dev_attrs[] = {
+	&dev_attr_driver_override.attr,
+	NULL,
+};
+
+static const struct attribute_group fsl_mc_dev_group = {
+	.attrs = fsl_mc_dev_attrs,
+};
+
+static const struct attribute_group *fsl_mc_dev_groups[] = {
+	&fsl_mc_dev_group,
+	NULL,
+};
+
 struct bus_type fsl_mc_bus_type = {
 	.name = "fsl-mc",
 	.match = fsl_mc_bus_match,
 	.uevent = fsl_mc_bus_uevent,
+	.dev_groups = fsl_mc_dev_groups,
 };
 EXPORT_SYMBOL_GPL(fsl_mc_bus_type);
 
@@ -512,6 +577,8 @@ void fsl_mc_device_remove(struct fsl_mc_device *mc_dev)
 			fsl_mc_bus_type.dev_root = NULL;
 	}
 
+	kfree(mc_dev->driver_override);
+	mc_dev->driver_override = NULL;
 	if (mc_bus)
 		devm_kfree(mc_dev->dev.parent, mc_bus);
 	else
