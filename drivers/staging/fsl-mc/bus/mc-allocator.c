@@ -160,6 +160,7 @@ static const char *const fsl_mc_pool_type_strings[] = {
 	[FSL_MC_POOL_DPMCP] = "dpmcp",
 	[FSL_MC_POOL_DPBP] = "dpbp",
 	[FSL_MC_POOL_DPCON] = "dpcon",
+	[FSL_MC_POOL_IRQ] = "irq",
 };
 
 static int __must_check object_type_to_pool_type(const char *object_type,
@@ -471,6 +472,110 @@ void fsl_mc_object_free(struct fsl_mc_device *mc_adev)
 	fsl_mc_resource_free(resource);
 }
 EXPORT_SYMBOL_GPL(fsl_mc_object_free);
+
+/**
+ * It allocates the IRQs required by a given MC object device. The
+ * IRQs are allocated from the interrupt pool associated with the
+ * MC bus that contains the device, if the device is not a DPRC device.
+ * Otherwise, the IRQs are allocated from the interrupt pool associated
+ * with the MC bus that represents the DPRC device itself.
+ */
+int __must_check fsl_mc_allocate_irqs(struct fsl_mc_device *mc_dev)
+{
+	int i;
+	int irq_count;
+	int res_allocated_count = 0;
+	int error = -EINVAL;
+	struct fsl_mc_device_irq **irqs = NULL;
+	struct fsl_mc_bus *mc_bus;
+	struct fsl_mc_resource_pool *res_pool;
+
+	if (WARN_ON(mc_dev->irqs))
+		goto error;
+
+	irq_count = mc_dev->obj_desc.irq_count;
+	if (WARN_ON(irq_count == 0))
+		goto error;
+
+	if (strcmp(mc_dev->obj_desc.type, "dprc") == 0)
+		mc_bus = to_fsl_mc_bus(mc_dev);
+	else
+		mc_bus = to_fsl_mc_bus(to_fsl_mc_device(mc_dev->dev.parent));
+
+	if (WARN_ON(!mc_bus->irq_resources))
+		goto error;
+
+	res_pool = &mc_bus->resource_pools[FSL_MC_POOL_IRQ];
+	if (res_pool->free_count < irq_count) {
+		dev_err(&mc_dev->dev,
+			"Not able to allocate %u irqs for device\n", irq_count);
+		error = -ENOSPC;
+		goto error;
+	}
+
+	irqs = devm_kzalloc(&mc_dev->dev, irq_count * sizeof(irqs[0]),
+			    GFP_KERNEL);
+	if (!irqs) {
+		error = -ENOMEM;
+		dev_err(&mc_dev->dev, "No memory to allocate irqs[]\n");
+		goto error;
+	}
+
+	for (i = 0; i < irq_count; i++) {
+		struct fsl_mc_resource *resource;
+
+		error = fsl_mc_resource_allocate(mc_bus, FSL_MC_POOL_IRQ,
+						 &resource);
+		if (error < 0)
+			goto error;
+
+		irqs[i] = to_fsl_mc_irq(resource);
+		res_allocated_count++;
+	}
+
+	mc_dev->irqs = irqs;
+	return 0;
+error:
+	for (i = 0; i < res_allocated_count; i++)
+		fsl_mc_resource_free(&irqs[i]->resource);
+
+	if (irqs)
+		devm_kfree(&mc_dev->dev, irqs);
+
+	return error;
+}
+EXPORT_SYMBOL_GPL(fsl_mc_allocate_irqs);
+
+/*
+ * It frees the IRQs that were allocated for a MC object device, by
+ * returning them to the corresponding interrupt pool.
+ */
+void fsl_mc_free_irqs(struct fsl_mc_device *mc_dev)
+{
+	int i;
+	int irq_count;
+	struct fsl_mc_bus *mc_bus;
+
+	if (WARN_ON(!mc_dev->irqs))
+		return;
+
+	irq_count = mc_dev->obj_desc.irq_count;
+
+	if (strcmp(mc_dev->obj_desc.type, "dprc") == 0)
+		mc_bus = to_fsl_mc_bus(mc_dev);
+	else
+		mc_bus = to_fsl_mc_bus(to_fsl_mc_device(mc_dev->dev.parent));
+
+	if (WARN_ON(!mc_bus->irq_resources))
+		return;
+
+	for (i = 0; i < irq_count; i++)
+		fsl_mc_resource_free(&mc_dev->irqs[i]->resource);
+
+	devm_kfree(&mc_dev->dev, mc_dev->irqs);
+	mc_dev->irqs = NULL;
+}
+EXPORT_SYMBOL_GPL(fsl_mc_free_irqs);
 
 /**
  * fsl_mc_allocator_probe - callback invoked when an allocatable device is

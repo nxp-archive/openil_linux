@@ -15,10 +15,26 @@
 #include <linux/of_address.h>
 #include <linux/ioport.h>
 #include <linux/slab.h>
+#include <linux/irqchip/arm-gic-v3.h>
+#include <linux/irq.h>
+#include <linux/irqdomain.h>
 #include <linux/limits.h>
+#include <linux/bitops.h>
 #include "../include/dpmng.h"
 #include "../include/mc-sys.h"
 #include "dprc-cmd.h"
+
+/*
+ * IOMMU stream ID flags
+ */
+#define STREAM_ID_PL_MASK   BIT(9)	    /* privilege level */
+#define STREAM_ID_BMT_MASK  BIT(8)	    /* bypass memory translation */
+#define STREAM_ID_VA_MASK   BIT(7)	    /* virtual address translation
+					     * (two-stage translation) */
+#define STREAM_ID_ICID_MASK (BIT(7) - 1)    /* isolation context ID
+					     * (translation context) */
+
+#define MAX_STREAM_ID_ICID  STREAM_ID_ICID_MASK
 
 static struct kmem_cache *mc_dev_cache;
 
@@ -352,6 +368,7 @@ int fsl_mc_device_add(struct dprc_obj_desc *obj_desc,
 	mc_dev->obj_desc = *obj_desc;
 	mc_dev->mc_io = mc_io;
 	device_initialize(&mc_dev->dev);
+	INIT_LIST_HEAD(&mc_dev->dev.msi_list);
 	mc_dev->dev.parent = parent_dev;
 	mc_dev->dev.bus = &fsl_mc_bus_type;
 	dev_set_name(&mc_dev->dev, "%s.%d", obj_desc->type, obj_desc->id);
@@ -482,6 +499,265 @@ void fsl_mc_device_remove(struct fsl_mc_device *mc_dev)
 }
 EXPORT_SYMBOL_GPL(fsl_mc_device_remove);
 
+static int mc_bus_msi_prepare(struct irq_domain *domain, struct device *dev,
+			      int nvec, msi_alloc_info_t *info)
+{
+	int error;
+	u32 its_dev_id;
+	struct dprc_attributes dprc_attr;
+	struct fsl_mc_device *mc_bus_dev = to_fsl_mc_device(dev);
+
+	if (WARN_ON(!(mc_bus_dev->flags & FSL_MC_IS_DPRC)))
+		return -EINVAL;
+
+	error = dprc_get_attributes(mc_bus_dev->mc_io,
+				    mc_bus_dev->mc_handle, &dprc_attr);
+	if (error < 0) {
+		dev_err(&mc_bus_dev->dev,
+			"dprc_get_attributes() failed: %d\n",
+			error);
+		return error;
+	}
+
+	/*
+	 * Build the device Id to be passed to the GIC-ITS:
+	 *
+	 * NOTE: This device id corresponds to the IOMMU stream ID
+	 * associated with the DPRC object.
+	 */
+	its_dev_id = mc_bus_dev->icid;
+	if (its_dev_id > STREAM_ID_ICID_MASK) {
+		dev_err(&mc_bus_dev->dev,
+			"Invalid ICID: %#x\n", its_dev_id);
+		return -ERANGE;
+	}
+
+	if (dprc_attr.options & DPRC_CFG_OPT_IOMMU_BYPASS)
+		its_dev_id |= STREAM_ID_PL_MASK | STREAM_ID_BMT_MASK;
+
+	return __its_msi_prepare(domain, its_dev_id, dev, nvec, info);
+}
+
+static void mc_bus_mask_msi_irq(struct irq_data *d)
+{
+	/* Bus specefic Mask */
+	irq_chip_mask_parent(d);
+}
+
+static void mc_bus_unmask_msi_irq(struct irq_data *d)
+{
+	/* Bus specefic unmask */
+	irq_chip_unmask_parent(d);
+}
+
+static void mc_bus_msi_domain_write_msg(struct irq_data *irq_data,
+					struct msi_msg *msg)
+{
+	struct msi_desc *msi_entry = irq_data->msi_desc;
+	struct fsl_mc_device *mc_bus_dev = to_fsl_mc_device(msi_entry->dev);
+	struct fsl_mc_bus *mc_bus = to_fsl_mc_bus(mc_bus_dev);
+	struct fsl_mc_device_irq *irq_res =
+		&mc_bus->irq_resources[msi_entry->msi_attrib.entry_nr];
+
+	if (irq_res->irq_number == irq_data->irq) {
+		/*
+		 * write msg->address_hi/lo to irq_resource
+		 */
+		irq_res->msi_paddr =
+			((u64)msg->address_hi << 32) | msg->address_lo;
+		irq_res->msi_value = msg->data;
+	}
+}
+
+static struct irq_chip mc_bus_msi_irq_chip = {
+	.name			= "fsl-mc-bus-msi",
+	.irq_unmask		= mc_bus_unmask_msi_irq,
+	.irq_mask		= mc_bus_mask_msi_irq,
+	.irq_eoi		= irq_chip_eoi_parent,
+	.irq_write_msi_msg	= mc_bus_msi_domain_write_msg,
+};
+
+static struct msi_domain_ops mc_bus_msi_ops = {
+	.msi_prepare	= mc_bus_msi_prepare,
+};
+
+static struct msi_domain_info mc_bus_msi_domain_info = {
+	.flags	= (MSI_FLAG_USE_DEF_DOM_OPS | MSI_FLAG_USE_DEF_CHIP_OPS |
+		   MSI_FLAG_MULTI_PCI_MSI | MSI_FLAG_PCI_MSIX),
+	.ops	= &mc_bus_msi_ops,
+	.chip	= &mc_bus_msi_irq_chip,
+};
+
+static int create_mc_irq_domain(struct platform_device *mc_pdev,
+				struct irq_domain **new_irq_domain)
+{
+	int error;
+	struct device_node *its_of_node;
+	struct irq_domain *its_domain;
+	struct irq_domain *irq_domain;
+	struct device_node *mc_of_node = mc_pdev->dev.of_node;
+
+	its_of_node = of_parse_phandle(mc_of_node, "lpi-parent", 0);
+	if (!its_of_node) {
+		dev_err(&mc_pdev->dev,
+			"lpi-parent phandle missing for %s\n",
+			mc_of_node->full_name);
+		return -ENOENT;
+	}
+
+	/*
+	 * Extract MSI parent node:
+	 */
+	its_domain = irq_find_host(its_of_node);
+	if (!its_domain) {
+		dev_err(&mc_pdev->dev, "Unable to find parent domain\n");
+		error = -ENOENT;
+		goto cleanup_its_of_node;
+	}
+
+	irq_domain = msi_create_irq_domain(mc_of_node, &mc_bus_msi_domain_info,
+					   its_domain->parent);
+	if (!irq_domain) {
+		dev_err(&mc_pdev->dev, "Failed to allocate msi_domain\n");
+		error = -ENOMEM;
+		goto cleanup_its_of_node;
+	}
+
+	dev_dbg(&mc_pdev->dev, "Allocated MSI domain\n");
+	*new_irq_domain = irq_domain;
+	return 0;
+
+cleanup_its_of_node:
+	of_node_put(its_of_node);
+	return error;
+}
+
+/*
+ * Initialize the interrupt pool associated with a MC bus.
+ * It allocates a block of IRQs from the GIC-ITS
+ */
+int __must_check fsl_mc_populate_irq_pool(struct fsl_mc_bus *mc_bus,
+					  unsigned int irq_count)
+{
+	unsigned int i;
+	struct msi_desc *msi_entry;
+	struct msi_desc *next_msi_entry;
+	struct fsl_mc_device_irq *irq_resources;
+	struct fsl_mc_device_irq *irq_res;
+	int error;
+	struct fsl_mc_device *mc_bus_dev = &mc_bus->mc_dev;
+	struct fsl_mc *mc = dev_get_drvdata(fsl_mc_bus_type.dev_root->parent);
+	struct fsl_mc_resource_pool *res_pool =
+			&mc_bus->resource_pools[FSL_MC_POOL_IRQ];
+
+	/*
+	 * Detect duplicate invocations of this function:
+	 */
+	if (WARN_ON(!list_empty(&mc_bus_dev->dev.msi_list)))
+		return -EINVAL;
+
+	if (WARN_ON(irq_count == 0 ||
+		    irq_count > FSL_MC_IRQ_POOL_MAX_TOTAL_IRQS))
+		return -EINVAL;
+
+	irq_resources =
+		devm_kzalloc(&mc_bus_dev->dev,
+			     sizeof(*irq_resources) * irq_count,
+			     GFP_KERNEL);
+	if (!irq_resources)
+		return -ENOMEM;
+
+	for (i = 0; i < irq_count; i++) {
+		irq_res = &irq_resources[i];
+		msi_entry = alloc_msi_entry(&mc_bus_dev->dev);
+		if (!msi_entry) {
+			dev_err(&mc_bus_dev->dev, "Failed to allocate msi entry\n");
+			error = -ENOMEM;
+			goto cleanup_msi_entries;
+		}
+
+		msi_entry->msi_attrib.is_msix = 1;
+		msi_entry->msi_attrib.is_64 = 1;
+		msi_entry->msi_attrib.entry_nr = i;
+		msi_entry->nvec_used = 1;
+		list_add_tail(&msi_entry->list, &mc_bus_dev->dev.msi_list);
+
+		/*
+		 * NOTE: irq_res->msi_paddr will be set by the
+		 * mc_bus_msi_domain_write_msg() callback
+		 */
+		irq_res->resource.type = res_pool->type;
+		irq_res->resource.data = irq_res;
+		irq_res->resource.parent_pool = res_pool;
+		INIT_LIST_HEAD(&irq_res->resource.node);
+		list_add_tail(&irq_res->resource.node, &res_pool->free_list);
+	}
+
+	/*
+	 * NOTE: Calling this function will trigger the invocation of the
+	 * mc_bus_msi_prepare() callback
+	 */
+	error = msi_domain_alloc_irqs(mc->irq_domain,
+				      &mc_bus_dev->dev, irq_count);
+
+	if (error) {
+		dev_err(&mc_bus_dev->dev, "Failed to allocate IRQs\n");
+		goto cleanup_msi_entries;
+	}
+
+	for_each_msi_entry(msi_entry, &mc_bus_dev->dev) {
+		u32 irq_num = msi_entry->irq;
+
+		irq_res = &irq_resources[msi_entry->msi_attrib.entry_nr];
+		irq_res->irq_number = irq_num;
+		irq_res->resource.id = irq_num;
+	}
+
+	res_pool->max_count = irq_count;
+	res_pool->free_count = irq_count;
+	mc_bus->irq_resources = irq_resources;
+	return 0;
+
+cleanup_msi_entries:
+	list_for_each_entry_safe(msi_entry, next_msi_entry,
+				 &mc_bus_dev->dev.msi_list, list)
+		kfree(msi_entry);
+
+	devm_kfree(&mc_bus_dev->dev, irq_resources);
+	return error;
+}
+EXPORT_SYMBOL_GPL(fsl_mc_populate_irq_pool);
+
+/**
+ * Teardown the interrupt pool associated with an MC bus.
+ * It frees the IRQs that were allocated to the pool, back to the GIC-ITS.
+ */
+void fsl_mc_cleanup_irq_pool(struct fsl_mc_bus *mc_bus)
+{
+	struct msi_desc *msi_entry;
+	struct msi_desc *next_msi_entry;
+	struct fsl_mc *mc = dev_get_drvdata(fsl_mc_bus_type.dev_root->parent);
+	struct fsl_mc_resource_pool *res_pool =
+			&mc_bus->resource_pools[FSL_MC_POOL_IRQ];
+
+	if (WARN_ON(res_pool->max_count == 0))
+		return;
+
+	if (WARN_ON(res_pool->free_count != res_pool->max_count))
+		return;
+
+	msi_domain_free_irqs(mc->irq_domain, &mc_bus->mc_dev.dev);
+	list_for_each_entry_safe(msi_entry, next_msi_entry,
+				 &mc_bus->mc_dev.dev.msi_list, list)
+		kfree(msi_entry);
+
+	devm_kfree(&mc_bus->mc_dev.dev, mc_bus->irq_resources);
+	res_pool->max_count = 0;
+	res_pool->free_count = 0;
+	mc_bus->irq_resources = NULL;
+}
+EXPORT_SYMBOL_GPL(fsl_mc_cleanup_irq_pool);
+
 static int parse_mc_ranges(struct device *dev,
 			   int *paddr_cells,
 			   int *mc_addr_cells,
@@ -611,6 +887,9 @@ static int fsl_mc_bus_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	platform_set_drvdata(pdev, mc);
+	error = create_mc_irq_domain(pdev, &mc->irq_domain);
+	if (error < 0)
+		return error;
 
 	/*
 	 * Get physical address of MC portal for the root DPRC:
@@ -620,7 +899,7 @@ static int fsl_mc_bus_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev,
 			"of_address_to_resource() failed for %s\n",
 			pdev->dev.of_node->full_name);
-		return error;
+		goto error_cleanup_irq_domain;
 	}
 
 	mc_portal_phys_addr = res.start;
@@ -628,7 +907,7 @@ static int fsl_mc_bus_probe(struct platform_device *pdev)
 	error = fsl_create_mc_io(&pdev->dev, mc_portal_phys_addr,
 				 mc_portal_size, NULL, 0, &mc_io);
 	if (error < 0)
-		return error;
+		goto error_cleanup_irq_domain;
 
 	error = mc_get_version(mc_io, &mc_version);
 	if (error != 0) {
@@ -673,6 +952,7 @@ static int fsl_mc_bus_probe(struct platform_device *pdev)
 	obj_desc.id = container_id;
 	obj_desc.ver_major = DPRC_VER_MAJOR;
 	obj_desc.ver_minor = DPRC_VER_MINOR;
+	obj_desc.irq_count = 1;
 	obj_desc.region_count = 0;
 
 	error = fsl_mc_device_add(&obj_desc, mc_io, &pdev->dev, &mc_bus_dev);
@@ -684,6 +964,9 @@ static int fsl_mc_bus_probe(struct platform_device *pdev)
 
 error_cleanup_mc_io:
 	fsl_destroy_mc_io(mc_io);
+
+error_cleanup_irq_domain:
+	irq_domain_remove(mc->irq_domain);
 	return error;
 }
 
@@ -698,6 +981,7 @@ static int fsl_mc_bus_remove(struct platform_device *pdev)
 	if (WARN_ON(&mc->root_mc_bus_dev->dev != fsl_mc_bus_type.dev_root))
 		return -EINVAL;
 
+	irq_domain_remove(mc->irq_domain);
 	fsl_mc_device_remove(mc->root_mc_bus_dev);
 	dev_info(&pdev->dev, "Root MC bus device removed");
 	return 0;

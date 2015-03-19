@@ -27,12 +27,26 @@
 	 strcmp(_obj_type, "dpcon") == 0)
 
 /**
+ * Maximum number of total IRQs that can be pre-allocated for an MC bus'
+ * IRQ pool
+ */
+#define FSL_MC_IRQ_POOL_MAX_TOTAL_IRQS	256
+
+/**
+ * Maximum number of extra IRQs pre-reallocated for an MC bus' IRQ pool,
+ * to be used by dynamically created MC objects
+ */
+#define FSL_MC_IRQ_POOL_MAX_EXTRA_IRQS	64
+
+/**
  * struct fsl_mc - Private data of a "fsl,qoriq-mc" platform device
  * @root_mc_bus_dev: MC object device representing the root DPRC
+ * @irq_domain: IRQ domain for the fsl-mc bus type
  * @addr_translation_ranges: array of bus to system address translation ranges
  */
 struct fsl_mc {
 	struct fsl_mc_device *root_mc_bus_dev;
+	struct irq_domain *irq_domain;
 	uint8_t num_translation_ranges;
 	struct fsl_mc_addr_translation_range *translation_ranges;
 };
@@ -76,11 +90,13 @@ struct fsl_mc_resource_pool {
  * @resource_pools: array of resource pools (one pool per resource type)
  * for this MC bus. These resources represent allocatable entities
  * from the physical DPRC.
+ * @irq_resources: Pointer to array of IRQ objects for the IRQ pool.
  * @scan_mutex: Serializes bus scanning
  */
 struct fsl_mc_bus {
 	struct fsl_mc_device mc_dev;
 	struct fsl_mc_resource_pool resource_pools[FSL_MC_NUM_POOL_TYPES];
+	struct fsl_mc_device_irq *irq_resources;
 	struct mutex scan_mutex;    /* serializes bus scanning */
 };
 
@@ -94,9 +110,8 @@ int __must_check fsl_mc_device_add(struct dprc_obj_desc *obj_desc,
 
 void fsl_mc_device_remove(struct fsl_mc_device *mc_dev);
 
-int dprc_scan_container(struct fsl_mc_device *mc_bus_dev);
-
-int dprc_scan_objects(struct fsl_mc_device *mc_bus_dev);
+int dprc_scan_objects(struct fsl_mc_device *mc_bus_dev,
+		      unsigned int *total_irq_count);
 
 int __init dprc_driver_init(void);
 
@@ -112,5 +127,10 @@ int __must_check fsl_mc_resource_allocate(struct fsl_mc_bus *mc_bus,
 							  **new_resource);
 
 void fsl_mc_resource_free(struct fsl_mc_resource *resource);
+
+int __must_check fsl_mc_populate_irq_pool(struct fsl_mc_bus *mc_bus,
+					  unsigned int irq_count);
+
+void fsl_mc_cleanup_irq_pool(struct fsl_mc_bus *mc_bus);
 
 #endif /* _FSL_MC_PRIVATE_H_ */

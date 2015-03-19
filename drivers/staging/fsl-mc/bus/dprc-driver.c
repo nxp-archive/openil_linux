@@ -13,6 +13,7 @@
 #include "../include/mc-sys.h"
 #include <linux/module.h>
 #include <linux/slab.h>
+#include <linux/interrupt.h>
 #include "dprc-cmd.h"
 
 struct dprc_child_objs {
@@ -241,6 +242,7 @@ static void dprc_cleanup_all_resource_pools(struct fsl_mc_device *mc_bus_dev)
  * dprc_scan_objects - Discover objects in a DPRC
  *
  * @mc_bus_dev: pointer to the fsl-mc device that represents a DPRC object
+ * @total_irq_count: total number of IRQs needed by objects in the DPRC.
  *
  * Detects objects added and removed from a DPRC and synchronizes the
  * state of the Linux bus driver, MC by adding and removing
@@ -254,11 +256,13 @@ static void dprc_cleanup_all_resource_pools(struct fsl_mc_device *mc_bus_dev)
  * populated before they can get allocation requests from probe callbacks
  * of the device drivers for the non-allocatable devices.
  */
-int dprc_scan_objects(struct fsl_mc_device *mc_bus_dev)
+int dprc_scan_objects(struct fsl_mc_device *mc_bus_dev,
+		      unsigned int *total_irq_count)
 {
 	int num_child_objects;
 	int dprc_get_obj_failures;
 	int error;
+	unsigned int irq_count = mc_bus_dev->obj_desc.irq_count;
 	struct dprc_obj_desc *child_obj_desc_array = NULL;
 
 	error = dprc_get_obj_count(mc_bus_dev->mc_io,
@@ -305,6 +309,7 @@ int dprc_scan_objects(struct fsl_mc_device *mc_bus_dev)
 				continue;
 			}
 
+			irq_count += obj_desc->irq_count;
 			dev_dbg(&mc_bus_dev->dev,
 				"Discovered object: type %s, id %d\n",
 				obj_desc->type, obj_desc->id);
@@ -317,6 +322,7 @@ int dprc_scan_objects(struct fsl_mc_device *mc_bus_dev)
 		}
 	}
 
+	*total_irq_count = irq_count;
 	dprc_remove_devices(mc_bus_dev, child_obj_desc_array,
 			    num_child_objects);
 
@@ -339,9 +345,10 @@ EXPORT_SYMBOL_GPL(dprc_scan_objects);
  * bus driver with the actual state of the MC by adding and removing
  * devices as appropriate.
  */
-int dprc_scan_container(struct fsl_mc_device *mc_bus_dev)
+static int dprc_scan_container(struct fsl_mc_device *mc_bus_dev)
 {
 	int error;
+	unsigned int irq_count;
 	struct fsl_mc_bus *mc_bus = to_fsl_mc_bus(mc_bus_dev);
 
 	dprc_init_all_resource_pools(mc_bus_dev);
@@ -350,17 +357,309 @@ int dprc_scan_container(struct fsl_mc_device *mc_bus_dev)
 	 * Discover objects in the DPRC:
 	 */
 	mutex_lock(&mc_bus->scan_mutex);
-	error = dprc_scan_objects(mc_bus_dev);
+	error = dprc_scan_objects(mc_bus_dev, &irq_count);
 	mutex_unlock(&mc_bus->scan_mutex);
 	if (error < 0)
 		goto error;
+
+	if (!mc_bus->irq_resources) {
+		irq_count += FSL_MC_IRQ_POOL_MAX_EXTRA_IRQS;
+		error = fsl_mc_populate_irq_pool(mc_bus, irq_count);
+		if (error < 0)
+			goto error;
+	}
 
 	return 0;
 error:
 	dprc_cleanup_all_resource_pools(mc_bus_dev);
 	return error;
 }
-EXPORT_SYMBOL_GPL(dprc_scan_container);
+
+/**
+ * dprc_irq0_handler - Regular ISR for DPRC interrupt 0
+ *
+ * @irq: IRQ number of the interrupt being handled
+ * @arg: Pointer to device structure
+ */
+static irqreturn_t dprc_irq0_handler(int irq_num, void *arg)
+{
+	return IRQ_WAKE_THREAD;
+}
+
+/**
+ * dprc_irq0_handler_thread - Handler thread function for DPRC interrupt 0
+ *
+ * @irq: IRQ number of the interrupt being handled
+ * @arg: Pointer to device structure
+ */
+static irqreturn_t dprc_irq0_handler_thread(int irq_num, void *arg)
+{
+	int error;
+	uint32_t status;
+	struct device *dev = (struct device *)arg;
+	struct fsl_mc_device *mc_dev = to_fsl_mc_device(dev);
+	struct fsl_mc_bus *mc_bus = to_fsl_mc_bus(mc_dev);
+	struct fsl_mc_io *mc_io = mc_dev->mc_io;
+	int irq_index = 0;
+
+	dev_dbg(dev, "DPRC IRQ %d\n", irq_num);
+	if (WARN_ON(!(mc_dev->flags & FSL_MC_IS_DPRC)))
+		return IRQ_HANDLED;
+
+	mutex_lock(&mc_bus->scan_mutex);
+	if (WARN_ON(mc_dev->irqs[irq_index]->irq_number != (uint32_t)irq_num))
+		goto out;
+
+	error = dprc_get_irq_status(mc_io, mc_dev->mc_handle, irq_index,
+				    &status);
+	if (error < 0) {
+		dev_err(dev,
+			"dprc_get_irq_status() failed: %d\n", error);
+		goto out;
+	}
+
+	error = dprc_clear_irq_status(mc_io, mc_dev->mc_handle, irq_index,
+				      status);
+	if (error < 0) {
+		dev_err(dev,
+			"dprc_clear_irq_status() failed: %d\n", error);
+		goto out;
+	}
+
+	if (status & (DPRC_IRQ_EVENT_OBJ_ADDED | DPRC_IRQ_EVENT_OBJ_REMOVED)) {
+		unsigned int irq_count;
+
+		error = dprc_scan_objects(mc_dev, &irq_count);
+		if (error < 0) {
+			dev_err(dev, "dprc_scan_objects() failed: %d\n", error);
+			goto out;
+		}
+
+		WARN_ON((int16_t)irq_count < 0);
+
+		if ((int16_t)irq_count >
+			mc_bus->resource_pools[FSL_MC_POOL_IRQ].max_count) {
+			dev_warn(dev,
+				 "IRQs needed (%u) exceed IRQs preallocated (%u)\n",
+				 irq_count,
+				 mc_bus->resource_pools[FSL_MC_POOL_IRQ].
+								max_count);
+		}
+	}
+
+out:
+	mutex_unlock(&mc_bus->scan_mutex);
+	return IRQ_HANDLED;
+}
+
+/*
+ * Disable and clear interrupts for a given DPRC object
+ */
+static int disable_dprc_irqs(struct fsl_mc_device *mc_dev)
+{
+	int i;
+	int error;
+	struct fsl_mc_io *mc_io = mc_dev->mc_io;
+	int irq_count = mc_dev->obj_desc.irq_count;
+
+	if (WARN_ON(irq_count == 0))
+		return -EINVAL;
+
+	for (i = 0; i < irq_count; i++) {
+		/*
+		 * Disable generation of interrupt i, while we configure it:
+		 */
+		error = dprc_set_irq_enable(mc_io, mc_dev->mc_handle, i, 0);
+		if (error < 0) {
+			dev_err(&mc_dev->dev,
+				"dprc_set_irq_enable() failed: %d\n", error);
+
+			return error;
+		}
+
+		/*
+		 * Disable all interrupt causes for interrupt i:
+		 */
+		error = dprc_set_irq_mask(mc_io, mc_dev->mc_handle, i, 0x0);
+		if (error < 0) {
+			dev_err(&mc_dev->dev,
+				"dprc_set_irq_mask() failed: %d\n", error);
+
+			return error;
+		}
+
+		/*
+		 * Clear any leftover interrupt i:
+		 */
+		error = dprc_clear_irq_status(mc_io, mc_dev->mc_handle, i,
+					      ~0x0U);
+		if (error < 0) {
+			dev_err(&mc_dev->dev,
+				"dprc_clear_irq_status() failed: %d\n",
+				error);
+			return error;
+		}
+	}
+
+	return 0;
+}
+
+static void unregister_dprc_irq_handlers(struct fsl_mc_device *mc_dev)
+{
+	int i;
+	struct fsl_mc_device_irq *irq;
+	int irq_count = mc_dev->obj_desc.irq_count;
+
+	for (i = 0; i < irq_count; i++) {
+		irq = mc_dev->irqs[i];
+		devm_free_irq(&mc_dev->dev, irq->irq_number,
+			      &mc_dev->dev);
+	}
+}
+
+static int register_dprc_irq_handlers(struct fsl_mc_device *mc_dev)
+{
+	static const struct irq_handler {
+		irq_handler_t irq_handler;
+		irq_handler_t irq_handler_thread;
+		const char *irq_name;
+	} irq_handlers[] = {
+		[0] = {
+			.irq_handler = dprc_irq0_handler,
+			.irq_handler_thread = dprc_irq0_handler_thread,
+			.irq_name = "FSL MC DPRC irq0",
+		},
+	};
+
+	unsigned int i;
+	int error;
+	struct fsl_mc_device_irq *irq;
+	unsigned int num_irq_handlers_registered = 0;
+	int irq_count = mc_dev->obj_desc.irq_count;
+
+	if (WARN_ON(irq_count != ARRAY_SIZE(irq_handlers)))
+		return -EINVAL;
+
+	for (i = 0; i < ARRAY_SIZE(irq_handlers); i++) {
+		irq = mc_dev->irqs[i];
+		error = devm_request_threaded_irq(&mc_dev->dev,
+						  irq->irq_number,
+						  irq_handlers[i].irq_handler,
+						  irq_handlers[i].
+							irq_handler_thread,
+						  IRQF_NO_SUSPEND |
+							IRQF_ONESHOT,
+						  irq_handlers[i].irq_name,
+						  &mc_dev->dev);
+		if (error < 0) {
+			dev_err(&mc_dev->dev,
+				"devm_request_threaded_irq() failed: %d\n",
+				error);
+			goto error_unregister_irq_handlers;
+		}
+
+		/*
+		 * Program the MSI (paddr, value) pair in the device:
+		 *
+		 * TODO: This needs to be moved to mc_bus_msi_domain_write_msg()
+		 * when the MC object-independent dprc_set_irq() flib API
+		 * becomes available
+		 */
+		error = dprc_set_irq(mc_dev->mc_io, mc_dev->mc_handle,
+				     i, irq->msi_paddr,
+				     irq->msi_value,
+				     irq->irq_number);
+		if (error < 0) {
+			dev_err(&mc_dev->dev,
+				"mc_set_irq() failed: %d\n", error);
+			goto error_unregister_irq_handlers;
+		}
+
+		num_irq_handlers_registered++;
+	}
+
+	return 0;
+
+error_unregister_irq_handlers:
+	for (i = 0; i < num_irq_handlers_registered; i++) {
+		irq = mc_dev->irqs[i];
+		devm_free_irq(&mc_dev->dev, irq->irq_number,
+			      &mc_dev->dev);
+	}
+
+	return error;
+}
+
+static int enable_dprc_irqs(struct fsl_mc_device *mc_dev)
+{
+	int i;
+	int error;
+	int irq_count = mc_dev->obj_desc.irq_count;
+
+	for (i = 0; i < irq_count; i++) {
+		/*
+		 * Enable all interrupt causes for the interrupt:
+		 */
+		error = dprc_set_irq_mask(mc_dev->mc_io,
+					  mc_dev->mc_handle,
+					  i,
+					  ~0x0u);
+		if (error < 0) {
+			dev_err(&mc_dev->dev,
+				"dprc_set_irq_mask() failed: %d\n", error);
+
+			return error;
+		}
+
+		/*
+		 * Enable generation of the interrupt:
+		 */
+		error = dprc_set_irq_enable(mc_dev->mc_io,
+					    mc_dev->mc_handle,
+					    i, 1);
+		if (error < 0) {
+			dev_err(&mc_dev->dev,
+				"dprc_set_irq_enable() failed: %d\n", error);
+
+			return error;
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * Setup interrupts for a given DPRC device
+ */
+static int dprc_setup_irqs(struct fsl_mc_device *mc_dev)
+{
+	int error;
+
+	error = fsl_mc_allocate_irqs(mc_dev);
+	if (error < 0)
+		return error;
+
+	error = disable_dprc_irqs(mc_dev);
+	if (error < 0)
+		goto error_free_irqs;
+
+	error = register_dprc_irq_handlers(mc_dev);
+	if (error < 0)
+		goto error_free_irqs;
+
+	error = enable_dprc_irqs(mc_dev);
+	if (error < 0)
+		goto error_unregister_irq_handlers;
+
+	return 0;
+
+error_unregister_irq_handlers:
+	unregister_dprc_irq_handlers(mc_dev);
+
+error_free_irqs:
+	fsl_mc_free_irqs(mc_dev);
+	return error;
+}
 
 /**
  * dprc_probe - callback invoked when a DPRC is being bound to this driver
@@ -415,15 +714,35 @@ static int dprc_probe(struct fsl_mc_device *mc_dev)
 	if (error < 0)
 		goto error_cleanup_open;
 
+	/*
+	 * Configure interrupts for the DPRC object associated with this MC bus:
+	 */
+	error = dprc_setup_irqs(mc_dev);
+	if (error < 0)
+		goto error_cleanup_open;
+
 	dev_info(&mc_dev->dev, "DPRC device bound to driver");
 	return 0;
 
 error_cleanup_open:
+	if (mc_bus->irq_resources)
+		fsl_mc_cleanup_irq_pool(mc_bus);
+
 	(void)dprc_close(mc_dev->mc_io, mc_dev->mc_handle);
 
 error_cleanup_mc_io:
 	fsl_destroy_mc_io(mc_dev->mc_io);
 	return error;
+}
+
+/*
+ * Tear down interrupts for a given DPRC object
+ */
+static void dprc_teardown_irqs(struct fsl_mc_device *mc_dev)
+{
+	(void)disable_dprc_irqs(mc_dev);
+	unregister_dprc_irq_handlers(mc_dev);
+	fsl_mc_free_irqs(mc_dev);
 }
 
 /**
@@ -439,18 +758,24 @@ error_cleanup_mc_io:
 static int dprc_remove(struct fsl_mc_device *mc_dev)
 {
 	int error;
+	struct fsl_mc_bus *mc_bus = to_fsl_mc_bus(mc_dev);
 
 	if (WARN_ON(strcmp(mc_dev->obj_desc.type, "dprc") != 0))
 		return -EINVAL;
 	if (WARN_ON(!mc_dev->mc_io))
 		return -EINVAL;
 
+	if (WARN_ON(!mc_bus->irq_resources))
+		return -EINVAL;
+
+	dprc_teardown_irqs(mc_dev);
 	device_for_each_child(&mc_dev->dev, NULL, __fsl_mc_device_remove);
 	dprc_cleanup_all_resource_pools(mc_dev);
 	error = dprc_close(mc_dev->mc_io, mc_dev->mc_handle);
 	if (error < 0)
 		dev_err(&mc_dev->dev, "dprc_close() failed: %d\n", error);
 
+	fsl_mc_cleanup_irq_pool(mc_bus);
 	dev_info(&mc_dev->dev, "DPRC device unbound from driver");
 	return 0;
 }
