@@ -18,6 +18,9 @@ config PCI_MVEBU
 config PCIE_DW
 	bool
 
+config PCIE_DW_BASE
+	bool
+
 config PCI_EXYNOS
 	bool "Samsung Exynos PCIe controller"
 	depends on SOC_EXYNOS5440
