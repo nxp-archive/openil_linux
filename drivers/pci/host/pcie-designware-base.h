@@ -10,6 +10,9 @@
 #define _PCIE_DESIGNWARE_BASE_H
 
 /* Synopsis specific PCIE configuration registers */
+#define PCIE_SYMBOL_TIMER_1		0x71c
+#define PCIE_DBI_RO_WR_EN		0x8bc
+
 #define PCIE_ATU_VIEWPORT		0x900
 #define PCIE_ATU_REGION_INBOUND		(0x1 << 31)
 #define PCIE_ATU_REGION_OUTBOUND	(0x0 << 31)

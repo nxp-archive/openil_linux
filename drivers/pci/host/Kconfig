@@ -99,8 +99,8 @@ config PCI_XGENE
 
 config PCI_LAYERSCAPE
 	bool "Freescale Layerscape PCIe controller"
-	depends on OF && ARM
-	select PCIE_DW
+	depends on OF && (ARM || ARM64)
+	select PCIE_DW_BASE
 	select MFD_SYSCON
 	help
 	  Say Y here if you want PCIe controller support on Layerscape SoCs.
