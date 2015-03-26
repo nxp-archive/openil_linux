@@ -426,7 +426,11 @@ static irqreturn_t dprc_irq0_handler_thread(int irq_num, void *arg)
 		goto out;
 	}
 
-	if (status & (DPRC_IRQ_EVENT_OBJ_ADDED | DPRC_IRQ_EVENT_OBJ_REMOVED)) {
+	if (status & (DPRC_IRQ_EVENT_OBJ_ADDED |
+		      DPRC_IRQ_EVENT_OBJ_REMOVED |
+		      DPRC_IRQ_EVENT_CONTAINER_DESTROYED |
+		      DPRC_IRQ_EVENT_OBJ_DESTROYED |
+		      DPRC_IRQ_EVENT_OBJ_CREATED)) {
 		unsigned int irq_count;
 
 		error = dprc_scan_objects(mc_dev, &irq_count);
