@@ -723,6 +723,7 @@
 			dr_mode = "host";
 			snps,quirk-frame-length-adjustment = <0x20>;
 			snps,dis_rxdet_inp3_quirk;
+			configure-gfladj;
 			usb3-lpm-capable;
 			snps,dis-u1u2-when-u3-quirk;
 		};
