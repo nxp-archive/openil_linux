@@ -311,8 +311,9 @@ static int fsl_mc_device_get_mmio_regions(struct fsl_mc_device *mc_dev,
 					  &regions[i].start);
 		if (error < 0) {
 			dev_err(parent_dev,
-				"Invalid MC address: %#llx\n",
-				region_desc.base_paddr);
+				"Invalid MC address: %#llx (for %s.%d\'s region %d)\n",
+				region_desc.base_paddr,
+				obj_desc->type, obj_desc->id, i);
 			goto error_cleanup_regions;
 		}
 
