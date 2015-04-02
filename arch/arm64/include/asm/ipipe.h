@@ -234,7 +234,7 @@ static inline unsigned long __ipipe_ffnz(unsigned long ul)
 #define __ipipe_syscall_watched_p(p, sc)				\
 	(ipipe_notifier_enabled_p(p) || (unsigned long)sc >= __NR_syscalls)
 
-#define __ipipe_root_tick_p(regs) (!arch_irqs_disabled_flags(regs->ARM_cpsr))
+#define __ipipe_root_tick_p(regs) (!arch_irqs_disabled_flags(regs->pstate))
 
 #else /* !CONFIG_IPIPE */
 

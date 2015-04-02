@@ -205,6 +205,10 @@ tsk	.req	x28		// current thread_info
 	.macro	irq_handler
 	adrp	x1, handle_arch_irq
 	ldr	x1, [x1, #:lo12:handle_arch_irq]
+#ifdef CONFIG_IPIPE
+	bl  __ipipe_check_root_interruptible
+	cmp x0, #1
+#endif /* CONFIG_IPIPE */
 	mov	x0, sp
 	blr	x1
 	.endm
