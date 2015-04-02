@@ -595,6 +595,11 @@ void fsl_mc_device_remove(struct fsl_mc_device *mc_dev)
 
 		if (&mc_dev->dev == fsl_mc_bus_type.dev_root)
 			fsl_mc_bus_type.dev_root = NULL;
+	} else if (strcmp(mc_dev->obj_desc.type, "dpmcp") == 0) {
+		if (mc_dev->mc_io) {
+			fsl_destroy_mc_io(mc_dev->mc_io);
+			mc_dev->mc_io = NULL;
+		}
 	}
 
 	kfree(mc_dev->driver_override);
@@ -670,12 +675,14 @@ static void mc_bus_msi_domain_write_msg(struct irq_data *irq_data,
 	struct fsl_mc_device_irq *irq_res =
 		&mc_bus->irq_resources[msi_entry->msi_attrib.entry_nr];
 
+	/*
+	 * NOTE: This function is invoked with interrupts disabled
+	 */
+
 	if (irq_res->irq_number == irq_data->irq) {
-		/*
-		 * write msg->address_hi/lo to irq_resource
-		 */
 		irq_res->msi_paddr =
 			((u64)msg->address_hi << 32) | msg->address_lo;
+
 		irq_res->msi_value = msg->data;
 
 		/*
