@@ -83,6 +83,11 @@ static void ptrace_hbptriggered(struct perf_event *bp,
 		.si_addr	= (void __user *)(bkpt->trigger),
 	};
 
+#ifdef CONFIG_IPIPE
+	if (__ipipe_report_trap(IPIPE_TRAP_BREAK,regs))
+		return;
+#endif /* CONFIG_IPIPE */
+
 #ifdef CONFIG_COMPAT
 	int i;
 

@@ -1,5 +1,5 @@
 /* -*- linux-c -*-
- * linux/arch/arm/kernel/ipipe.c
+ * linux/arch/arm64/kernel/ipipe.c
  *
  * Copyright (C) 2002-2005 Philippe Gerum.
  * Copyright (C) 2004 Wolfgang Grandegger (Adeos/arm port over 2.4).
@@ -43,7 +43,6 @@
 #include <linux/cpu.h>
 #include <linux/ipipe_domain.h>
 #include <linux/ipipe_tickdev.h>
-#include <asm/system.h>
 #include <asm/atomic.h>
 #include <asm/hardirq.h>
 #include <asm/io.h>
@@ -482,11 +481,11 @@ asmlinkage void __exception __ipipe_grab_irq(int irq, struct pt_regs *regs)
 			__ipipe_mach_hrtimer_debug(irq);
 #endif /* CONFIG_IPIPE_DEBUG_INTERNAL */
 	  copy_regs:
-		p->tick_regs.ARM_cpsr =
+		p->tick_regs.pstate =
 			(p->curr == &p->root
-			 ? regs->ARM_cpsr
-			 : regs->ARM_cpsr | PSR_I_BIT);
-		p->tick_regs.ARM_pc = regs->ARM_pc;
+			 ? regs->pstate
+			 : regs->pstate | PSR_I_BIT);
+		p->tick_regs.pc = regs->pc;
 	}
 
 	__ipipe_dispatch_irq(irq, 0);
