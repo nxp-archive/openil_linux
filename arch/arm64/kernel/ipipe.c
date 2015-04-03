@@ -580,6 +580,19 @@ void deferred_switch_mm(struct mm_struct *next)
 #endif
 #endif /* CONFIG_MMU */
 
+#ifndef CONFIG_IPIPE_ARM_KUSER_TSC
+static struct __ipipe_tscinfo tsc_info;
+
+void __init __ipipe_tsc_register(struct __ipipe_tscinfo *info)
+{
+	tsc_info = *info;
+}
+void __ipipe_mach_get_tscinfo(struct __ipipe_tscinfo *info)
+{
+	*info = tsc_info;
+}
+#endif
+
 #if defined(CONFIG_IPIPE_DEBUG) && defined(CONFIG_DEBUG_LL)
 void printascii(const char *s);
 
