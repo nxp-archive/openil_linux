@@ -94,8 +94,11 @@ void __ipipe_tsc_update(void);
 extern unsigned long __ipipe_kuser_tsc_freq;
 #define __ipipe_hrclock_freq __ipipe_kuser_tsc_freq
 #else /* ! generic tsc */
+static inline void __ipipe_mach_update_tsc(void) {}
 unsigned long long __ipipe_mach_get_tsc(void);
 #define __ipipe_tsc_get() __ipipe_mach_get_tsc()
+void __ipipe_tsc_register(struct __ipipe_tscinfo *info);
+static inline void __ipipe_tsc_update(void) {}
 #ifndef __ipipe_hrclock_freq
 extern unsigned long __ipipe_hrtimer_freq;
 #define __ipipe_hrclock_freq __ipipe_hrtimer_freq
