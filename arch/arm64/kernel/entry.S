@@ -205,12 +205,12 @@ tsk	.req	x28		// current thread_info
 	.macro	irq_handler
 	adrp	x1, handle_arch_irq
 	ldr	x1, [x1, #:lo12:handle_arch_irq]
+	mov	x0, sp
+	blr	x1
 #ifdef CONFIG_IPIPE
 	bl  __ipipe_check_root_interruptible
 	cmp x0, #1
 #endif /* CONFIG_IPIPE */
-	mov	x0, sp
-	blr	x1
 	.endm
 
 	.text
@@ -384,6 +384,9 @@ el1_irq:
 
 	irq_handler
 
+#ifdef CONFIG_IPIPE
+	bne	__ipipe_fast_svc_irq_exit
+#endif
 #ifdef CONFIG_PREEMPT
 	get_thread_info tsk
 	ldr	w24, [tsk, #TI_PREEMPT]		// get preempt count
@@ -392,6 +395,9 @@ el1_irq:
 	tbz	x0, #TIF_NEED_RESCHED, 1f	// needs rescheduling?
 	bl	el1_preempt
 1:
+#endif
+#ifdef CONFIG_IPIPE
+__ipipe_fast_svc_irq_exit:
 #endif
 #ifdef CONFIG_TRACE_IRQFLAGS
 	bl	trace_hardirqs_on
@@ -402,7 +408,11 @@ ENDPROC(el1_irq)
 #ifdef CONFIG_PREEMPT
 el1_preempt:
 	mov	x24, lr
+#ifndef CONFIG_IPIPE
 1:	bl	preempt_schedule_irq		// irq en/disable is done inside
+#else /* CONFIG_IPIPE */
+1:	bl	__ipipe_preempt_schedule_irq	// irq en/disable is done inside
+#endif /* CONFIG_IPIPE */
 	ldr	x0, [tsk, #TI_FLAGS]		// get new tasks TI_FLAGS
 	tbnz	x0, #TIF_NEED_RESCHED, 1b	// needs rescheduling?
 	ret	x24
@@ -587,6 +597,9 @@ el0_irq_naked:
 	ct_user_exit
 	irq_handler
 
+#ifdef CONFIG_IPIPE
+	bne	__ipipe_ret_to_user_irqs_disabled
+#endif	/* CONFIG_IPIPE */
 #ifdef CONFIG_TRACE_IRQFLAGS
 	bl	trace_hardirqs_on
 #endif
@@ -634,6 +647,15 @@ ret_fast_syscall:
 	cbnz	x2, fast_work_pending
 	enable_step_tsk x1, x2
 	kernel_exit 0, ret = 1
+
+#ifdef CONFIG_IPIPE
+__ipipe_ret_to_user:
+	disable_irq				// disable interrupts
+ENTRY(__ipipe_ret_to_user_irqs_disabled)
+	kernel_exit 0, ret = 0
+ENDPROC(__ipipe_ret_to_user_irqs_disabled)
+#endif /* CONFIG_IPIPE */
+
 
 /*
  * Ok, we need to do extra processing, enter the slow path.
