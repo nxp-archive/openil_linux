@@ -256,8 +256,10 @@ int mc_send_command(struct fsl_mc_io *mc_io, struct mc_command *cmd)
 		 * TODO: When MC command completion interrupts are supported
 		 * call wait function here instead of usleep_range()
 		 */
-		usleep_range(MC_CMD_COMPLETION_POLLING_MIN_SLEEP_USECS,
-			     MC_CMD_COMPLETION_POLLING_MAX_SLEEP_USECS);
+		if (preemptible()) {
+			usleep_range(MC_CMD_COMPLETION_POLLING_MIN_SLEEP_USECS,
+				     MC_CMD_COMPLETION_POLLING_MAX_SLEEP_USECS);
+		}
 
 		if (time_after_eq(jiffies, jiffies_until_timeout)) {
 			pr_debug("MC command timed out (portal: %#llx, obj handle: %#x, command: %#x)\n",

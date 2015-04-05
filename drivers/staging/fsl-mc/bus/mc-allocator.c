@@ -531,13 +531,19 @@ int __must_check fsl_mc_allocate_irqs(struct fsl_mc_device *mc_dev)
 
 		irqs[i] = to_fsl_mc_irq(resource);
 		res_allocated_count++;
+
+		WARN_ON(irqs[i]->mc_dev);
+		irqs[i]->mc_dev = mc_dev;
+		irqs[i]->dev_irq_index = i;
 	}
 
 	mc_dev->irqs = irqs;
 	return 0;
 error:
-	for (i = 0; i < res_allocated_count; i++)
+	for (i = 0; i < res_allocated_count; i++) {
+		irqs[i]->mc_dev = NULL;
 		fsl_mc_resource_free(&irqs[i]->resource);
+	}
 
 	if (irqs)
 		devm_kfree(&mc_dev->dev, irqs);
@@ -555,8 +561,9 @@ void fsl_mc_free_irqs(struct fsl_mc_device *mc_dev)
 	int i;
 	int irq_count;
 	struct fsl_mc_bus *mc_bus;
+	struct fsl_mc_device_irq **irqs = mc_dev->irqs;
 
-	if (WARN_ON(!mc_dev->irqs))
+	if (WARN_ON(!irqs))
 		return;
 
 	irq_count = mc_dev->obj_desc.irq_count;
@@ -569,8 +576,11 @@ void fsl_mc_free_irqs(struct fsl_mc_device *mc_dev)
 	if (WARN_ON(!mc_bus->irq_resources))
 		return;
 
-	for (i = 0; i < irq_count; i++)
-		fsl_mc_resource_free(&mc_dev->irqs[i]->resource);
+	for (i = 0; i < irq_count; i++) {
+		WARN_ON(!irqs[i]->mc_dev);
+		irqs[i]->mc_dev = NULL;
+		fsl_mc_resource_free(&irqs[i]->resource);
+	}
 
 	devm_kfree(&mc_dev->dev, mc_dev->irqs);
 	mc_dev->irqs = NULL;
@@ -604,8 +614,8 @@ static int fsl_mc_allocator_probe(struct fsl_mc_device *mc_dev)
 	if (error < 0)
 		goto error;
 
-	dev_info(&mc_dev->dev,
-		 "Allocatable MC object device bound to fsl_mc_allocator driver");
+	dev_dbg(&mc_dev->dev,
+		"Allocatable MC object device bound to fsl_mc_allocator driver");
 	return 0;
 error:
 
@@ -627,8 +637,8 @@ static int fsl_mc_allocator_remove(struct fsl_mc_device *mc_dev)
 	if (error < 0)
 		goto out;
 
-	dev_info(&mc_dev->dev,
-		 "Allocatable MC object device unbound from fsl_mc_allocator driver");
+	dev_dbg(&mc_dev->dev,
+		"Allocatable MC object device unbound from fsl_mc_allocator driver");
 	error = 0;
 out:
 	return error;

@@ -110,12 +110,16 @@ struct fsl_mc_resource {
  * @msi_paddr: message-based interrupt physical address
  * @msi_value: message-based interrupt data value
  * @irq_number: Linux IRQ number assigned to the interrupt
+ * @mc_dev: MC object device that owns this interrupt
+ * @dev_irq_index: device-relative IRQ index
  * @resource: MC generic resource associated with the interrupt
  */
 struct fsl_mc_device_irq {
 	phys_addr_t msi_paddr;
 	uint32_t msi_value;
 	uint32_t irq_number;
+	struct fsl_mc_device *mc_dev;
+	uint8_t dev_irq_index;
 	struct fsl_mc_resource resource;
 };
 

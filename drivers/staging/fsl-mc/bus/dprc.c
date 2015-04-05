@@ -73,7 +73,7 @@ int dprc_create_container(struct fsl_mc_io *mc_io,
 			  uint16_t token,
 			  struct dprc_cfg *cfg,
 			  int *child_container_id,
-			  uint64_t *child_portal_paddr)
+			  uint64_t *child_portal_offset)
 {
 	struct mc_command cmd = { 0 };
 	int err;
@@ -82,6 +82,22 @@ int dprc_create_container(struct fsl_mc_io *mc_io,
 	cmd.params[0] |= mc_enc(32, 16, cfg->icid);
 	cmd.params[0] |= mc_enc(0, 32, cfg->options);
 	cmd.params[1] |= mc_enc(32, 32, cfg->portal_id);
+	cmd.params[2] |= mc_enc(0, 8, cfg->label[0]);
+	cmd.params[2] |= mc_enc(8, 8, cfg->label[1]);
+	cmd.params[2] |= mc_enc(16, 8, cfg->label[2]);
+	cmd.params[2] |= mc_enc(24, 8, cfg->label[3]);
+	cmd.params[2] |= mc_enc(32, 8, cfg->label[4]);
+	cmd.params[2] |= mc_enc(40, 8, cfg->label[5]);
+	cmd.params[2] |= mc_enc(48, 8, cfg->label[6]);
+	cmd.params[2] |= mc_enc(56, 8, cfg->label[7]);
+	cmd.params[3] |= mc_enc(0, 8, cfg->label[8]);
+	cmd.params[3] |= mc_enc(8, 8, cfg->label[9]);
+	cmd.params[3] |= mc_enc(16, 8, cfg->label[10]);
+	cmd.params[3] |= mc_enc(24, 8, cfg->label[11]);
+	cmd.params[3] |= mc_enc(32, 8, cfg->label[12]);
+	cmd.params[3] |= mc_enc(40, 8, cfg->label[13]);
+	cmd.params[3] |= mc_enc(48, 8, cfg->label[14]);
+	cmd.params[3] |= mc_enc(56, 8, cfg->label[15]);
 
 	cmd.header = mc_encode_cmd_header(DPRC_CMDID_CREATE_CONT,
 					  MC_CMD_PRI_LOW, token);
@@ -93,10 +109,11 @@ int dprc_create_container(struct fsl_mc_io *mc_io,
 
 	/* retrieve response parameters */
 	*child_container_id = mc_dec(cmd.params[1], 0, 32);
-	*child_portal_paddr = mc_dec(cmd.params[2], 0, 64);
+	*child_portal_offset = mc_dec(cmd.params[2], 0, 64);
 
 	return 0;
 }
+EXPORT_SYMBOL(dprc_create_container);
 
 int dprc_destroy_container(struct fsl_mc_io *mc_io,
 			   uint16_t token,
@@ -112,6 +129,7 @@ int dprc_destroy_container(struct fsl_mc_io *mc_io,
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
+EXPORT_SYMBOL(dprc_destroy_container);
 
 int dprc_reset_container(struct fsl_mc_io *mc_io,
 			 uint16_t token,
@@ -127,6 +145,7 @@ int dprc_reset_container(struct fsl_mc_io *mc_io,
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
+EXPORT_SYMBOL(dprc_reset_container);
 
 int dprc_get_irq(struct fsl_mc_io *mc_io,
 		 uint16_t token,
@@ -158,6 +177,41 @@ int dprc_get_irq(struct fsl_mc_io *mc_io,
 
 	return 0;
 }
+EXPORT_SYMBOL(dprc_get_irq);
+
+int dprc_obj_get_irq(struct fsl_mc_io *mc_io,
+		     uint16_t token,
+		     int obj_index,
+		     uint8_t irq_index,
+		     int *type,
+		     uint64_t *irq_addr,
+		     uint32_t *irq_val,
+		     int *user_irq_id)
+{
+	struct mc_command cmd = { 0 };
+	int err;
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPRC_CMDID_OBJ_GET_IRQ,
+					  MC_CMD_PRI_LOW,
+					  token);
+
+	cmd.params[0] |= mc_enc(0, 32, obj_index);
+	cmd.params[0] |= mc_enc(32, 8, irq_index);
+
+	/* send command to mc*/
+	err = mc_send_command(mc_io, &cmd);
+	if (err)
+		return err;
+
+	/* retrieve response parameters */
+	*irq_val = mc_dec(cmd.params[0], 0, 32);
+	*irq_addr = mc_dec(cmd.params[1], 0, 64);
+	*user_irq_id = mc_dec(cmd.params[2], 0, 32);
+	*type = mc_dec(cmd.params[2], 32, 32);
+	return 0;
+}
+EXPORT_SYMBOL(dprc_obj_get_irq);
 
 int dprc_set_irq(struct fsl_mc_io *mc_io,
 		 uint16_t token,
@@ -180,6 +234,33 @@ int dprc_set_irq(struct fsl_mc_io *mc_io,
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
+EXPORT_SYMBOL(dprc_set_irq);
+
+int dprc_obj_set_irq(struct fsl_mc_io *mc_io,
+		     uint16_t token,
+		     int obj_index,
+		     uint8_t irq_index,
+		     uint64_t irq_addr,
+		     uint32_t irq_val,
+		     int user_irq_id)
+{
+	struct mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPRC_CMDID_OBJ_SET_IRQ,
+					  MC_CMD_PRI_LOW,
+					  token);
+
+	cmd.params[0] |= mc_enc(32, 8, irq_index);
+	cmd.params[0] |= mc_enc(0, 32, irq_val);
+	cmd.params[1] |= mc_enc(0, 64, irq_addr);
+	cmd.params[2] |= mc_enc(0, 32, user_irq_id);
+	cmd.params[2] |= mc_enc(32, 32, obj_index);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
+EXPORT_SYMBOL(dprc_obj_set_irq);
 
 int dprc_get_irq_enable(struct fsl_mc_io *mc_io,
 			uint16_t token,
@@ -204,6 +285,7 @@ int dprc_get_irq_enable(struct fsl_mc_io *mc_io,
 
 	return 0;
 }
+EXPORT_SYMBOL(dprc_get_irq_enable);
 
 int dprc_set_irq_enable(struct fsl_mc_io *mc_io,
 			uint16_t token,
@@ -221,6 +303,7 @@ int dprc_set_irq_enable(struct fsl_mc_io *mc_io,
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
+EXPORT_SYMBOL(dprc_set_irq_enable);
 
 int dprc_get_irq_mask(struct fsl_mc_io *mc_io,
 		      uint16_t token,
@@ -245,6 +328,7 @@ int dprc_get_irq_mask(struct fsl_mc_io *mc_io,
 
 	return 0;
 }
+EXPORT_SYMBOL(dprc_get_irq_mask);
 
 int dprc_set_irq_mask(struct fsl_mc_io *mc_io,
 		      uint16_t token,
@@ -262,6 +346,7 @@ int dprc_set_irq_mask(struct fsl_mc_io *mc_io,
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
+EXPORT_SYMBOL(dprc_set_irq_mask);
 
 int dprc_get_irq_status(struct fsl_mc_io *mc_io,
 			uint16_t token,
@@ -286,6 +371,7 @@ int dprc_get_irq_status(struct fsl_mc_io *mc_io,
 
 	return 0;
 }
+EXPORT_SYMBOL(dprc_get_irq_status);
 
 int dprc_clear_irq_status(struct fsl_mc_io *mc_io,
 			  uint16_t token,
@@ -303,6 +389,7 @@ int dprc_clear_irq_status(struct fsl_mc_io *mc_io,
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
+EXPORT_SYMBOL(dprc_clear_irq_status);
 
 int dprc_get_attributes(struct fsl_mc_io *mc_io,
 			uint16_t token,
@@ -331,6 +418,7 @@ int dprc_get_attributes(struct fsl_mc_io *mc_io,
 
 	return 0;
 }
+EXPORT_SYMBOL(dprc_get_attributes);
 
 int dprc_set_res_quota(struct fsl_mc_io *mc_io,
 		       uint16_t token,
@@ -365,6 +453,7 @@ int dprc_set_res_quota(struct fsl_mc_io *mc_io,
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
+EXPORT_SYMBOL(dprc_set_res_quota);
 
 int dprc_get_res_quota(struct fsl_mc_io *mc_io,
 		       uint16_t token,
@@ -406,6 +495,7 @@ int dprc_get_res_quota(struct fsl_mc_io *mc_io,
 
 	return 0;
 }
+EXPORT_SYMBOL(dprc_get_res_quota);
 
 int dprc_assign(struct fsl_mc_io *mc_io,
 		uint16_t token,
@@ -441,6 +531,7 @@ int dprc_assign(struct fsl_mc_io *mc_io,
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
+EXPORT_SYMBOL(dprc_assign);
 
 int dprc_unassign(struct fsl_mc_io *mc_io,
 		  uint16_t token,
@@ -477,6 +568,7 @@ int dprc_unassign(struct fsl_mc_io *mc_io,
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
+EXPORT_SYMBOL(dprc_unassign);
 
 int dprc_get_pool_count(struct fsl_mc_io *mc_io,
 			uint16_t token,
@@ -499,6 +591,7 @@ int dprc_get_pool_count(struct fsl_mc_io *mc_io,
 
 	return 0;
 }
+EXPORT_SYMBOL(dprc_get_pool_count);
 
 int dprc_get_pool(struct fsl_mc_io *mc_io,
 		  uint16_t token,
@@ -539,6 +632,7 @@ int dprc_get_pool(struct fsl_mc_io *mc_io,
 
 	return 0;
 }
+EXPORT_SYMBOL(dprc_get_pool);
 
 int dprc_get_obj_count(struct fsl_mc_io *mc_io, uint16_t token, int *obj_count)
 {
@@ -604,7 +698,22 @@ int dprc_get_obj(struct fsl_mc_io *mc_io,
 	obj_desc->type[13] = mc_dec(cmd.params[4], 40, 8);
 	obj_desc->type[14] = mc_dec(cmd.params[4], 48, 8);
 	obj_desc->type[15] = '\0';
-
+	obj_desc->label[0] = mc_dec(cmd.params[5], 0, 8);
+	obj_desc->label[1] = mc_dec(cmd.params[5], 8, 8);
+	obj_desc->label[2] = mc_dec(cmd.params[5], 16, 8);
+	obj_desc->label[3] = mc_dec(cmd.params[5], 24, 8);
+	obj_desc->label[4] = mc_dec(cmd.params[5], 32, 8);
+	obj_desc->label[5] = mc_dec(cmd.params[5], 40, 8);
+	obj_desc->label[6] = mc_dec(cmd.params[5], 48, 8);
+	obj_desc->label[7] = mc_dec(cmd.params[5], 56, 8);
+	obj_desc->label[8] = mc_dec(cmd.params[6], 0, 8);
+	obj_desc->label[9] = mc_dec(cmd.params[6], 8, 8);
+	obj_desc->label[10] = mc_dec(cmd.params[6], 16, 8);
+	obj_desc->label[11] = mc_dec(cmd.params[6], 24, 8);
+	obj_desc->label[12] = mc_dec(cmd.params[6], 32, 8);
+	obj_desc->label[13] = mc_dec(cmd.params[6], 40, 8);
+	obj_desc->label[14] = mc_dec(cmd.params[6], 48, 8);
+	obj_desc->label[15] = '\0';
 	return 0;
 }
 EXPORT_SYMBOL(dprc_get_obj);
@@ -696,31 +805,6 @@ int dprc_get_res_ids(struct fsl_mc_io *mc_io,
 }
 EXPORT_SYMBOL(dprc_get_res_ids);
 
-int dprc_get_portal_paddr(struct fsl_mc_io *mc_io,
-			  uint16_t token,
-			  int portal_id,
-			  uint64_t *portal_addr)
-{
-	struct mc_command cmd = { 0 };
-	int err;
-
-	/* prepare command */
-	cmd.header = mc_encode_cmd_header(DPRC_CMDID_GET_PORTAL_PADDR,
-					  MC_CMD_PRI_LOW, token);
-	cmd.params[0] |= mc_enc(0, 32, portal_id);
-
-	/* send command to mc*/
-	err = mc_send_command(mc_io, &cmd);
-	if (err)
-		return err;
-
-	/* retrieve response parameters */
-	*portal_addr = mc_dec(cmd.params[1], 0, 64);
-
-	return 0;
-}
-EXPORT_SYMBOL(dprc_get_portal_paddr);
-
 int dprc_get_obj_region(struct fsl_mc_io *mc_io,
 			uint16_t token,
 			char *obj_type,
@@ -759,12 +843,46 @@ int dprc_get_obj_region(struct fsl_mc_io *mc_io,
 		return err;
 
 	/* retrieve response parameters */
-	region_desc->base_paddr = mc_dec(cmd.params[1], 0, 64);
+	region_desc->base_offset = mc_dec(cmd.params[1], 0, 64);
 	region_desc->size = mc_dec(cmd.params[2], 0, 32);
 
 	return 0;
 }
 EXPORT_SYMBOL(dprc_get_obj_region);
+
+int dprc_set_obj_label(struct fsl_mc_io *mc_io,
+		       uint16_t  token,
+		       int  obj_index,
+		       char *label)
+{
+	struct mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPRC_CMDID_SET_OBJ_LABEL,
+					  MC_CMD_PRI_LOW, token);
+
+	cmd.params[0] |= mc_enc(0, 32, obj_index);
+	cmd.params[1] |= mc_enc(0, 8, label[0]);
+	cmd.params[1] |= mc_enc(8, 8, label[1]);
+	cmd.params[1] |= mc_enc(16, 8, label[2]);
+	cmd.params[1] |= mc_enc(24, 8, label[3]);
+	cmd.params[1] |= mc_enc(32, 8, label[4]);
+	cmd.params[1] |= mc_enc(40, 8, label[5]);
+	cmd.params[1] |= mc_enc(48, 8, label[6]);
+	cmd.params[1] |= mc_enc(56, 8, label[7]);
+	cmd.params[2] |= mc_enc(0, 8, label[8]);
+	cmd.params[2] |= mc_enc(8, 8, label[9]);
+	cmd.params[2] |= mc_enc(16, 8, label[10]);
+	cmd.params[2] |= mc_enc(24, 8, label[11]);
+	cmd.params[2] |= mc_enc(32, 8, label[12]);
+	cmd.params[2] |= mc_enc(40, 8, label[13]);
+	cmd.params[2] |= mc_enc(48, 8, label[14]);
+	cmd.params[2] |= mc_enc(56, 8, label[15]);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
+EXPORT_SYMBOL(dprc_set_obj_label);
 
 int dprc_connect(struct fsl_mc_io *mc_io,
 		 uint16_t token,
@@ -817,6 +935,7 @@ int dprc_connect(struct fsl_mc_io *mc_io,
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
+EXPORT_SYMBOL(dprc_connect);
 
 int dprc_disconnect(struct fsl_mc_io *mc_io,
 		    uint16_t token,
@@ -850,6 +969,7 @@ int dprc_disconnect(struct fsl_mc_io *mc_io,
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
+EXPORT_SYMBOL(dprc_disconnect);
 
 int dprc_get_connection(struct fsl_mc_io *mc_io,
 			uint16_t token,
@@ -911,3 +1031,4 @@ int dprc_get_connection(struct fsl_mc_io *mc_io,
 
 	return 0;
 }
+EXPORT_SYMBOL(dprc_get_connection);

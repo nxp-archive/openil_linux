@@ -388,15 +388,14 @@ static int fsl_mc_device_get_mmio_regions(struct fsl_mc_device *mc_dev,
 			goto error_cleanup_regions;
 		}
 
-		WARN_ON(region_desc.base_paddr == 0x0);
 		WARN_ON(region_desc.size == 0);
 		error = translate_mc_addr(mc_region_type,
-					  region_desc.base_paddr,
+					  region_desc.base_offset,
 					  &regions[i].start);
 		if (error < 0) {
 			dev_err(parent_dev,
 				"Invalid MC offset: %#llx (for %s.%d\'s region %d)\n",
-				region_desc.base_paddr,
+				region_desc.base_offset,
 				obj_desc->type, obj_desc->id, i);
 			goto error_cleanup_regions;
 		}
@@ -637,6 +636,60 @@ static void mc_bus_unmask_msi_irq(struct irq_data *d)
 	irq_chip_unmask_parent(d);
 }
 
+static void program_msi_at_mc(struct fsl_mc_device *mc_bus_dev,
+			      struct fsl_mc_device_irq *irq)
+{
+	int error;
+	int mc_obj_index;
+	struct fsl_mc_device *owner_mc_dev = irq->mc_dev;
+
+	if (WARN_ON(!owner_mc_dev))
+		return;
+
+	if (owner_mc_dev == mc_bus_dev) {
+		/*
+		 * IRQ is for the mc_bus_dev's DPRC itself
+		 */
+		error = dprc_set_irq(mc_bus_dev->mc_io,
+				     mc_bus_dev->mc_handle,
+				     irq->dev_irq_index,
+				     irq->msi_paddr,
+				     irq->msi_value,
+				     irq->irq_number);
+		if (error < 0) {
+			dev_err(&owner_mc_dev->dev,
+				"dprc_set_irq() failed: %d\n", error);
+		}
+	} else {
+		/*
+		 * Get object index in the parent DPRC for the MC object device
+		 * that owns this IRQ
+		 *
+		 * QUESTION: Can the index of an object in the DPRC change under
+		 * us, if preceding objects are removed from the DPRC?
+		 */
+		error = dprc_lookup_object(mc_bus_dev, owner_mc_dev,
+					   &mc_obj_index);
+		if (error < 0)
+			return;
+
+		error = dprc_obj_set_irq(mc_bus_dev->mc_io,
+					 mc_bus_dev->mc_handle,
+					 mc_obj_index,
+					 irq->dev_irq_index,
+					 irq->msi_paddr,
+					 irq->msi_value,
+					 irq->irq_number);
+		if (error < 0) {
+			dev_err(&owner_mc_dev->dev,
+				"dprc_obj_set_irq() failed: %d\n", error);
+		}
+	}
+}
+
+/*
+ * This function is invoked from devm_request_threaded_irq()
+ */
 static void mc_bus_msi_domain_write_msg(struct irq_data *irq_data,
 					struct msi_msg *msg)
 {
@@ -653,6 +706,11 @@ static void mc_bus_msi_domain_write_msg(struct irq_data *irq_data,
 		irq_res->msi_paddr =
 			((u64)msg->address_hi << 32) | msg->address_lo;
 		irq_res->msi_value = msg->data;
+
+		/*
+		 * Program the MSI (paddr, value) pair in the device:
+		 */
+		program_msi_at_mc(mc_bus_dev, irq_res);
 	}
 }
 
@@ -826,6 +884,9 @@ void fsl_mc_cleanup_irq_pool(struct fsl_mc_bus *mc_bus)
 	struct fsl_mc *mc = dev_get_drvdata(fsl_mc_bus_type.dev_root->parent);
 	struct fsl_mc_resource_pool *res_pool =
 			&mc_bus->resource_pools[FSL_MC_POOL_IRQ];
+
+	if (WARN_ON(!mc_bus->irq_resources))
+		return;
 
 	if (WARN_ON(res_pool->max_count == 0))
 		return;

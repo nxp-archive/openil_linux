@@ -41,11 +41,11 @@ struct fsl_mc_io;
 /**
  * Management Complex firmware version information
  */
-#define MC_VER_MAJOR 6
+#define MC_VER_MAJOR 7
 #define MC_VER_MINOR 0
 
 /**
- * struct mc_versoin
+ * struct mc_version
  * @major: Major version number: incremented on API compatibility changes
  * @minor: Minor version number: incremented on API additions (that are
  *		backward compatible); reset when major version is incremented
