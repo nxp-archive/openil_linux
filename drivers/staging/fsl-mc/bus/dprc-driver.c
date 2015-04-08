@@ -610,9 +610,20 @@ static int register_dprc_irq_handlers(struct fsl_mc_device *mc_dev)
 	for (i = 0; i < ARRAY_SIZE(irq_handlers); i++) {
 		irq = mc_dev->irqs[i];
 
+		if (WARN_ON(irq->dev_irq_index != i)) {
+			error = -EINVAL;
+			goto error_unregister_irq_handlers;
+		}
+
 		/*
-		 * NOTE: devm_request_threaded_irq() invokes the device-specific
-		 * function that programs the MSI physically in the device
+		 * NOTE: Normally, devm_request_threaded_irq() programs the MSI
+		 * physically in the device (by invoking a device-specific
+		 * callback). However, for MC IRQs, we have to program the MSI
+		 * outside of this callback, because this callback is invoked
+		 * with interrupts disabled, and we don't have a reliable
+		 * way of sending commands to the MC from atomic context.
+		 * The MC callback just set the msi_paddr and msi_value
+		 * fields of the irq structure.
 		 */
 		error = devm_request_threaded_irq(&mc_dev->dev,
 						  irq->irq_number,
@@ -631,6 +642,18 @@ static int register_dprc_irq_handlers(struct fsl_mc_device *mc_dev)
 		}
 
 		num_irq_handlers_registered++;
+		error = dprc_set_irq(mc_dev->mc_io,
+				     mc_dev->mc_handle,
+				     i,
+				     irq->msi_paddr,
+				     irq->msi_value,
+				     irq->irq_number);
+		if (error < 0) {
+			dev_err(&mc_dev->dev,
+				"dprc_set_irq() failed for IRQ %u: %d\n",
+				i, error);
+			goto error_unregister_irq_handlers;
+		}
 	}
 
 	return 0;

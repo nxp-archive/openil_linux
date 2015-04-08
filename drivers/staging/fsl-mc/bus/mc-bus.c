@@ -649,59 +649,9 @@ static void mc_bus_unmask_msi_irq(struct irq_data *d)
 	irq_chip_unmask_parent(d);
 }
 
-static void program_msi_at_mc(struct fsl_mc_device *mc_bus_dev,
-			      struct fsl_mc_device_irq *irq)
-{
-	int error;
-	int mc_obj_index;
-	struct fsl_mc_device *owner_mc_dev = irq->mc_dev;
-
-	if (WARN_ON(!owner_mc_dev))
-		return;
-
-	if (owner_mc_dev == mc_bus_dev) {
-		/*
-		 * IRQ is for the mc_bus_dev's DPRC itself
-		 */
-		error = dprc_set_irq(mc_bus_dev->mc_io,
-				     mc_bus_dev->mc_handle,
-				     irq->dev_irq_index,
-				     irq->msi_paddr,
-				     irq->msi_value,
-				     irq->irq_number);
-		if (error < 0) {
-			dev_err(&owner_mc_dev->dev,
-				"dprc_set_irq() failed: %d\n", error);
-		}
-	} else {
-		/*
-		 * Get object index in the parent DPRC for the MC object device
-		 * that owns this IRQ
-		 *
-		 * QUESTION: Can the index of an object in the DPRC change under
-		 * us, if preceding objects are removed from the DPRC?
-		 */
-		error = dprc_lookup_object(mc_bus_dev, owner_mc_dev,
-					   &mc_obj_index);
-		if (error < 0)
-			return;
-
-		error = dprc_obj_set_irq(mc_bus_dev->mc_io,
-					 mc_bus_dev->mc_handle,
-					 mc_obj_index,
-					 irq->dev_irq_index,
-					 irq->msi_paddr,
-					 irq->msi_value,
-					 irq->irq_number);
-		if (error < 0) {
-			dev_err(&owner_mc_dev->dev,
-				"dprc_obj_set_irq() failed: %d\n", error);
-		}
-	}
-}
-
 /*
- * This function is invoked from devm_request_threaded_irq()
+ * This function is invoked from devm_request_irq(),
+ * devm_request_threaded_irq(), dev_free_irq()
  */
 static void mc_bus_msi_domain_write_msg(struct irq_data *irq_data,
 					struct msi_msg *msg)
@@ -721,9 +671,11 @@ static void mc_bus_msi_domain_write_msg(struct irq_data *irq_data,
 		irq_res->msi_value = msg->data;
 
 		/*
-		 * Program the MSI (paddr, value) pair in the device:
+		 * NOTE: We cannot do the actual programming of the MSI
+		 * in the MC, as this function is invoked in atomic context
+		 * (interrupts disabled) and we cannot reliably send MC commands
+		 * in atomic context.
 		 */
-		program_msi_at_mc(mc_bus_dev, irq_res);
 	}
 }
 
