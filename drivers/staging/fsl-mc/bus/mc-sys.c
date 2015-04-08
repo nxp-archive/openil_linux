@@ -86,6 +86,11 @@ int __must_check fsl_create_mc_io(struct device *dev,
 	mc_io->portal_phys_addr = mc_portal_phys_addr;
 	mc_io->portal_size = mc_portal_size;
 	mc_io->resource = resource;
+	if (flags & FSL_MC_IO_ATOMIC_CONTEXT_PORTAL)
+		spin_lock_init(&mc_io->spinlock);
+	else
+		mutex_init(&mc_io->mutex);
+
 	res = devm_request_mem_region(dev,
 				      mc_portal_phys_addr,
 				      mc_portal_size,
@@ -230,14 +235,25 @@ static inline enum mc_cmd_status mc_read_response(struct mc_command __iomem *
  * @cmd: command to be sent
  *
  * Returns '0' on Success; Error code otherwise.
- *
- * NOTE: This function cannot be invoked from from atomic contexts.
  */
 int mc_send_command(struct fsl_mc_io *mc_io, struct mc_command *cmd)
 {
+	int error;
 	enum mc_cmd_status status;
 	unsigned long jiffies_until_timeout =
 	    jiffies + MC_CMD_COMPLETION_TIMEOUT_JIFFIES;
+
+	if (preemptible()) {
+		if (WARN_ON(mc_io->flags & FSL_MC_IO_ATOMIC_CONTEXT_PORTAL))
+			return -EINVAL;
+
+		mutex_lock(&mc_io->mutex);
+	} else {
+		if (WARN_ON(!(mc_io->flags & FSL_MC_IO_ATOMIC_CONTEXT_PORTAL)))
+			return -EINVAL;
+
+		spin_lock(&mc_io->spinlock);
+	}
 
 	/*
 	 * Send command to the MC hardware:
@@ -269,7 +285,8 @@ int mc_send_command(struct fsl_mc_io *mc_io, struct mc_command *cmd)
 				 (unsigned int)
 					MC_CMD_HDR_READ_CMDID(cmd->header));
 
-			return -ETIMEDOUT;
+			error = -ETIMEDOUT;
+			goto common_exit;
 		}
 	}
 
@@ -281,9 +298,18 @@ int mc_send_command(struct fsl_mc_io *mc_io, struct mc_command *cmd)
 			 mc_status_to_string(status),
 			 (unsigned int)status);
 
-		return mc_status_to_error(status);
+		error = mc_status_to_error(status);
+		goto common_exit;
 	}
 
-	return 0;
+	error = 0;
+
+common_exit:
+	if (preemptible())
+		mutex_unlock(&mc_io->mutex);
+	else
+		spin_unlock(&mc_io->spinlock);
+
+	return error;
 }
 EXPORT_SYMBOL(mc_send_command);

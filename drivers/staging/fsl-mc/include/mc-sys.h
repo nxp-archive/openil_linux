@@ -39,6 +39,13 @@
 #include <linux/errno.h>
 #include <linux/io.h>
 #include <linux/dma-mapping.h>
+#include <linux/mutex.h>
+#include <linux/spinlock.h>
+
+/**
+ * Bit masks for a MC I/O object (struct fsl_mc_io) flags
+ */
+#define FSL_MC_IO_ATOMIC_CONTEXT_PORTAL	0x0001
 
 struct fsl_mc_resource;
 struct mc_command;
@@ -53,14 +60,26 @@ struct mc_command;
  * @resource: generic resource associated with the MC portal if
  * the MC portal came from a resource pool, or NULL if the MC portal
  * is permanently bound to a device (e.g., a DPRC)
+ * @mutex: Mutex to serialize mc_send_command() calls that use the same MC
+ * portal, if the fsl_mc_io object was created with the
+ * FSL_MC_IO_ATOMIC_CONTEXT_PORTAL flag off. mc_send_command() calls for this
+ * fsl_mc_io object must be made only from non-atomic context.
+ * @spinlock: Spinlock to serialize mc_send_command() calls that use the same MC
+ * portal, if the fsl_mc_io object was created with the
+ * FSL_MC_IO_ATOMIC_CONTEXT_PORTAL flag on. mc_send_command() calls for this
+ * fsl_mc_io object must be made only from atomic context.
  */
 struct fsl_mc_io {
 	struct device *dev;
-	uint32_t flags;
-	uint32_t portal_size;
+	uint16_t flags;
+	uint16_t portal_size;
 	phys_addr_t portal_phys_addr;
 	void __iomem *portal_virt_addr;
 	struct fsl_mc_resource *resource;
+	union {
+		struct mutex mutex;	/* serializes mc_send_command() calls */
+		spinlock_t spinlock;	/* serializes mc_send_command() calls */
+	};
 };
 
 int __must_check fsl_create_mc_io(struct device *dev,
