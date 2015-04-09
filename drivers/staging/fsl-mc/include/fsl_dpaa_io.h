@@ -110,6 +110,7 @@ int dpaa_io_poll(struct dpaa_io *);
 
 /* Process any notifications and h/w-initiated events that are irq-driven.
  * Obligatory for DPIO objects that have dpaa_io_desc::has_irq non-zero. */
+int dpaa_io_preirq(struct dpaa_io *);
 int dpaa_io_irq(struct dpaa_io *);
 
 /* If a polling application is going to stop polling for a period of time and

@@ -60,6 +60,14 @@ struct dpio_priv {
 	char irq_name[MAX_DPIO_IRQ_NAME];
 };
 
+static irqreturn_t dpio_irq_pre_handler(int irq_num, void *arg)
+{
+	struct device *dev = (struct device *)arg;
+	struct dpio_priv *priv = dev_get_drvdata(dev);
+
+	return dpaa_io_preirq(priv->io);
+}
+
 static irqreturn_t dpio_irq_handler(int irq_num, void *arg)
 {
 	struct device *dev = (struct device *)arg;
@@ -98,7 +106,7 @@ static int register_dpio_irq_handlers(struct fsl_mc_device *ls_dev)
 		irq = ls_dev->irqs[i];
 		error = devm_request_threaded_irq(&ls_dev->dev,
 						irq->irq_number,
-						NULL,
+						dpio_irq_pre_handler,
 						dpio_irq_handler,
 						IRQF_NO_SUSPEND |
 							IRQF_ONESHOT,

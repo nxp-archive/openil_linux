@@ -90,7 +90,6 @@ struct dpaa_io {
 			 * eventually adherence to cpu-affinity will presumably
 			 * relax the locking requirements. */
 			spinlock_t lock_mgmt_cmd;
-			spinlock_t lock_pull_start;
 			spinlock_t lock_notifications;
 			struct list_head notifications;
 		} object;
@@ -103,7 +102,6 @@ struct dpaa_io_store {
 	struct ldpaa_dq *vaddr;
 	void *alloced_addr; /* the actual return from kmalloc as it may
 			       be adjusted for alignment purposes */
-	int busy;
 	uint8_t token; /* current token if busy, otherwise next token */
 	unsigned int idx; /* position of the next-to-be-returned entry */
 	struct qbman_swp *swp; /* portal used to issue VDQCR */
@@ -233,7 +231,6 @@ struct dpaa_io *dpaa_io_create(const struct dpaa_io_desc *desc)
 	}
 	INIT_LIST_HEAD(&o->node);
 	spin_lock_init(&o->lock_mgmt_cmd);
-	spin_lock_init(&o->lock_pull_start);
 	spin_lock_init(&o->lock_notifications);
 	INIT_LIST_HEAD(&o->notifications);
 	if (!o->dpio_desc.has_irq)
@@ -355,6 +352,21 @@ int dpaa_io_poll(struct dpaa_io *obj)
 }
 EXPORT_SYMBOL(dpaa_io_poll);
 
+int dpaa_io_preirq(struct dpaa_io *obj)
+{
+	struct qbman_swp *swp;
+	uint32_t status;
+
+	if (obj->magic != MAGIC_OBJECT)
+		return -EINVAL;
+	swp = obj->object.swp;
+	status = qbman_swp_interrupt_read_status(swp);
+	if (!status)
+		return IRQ_NONE;
+	qbman_swp_interrupt_set_inhibit(swp, 1);
+	return IRQ_WAKE_THREAD;
+}
+
 int dpaa_io_irq(struct dpaa_io *obj)
 {
 	struct qbman_swp *swp;
@@ -368,6 +380,7 @@ int dpaa_io_irq(struct dpaa_io *obj)
 		return IRQ_NONE;
 	dpaa_io_poll(obj);
 	qbman_swp_interrupt_clear_status(swp, status);
+	qbman_swp_interrupt_set_inhibit(swp, 0);
 	return IRQ_HANDLED;
 }
 EXPORT_SYMBOL(dpaa_io_irq);
@@ -505,16 +518,9 @@ int dpaa_io_service_pull_fq(struct dpaa_io *d, uint32_t fqid,
 			    struct dpaa_io_store *s)
 {
 	struct qbman_pull_desc pd;
-	unsigned long irqflags;
 	int err;
 
-	/* This is a debug check, so no need for hand-wringing over
-	 * atomic test-and-set, or locking, etc. */
-	BUG_ON(s->busy);
-	s->busy = 1;
-
 	qbman_pull_desc_clear(&pd);
-	/* TODO: 'stash'==1? */
 	qbman_pull_desc_set_storage(&pd, s->vaddr, s->paddr, 1);
 	qbman_pull_desc_set_numframes(&pd, s->max);
 	qbman_pull_desc_set_token(&pd, s->token);
@@ -522,14 +528,12 @@ int dpaa_io_service_pull_fq(struct dpaa_io *d, uint32_t fqid,
 	d = service_select_by_cpu(d, -1);
 	if (d) {
 		s->swp = d->object.swp;
-		spin_lock_irqsave(&d->object.lock_pull_start, irqflags);
 		err = qbman_swp_pull(d->object.swp, &pd);
-		spin_unlock_irqrestore(&d->object.lock_pull_start, irqflags);
 	}
 	if (!d)
 		return -ENODEV;
 	if (err)
-		s->busy = 0;
+		s->swp = NULL;
 	return err;
 }
 EXPORT_SYMBOL(dpaa_io_service_pull_fq);
@@ -643,7 +647,6 @@ struct dpaa_io_store *dpaa_io_store_create(unsigned int max_frames,
 		kfree(ret);
 		return NULL;
 	}
-	ret->busy = 0;
 	ret->token = 0x53;
 	ret->idx = 0;
 	ret->dev = dev;
@@ -666,8 +669,6 @@ struct ldpaa_dq *dpaa_io_store_next(struct dpaa_io_store *s, int *is_last)
 	int match;
 	struct ldpaa_dq *ret = &s->vaddr[s->idx];
 
-	BUG_ON(!s->busy);
-
 	match = qbman_dq_entry_has_newtoken(s->swp, ret, s->token);
 	if (!match) {
 		*is_last = 0;
@@ -682,7 +683,6 @@ struct ldpaa_dq *dpaa_io_store_next(struct dpaa_io_store *s, int *is_last)
 		else
 			s->token++;
 		s->idx = 0;
-		s->busy = 0;
 		/* If we get an empty dequeue result to terminate a zero-results
 		 * vdqcr, return NULL to the caller rather than expecting him to
 		 * check non-NULL results every time. */
