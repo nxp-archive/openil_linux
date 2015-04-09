@@ -287,6 +287,14 @@ void fsl_mc_driver_unregister(struct fsl_mc_driver *mc_driver)
 }
 EXPORT_SYMBOL_GPL(fsl_mc_driver_unregister);
 
+bool fsl_mc_interrupts_supported(void)
+{
+	struct fsl_mc *mc = dev_get_drvdata(fsl_mc_bus_type.dev_root->parent);
+
+	return mc->gic_supported;
+}
+EXPORT_SYMBOL_GPL(fsl_mc_interrupts_supported);
+
 static int get_dprc_icid(struct fsl_mc_io *mc_io,
 			 int container_id, uint16_t *icid)
 {
@@ -1003,8 +1011,12 @@ static int fsl_mc_bus_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, mc);
 	error = create_mc_irq_domain(pdev, &mc->irq_domain);
-	if (error < 0)
-		return error;
+	if (error < 0) {
+		dev_warn(&pdev->dev,
+			 "WARNING: MC bus driver will run without interrupt support\n");
+	} else {
+		mc->gic_supported = true;
+	}
 
 	/*
 	 * Get physical address of MC portal for the root DPRC:

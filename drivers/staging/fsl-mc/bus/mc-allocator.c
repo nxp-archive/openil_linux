@@ -489,6 +489,10 @@ int __must_check fsl_mc_allocate_irqs(struct fsl_mc_device *mc_dev)
 	struct fsl_mc_device_irq **irqs = NULL;
 	struct fsl_mc_bus *mc_bus;
 	struct fsl_mc_resource_pool *res_pool;
+	struct fsl_mc *mc = dev_get_drvdata(fsl_mc_bus_type.dev_root->parent);
+
+	if (!mc->gic_supported)
+		return -ENOTSUPP;
 
 	if (WARN_ON(mc_dev->irqs))
 		goto error;

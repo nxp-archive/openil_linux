@@ -412,6 +412,7 @@ static int dprc_scan_container(struct fsl_mc_device *mc_bus_dev)
 	int error;
 	unsigned int irq_count;
 	struct fsl_mc_bus *mc_bus = to_fsl_mc_bus(mc_bus_dev);
+	struct fsl_mc *mc = dev_get_drvdata(fsl_mc_bus_type.dev_root->parent);
 
 	dprc_init_all_resource_pools(mc_bus_dev);
 
@@ -424,7 +425,7 @@ static int dprc_scan_container(struct fsl_mc_device *mc_bus_dev)
 	if (error < 0)
 		goto error;
 
-	if (!mc_bus->irq_resources) {
+	if (mc->gic_supported && !mc_bus->irq_resources) {
 		irq_count += FSL_MC_IRQ_POOL_MAX_EXTRA_IRQS;
 		error = fsl_mc_populate_irq_pool(mc_bus, irq_count);
 		if (error < 0)
@@ -754,6 +755,7 @@ static int dprc_probe(struct fsl_mc_device *mc_dev)
 	int error;
 	size_t region_size;
 	struct fsl_mc_bus *mc_bus = to_fsl_mc_bus(mc_dev);
+	struct fsl_mc *mc = dev_get_drvdata(fsl_mc_bus_type.dev_root->parent);
 
 	if (WARN_ON(strcmp(mc_dev->obj_desc.type, "dprc") != 0))
 		return -EINVAL;
@@ -792,12 +794,15 @@ static int dprc_probe(struct fsl_mc_device *mc_dev)
 	if (error < 0)
 		goto error_cleanup_open;
 
-	/*
-	 * Configure interrupts for the DPRC object associated with this MC bus:
-	 */
-	error = dprc_setup_irqs(mc_dev);
-	if (error < 0)
-		goto error_cleanup_dprc_scan;
+	if (mc->gic_supported) {
+		/*
+		 * Configure interrupts for the DPRC object associated with
+		 * this MC bus:
+		 */
+		error = dprc_setup_irqs(mc_dev);
+		if (error < 0)
+			goto error_cleanup_dprc_scan;
+	}
 
 	dev_info(&mc_dev->dev, "DPRC device bound to driver");
 	return 0;
@@ -805,7 +810,8 @@ static int dprc_probe(struct fsl_mc_device *mc_dev)
 error_cleanup_dprc_scan:
 	device_for_each_child(&mc_dev->dev, NULL, __fsl_mc_device_remove);
 	dprc_cleanup_all_resource_pools(mc_dev);
-	fsl_mc_cleanup_irq_pool(mc_bus);
+	if (mc->gic_supported)
+		fsl_mc_cleanup_irq_pool(mc_bus);
 
 error_cleanup_open:
 	(void)dprc_close(mc_dev->mc_io, mc_dev->mc_handle);
@@ -839,6 +845,7 @@ static int dprc_remove(struct fsl_mc_device *mc_dev)
 {
 	int error;
 	struct fsl_mc_bus *mc_bus = to_fsl_mc_bus(mc_dev);
+	struct fsl_mc *mc = dev_get_drvdata(fsl_mc_bus_type.dev_root->parent);
 
 	if (WARN_ON(strcmp(mc_dev->obj_desc.type, "dprc") != 0))
 		return -EINVAL;
@@ -848,14 +855,18 @@ static int dprc_remove(struct fsl_mc_device *mc_dev)
 	if (WARN_ON(!mc_bus->irq_resources))
 		return -EINVAL;
 
-	dprc_teardown_irqs(mc_dev);
+	if (mc->gic_supported)
+		dprc_teardown_irqs(mc_dev);
+
 	device_for_each_child(&mc_dev->dev, NULL, __fsl_mc_device_remove);
 	dprc_cleanup_all_resource_pools(mc_dev);
 	error = dprc_close(mc_dev->mc_io, mc_dev->mc_handle);
 	if (error < 0)
 		dev_err(&mc_dev->dev, "dprc_close() failed: %d\n", error);
 
-	fsl_mc_cleanup_irq_pool(mc_bus);
+	if (mc->gic_supported)
+		fsl_mc_cleanup_irq_pool(mc_bus);
+
 	dev_info(&mc_dev->dev, "DPRC device unbound from driver");
 	return 0;
 }
