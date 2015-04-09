@@ -700,6 +700,7 @@ int dpaa_io_query_fq_count(struct dpaa_io *d, uint32_t fqid,
 {
 	struct qbman_attr state;
 	struct qbman_swp *swp;
+	unsigned long irqflags;
 	int ret;
 
 	d = service_select_any(d);
@@ -707,7 +708,9 @@ int dpaa_io_query_fq_count(struct dpaa_io *d, uint32_t fqid,
 		return -ENODEV;
 
 	swp = d->object.swp;
+	spin_lock_irqsave(&d->object.lock_mgmt_cmd, irqflags);
 	ret = qbman_fq_query_state(swp, fqid, &state);
+	spin_unlock_irqrestore(&d->object.lock_mgmt_cmd, irqflags);
 	if (ret)
 		return ret;
 	*fcnt = qbman_fq_state_frame_count(&state);
