@@ -58,7 +58,24 @@ MODULE_DESCRIPTION(DPIO_DESCRIPTION);
 struct dpio_priv {
 	struct dpaa_io *io;
 	char irq_name[MAX_DPIO_IRQ_NAME];
+	struct task_struct *thread;
 };
+
+static int dpio_thread(void *data)
+{
+	struct dpaa_io *io = data;
+
+	while (!kthread_should_stop()) {
+		int err = dpaa_io_poll(io);
+
+		if (err) {
+			pr_err("dpaa_io_poll() failed\n");
+			return err;
+		}
+		msleep(50);
+	}
+	return 0;
+}
 
 static irqreturn_t dpio_irq_pre_handler(int irq_num, void *arg)
 {
@@ -229,8 +246,33 @@ ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
 			desc.dpio_id);
 
 	err = register_dpio_irq_handlers(ls_dev);
-	if (err)
-		goto err_register_dpio_irq;
+	if (err) {
+		dev_info(dev, "Using polling mode for DPIO %d\n",
+			 desc.dpio_id);
+		/* goto err_register_dpio_irq; */
+		/* TEMP: Start polling if IRQ could not
+		   be registered.  This will go away once
+		   KVM support for MSI is present */
+		fsl_mc_free_irqs(ls_dev);
+
+		if (desc.stash_affinity)
+			priv->thread = kthread_create_on_cpu(dpio_thread,
+							     priv->io,
+							     desc.cpu,
+							     "dpio_aff%u");
+		else
+			priv->thread =
+				kthread_create(dpio_thread,
+					       priv->io,
+					       "dpio_non%u",
+					       dpio_attrs.qbman_portal_id);
+		if (IS_ERR(priv->thread)) {
+			dev_err(dev, "DPIO thread failure\n");
+			err = PTR_ERR(priv->thread);
+			goto err_dpaa_thread;
+		}
+		wake_up_process(priv->thread);
+	}
 
 	defservice = dpaa_io_default_service();
 	err = dpaa_io_service_add(defservice, priv->io);
@@ -250,8 +292,11 @@ ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
 
 err_dpaa_io_add:
 	unregister_dpio_irq_handlers(ls_dev);
-err_register_dpio_irq:
+/* TEMP: To be restored once polling is removed
+  err_register_dpio_irq:
 	fsl_mc_free_irqs(ls_dev);
+*/
+err_dpaa_thread:
 err_allocate_irqs:
 err_dpaa_io_create:
 	dpio_disable(ls_dev->mc_io, ls_dev->mc_handle);
@@ -291,7 +336,10 @@ ldpaa_dpio_remove(struct fsl_mc_device *ls_dev)
 	 */
 	dev_crit(dev, "DPIO unplugging is broken, the service holds onto it\n");
 
-	dpio_teardown_irqs(ls_dev);
+	if (priv->thread)
+		kthread_stop(priv->thread);
+	else
+		dpio_teardown_irqs(ls_dev);
 
 	err = fsl_mc_portal_allocate(ls_dev, 0, &ls_dev->mc_io);
 	if (err) {
