@@ -375,6 +375,12 @@ static int __init vfio_fsl_mc_driver_init(void)
 	int err;
 	struct fsl_mc_device *root_mc_dev;
 
+	if (fsl_mc_bus_type.dev_root == NULL) {
+		pr_err("%s: Driver registration fails as no fsl_mc_bus found\n",
+		       __func__);
+		return -ENODEV;
+	}
+
 	root_mc_dev = to_fsl_mc_device(fsl_mc_bus_type.dev_root);
 
 	/* Allocate a new MC portal (DPMCP object) */
