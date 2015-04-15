@@ -272,8 +272,8 @@ static int vfio_fsl_mc_probe(struct fsl_mc_device *mc_dev)
 	if (strcmp(mc_dev->obj_desc.type, "dprc") == 0) {
 		vdev->mc_dev = mc_dev;
 
-		/* Free existing MC portal if exists */
-		if (mc_dev->mc_io)
+		/* Free inbuilt dprc MC portal if exists */
+		if (mc_dev->mc_io  && (mc_dev->mc_io != vfio_mc_io))
 			fsl_destroy_mc_io(mc_dev->mc_io);
 
 		/* Use New Allocated MC Portal (DPMCP object) */
