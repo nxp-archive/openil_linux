@@ -566,6 +566,8 @@ static int mc_polling_wait(struct fsl_mc_io *mc_io, struct mc_command *cmd,
 		if (preemptible()) {
 			usleep_range(MC_CMD_COMPLETION_POLLING_MIN_SLEEP_USECS,
 				     MC_CMD_COMPLETION_POLLING_MAX_SLEEP_USECS);
+		} else {
+			udelay(MC_CMD_COMPLETION_POLLING_MAX_SLEEP_USECS);
 		}
 
 		if (time_after_eq(jiffies, jiffies_until_timeout)) {
