@@ -1,0 +1,25 @@
+#
+# Freescale DPAA Ethernet driver configuration
+#
+# Copyright (C) 2014-2015 Freescale Semiconductor, Inc.
+#
+# This file is released under the GPLv2
+#
+
+menuconfig FSL_DPAA2_ETH
+	tristate "Freescale DPAA Ethernet"
+	depends on FSL_DPAA2 && FSL_MC_BUS && FSL_MC_DPIO
+	select FSL_DPAA2_MAC
+	default y
+	---help---
+	  Freescale Data Path Acceleration Architecture Ethernet
+	  driver, using the Freescale MC bus driver.
+
+if FSL_DPAA2_ETH
+config FSL_DPAA2_ETH_GCOV
+	bool "Gcov support in the FSL LDPAA Ethernet driver"
+	default n
+	depends on GCOV_KERNEL
+	---help---
+	  Compile the driver source with GCOV_PROFILE := y
+endif
