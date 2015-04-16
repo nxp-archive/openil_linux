@@ -79,11 +79,22 @@ struct fsl_mc_io {
 	phys_addr_t portal_phys_addr;
 	void __iomem *portal_virt_addr;
 	struct fsl_mc_device *dpmcp_dev;
-	bool mc_command_done_irq_armed;
-	struct completion mc_command_done_completion;
 	union {
-		struct mutex mutex;	/* serializes mc_send_command() calls */
-		spinlock_t spinlock;	/* serializes mc_send_command() calls */
+		/*
+		 * These fields are only meaningful if the
+		 * FSL_MC_IO_ATOMIC_CONTEXT_PORTAL flag is not set
+		 */
+		struct {
+			struct mutex mutex; /* serializes mc_send_command() */
+			struct completion mc_command_done_completion;
+			bool mc_command_done_irq_armed;
+		};
+
+		/*
+		 * This field is only meaningful if the
+		 * FSL_MC_IO_ATOMIC_CONTEXT_PORTAL flag is set
+		 */
+		spinlock_t spinlock;	/* serializes mc_send_command() */
 	};
 };
 
