@@ -1,8 +1,8 @@
 
 obj-$(CONFIG_FSL_DPAA2_FIXED_PHY_HACK) += fixed.o
-obj-$(CONFIG_FSL_DPAA2_PHY_PROXY) += dpaa2_ppx.o
+obj-$(CONFIG_FSL_DPAA2_MAC) += dpaa2-mac.o
 
-dpaa2_ppx-objs := phy_proxy.o dpmac.o
+dpaa2-mac-objs := mac.o dpmac.o
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules

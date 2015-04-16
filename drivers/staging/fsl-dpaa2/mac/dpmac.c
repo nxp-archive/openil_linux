@@ -31,8 +31,8 @@
  */
 #include "../../fsl-mc/include/mc-sys.h"
 #include "../../fsl-mc/include/mc-cmd.h"
-#include "../../fsl-mc/include/dpmac.h"
-#include "../../fsl-mc/include/dpmac-cmd.h"
+#include "dpmac.h"
+#include "dpmac-cmd.h"
 
 int dpmac_open(struct fsl_mc_io *mc_io, int dpmac_id, uint16_t *token)
 {

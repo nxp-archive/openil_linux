@@ -1,30 +1,29 @@
-config FSL_DPAA2_PHY_PROXY
-	tristate "DPAA2 PHY proxy interface"
-	depends on FSL_MC_BUS
-	depends on FSL_LDPAA_ETH
+config FSL_DPAA2_MAC
+	tristate "DPAA2 MAC / PHY interface"
+	depends on FSL_MC_BUS && FSL_DPAA2
 	select FSL_DPAA2_FIXED_PHY_HACK
 	---help---
-	Prototype driver for DPAA2 PHY interface object.
+	Prototype driver for DPAA2 MAC / PHY interface object.
 	This driver works as a proxy between phylib including phy drivers and
 	the MC firmware.  It receives updates on link state changes from PHY
 	lib and forwards them to MC and receives interrupt from MC whenever
 	a request is made to change the link state.
 
 
-config FSL_DPAA2_PPX_NETDEVS
+config FSL_DPAA2_MAC_NETDEVS
 	bool "Expose net interfaces for PHYs"
 	default n
-	depends on FSL_DPAA2_PHY_PROXY
+	depends on FSL_DPAA2_MAC
 	---help---
-	Exposes phyX net interfaces which allow direct control over the PHYs.
-	.
+	Exposes macX net interfaces which allow direct control over MACs and
+	PHYs.
 	.
 	Leave disabled if unsure.
 
 config FSL_DPAA2_FIXED_PHY_HACK
 	bool "Hack for fixed links, to remove in v3.18"
 	default y
-	depends on FSL_DPAA2_PHY_PROXY
+	depends on FSL_DPAA2_MAC
 	---help---
 	Temporary hack to allow registration of a fixed PHY without a device
 	tree node and actual fixed-link property or child node.

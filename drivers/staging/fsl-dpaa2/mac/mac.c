@@ -1,3 +1,33 @@
+/* Copyright 2015 Freescale Semiconductor Inc.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *	 notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *	 notice, this list of conditions and the following disclaimer in the
+ *	 documentation and/or other materials provided with the distribution.
+ *     * Neither the name of Freescale Semiconductor nor the
+ *	 names of its contributors may be used to endorse or promote products
+ *	 derived from this software without specific prior written permission.
+ *
+ *
+ * ALTERNATIVELY, this software may be distributed under the terms of the
+ * GNU General Public License ("GPL") as published by the Free Software
+ * Foundation, either version 2 of that License or (at your option) any
+ * later version.
+ *
+ * THIS SOFTWARE IS PROVIDED BY Freescale Semiconductor ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL Freescale Semiconductor BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
 #include <linux/module.h>
 
@@ -8,8 +38,6 @@
 
 #include <uapi/linux/if_bridge.h>
 #include <net/netlink.h>
-#include "../../fsl-mc/include/mc.h"
-#include "../../fsl-mc/include/mc-sys.h"
 
 #include <linux/of.h>
 #include <linux/of_mdio.h>
@@ -17,13 +45,23 @@
 #include <linux/phy.h>
 #include <linux/phy_fixed.h>
 
-#include "../../fsl-mc/include/dpmac.h"
-#include "../../fsl-mc/include/dpmac-cmd.h"
+#include "../../fsl-mc/include/mc.h"
+#include "../../fsl-mc/include/mc-sys.h"
+
+#include "dpmac.h"
+#include "dpmac-cmd.h"
 
 
-/* big TODOs:
- * mac stats
- */
+/* use different err functions if the driver registers phyX netdevs */
+#ifdef FSL_DPAA2_MAC_NETDEVS
+#define ppx_err(netdev, ...)  netdev_err(netdev, __VA_ARGS__)
+#define ppx_warn(netdev, ...) netdev_err(netdev, __VA_ARGS__)
+#define ppx_info(netdev, ...) netdev_err(netdev, __VA_ARGS__)
+#else /* FSL_DPAA2_MAC_NETDEVS */
+#define ppx_err(netdev, ...)  dev_err(&netdev->dev, __VA_ARGS__)
+#define ppx_warn(netdev, ...) dev_err(&netdev->dev, __VA_ARGS__)
+#define ppx_info(netdev, ...) dev_err(&netdev->dev, __VA_ARGS__)
+#endif /* FSL_DPAA2_MAC_NETDEVS */
 
 struct phy_device *fixed_phy_register2(unsigned int irq,
 				       struct fixed_phy_status *status,
@@ -34,6 +72,9 @@ struct ppx_priv {
 	struct net_device		*netdev;
 	struct fsl_mc_device		*mc_dev;
 	struct dpmac_attr		attr;
+#ifdef PPX_DEBUG
+	struct dpmac_link_state		old_state;
+#endif /* PPX_DEBUG */
 };
 
 /* TODO: fix the 10G modes, mapping can't be right:
@@ -68,7 +109,7 @@ static phy_interface_t ppx_eth_iface_mode[] __maybe_unused =  {
 
 static void ppx_link_changed(struct net_device *netdev);
 
-#ifdef CONFIG_FSL_DPAA2_PPX_NETDEVS
+#ifdef FSL_DPAA2_MAC_NETDEVS
 static netdev_tx_t ppx_dropframe(struct sk_buff *skb, struct net_device *dev);
 static int ppx_open(struct net_device *netdev);
 static int ppx_stop(struct net_device *netdev);
@@ -107,7 +148,7 @@ static netdev_tx_t ppx_dropframe(struct sk_buff *skb, struct net_device *dev)
 
 static int ppx_open(struct net_device *netdev)
 {
-	/* force PHY up */
+	/* start PHY state machine */
 	phy_start(netdev->phydev);
 
 	return 0;
@@ -115,8 +156,12 @@ static int ppx_open(struct net_device *netdev)
 
 static int ppx_stop(struct net_device *netdev)
 {
-	/* force PHY down */
+	/* stop PHY state machine */
 	phy_stop(netdev->phydev);
+
+	/* signal link down to firmware */
+	netdev->phydev->link = 0;
+	ppx_link_changed(netdev);
 
 	return 0;
 }
@@ -199,7 +244,7 @@ static struct rtnl_link_stats64
 	return storage;
 
 error:
-	netdev_err(netdev, "dpmac_get_counter err %d\n", err);
+	ppx_err(netdev, "dpmac_get_counter err %d\n", err);
 	return storage;
 }
 
@@ -264,8 +309,8 @@ static void ppx_ethtool_get_stats(struct net_device *netdev,
 					priv->mc_dev->mc_handle,
 					ppx_ethtool_counters[i].id, &data[i]);
 		if (err)
-			netdev_err(netdev, "dpmac_get_counter[%s] err %d\n",
-				   ppx_ethtool_counters[i].name, err);
+			ppx_err(netdev, "dpmac_get_counter[%s] err %d\n",
+				ppx_ethtool_counters[i].name, err);
 	}
 }
 
@@ -278,7 +323,7 @@ static int ppx_ethtool_get_sset_count(struct net_device *dev, int sset)
 		return -EOPNOTSUPP;
 	}
 }
-#endif /* CONFIG_FSL_DPAA2_PPX_NETDEVS */
+#endif /* FSL_DPAA2_MAC_NETDEVS */
 
 #ifdef CONFIG_FSL_DPAA2_FIXED_PHY_HACK
 static struct phy_device *ppx_register_fixed_link(struct net_device *netdev)
@@ -301,7 +346,7 @@ static struct phy_device *ppx_register_fixed_link(struct net_device *netdev)
 	err = phy_connect_direct(netdev, phy, &ppx_link_changed,
 				 PHY_INTERFACE_MODE_NA);
 	if (err) {
-		netdev_err(netdev, "phy_connect_direct err %d\n", err);
+		ppx_err(netdev, "phy_connect_direct err %d\n", err);
 		return NULL;
 	}
 
@@ -329,15 +374,24 @@ static void ppx_link_changed(struct net_device *netdev)
 		if (phydev->autoneg)
 			state.options |= DPMAC_LINK_OPT_AUTONEG;
 	}
-	/* this prints out roughly every second while polling, don't enable
-	 * unless absolutely necessary.
-	 * phy_print_status(phydev);
-	 */
 
+#ifdef PPX_DEBUG
+	if (priv->old_state.up != state.up ||
+	    priv->old_state.rate != state.rate ||
+	    priv->old_state.options != state.options) {
+		phy_print_status(phydev);
+		priv->old_state = state;
+	}
+ #endif /* PPX_DEBUG */
+
+	/* we intentionally ignore the error here as MC will return an error
+	 * if peer L2 interface (like a DPNI) is down at this time
+	 */
 	err = dpmac_set_link_state(priv->mc_dev->mc_io,
 				   priv->mc_dev->mc_handle, &state);
-	if (err)
-		dev_err(&netdev->dev, "dpmac_set_link_state err %d\n", err);
+
+	if (err && err != -EACCES && err != -ENAVAIL)
+		ppx_err(netdev, "dpmac_set_link_state err %d\n", err);
 }
 
 static int ppx_configure_link(struct ppx_priv *priv, struct dpmac_link_cfg *cfg)
@@ -347,8 +401,8 @@ static int ppx_configure_link(struct ppx_priv *priv, struct dpmac_link_cfg *cfg)
 	/* TODO: sanity checks? */
 	/* like null PHY :) ignore that error for now */
 	if (!phydev) {
-		netdev_warn(priv->netdev,
-			    "asked to change PHY settings but PHY ref is NULL, ignoring\n");
+		ppx_warn(priv->netdev,
+			 "asked to change PHY settings but PHY ref is NULL, ignoring\n");
 		return 0;
 	}
 
@@ -410,38 +464,63 @@ err:
 
 static int ppx_setup_irqs(struct fsl_mc_device *mc_dev)
 {
-	static const struct fsl_mc_irq_ops dprc_irq_ops = {
-		.mc_set_irq_enable = dpmac_set_irq_enable,
-		.mc_clear_irq_status = dpmac_clear_irq_status,
-		.mc_set_irq = dpmac_set_irq,
-		.mc_set_irq_mask = dpmac_set_irq_mask,
-	};
-
-	const struct fsl_mc_irq_config irq_config = {
-		.irq_handler = NULL,
-		.irq_handler_thread = ppx_irq_handler,
-		.irq_name = "FSL MC DPMAC irq0",
-		.irq_mask = DPMAC_IRQ_EVENT_LINK_CFG_REQ,
-		.data = &mc_dev->dev,
-	};
 	int err;
 
-	if (mc_dev->obj_desc.irq_count != 1) {
-		dev_err(&mc_dev->dev,
-			"expected one interrupt, but the device has %d!\n",
-			mc_dev->obj_desc.irq_count);
-		return -EINVAL;
+	err = fsl_mc_allocate_irqs(mc_dev);
+	if (err) {
+		dev_err(&mc_dev->dev, "fsl_mc_allocate_irqs err %d\n", err);
+		return err;
 	}
 
-	err = fsl_mc_setup_irqs(mc_dev, &dprc_irq_ops);
-	if (err < 0)
-		return err;
+	err = dpmac_set_irq_enable(mc_dev->mc_io, mc_dev->mc_handle,
+				   DPMAC_IRQ_INDEX, 0);
+	if (err) {
+		dev_err(&mc_dev->dev, "dpmac_set_irq_enable err %d\n", err);
+		goto free_irq;
+	}
 
-	err = fsl_mc_configure_irq(mc_dev, 0, &irq_config);
-	if (err < 0)
-		return err;
+	err = devm_request_threaded_irq(&mc_dev->dev,
+					mc_dev->irqs[0]->irq_number,
+					NULL, &ppx_irq_handler, 0,
+					dev_name(&mc_dev->dev), &mc_dev->dev);
+	if (err) {
+		dev_err(&mc_dev->dev, "devm_request_threaded_irq err %d\n",
+			err);
+		goto free_irq;
+	}
+
+	err = dpmac_set_irq(mc_dev->mc_io, mc_dev->mc_handle, DPMAC_IRQ_INDEX,
+			    mc_dev->irqs[0]->msi_paddr,
+			    mc_dev->irqs[0]->msi_value, 0 /*?*/);
+	if (err) {
+		dev_err(&mc_dev->dev, "dpmac_set_irq err %d\n", err);
+		goto unregister_irq;
+	}
+
+	err = dpmac_set_irq_enable(mc_dev->mc_io, mc_dev->mc_handle,
+				   DPMAC_IRQ_INDEX, 1);
+	if (err) {
+		dev_err(&mc_dev->dev, "dpmac_set_irq_enable err %d\n", err);
+		goto unregister_irq;
+	}
 
 	return 0;
+
+unregister_irq:
+	devm_free_irq(&mc_dev->dev, mc_dev->irqs[0]->irq_number, &mc_dev->dev);
+free_irq:
+	fsl_mc_free_irqs(mc_dev);
+
+	return err;
+}
+
+static void ppx_teardown_irqs(struct fsl_mc_device *mc_dev)
+{
+	dpmac_set_irq_enable(mc_dev->mc_io, mc_dev->mc_handle,
+			     DPMAC_IRQ_INDEX, 0);
+	devm_free_irq(&mc_dev->dev, mc_dev->irqs[0]->irq_number, &mc_dev->dev);
+	fsl_mc_free_irqs(mc_dev);
+
 }
 
 static int __cold
@@ -475,13 +554,11 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 	priv->netdev = netdev;
 
 	SET_NETDEV_DEV(netdev, dev);
-	/* MDIO ID would be better, but we can do that later */
-	snprintf(netdev->name, IFNAMSIZ, "phy%d", mc_dev->obj_desc.id);
+	snprintf(netdev->name, IFNAMSIZ, "mac%d", mc_dev->obj_desc.id);
 
 	dev_set_drvdata(dev, priv);
 
-	err = fsl_mc_portal_allocate(mc_dev, FSL_MC_IO_PORTAL_SHARED,
-				     &mc_dev->mc_io);
+	err = fsl_mc_portal_allocate(mc_dev, 0, &mc_dev->mc_io);
 	if (err) {
 		dev_err(dev, "fsl_mc_portal_allocate err %d\n", err);
 		goto err_free_netdev;
@@ -515,17 +592,20 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 	if (err)
 		goto err_close;
 
-#ifdef CONFIG_FSL_DPAA2_PPX_NETDEVS
+#ifdef FSL_DPAA2_MAC_NETDEVS
 	/* OPTIONAL, register netdev just to make it visible to the user */
 	netdev->netdev_ops = &ppx_ndo;
 	netdev->ethtool_ops = &ppx_ethtool_ops;
+
+	/* phy starts up enabled so netdev should be up too */
+	netdev->flags |= IFF_UP;
 
 	err = register_netdev(priv->netdev);
 	if (err < 0) {
 		dev_err(dev, "register_netdev error %d\n", err);
 		goto err_free_irq;
 	}
-#endif /* CONFIG_FSL_DPAA2_PPX_NETDEVS */
+#endif /* FSL_DPAA2_MAC_NETDEVS */
 
 	/* try to connect to the PHY */
 	/* phy_node = of_find_node_by_phandle(priv->attr.phy_id); */
@@ -571,23 +651,32 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 	}
 
 	dev_info(dev, "found a PHY!\n");
-	return 0;
 
 err_no_phy:
 #ifdef CONFIG_FSL_DPAA2_FIXED_PHY_HACK
-	netdev->phydev = ppx_register_fixed_link(netdev);
 	if (!netdev->phydev) {
-		dev_err(dev, "error trying to register fixed PHY!\n");
-		err = -EFAULT;
-		goto err_free_irq;
+		/* try to register a fixed link phy */
+		netdev->phydev = ppx_register_fixed_link(netdev);
+		if (!netdev->phydev) {
+			dev_err(dev, "error trying to register fixed PHY!\n");
+			err = -EFAULT;
+			goto err_free_irq;
+		}
+		dev_info(dev, "registered fixed PHY!\n");
 	}
 
-	dev_info(dev, "registered fixed PHY!\n");
-	return 0;
 #endif /* CONFIG_FSL_DPAA2_FIXED_PHY_HACK */
 
+	/* start PHY state machine */
+#ifdef FSL_DPAA2_MAC_NETDEVS
+	ppx_open(netdev);
+#else /* FSL_DPAA2_MAC_NETDEVS */
+	phy_start(netdev->phydev);
+#endif /* FSL_DPAA2_MAC_NETDEVS */
+	return 0;
+
 err_free_irq:
-	fsl_mc_teardown_irqs(mc_dev);
+	ppx_teardown_irqs(mc_dev);
 err_close:
 	dpmac_close(mc_dev->mc_io, mc_dev->mc_handle);
 err_free_mcp:
@@ -605,7 +694,7 @@ ppx_remove(struct fsl_mc_device *devppx)
 	struct ppx_priv		*priv = dev_get_drvdata(dev);
 
 	unregister_netdev(priv->netdev);
-	fsl_mc_teardown_irqs(priv->mc_dev);
+	ppx_teardown_irqs(priv->mc_dev);
 	dpmac_close(priv->mc_dev->mc_io, priv->mc_dev->mc_handle);
 	fsl_mc_portal_free(priv->mc_dev->mc_io);
 	free_netdev(priv->netdev);
