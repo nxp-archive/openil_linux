@@ -347,7 +347,13 @@ void fsl_mc_portal_free(struct fsl_mc_io *mc_io)
 	struct fsl_mc_device *dpmcp_dev;
 	struct fsl_mc_resource *resource;
 
+	/*
+	 * Every mc_io obtained by calling fsl_mc_portal_allocate() is supposed
+	 * to have a DPMCP object associated with.
+	 */
 	dpmcp_dev = mc_io->dpmcp_dev;
+	if (WARN_ON(!dpmcp_dev))
+		return;
 	if (WARN_ON(strcmp(dpmcp_dev->obj_desc.type, "dpmcp") != 0))
 		return;
 	if (WARN_ON(dpmcp_dev->mc_io != mc_io))

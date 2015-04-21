@@ -1101,7 +1101,9 @@ error_cleanup_mc_io:
 	fsl_destroy_mc_io(mc_io);
 
 error_cleanup_irq_domain:
-	irq_domain_remove(mc->irq_domain);
+	if (mc->gic_supported)
+		irq_domain_remove(mc->irq_domain);
+
 	return error;
 }
 
@@ -1116,7 +1118,9 @@ static int fsl_mc_bus_remove(struct platform_device *pdev)
 	if (WARN_ON(&mc->root_mc_bus_dev->dev != fsl_mc_bus_type.dev_root))
 		return -EINVAL;
 
-	irq_domain_remove(mc->irq_domain);
+	if (mc->gic_supported)
+		irq_domain_remove(mc->irq_domain);
+
 	fsl_mc_device_remove(mc->root_mc_bus_dev);
 	dev_info(&pdev->dev, "Root MC bus device removed");
 	return 0;
