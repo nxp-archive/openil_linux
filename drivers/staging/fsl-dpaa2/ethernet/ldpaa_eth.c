@@ -830,7 +830,7 @@ static int ldpaa_eth_init(struct net_device *net_dev)
 	uint64_t supported = 0;
 	uint64_t not_supported = 0;
 	const struct ldpaa_eth_priv *priv = netdev_priv(net_dev);
-	uint64_t options = priv->dpni_attrs.options;
+	uint32_t options = priv->dpni_attrs.options;
 
 	/* Capabilities listing */
 	supported |= IFF_LIVE_ADDR_CHANGE | IFF_PROMISC | IFF_ALLMULTI;
@@ -976,7 +976,7 @@ static void ldpaa_eth_set_rx_mode(struct net_device *net_dev)
 	int mc_count = netdev_mc_count(net_dev);
 	uint8_t max_uc = priv->dpni_attrs.max_unicast_filters;
 	uint8_t max_mc = priv->dpni_attrs.max_multicast_filters;
-	uint64_t options = priv->dpni_attrs.options;
+	uint32_t options = priv->dpni_attrs.options;
 	uint16_t mc_token = priv->mc_token;
 	struct fsl_mc_io *mc_io = priv->mc_io;
 	int err;
