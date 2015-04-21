@@ -177,6 +177,7 @@ ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
 	int err = -ENOMEM;
 	struct device *dev = &ls_dev->dev;
 	struct dpaa_io *defservice;
+	bool irq_allocated = false;
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -239,13 +240,15 @@ ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
 	err = fsl_mc_allocate_irqs(ls_dev);
 	if (err) {
 		dev_err(dev, "DPIO fsl_mc_allocate_irqs failed\n");
-		goto err_allocate_irqs;
+		goto poll_mode;
 	}
+	irq_allocated = true;
 
 	snprintf(priv->irq_name, MAX_DPIO_IRQ_NAME, "FSL DPIO %d",
 			desc.dpio_id);
 
 	err = register_dpio_irq_handlers(ls_dev);
+poll_mode:
 	if (err) {
 		dev_info(dev, "Using polling mode for DPIO %d\n",
 			 desc.dpio_id);
@@ -253,7 +256,8 @@ ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
 		/* TEMP: Start polling if IRQ could not
 		   be registered.  This will go away once
 		   KVM support for MSI is present */
-		fsl_mc_free_irqs(ls_dev);
+		if (irq_allocated == true)
+			fsl_mc_free_irqs(ls_dev);
 
 		if (desc.stash_affinity)
 			priv->thread = kthread_create_on_cpu(dpio_thread,
@@ -297,7 +301,6 @@ err_dpaa_io_add:
 	fsl_mc_free_irqs(ls_dev);
 */
 err_dpaa_thread:
-err_allocate_irqs:
 err_dpaa_io_create:
 	dpio_disable(ls_dev->mc_io, ls_dev->mc_handle);
 err_get_attr:
