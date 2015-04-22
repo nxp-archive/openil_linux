@@ -105,7 +105,7 @@ static void unregister_dpio_irq_handlers(struct fsl_mc_device *ls_dev)
 	}
 }
 
-static int register_dpio_irq_handlers(struct fsl_mc_device *ls_dev)
+static int register_dpio_irq_handlers(struct fsl_mc_device *ls_dev, int cpu)
 {
 	struct dpio_priv *priv;
 	unsigned int i;
@@ -113,6 +113,7 @@ static int register_dpio_irq_handlers(struct fsl_mc_device *ls_dev)
 	struct fsl_mc_device_irq *irq;
 	unsigned int num_irq_handlers_registered = 0;
 	int irq_count = ls_dev->obj_desc.irq_count;
+	cpumask_t mask;
 
 	priv = dev_get_drvdata(&ls_dev->dev);
 
@@ -135,6 +136,13 @@ static int register_dpio_irq_handlers(struct fsl_mc_device *ls_dev)
 				error);
 			goto error_unregister_irq_handlers;
 		}
+
+		/* Set the IRQ affinity */
+		cpumask_clear(&mask);
+		cpumask_set_cpu(cpu, &mask);
+		if (irq_set_affinity(irq->irq_number, &mask))
+			pr_err("irq_set_affinity failed irq %d cpu %d\n",
+			       irq->irq_number, cpu);
 
 		/*
 		 * Program the MSI (paddr, value) pair in the device:
@@ -178,6 +186,7 @@ ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
 	struct device *dev = &ls_dev->dev;
 	struct dpaa_io *defservice;
 	bool irq_allocated = false;
+	static int next_cpu;
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -224,8 +233,9 @@ ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
 	desc.has_irq = 1;
 	desc.will_poll = 1;
 	desc.has_8prio = dpio_attrs.num_priorities == 8 ? 1 : 0;
-	desc.cpu = 0;
-	desc.stash_affinity = 0;
+	desc.cpu = next_cpu;
+	desc.stash_affinity = next_cpu;
+	next_cpu = (next_cpu + 1) % num_active_cpus();
 	desc.dpio_id = ls_dev->obj_desc.id;
 	desc.regs_cena = ioremap_wc(ls_dev->regions[0].start,
 		resource_size(&ls_dev->regions[0]));
@@ -247,7 +257,7 @@ ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
 	snprintf(priv->irq_name, MAX_DPIO_IRQ_NAME, "FSL DPIO %d",
 			desc.dpio_id);
 
-	err = register_dpio_irq_handlers(ls_dev);
+	err = register_dpio_irq_handlers(ls_dev, desc.cpu);
 poll_mode:
 	if (err) {
 		dev_info(dev, "Using polling mode for DPIO %d\n",
