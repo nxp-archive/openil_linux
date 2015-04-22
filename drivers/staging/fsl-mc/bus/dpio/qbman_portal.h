@@ -87,12 +87,8 @@ struct qbman_swp {
 		 * on whether the "busy" (last-submitted) dequeue command is
 		 * targeting DQRR or main-memory, and detected is based on the
 		 * presence of the dequeue command's "token" showing up in
-		 * dequeue entries in DQRR or main-memory (respectively). Debug
-		 * builds will, when submitting vdq commands, verify that the
-		 * dequeue result location is not already equal to the command's
-		 * token value. */
+		 * dequeue entries in DQRR or main-memory (respectively). */
 		struct ldpaa_dq *storage; /* NULL if DQRR */
-		uint32_t token;
 	} vdq;
 	/* DQRR */
 	struct {

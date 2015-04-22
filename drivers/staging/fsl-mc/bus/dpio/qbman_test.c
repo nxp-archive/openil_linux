@@ -189,7 +189,6 @@ static void do_pull_dequeue(struct qbman_swp *swp)
 		qbman_pull_desc_clear(&pulldesc);
 		qbman_pull_desc_set_storage(&pulldesc, NULL, 0, 0);
 		qbman_pull_desc_set_numframes(&pulldesc, 1);
-		qbman_pull_desc_set_token(&pulldesc, 0xab);
 		qbman_pull_desc_set_fq(&pulldesc, QBMAN_TEST_FQID);
 
 		ret = qbman_swp_pull(swp, &pulldesc);
@@ -220,13 +219,11 @@ static void do_pull_dequeue(struct qbman_swp *swp)
 	pr_info("*****QBMan_test: Dequeue %d frames with dq entry in memory\n",
 								NUM_DQ_IN_MEM);
 	for (i = 0; i < NUM_DQ_IN_MEM; i++) {
-		qbman_dq_entry_set_oldtoken(&dq_storage[i], 1, i);
 		dq_storage_phys = virt_to_phys(&dq_storage[i]);
 		qbman_pull_desc_clear(&pulldesc);
 		qbman_pull_desc_set_storage(&pulldesc, &dq_storage[i],
 						dq_storage_phys, 1);
 		qbman_pull_desc_set_numframes(&pulldesc, 1);
-		qbman_pull_desc_set_token(&pulldesc, 0xab + i);
 		qbman_pull_desc_set_fq(&pulldesc, QBMAN_TEST_FQID);
 		ret = qbman_swp_pull(swp, &pulldesc);
 		BUG_ON(ret);
@@ -234,8 +231,8 @@ static void do_pull_dequeue(struct qbman_swp *swp)
 		DBG_POLL_START(loopvar);
 		do {
 			DBG_POLL_CHECK(loopvar);
-			ret = qbman_dq_entry_has_newtoken(swp, &dq_storage[i],
-							0xab + i);
+			ret = qbman_dq_entry_has_new_result(swp,
+							    &dq_storage[i]);
 		} while (!ret);
 
 		if (ret) {

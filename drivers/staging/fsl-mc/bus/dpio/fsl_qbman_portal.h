@@ -127,11 +127,6 @@ void qbman_pull_desc_set_storage(struct qbman_pull_desc *,
 				 int stash);
 /* numframes must be between 1 and 16, inclusive */
 void qbman_pull_desc_set_numframes(struct qbman_pull_desc *, uint8_t numframes);
-/* token is the value that shows up in the dequeue results that can be used to
- * detect when the results have been published, and is not really used when
- * dequeue results go to DQRR. The easiest technique is to zero result "storage"
- * before issuing a pull dequeue, and use any non-zero 'token' value. */
-void qbman_pull_desc_set_token(struct qbman_pull_desc *, uint8_t token);
 /* Exactly one of the following descriptor "actions" should be set. (Calling any
  * one of these will replace the effect of any prior call to one of these.)
  * - pull dequeue from the given frame queue (FQ)
@@ -161,25 +156,18 @@ void qbman_swp_dqrr_consume(struct qbman_swp *, const struct ldpaa_dq *);
 /* ------------------------------------------------- */
 /* Polling user-provided storage for dequeue results */
 /* ------------------------------------------------- */
-
-/* Only used for user-provided storage of dequeue results, not DQRR. Prior to
- * being used, the storage must set "oldtoken", so that the driver notices when
- * hardware has filled it in with results using a "newtoken". NB, for efficiency
- * purposes, the driver will perform any required endianness conversion to
- * ensure that the user's dequeue result storage is in host-endian format
- * (whether or not that is the same as the little-endian format that hardware
- * DMA'd to the user's storage). As such, once the user has called
- * qbman_dq_entry_has_newtoken() and been returned a valid dequeue result, they
- * should not call it again on the same memory location (except of course if
- * another dequeue command has been executed to produce a new result to that
+/* Only used for user-provided storage of dequeue results, not DQRR. For
+ * efficiency purposes, the driver will perform any required endianness
+ * conversion to ensure that the user's dequeue result storage is in host-endian
+ * format (whether or not that is the same as the little-endian format that
+ * hardware DMA'd to the user's storage). As such, once the user has called
+ * qbman_dq_entry_has_new_result() and been returned a valid dequeue result,
+ * they should not call it again on the same memory location (except of course
+ * if another dequeue command has been executed to produce a new result to that
  * location).
  */
-void qbman_dq_entry_set_oldtoken(struct ldpaa_dq *,
-				 unsigned int num_entries,
-				 uint8_t oldtoken);
-int qbman_dq_entry_has_newtoken(struct qbman_swp *,
-				const struct ldpaa_dq *,
-				uint8_t newtoken);
+int qbman_dq_entry_has_new_result(struct qbman_swp *,
+				  const struct ldpaa_dq *);
 
 /* -------------------------------------------------------- */
 /* Parsing dequeue entries (DQRR and user-provided storage) */

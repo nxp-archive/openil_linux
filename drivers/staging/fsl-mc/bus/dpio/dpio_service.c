@@ -102,7 +102,6 @@ struct dpaa_io_store {
 	struct ldpaa_dq *vaddr;
 	void *alloced_addr; /* the actual return from kmalloc as it may
 			       be adjusted for alignment purposes */
-	uint8_t token; /* current token if busy, otherwise next token */
 	unsigned int idx; /* position of the next-to-be-returned entry */
 	struct qbman_swp *swp; /* portal used to issue VDQCR */
 	struct device *dev; /* device used for DMA mapping */
@@ -523,7 +522,6 @@ int dpaa_io_service_pull_fq(struct dpaa_io *d, uint32_t fqid,
 	qbman_pull_desc_clear(&pd);
 	qbman_pull_desc_set_storage(&pd, s->vaddr, s->paddr, 1);
 	qbman_pull_desc_set_numframes(&pd, s->max);
-	qbman_pull_desc_set_token(&pd, s->token);
 	qbman_pull_desc_set_fq(&pd, fqid);
 	d = service_select_by_cpu(d, -1);
 	if (d) {
@@ -614,14 +612,6 @@ int dpaa_io_service_acquire(struct dpaa_io *d,
 }
 EXPORT_SYMBOL(dpaa_io_service_acquire);
 
-static void store_token(struct dpaa_io_store *store, unsigned int idx,
-			unsigned num)
-{
-	struct ldpaa_dq *dq = &store->vaddr[idx];
-
-	qbman_dq_entry_set_oldtoken(dq, num, store->token++);
-}
-
 struct dpaa_io_store *dpaa_io_store_create(unsigned int max_frames,
 					   struct device *dev)
 {
@@ -647,10 +637,8 @@ struct dpaa_io_store *dpaa_io_store_create(unsigned int max_frames,
 		kfree(ret);
 		return NULL;
 	}
-	ret->token = 0x53;
 	ret->idx = 0;
 	ret->dev = dev;
-	store_token(ret, 0, ret->max);
 	return ret;
 }
 EXPORT_SYMBOL(dpaa_io_store_create);
@@ -669,7 +657,7 @@ struct ldpaa_dq *dpaa_io_store_next(struct dpaa_io_store *s, int *is_last)
 	int match;
 	struct ldpaa_dq *ret = &s->vaddr[s->idx];
 
-	match = qbman_dq_entry_has_newtoken(s->swp, ret, s->token);
+	match = qbman_dq_entry_has_new_result(s->swp, ret);
 	if (!match) {
 		*is_last = 0;
 		return NULL;
@@ -678,10 +666,6 @@ struct ldpaa_dq *dpaa_io_store_next(struct dpaa_io_store *s, int *is_last)
 	s->idx++;
 	if (ldpaa_dq_is_pull_complete(ret)) {
 		*is_last = 1;
-		if (s->idx < s->max)
-			store_token(s, s->idx, s->max - s->idx);
-		else
-			s->token++;
 		s->idx = 0;
 		/* If we get an empty dequeue result to terminate a zero-results
 		 * vdqcr, return NULL to the caller rather than expecting him to
