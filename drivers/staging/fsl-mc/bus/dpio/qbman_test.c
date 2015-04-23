@@ -231,7 +231,7 @@ static void do_pull_dequeue(struct qbman_swp *swp)
 		DBG_POLL_START(loopvar);
 		do {
 			DBG_POLL_CHECK(loopvar);
-			ret = qbman_dq_entry_has_new_result(swp,
+			ret = qbman_result_has_new_result(swp,
 							    &dq_storage[i]);
 		} while (!ret);
 

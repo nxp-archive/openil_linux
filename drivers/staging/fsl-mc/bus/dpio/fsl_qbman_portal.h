@@ -161,12 +161,12 @@ void qbman_swp_dqrr_consume(struct qbman_swp *, const struct ldpaa_dq *);
  * conversion to ensure that the user's dequeue result storage is in host-endian
  * format (whether or not that is the same as the little-endian format that
  * hardware DMA'd to the user's storage). As such, once the user has called
- * qbman_dq_entry_has_new_result() and been returned a valid dequeue result,
+ * qbman_result_has_new_result() and been returned a valid dequeue result,
  * they should not call it again on the same memory location (except of course
  * if another dequeue command has been executed to produce a new result to that
  * location).
  */
-int qbman_dq_entry_has_new_result(struct qbman_swp *,
+int qbman_result_has_new_result(struct qbman_swp *,
 				  const struct ldpaa_dq *);
 
 /* -------------------------------------------------------- */
@@ -174,50 +174,50 @@ int qbman_dq_entry_has_new_result(struct qbman_swp *,
 /* -------------------------------------------------------- */
 
 /* DQRR entries may contain non-dequeue results, ie. notifications */
-int qbman_dq_entry_is_DQ(const struct ldpaa_dq *);
+int qbman_result_is_DQ(const struct ldpaa_dq *);
 /* All the non-dequeue results (FQDAN/CDAN/CSCN/...) are "state change
  * notifications" of one type or another. Some APIs apply to all of them, of the
- * form qbman_dq_entry_SCN_***(). */
-static inline int qbman_dq_entry_is_SCN(const struct ldpaa_dq *dq)
+ * form qbman_result_SCN_***(). */
+static inline int qbman_result_is_SCN(const struct ldpaa_dq *dq)
 {
-	return !qbman_dq_entry_is_DQ(dq);
+	return !qbman_result_is_DQ(dq);
 }
 /* Recognise different notification types, only required if the user allows for
  * these to occur, and cares about them when they do. */
-int qbman_dq_entry_is_FQDAN(const struct ldpaa_dq *);
+int qbman_result_is_FQDAN(const struct ldpaa_dq *);
 				/* FQ Data Availability */
-int qbman_dq_entry_is_CDAN(const struct ldpaa_dq *);
+int qbman_result_is_CDAN(const struct ldpaa_dq *);
 				/* Channel Data Availability */
-int qbman_dq_entry_is_CSCN(const struct ldpaa_dq *);
+int qbman_result_is_CSCN(const struct ldpaa_dq *);
 				/* Congestion State Change */
-int qbman_dq_entry_is_BPSCN(const struct ldpaa_dq *);
+int qbman_result_is_BPSCN(const struct ldpaa_dq *);
 				/* Buffer Pool State Change */
-int qbman_dq_entry_is_CGCU(const struct ldpaa_dq *);
+int qbman_result_is_CGCU(const struct ldpaa_dq *);
 				/* Congestion Group Count Update */
 /* Frame queue state change notifications; (FQDAN in theory counts too as it
  * leaves a FQ parked, but it is primarily a data availability notification) */
-int qbman_dq_entry_is_FQRN(const struct ldpaa_dq *); /* Retirement */
-int qbman_dq_entry_is_FQRNI(const struct ldpaa_dq *);
+int qbman_result_is_FQRN(const struct ldpaa_dq *); /* Retirement */
+int qbman_result_is_FQRNI(const struct ldpaa_dq *);
 				/* Retirement Immediate */
-int qbman_dq_entry_is_FQPN(const struct ldpaa_dq *); /* Park */
+int qbman_result_is_FQPN(const struct ldpaa_dq *); /* Park */
 
 /* NB: for parsing dequeue results (when "is_DQ" is TRUE), use the higher-layer
  * ldpaa_dq_*() functions. */
 
 /* State-change notifications (FQDAN/CDAN/CSCN/...). */
-uint8_t qbman_dq_entry_SCN_state(const struct ldpaa_dq *);
-uint32_t qbman_dq_entry_SCN_rid(const struct ldpaa_dq *);
-uint64_t qbman_dq_entry_SCN_ctx(const struct ldpaa_dq *);
+uint8_t qbman_result_SCN_state(const struct ldpaa_dq *);
+uint32_t qbman_result_SCN_rid(const struct ldpaa_dq *);
+uint64_t qbman_result_SCN_ctx(const struct ldpaa_dq *);
 /* Type-specific "resource IDs". Mainly for illustration purposes, though it
  * also gives the appropriate type widths. */
-#define qbman_dq_entry_FQDAN_fqid(dq) qbman_dq_entry_SCN_rid(dq)
-#define qbman_dq_entry_FQRN_fqid(dq) qbman_dq_entry_SCN_rid(dq)
-#define qbman_dq_entry_FQRNI_fqid(dq) qbman_dq_entry_SCN_rid(dq)
-#define qbman_dq_entry_FQPN_fqid(dq) qbman_dq_entry_SCN_rid(dq)
-#define qbman_dq_entry_CDAN_cid(dq) ((uint16_t)qbman_dq_entry_SCN_rid(dq))
-#define qbman_dq_entry_CSCN_cgid(dq) ((uint16_t)qbman_dq_entry_SCN_rid(dq))
-#define qbman_dq_entry_CGCU_cgid(dq) ((uint16_t)qbman_dq_entry_SCN_rid(dq))
-#define qbman_dq_entry_BPSCN_bpid(dq) ((uint16_t)qbman_dq_entry_SCN_rid(dq))
+#define qbman_result_FQDAN_fqid(dq) qbman_result_SCN_rid(dq)
+#define qbman_result_FQRN_fqid(dq) qbman_result_SCN_rid(dq)
+#define qbman_result_FQRNI_fqid(dq) qbman_result_SCN_rid(dq)
+#define qbman_result_FQPN_fqid(dq) qbman_result_SCN_rid(dq)
+#define qbman_result_CDAN_cid(dq) ((uint16_t)qbman_result_SCN_rid(dq))
+#define qbman_result_CSCN_cgid(dq) ((uint16_t)qbman_result_SCN_rid(dq))
+#define qbman_result_CGCU_cgid(dq) ((uint16_t)qbman_result_SCN_rid(dq))
+#define qbman_result_BPSCN_bpid(dq) ((uint16_t)qbman_result_SCN_rid(dq))
 
 	/************/
 	/* Enqueues */
@@ -336,7 +336,7 @@ int qbman_swp_fq_schedule(struct qbman_swp *, uint32_t fqid);
  * and thus be available for selection by any channel-dequeuing behaviour (push
  * or pull). If the FQ is subsequently "dequeued" from the channel and is still
  * empty at the time this happens, the resulting dq_entry will have no FD.
- * (qbman_dq_entry_DQ_fd() will return NULL.) */
+ * (qbman_result_DQ_fd() will return NULL.) */
 int qbman_swp_fq_force(struct qbman_swp *, uint32_t fqid);
 
 /* These functions change the FQ flow-control stuff between XON/XOFF. (The
@@ -345,7 +345,7 @@ int qbman_swp_fq_force(struct qbman_swp *, uint32_t fqid);
  * non-empty, meaning they won't be selected for scheduled dequeuing. If a FQ is
  * changed to XOFF after it had already become truly-scheduled to a channel, and
  * a pull dequeue of that channel occurs that selects that FQ for dequeuing,
- * then the resulting dq_entry will have no FD. (qbman_dq_entry_DQ_fd() will
+ * then the resulting dq_entry will have no FD. (qbman_result_DQ_fd() will
  * return NULL.) */
 int qbman_swp_fq_xon(struct qbman_swp *, uint32_t fqid);
 int qbman_swp_fq_xoff(struct qbman_swp *, uint32_t fqid);

@@ -612,16 +612,16 @@ static struct qb_attr_code code_dqrr_byte_count = QB_CODE(4, 0, 32);
 static struct qb_attr_code code_dqrr_frame_count = QB_CODE(5, 0, 24);
 static struct qb_attr_code code_dqrr_ctx_lo = QB_CODE(6, 0, 32);
 
-#define QBMAN_DQRR_RESPONSE_DQ        0x60
-#define QBMAN_DQRR_RESPONSE_FQRN      0x21
-#define QBMAN_DQRR_RESPONSE_FQRNI     0x22
-#define QBMAN_DQRR_RESPONSE_FQPN      0x24
-#define QBMAN_DQRR_RESPONSE_FQDAN     0x25
-#define QBMAN_DQRR_RESPONSE_CDAN      0x26
-#define QBMAN_DQRR_RESPONSE_CSCN_MEM  0x27
-#define QBMAN_DQRR_RESPONSE_CGCU      0x28
-#define QBMAN_DQRR_RESPONSE_BPSCN     0x29
-#define QBMAN_DQRR_RESPONSE_CSCN_WQ   0x2a
+#define QBMAN_RESULT_DQ        0x60
+#define QBMAN_RESULT_FQRN      0x21
+#define QBMAN_RESULT_FQRNI     0x22
+#define QBMAN_RESULT_FQPN      0x24
+#define QBMAN_RESULT_FQDAN     0x25
+#define QBMAN_RESULT_CDAN      0x26
+#define QBMAN_RESULT_CSCN_MEM  0x27
+#define QBMAN_RESULT_CGCU      0x28
+#define QBMAN_RESULT_BPSCN     0x29
+#define QBMAN_RESULT_CSCN_WQ   0x2a
 
 static struct qb_attr_code code_dqpi_pi = QB_CODE(0, 0, 4);
 
@@ -698,7 +698,7 @@ const struct ldpaa_dq *qbman_swp_dqrr_next(struct qbman_swp *s)
 	   indicate that the vdq is no longer busy */
 	flags = ldpaa_dq_flags(dq);
 	response_verb = qb_attr_code_decode(&code_dqrr_response, &verb);
-	if ((response_verb == QBMAN_DQRR_RESPONSE_DQ) &&
+	if ((response_verb == QBMAN_RESULT_DQ) &&
 	    (flags & LDPAA_DQ_STAT_VOLATILE) &&
 	    (flags & LDPAA_DQ_STAT_EXPIRED))
 		atomic_inc(&s->vdq.busy);
@@ -720,7 +720,7 @@ EXPORT_SYMBOL(qbman_swp_dqrr_consume);
 /* Polling user-provided storage */
 /*********************************/
 
-int qbman_dq_entry_has_new_result(struct qbman_swp *s,
+int qbman_result_has_new_result(struct qbman_swp *s,
 				  const struct ldpaa_dq *dq)
 {
 	/* To avoid converting the little-endian DQ entry to host-endian prior
@@ -763,13 +763,13 @@ int qbman_dq_entry_has_new_result(struct qbman_swp *s,
 	}
 	return 1;
 }
-EXPORT_SYMBOL(qbman_dq_entry_has_new_result);
+EXPORT_SYMBOL(qbman_result_has_new_result);
 
 /********************************/
 /* Categorising dequeue entries */
 /********************************/
 
-static inline int __qbman_dq_entry_is_x(const struct ldpaa_dq *dq, uint32_t x)
+static inline int __qbman_result_is_x(const struct ldpaa_dq *dq, uint32_t x)
 {
 	const uint32_t *p = qb_cl(dq);
 	uint32_t response_verb = qb_attr_code_decode(&code_dqrr_response, p);
@@ -777,66 +777,66 @@ static inline int __qbman_dq_entry_is_x(const struct ldpaa_dq *dq, uint32_t x)
 	return response_verb == x;
 }
 
-int qbman_dq_entry_is_DQ(const struct ldpaa_dq *dq)
+int qbman_result_is_DQ(const struct ldpaa_dq *dq)
 {
-	return __qbman_dq_entry_is_x(dq, QBMAN_DQRR_RESPONSE_DQ);
+	return __qbman_result_is_x(dq, QBMAN_RESULT_DQ);
 }
-EXPORT_SYMBOL(qbman_dq_entry_is_DQ);
+EXPORT_SYMBOL(qbman_result_is_DQ);
 
-int qbman_dq_entry_is_FQDAN(const struct ldpaa_dq *dq)
+int qbman_result_is_FQDAN(const struct ldpaa_dq *dq)
 {
-	return __qbman_dq_entry_is_x(dq, QBMAN_DQRR_RESPONSE_FQDAN);
+	return __qbman_result_is_x(dq, QBMAN_RESULT_FQDAN);
 }
-EXPORT_SYMBOL(qbman_dq_entry_is_FQDAN);
+EXPORT_SYMBOL(qbman_result_is_FQDAN);
 
-int qbman_dq_entry_is_CDAN(const struct ldpaa_dq *dq)
+int qbman_result_is_CDAN(const struct ldpaa_dq *dq)
 {
-	return __qbman_dq_entry_is_x(dq, QBMAN_DQRR_RESPONSE_CDAN);
+	return __qbman_result_is_x(dq, QBMAN_RESULT_CDAN);
 }
-EXPORT_SYMBOL(qbman_dq_entry_is_CDAN);
+EXPORT_SYMBOL(qbman_result_is_CDAN);
 
-int qbman_dq_entry_is_CSCN(const struct ldpaa_dq *dq)
+int qbman_result_is_CSCN(const struct ldpaa_dq *dq)
 {
-	return __qbman_dq_entry_is_x(dq, QBMAN_DQRR_RESPONSE_CSCN_MEM) ||
-		__qbman_dq_entry_is_x(dq, QBMAN_DQRR_RESPONSE_CSCN_WQ);
+	return __qbman_result_is_x(dq, QBMAN_RESULT_CSCN_MEM) ||
+		__qbman_result_is_x(dq, QBMAN_RESULT_CSCN_WQ);
 }
-EXPORT_SYMBOL(qbman_dq_entry_is_CSCN);
+EXPORT_SYMBOL(qbman_result_is_CSCN);
 
-int qbman_dq_entry_is_BPSCN(const struct ldpaa_dq *dq)
+int qbman_result_is_BPSCN(const struct ldpaa_dq *dq)
 {
-	return __qbman_dq_entry_is_x(dq, QBMAN_DQRR_RESPONSE_BPSCN);
+	return __qbman_result_is_x(dq, QBMAN_RESULT_BPSCN);
 }
-EXPORT_SYMBOL(qbman_dq_entry_is_BPSCN);
+EXPORT_SYMBOL(qbman_result_is_BPSCN);
 
-int qbman_dq_entry_is_CGCU(const struct ldpaa_dq *dq)
+int qbman_result_is_CGCU(const struct ldpaa_dq *dq)
 {
-	return __qbman_dq_entry_is_x(dq, QBMAN_DQRR_RESPONSE_CGCU);
+	return __qbman_result_is_x(dq, QBMAN_RESULT_CGCU);
 }
-EXPORT_SYMBOL(qbman_dq_entry_is_CGCU);
+EXPORT_SYMBOL(qbman_result_is_CGCU);
 
-int qbman_dq_entry_is_FQRN(const struct ldpaa_dq *dq)
+int qbman_result_is_FQRN(const struct ldpaa_dq *dq)
 {
-	return __qbman_dq_entry_is_x(dq, QBMAN_DQRR_RESPONSE_FQRN);
+	return __qbman_result_is_x(dq, QBMAN_RESULT_FQRN);
 }
-EXPORT_SYMBOL(qbman_dq_entry_is_FQRN);
+EXPORT_SYMBOL(qbman_result_is_FQRN);
 
-int qbman_dq_entry_is_FQRNI(const struct ldpaa_dq *dq)
+int qbman_result_is_FQRNI(const struct ldpaa_dq *dq)
 {
-	return __qbman_dq_entry_is_x(dq, QBMAN_DQRR_RESPONSE_FQRNI);
+	return __qbman_result_is_x(dq, QBMAN_RESULT_FQRNI);
 }
-EXPORT_SYMBOL(qbman_dq_entry_is_FQRNI);
+EXPORT_SYMBOL(qbman_result_is_FQRNI);
 
-int qbman_dq_entry_is_FQPN(const struct ldpaa_dq *dq)
+int qbman_result_is_FQPN(const struct ldpaa_dq *dq)
 {
-	return __qbman_dq_entry_is_x(dq, QBMAN_DQRR_RESPONSE_FQPN);
+	return __qbman_result_is_x(dq, QBMAN_RESULT_FQPN);
 }
-EXPORT_SYMBOL(qbman_dq_entry_is_FQPN);
+EXPORT_SYMBOL(qbman_result_is_FQPN);
 
 /*********************************/
 /* Parsing frame dequeue results */
 /*********************************/
 
-/* These APIs assume qbman_dq_entry_is_DQ() is TRUE */
+/* These APIs assume qbman_result_is_DQ() is TRUE */
 
 uint32_t ldpaa_dq_flags(const struct ldpaa_dq *dq)
 {
@@ -910,29 +910,29 @@ static struct qb_attr_code code_scn_state = QB_CODE(0, 16, 8);
 static struct qb_attr_code code_scn_rid = QB_CODE(1, 0, 24);
 static struct qb_attr_code code_scn_ctx_lo = QB_CODE(2, 0, 32);
 
-uint8_t qbman_dq_entry_SCN_state(const struct ldpaa_dq *dq)
+uint8_t qbman_result_SCN_state(const struct ldpaa_dq *dq)
 {
 	const uint32_t *p = qb_cl(dq);
 
 	return (uint8_t)qb_attr_code_decode(&code_scn_state, p);
 }
-EXPORT_SYMBOL(qbman_dq_entry_SCN_state);
+EXPORT_SYMBOL(qbman_result_SCN_state);
 
-uint32_t qbman_dq_entry_SCN_rid(const struct ldpaa_dq *dq)
+uint32_t qbman_result_SCN_rid(const struct ldpaa_dq *dq)
 {
 	const uint32_t *p = qb_cl(dq);
 
 	return qb_attr_code_decode(&code_scn_rid, p);
 }
-EXPORT_SYMBOL(qbman_dq_entry_SCN_rid);
+EXPORT_SYMBOL(qbman_result_SCN_rid);
 
-uint64_t qbman_dq_entry_SCN_ctx(const struct ldpaa_dq *dq)
+uint64_t qbman_result_SCN_ctx(const struct ldpaa_dq *dq)
 {
 	const uint64_t *p = (uint64_t *)qb_cl(dq);
 
 	return qb_attr_code_decode_64(&code_scn_ctx_lo, p);
 }
-EXPORT_SYMBOL(qbman_dq_entry_SCN_ctx);
+EXPORT_SYMBOL(qbman_result_SCN_ctx);
 
 /******************/
 /* Buffer release */

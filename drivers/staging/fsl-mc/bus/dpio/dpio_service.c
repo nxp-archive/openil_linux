@@ -336,11 +336,11 @@ int dpaa_io_poll(struct dpaa_io *obj)
 	swp = obj->object.swp;
 	dq = qbman_swp_dqrr_next(swp);
 	if (dq) {
-		if (qbman_dq_entry_is_FQDAN(dq)) {
+		if (qbman_result_is_FQDAN(dq)) {
 			struct dpaa_io_notification_ctx *ctx;
 			uint64_t q64;
 
-			q64 = qbman_dq_entry_SCN_ctx(dq);
+			q64 = qbman_result_SCN_ctx(dq);
 			ctx = (void *)q64;
 			ctx->cb(ctx);
 		} else
@@ -657,12 +657,12 @@ struct ldpaa_dq *dpaa_io_store_next(struct dpaa_io_store *s, int *is_last)
 	int match;
 	struct ldpaa_dq *ret = &s->vaddr[s->idx];
 
-	match = qbman_dq_entry_has_new_result(s->swp, ret);
+	match = qbman_result_has_new_result(s->swp, ret);
 	if (!match) {
 		*is_last = 0;
 		return NULL;
 	}
-	BUG_ON(!qbman_dq_entry_is_DQ(ret));
+	BUG_ON(!qbman_result_is_DQ(ret));
 	s->idx++;
 	if (ldpaa_dq_is_pull_complete(ret)) {
 		*is_last = 1;
