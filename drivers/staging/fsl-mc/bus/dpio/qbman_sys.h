@@ -109,8 +109,14 @@ static inline uint32_t make_le32(uint32_t val)
 	return ((val & 0xff) << 24) | ((val & 0xff00) << 8) |
 		((val & 0xff0000) >> 8) | ((val & 0xff000000) >> 24);
 }
+static inline uint32_t make_le24(uint32_t val)
+{
+	return (((val & 0xff) << 16) | (val & 0xff00) |
+		((val & 0xff0000) >> 16));
+}
 #else
 #define make_le32(val) (val)
+#define make_le24(val) (val)
 #endif
 static inline void make_le32_n(uint32_t *val, unsigned int num)
 {

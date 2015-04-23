@@ -54,8 +54,14 @@
  * very quickly. It's an exception, and this symbol is used for that case. */
 #if defined(__BIG_ENDIAN)
 #define DQRR_TOK_OFFSET 0
+#define QBMAN_RESULT_VERB_OFFSET_IN_MEM 24
+#define SCN_STATE_OFFSET_IN_MEM 8
+#define SCN_RID_OFFSET_IN_MEM 8
 #else
 #define DQRR_TOK_OFFSET 24
+#define QBMAN_RESULT_VERB_OFFSET_IN_MEM 0
+#define SCN_STATE_OFFSET_IN_MEM 16
+#define SCN_RID_OFFSET_IN_MEM 0
 #endif
 
 /* Similarly-named functions */
