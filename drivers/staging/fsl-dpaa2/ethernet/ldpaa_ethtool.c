@@ -244,10 +244,10 @@ static void ldpaa_get_ethtool_stats(struct net_device *net_dev,
 			bcnt_rx_total += bcnt;
 		}
 	}
-	*(data + i++ + DPNI_CNT_NUM_STATS) = fcnt_rx_total;
-	*(data + i++ + DPNI_CNT_NUM_STATS) = bcnt_rx_total;
-	*(data + i++ + DPNI_CNT_NUM_STATS) = fcnt_tx_total;
-	*(data + i++ + DPNI_CNT_NUM_STATS) = bcnt_tx_total;
+	*(data + i++) = fcnt_rx_total;
+	*(data + i++) = bcnt_rx_total;
+	*(data + i++) = fcnt_tx_total;
+	*(data + i++) = bcnt_tx_total;
 #endif
 }
 
