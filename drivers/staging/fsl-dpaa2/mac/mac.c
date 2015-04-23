@@ -72,9 +72,7 @@ struct ppx_priv {
 	struct net_device		*netdev;
 	struct fsl_mc_device		*mc_dev;
 	struct dpmac_attr		attr;
-#ifdef PPX_DEBUG
 	struct dpmac_link_state		old_state;
-#endif /* PPX_DEBUG */
 };
 
 /* TODO: fix the 10G modes, mapping can't be right:
@@ -375,14 +373,15 @@ static void ppx_link_changed(struct net_device *netdev)
 			state.options |= DPMAC_LINK_OPT_AUTONEG;
 	}
 
-#ifdef PPX_DEBUG
-	if (priv->old_state.up != state.up ||
-	    priv->old_state.rate != state.rate ||
-	    priv->old_state.options != state.options) {
-		phy_print_status(phydev);
-		priv->old_state = state;
+	if (priv->old_state.up == state.up &&
+	    priv->old_state.rate == state.rate &&
+	    priv->old_state.options == state.options) {
+		return;
 	}
- #endif /* PPX_DEBUG */
+	priv->old_state = state;
+#ifdef PPX_DEBUG
+	phy_print_status(phydev);
+#endif
 
 	/* we intentionally ignore the error here as MC will return an error
 	 * if peer L2 interface (like a DPNI) is down at this time
