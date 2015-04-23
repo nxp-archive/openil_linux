@@ -41,6 +41,10 @@
 #include "../../fsl-mc/include/dpni-cmd.h"
 
 #include "ldpaa_eth_trace.h"
+/* FIXME HACK! */
+#ifndef DPAA2_ETH_ATOMIC_PORTAL_HACK
+#define DPAA2_ETH_ATOMIC_PORTAL_HACK
+#endif
 
 /* TODO : how many queues here? NR_CPUS? */
 #define LDPAA_ETH_TX_QUEUES		1
