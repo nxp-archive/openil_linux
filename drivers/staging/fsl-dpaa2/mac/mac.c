@@ -481,7 +481,8 @@ static int ppx_setup_irqs(struct fsl_mc_device *mc_dev)
 
 	err = devm_request_threaded_irq(&mc_dev->dev,
 					mc_dev->irqs[0]->irq_number,
-					NULL, &ppx_irq_handler, 0,
+					NULL, &ppx_irq_handler,
+					IRQF_NO_SUSPEND | IRQF_ONESHOT,
 					dev_name(&mc_dev->dev), &mc_dev->dev);
 	if (err) {
 		dev_err(&mc_dev->dev, "devm_request_threaded_irq err %d\n",
