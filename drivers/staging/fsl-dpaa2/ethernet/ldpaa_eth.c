@@ -323,9 +323,14 @@ static int ldpaa_eth_store_consume(struct ldpaa_eth_fq *fq)
 		dq = dpaa_io_store_next(fq->ring.store, &is_last);
 		if (unlikely(!dq)) {
 			if (unlikely(!is_last)) {
-				netdev_err(priv->net_dev,
-					   "FQID %d returned no valid frames!\n",
+				netdev_dbg(priv->net_dev,
+					   "FQID %d returned no valid frames\n",
 					   fq->fqid);
+				/* MUST retry until we get some sort of
+				 * valid response token (be it "empty dequeue"
+				 * or a valid frame).
+				 */
+				continue;
 			}
 			fq->has_frames = false;
 			/* TODO add a ethtool counter for empty dequeues */
@@ -746,10 +751,6 @@ static int ldpaa_eth_poll(struct napi_struct *napi, int budget)
 		err = __ldpaa_eth_pull_fq(fq);
 		if (unlikely(err))
 			break;
-		/* FIXME Must be able to safely query the store
-		 * before the DMA finishes the first transfer
-		 */
-		ndelay(1000);
 	} while (1);
 
 	if (cleaned < budget)
