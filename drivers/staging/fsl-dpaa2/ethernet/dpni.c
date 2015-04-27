@@ -50,7 +50,7 @@ int dpni_prepare_key_cfg(struct dpkg_profile_cfg *cfg,
 		uint8_t num_of_repeats;
 		enum net_prot prot;
 		enum dpkg_extract_from_hdr_type type;
-	} u_cfg[DPKG_MAX_NUM_OF_EXTRACTS] = { 0 };
+	} u_cfg[DPKG_MAX_NUM_OF_EXTRACTS] = { {0} };
 
 	if (!key_cfg_buf || !cfg)
 			return -EINVAL;
