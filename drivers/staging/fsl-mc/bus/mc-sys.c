@@ -43,9 +43,9 @@
 #include "dpmcp.h"
 
 /**
- * Timeout in jiffies to wait for the completion of an MC command
+ * Timeout in milliseconds to wait for the completion of an MC command
  */
-#define MC_CMD_COMPLETION_TIMEOUT_JIFFIES   (HZ / 2)	/* 500 ms */
+#define MC_CMD_COMPLETION_TIMEOUT_MS	500
 
 /*
  * usleep_range() min and max values used to throttle down polling
@@ -540,6 +540,8 @@ static int mc_completion_wait(struct fsl_mc_io *mc_io, struct mc_command *cmd,
 {
 	enum mc_cmd_status status;
 	unsigned long jiffies_left;
+	unsigned long timeout_jiffies =
+		msecs_to_jiffies(MC_CMD_COMPLETION_TIMEOUT_MS);
 
 	if (WARN_ON(!mc_io->dpmcp_dev))
 		return -EINVAL;
@@ -557,7 +559,7 @@ static int mc_completion_wait(struct fsl_mc_io *mc_io, struct mc_command *cmd,
 
 		jiffies_left = wait_for_completion_timeout(
 					&mc_io->mc_command_done_completion,
-					MC_CMD_COMPLETION_TIMEOUT_JIFFIES);
+					timeout_jiffies);
 		if (jiffies_left == 0)
 			return -ETIMEDOUT;
 	}
@@ -571,7 +573,7 @@ static int mc_polling_wait(struct fsl_mc_io *mc_io, struct mc_command *cmd,
 {
 	enum mc_cmd_status status;
 	unsigned long jiffies_until_timeout =
-	    jiffies + MC_CMD_COMPLETION_TIMEOUT_JIFFIES;
+		jiffies + msecs_to_jiffies(MC_CMD_COMPLETION_TIMEOUT_MS);
 
 	for (;;) {
 		status = mc_read_response(mc_io->portal_virt_addr, cmd);
