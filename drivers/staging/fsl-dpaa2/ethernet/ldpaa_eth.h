@@ -253,7 +253,6 @@ struct ldpaa_eth_priv {
 
 	uint16_t mc_token;
 
-	struct ldpaa_eth_percpu __percpu *ppriv;
 	uint8_t rx_dist_size;
 };
 
