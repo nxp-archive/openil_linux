@@ -70,7 +70,7 @@ struct mc_command;
  * @spinlock: Spinlock to serialize mc_send_command() calls that use the same MC
  * portal, if the fsl_mc_io object was created with the
  * FSL_MC_IO_ATOMIC_CONTEXT_PORTAL flag on. mc_send_command() calls for this
- * fsl_mc_io object must be made only from atomic context.
+ * fsl_mc_io object can be made from atomic or non-atomic context.
  */
 struct fsl_mc_io {
 	struct device *dev;

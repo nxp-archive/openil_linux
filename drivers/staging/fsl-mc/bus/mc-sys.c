@@ -544,6 +544,12 @@ static int mc_completion_wait(struct fsl_mc_io *mc_io, struct mc_command *cmd,
 	if (WARN_ON(!mc_io->dpmcp_dev))
 		return -EINVAL;
 
+	if (WARN_ON(mc_io->flags & FSL_MC_IO_ATOMIC_CONTEXT_PORTAL))
+		return -EINVAL;
+
+	if (WARN_ON(!preemptible()))
+		return -EINVAL;
+
 	for (;;) {
 		status = mc_read_response(mc_io->portal_virt_addr, cmd);
 		if (status != MC_CMD_STATUS_READY)
@@ -608,21 +614,13 @@ int mc_send_command(struct fsl_mc_io *mc_io, struct mc_command *cmd)
 	int error;
 	enum mc_cmd_status status;
 
-	/*
-	 * NOTE: This function may be invoked from atomic context
-	 */
+	if (WARN_ON(in_irq()))
+		return -EINVAL;
 
-	if (preemptible()) {
-		if (WARN_ON(mc_io->flags & FSL_MC_IO_ATOMIC_CONTEXT_PORTAL))
-			return -EINVAL;
-
-		mutex_lock(&mc_io->mutex);
-	} else {
-		if (WARN_ON(!(mc_io->flags & FSL_MC_IO_ATOMIC_CONTEXT_PORTAL)))
-			return -EINVAL;
-
+	if (mc_io->flags & FSL_MC_IO_ATOMIC_CONTEXT_PORTAL)
 		spin_lock(&mc_io->spinlock);
-	}
+	else
+		mutex_lock(&mc_io->mutex);
 
 	/*
 	 * Send command to the MC hardware:
@@ -632,7 +630,7 @@ int mc_send_command(struct fsl_mc_io *mc_io, struct mc_command *cmd)
 	/*
 	 * Wait for response from the MC hardware:
 	 */
-	if (mc_io->mc_command_done_irq_armed && preemptible())
+	if (mc_io->mc_command_done_irq_armed)
 		error = mc_completion_wait(mc_io, cmd, &status);
 	else
 		error = mc_polling_wait(mc_io, cmd, &status);
@@ -655,10 +653,10 @@ int mc_send_command(struct fsl_mc_io *mc_io, struct mc_command *cmd)
 	error = 0;
 
 common_exit:
-	if (preemptible())
-		mutex_unlock(&mc_io->mutex);
-	else
+	if (mc_io->flags & FSL_MC_IO_ATOMIC_CONTEXT_PORTAL)
 		spin_unlock(&mc_io->spinlock);
+	else
+		mutex_unlock(&mc_io->mutex);
 
 	return error;
 }
