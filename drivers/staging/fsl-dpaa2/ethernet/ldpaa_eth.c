@@ -1645,9 +1645,14 @@ static int ldpaa_dpni_bind(struct ldpaa_eth_priv *priv)
 	dist_cfg.key_cfg_iova = dist_dma_mem;
 
 	err = dpni_set_rx_tc_dist(priv->mc_io, priv->mc_token, 0, &dist_cfg);
+
+	/* Regardless of return status, we can now unmap and free the IOVA */
+	dma_unmap_single(dev, dist_dma_mem, 256, DMA_BIDIRECTIONAL);
+	kfree(dist_mem);
+
 	if (unlikely(err)) {
 		netdev_err(priv->net_dev, "dpni_set_rx_tc_dist() failed\n");
-		goto err_rx_tc;
+		return err;
 	}
 
 	/* Configure Rx and Tx conf queues to generate FQDANs */
@@ -1657,21 +1662,17 @@ static int ldpaa_dpni_bind(struct ldpaa_eth_priv *priv)
 		else
 			err = ldpaa_tx_flow_setup(priv, &priv->fq[i]);
 		if (unlikely(err))
-			goto err_flow_setup;
+			return err;
 	}
 
 	err = dpni_get_qdid(priv->mc_io, priv->mc_token, &priv->tx_qdid);
 	if (unlikely(err)) {
 		netdev_err(net_dev, "dpni_get_qdid() failed\n");
-		goto err_qdid;
+		return err;
 	}
 
 	return 0;
 
-err_qdid:
-err_flow_setup:
-err_rx_tc:
-	dma_unmap_single(dev, dist_dma_mem, 256, DMA_BIDIRECTIONAL);
 err_map:
 err_key_cfg:
 	kfree(dist_mem);
