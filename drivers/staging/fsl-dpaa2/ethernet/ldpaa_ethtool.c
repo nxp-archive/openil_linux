@@ -198,14 +198,8 @@ static void ldpaa_get_ethtool_stats(struct net_device *net_dev,
 
 	/* Print standard counters, from DPNI statistics */
 	for (i = 0; i < DPNI_CNT_NUM_STATS; i++) {
-#ifdef DPAA2_ETH_ATOMIC_PORTAL_HACK
-		preempt_disable();
-#endif
 		err = dpni_get_counter(priv->mc_io, priv->mc_token, i,
 				       data + i);
-#ifdef DPAA2_ETH_ATOMIC_PORTAL_HACK
-		preempt_enable();
-#endif
 		if (err != 0)
 			netdev_warn(net_dev, "Err %d getting DPNI counter %d",
 				    err, i);

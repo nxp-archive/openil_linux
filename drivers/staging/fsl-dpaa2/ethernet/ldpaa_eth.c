@@ -798,13 +798,7 @@ static int __cold ldpaa_eth_open(struct net_device *net_dev)
 	 */
 	netif_tx_stop_all_queues(net_dev);
 
-#ifdef DPAA2_ETH_ATOMIC_PORTAL_HACK
-	preempt_disable();
-#endif
 	err = dpni_enable(priv->mc_io, priv->mc_token);
-#ifdef DPAA2_ETH_ATOMIC_PORTAL_HACK
-	preempt_enable();
-#endif
 	if (err < 0) {
 		dev_err(net_dev->dev.parent, "dpni_enable() failed\n");
 		return err;
@@ -821,13 +815,7 @@ static int __cold ldpaa_eth_stop(struct net_device *net_dev)
 
 	/* Stop Tx and Rx traffic */
 	netif_tx_stop_all_queues(net_dev);
-#ifdef DPAA2_ETH_ATOMIC_PORTAL_HACK
-	preempt_disable();
-#endif
 	dpni_disable(priv->mc_io, priv->mc_token);
-#ifdef DPAA2_ETH_ATOMIC_PORTAL_HACK
-	preempt_enable();
-#endif
 
 	/* TODO: Make sure queues are drained before if down is complete! */
 	msleep(100);
@@ -1804,9 +1792,6 @@ static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 	if (WARN_ON(dpni_dev->irqs[irq_index]->irq_number != irq_num))
 		goto out;
 
-#ifdef DPAA2_ETH_ATOMIC_PORTAL_HACK
-	preempt_disable();
-#endif
 	err = dpni_get_irq_status(io, token, irq_index, &status);
 	if (unlikely(err)) {
 		netdev_err(net_dev, "Can't get irq status (err %d)", err);
@@ -1836,9 +1821,6 @@ static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 
 out:
 	dpni_clear_irq_status(io, token, irq_index, clear);
-#ifdef DPAA2_ETH_ATOMIC_PORTAL_HACK
-	preempt_enable();
-#endif
 	return IRQ_HANDLED;
 }
 
@@ -1855,18 +1837,11 @@ static int ldpaa_eth_setup_irqs(struct fsl_mc_device *ls_dev)
 		return -EINVAL;
 
 	irq = ls_dev->irqs[0];
-#ifdef DPAA2_ETH_ATOMIC_PORTAL_HACK
-	preempt_enable();
-#endif
 	err = devm_request_threaded_irq(&ls_dev->dev, irq->irq_number,
 					dpni_irq0_handler,
 					dpni_irq0_handler_thread,
 					IRQF_NO_SUSPEND | IRQF_ONESHOT,
 					dev_name(&ls_dev->dev), &ls_dev->dev);
-#ifdef DPAA2_ETH_ATOMIC_PORTAL_HACK
-	/* Yes, I know error paths are not covered. */
-	preempt_disable();
-#endif
 	if (err < 0) {
 		dev_err(&ls_dev->dev, "devm_request_threaded_irq(): %d", err);
 		return err;
@@ -1972,9 +1947,7 @@ ldpaa_eth_probe(struct fsl_mc_device *dpni_dev)
 	if (err < 0)
 		/* FIXME: add error label */
 		return -EINVAL;
-#ifdef DPAA2_ETH_ATOMIC_PORTAL_HACK
-	preempt_disable();
-#endif
+
 	/* DPNI initialization */
 	err = ldpaa_dpni_setup(dpni_dev);
 	if (err < 0)
@@ -2068,9 +2041,6 @@ ldpaa_eth_probe(struct fsl_mc_device *dpni_dev)
 		goto err_setup_irqs;
 	}
 
-#ifdef DPAA2_ETH_ATOMIC_PORTAL_HACK
-	preempt_enable();
-#endif
 	dev_info(dev, "ldpaa ethernet: Probed interface %s\n", net_dev->name);
 	return 0;
 
