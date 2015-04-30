@@ -68,4 +68,4 @@
 
 #define dcbz(p) { asm volatile("dc zva, %0" : : "r" (p) : "memory"); }
 #define lwsync() { asm volatile("dmb st" : : : "memory"); }
-
+#define dcbf(p) { asm volatile("dc cvac, %0;" : : "r" (p) : "memory"); }
