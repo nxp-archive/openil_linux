@@ -1122,6 +1122,16 @@ static void ldpaa_eth_fqdan_cb(struct dpaa_io_notification_ctx *ctx)
 
 	fq->has_frames = true;
 	napi_schedule(&fq->napi);
+	/* Provide a guaranteed scheduling point for the bottom-half;
+	 * with threaded interrupts, that isn't automatically the case.
+	 * FIXME: we're effectively running in the software portal's top-half.
+	 * As long as:
+	 *   1. the Ethernet driver is the only client of the portal, and
+	 *   2. we only expect Dequeue Available Notifications,
+	 * this approach is fine. Once either of the conditions no longer holds,
+	 * we will have to move this to a separate execution context.
+	 */
+	do_softirq();
 }
 
 static void ldpaa_eth_setup_fqs(struct ldpaa_eth_priv *priv)
