@@ -232,7 +232,6 @@ void qbman_swp_mc_submit(struct qbman_swp *p, void *cmd, uint32_t cmd_verb)
 #ifdef QBMAN_CHECKING
 	BUG_ON(!p->mc.check != swp_mc_can_submit);
 #endif
-	lwsync();
 	/* TBD: "|=" is going to hurt performance. Need to move as many fields
 	 * out of word zero, and for those that remain, the "OR" needs to occur
 	 * at the caller side. This debug check helps to catch cases where the
@@ -240,7 +239,6 @@ void qbman_swp_mc_submit(struct qbman_swp *p, void *cmd, uint32_t cmd_verb)
 	BUG_ON((*v & cmd_verb) != *v);
 	*v = cmd_verb | p->mc.valid_bit;
 	qbman_cena_write_complete(&p->sys, QBMAN_CENA_SWP_CR, cmd);
-	/* TODO: add prefetch support for GPP */
 #ifdef QBMAN_CHECKING
 	p->mc.check = swp_mc_can_poll;
 #endif
@@ -252,6 +250,8 @@ void *qbman_swp_mc_result(struct qbman_swp *p)
 #ifdef QBMAN_CHECKING
 	BUG_ON(p->mc.check != swp_mc_can_poll);
 #endif
+	qbman_cena_invalidate_prefetch(&p->sys,
+				 QBMAN_CENA_SWP_RR(p->mc.valid_bit));
 	ret = qbman_cena_read(&p->sys, QBMAN_CENA_SWP_RR(p->mc.valid_bit));
 	/* Remove the valid-bit - command completed iff the rest is non-zero */
 	verb = ret[0] & ~QB_VALID_BIT;
@@ -425,7 +425,6 @@ int qbman_swp_enqueue(struct qbman_swp *s, const struct qbman_eq_desc *d,
 				   QBMAN_CENA_SWP_EQCR(EQAR_IDX(eqar)));
 	word_copy(&p[1], &cl[1], 7);
 	word_copy(&p[8], fd, sizeof(*fd) >> 2);
-	lwsync();
 	/* Set the verb byte, have to substitute in the valid-bit */
 	p[0] = cl[0] | EQAR_VB(eqar);
 	qbman_cena_write_complete(&s->sys,
@@ -557,7 +556,6 @@ int qbman_swp_pull(struct qbman_swp *s, struct qbman_pull_desc *d)
 	qb_attr_code_encode(&code_pull_token, cl, 1);
 	p = qbman_cena_write_start(&s->sys, QBMAN_CENA_SWP_VDQCR);
 	word_copy(&p[1], &cl[1], 3);
-	lwsync();
 	/* Set the verb byte, have to substitute in the valid-bit */
 	p[0] = cl[0] | s->vdq.valid_bit;
 	s->vdq.valid_bit ^= QB_VALID_BIT;
@@ -1019,7 +1017,6 @@ int qbman_swp_release(struct qbman_swp *s, const struct qbman_release_desc *d,
 				   QBMAN_CENA_SWP_RCR(RAR_IDX(rar)));
 	/* Copy the caller's buffer pointers to the command */
 	u64_to_le32_copy(&p[2], buffers, num_buffers);
-	lwsync();
 	/* Set the verb byte, have to substitute in the valid-bit and the number
 	 * of buffers. */
 	p[0] = cl[0] | RAR_VB(rar) | num_buffers;
