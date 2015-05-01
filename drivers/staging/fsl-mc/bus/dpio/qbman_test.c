@@ -301,7 +301,7 @@ int qbman_test(void)
 	struct qbman_swp_desc pd;
 	uint32_t reg;
 
-	pd.cena_bar = ioremap_wc(QBMAN_SWP_CENA_BASE +
+	pd.cena_bar = ioremap_cache_ns(QBMAN_SWP_CENA_BASE +
 				QBMAN_PORTAL_IDX * 0x10000, 0x10000);
 	pd.cinh_bar = ioremap(QBMAN_SWP_CINH_BASE +
 				QBMAN_PORTAL_IDX * 0x10000, 0x10000);

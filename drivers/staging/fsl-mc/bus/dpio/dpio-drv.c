@@ -237,7 +237,7 @@ ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
 	desc.stash_affinity = next_cpu;
 	next_cpu = (next_cpu + 1) % num_active_cpus();
 	desc.dpio_id = ls_dev->obj_desc.id;
-	desc.regs_cena = ioremap_wc(ls_dev->regions[0].start,
+	desc.regs_cena = ioremap_cache_ns(ls_dev->regions[0].start,
 		resource_size(&ls_dev->regions[0]));
 	desc.regs_cinh = ioremap(ls_dev->regions[1].start,
 		resource_size(&ls_dev->regions[1]));
