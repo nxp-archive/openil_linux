@@ -1928,31 +1928,24 @@ static int ldpaa_eth_setup_irqs(struct fsl_mc_device *ls_dev)
 			   irq->msi_value, irq->irq_number);
 	if (err < 0) {
 		dev_err(&ls_dev->dev, "dpni_set_irq(): %d", err);
-		goto dpni_set_irq_err;
+		return err;
 	}
 
 	err = dpni_set_irq_mask(ls_dev->mc_io, ls_dev->mc_handle,
 				irq_index, mask);
 	if (err < 0) {
 		dev_err(&ls_dev->dev, "dpni_set_irq_mask(): %d", err);
-		goto dpni_set_irq_mask_err;
+		return err;
 	}
 
 	err = dpni_set_irq_enable(ls_dev->mc_io, ls_dev->mc_handle,
 				  irq_index, 1);
 	if (err < 0) {
 		dev_err(&ls_dev->dev, "dpni_set_irq_enable(): %d", err);
-		goto dpni_set_irq_enable_err;
+		return err;
 	}
 
-
 	return 0;
-
-dpni_set_irq_enable_err:
-dpni_set_irq_mask_err:
-dpni_set_irq_err:
-	devm_free_irq(&ls_dev->dev, irq->irq_number, &ls_dev->dev);
-	return err;
 }
 #endif
 
@@ -2020,10 +2013,13 @@ ldpaa_eth_probe(struct fsl_mc_device *dpni_dev)
 		goto err_portal_alloc;
 	}
 
+#ifndef CONFIG_FSL_DPAA2_ETH_LINK_POLL
 	err = fsl_mc_allocate_irqs(dpni_dev);
-	if (err < 0)
-		/* FIXME: add error label */
-		return -EINVAL;
+	if (err) {
+		dev_err(dev, "MC irqs allocation failed\n");
+		goto err_irqs_alloc;
+	}
+#endif
 
 	/* DPNI initialization */
 	err = ldpaa_dpni_setup(dpni_dev);
@@ -2118,7 +2114,6 @@ ldpaa_eth_probe(struct fsl_mc_device *dpni_dev)
 	err = ldpaa_eth_setup_irqs(dpni_dev);
 	if (unlikely(err)) {
 		netdev_err(net_dev, "ERROR %d setting up interrupts", err);
-		/* fsl_mc_teardown_irqs() was already called, nothing to undo */
 		goto err_setup_irqs;
 	}
 #endif
@@ -2148,6 +2143,10 @@ err_dpio_setup:
 	ldpaa_eth_napi_del(priv);
 	dpni_close(priv->mc_io, priv->mc_token);
 err_dpni_setup:
+#ifndef CONFIG_FSL_DPAA2_ETH_LINK_POLL
+	fsl_mc_free_irqs(dpni_dev);
+err_irqs_alloc:
+#endif
 	fsl_mc_portal_free(priv->mc_io);
 err_portal_alloc:
 	dev_set_drvdata(dev, NULL);
@@ -2167,13 +2166,9 @@ ldpaa_eth_remove(struct fsl_mc_device *ls_dev)
 	net_dev = dev_get_drvdata(dev);
 	priv = netdev_priv(net_dev);
 
-#ifdef CONFIG_FSL_DPAA2_ETH_LINK_POLL
-	kthread_stop(priv->poll_thread);
-#endif
-	ldpaa_dpio_free(priv);
-
 	unregister_netdev(net_dev);
 
+	ldpaa_dpio_free(priv);
 	ldpaa_eth_free_rings(priv);
 	ldpaa_eth_napi_del(priv);
 	ldpaa_dpbp_free(priv);
@@ -2185,6 +2180,11 @@ ldpaa_eth_remove(struct fsl_mc_device *ls_dev)
 	free_percpu(priv->percpu_extras);
 	free_percpu(priv->buf_count);
 
+#ifdef CONFIG_FSL_DPAA2_ETH_LINK_POLL
+	kthread_stop(priv->poll_thread);
+#else
+	fsl_mc_free_irqs(ls_dev);
+#endif
 	dev_set_drvdata(dev, NULL);
 	free_netdev(net_dev);
 
