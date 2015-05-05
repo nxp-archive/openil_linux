@@ -157,6 +157,9 @@ struct ldpaa_fas {
 					 LDPAA_ETH_FAS_MNLE	| \
 					 LDPAA_ETH_FAS_TIDE)
 
+/* Time in milliseconds between link state updates */
+#define LDPAA_ETH_LINK_STATE_REFRESH	1000
+
 /* TODO Temporarily, until dpni_clear_mac_table() is implemented */
 struct ldpaa_eth_mac_list {
 	u8 addr[ETH_ALEN];
@@ -252,8 +255,10 @@ struct ldpaa_eth_priv {
 	uint32_t msg_enable;	/* net_device message level */
 
 	uint16_t mc_token;
-
 	uint8_t rx_dist_size;
+
+	struct dpni_link_state link_state;
+	struct task_struct *poll_thread;
 };
 
 extern const struct ethtool_ops ldpaa_ethtool_ops;

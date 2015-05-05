@@ -22,4 +22,11 @@ config FSL_DPAA2_ETH_GCOV
 	depends on GCOV_KERNEL
 	---help---
 	  Compile the driver source with GCOV_PROFILE := y
+
+config FSL_DPAA2_ETH_LINK_POLL
+	bool "Use polling mode for link state"
+	default n
+	---help---
+	  Poll for detecting link state changes instead of using
+	  interrupts.
 endif

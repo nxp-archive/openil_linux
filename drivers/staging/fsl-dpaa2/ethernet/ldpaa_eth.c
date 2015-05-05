@@ -35,6 +35,7 @@
 #include <linux/of_net.h>
 #include <linux/interrupt.h>
 #include <linux/debugfs.h>
+#include <linux/kthread.h>
 
 #include "../../fsl-mc/include/mc.h"
 #include "../../fsl-mc/include/mc-sys.h" /* FSL_MC_IO_ATOMIC_CONTEXT_PORTAL */
@@ -1780,6 +1781,54 @@ static int ldpaa_eth_netdev_init(struct net_device *net_dev)
 	return 0;
 }
 
+static int ldpaa_link_state_update(struct ldpaa_eth_priv *priv)
+{
+	struct dpni_link_state state;
+	int err;
+
+	err = dpni_get_link_state(priv->mc_io, priv->mc_token, &state);
+	if (unlikely(err)) {
+		netdev_err(priv->net_dev,
+			   "dpni_get_link_state() failed\n");
+		return err;
+	}
+
+	/* TODO: Speed / duplex changes are not treated yet */
+	if (priv->link_state.up == state.up)
+		return 0;
+
+	priv->link_state = state;
+	if (state.up) {
+		netif_carrier_on(priv->net_dev);
+		netif_tx_start_all_queues(priv->net_dev);
+	} else {
+		netif_tx_stop_all_queues(priv->net_dev);
+		netif_carrier_off(priv->net_dev);
+	}
+
+	netdev_info(priv->net_dev, "Link Event: state: %d", state.up);
+	WARN_ONCE(state.up > 1, "Garbage read into link_state");
+
+	return 0;
+}
+
+#ifdef CONFIG_FSL_DPAA2_ETH_LINK_POLL
+static int ldpaa_poll_link_state(void *arg)
+{
+	struct ldpaa_eth_priv *priv = (struct ldpaa_eth_priv *)arg;
+	int err;
+
+	while (!kthread_should_stop()) {
+		err = ldpaa_link_state_update(priv);
+		if (unlikely(err))
+			return err;
+
+		msleep(LDPAA_ETH_LINK_STATE_REFRESH);
+	}
+
+	return 0;
+}
+#else
 static irqreturn_t dpni_irq0_handler(int irq_num, void *arg)
 {
 	return IRQ_WAKE_THREAD;
@@ -1794,7 +1843,6 @@ static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 	struct fsl_mc_io *io = dpni_dev->mc_io;
 	uint16_t token = dpni_dev->mc_handle;
 	struct net_device *net_dev = dev_get_drvdata(dev);
-	struct dpni_link_state link_state;
 	int err;
 
 	/* Sanity check; TODO a bit of cleanup here */
@@ -1813,21 +1861,9 @@ static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 	if (status & DPNI_IRQ_EVENT_LINK_CHANGED) {
 		clear |= DPNI_IRQ_EVENT_LINK_CHANGED;
 
-		err = dpni_get_link_state(io, token, &link_state);
-		if (unlikely(err)) {
-			netdev_err(net_dev, "dpni_get_link_state err: %d", err);
+		err = ldpaa_link_state_update(netdev_priv(net_dev));
+		if (unlikely(err))
 			goto out;
-		}
-		netdev_info(net_dev, "Link Event: state: %d", link_state.up);
-		WARN_ONCE(link_state.up > 1, "Garbage read into link_state");
-
-		if (link_state.up) {
-			netif_carrier_on(net_dev);
-			netif_tx_start_all_queues(net_dev);
-		} else {
-			netif_tx_stop_all_queues(net_dev);
-			netif_carrier_off(net_dev);
-		}
 	}
 
 out:
@@ -1889,6 +1925,7 @@ dpni_set_irq_err:
 	devm_free_irq(&ls_dev->dev, irq->irq_number, &ls_dev->dev);
 	return err;
 }
+#endif
 
 static void ldpaa_eth_napi_add(struct ldpaa_eth_priv *priv)
 {
@@ -2045,17 +2082,24 @@ ldpaa_eth_probe(struct fsl_mc_device *dpni_dev)
 
 	net_dev->ethtool_ops = &ldpaa_ethtool_ops;
 
+#ifdef CONFIG_FSL_DPAA2_ETH_LINK_POLL
+	priv->poll_thread = kthread_run(ldpaa_poll_link_state, priv,
+					"%s_poll_link", net_dev->name);
+#else
 	err = ldpaa_eth_setup_irqs(dpni_dev);
 	if (unlikely(err)) {
 		netdev_err(net_dev, "ERROR %d setting up interrupts", err);
 		/* fsl_mc_teardown_irqs() was already called, nothing to undo */
 		goto err_setup_irqs;
 	}
+#endif
 
 	dev_info(dev, "ldpaa ethernet: Probed interface %s\n", net_dev->name);
 	return 0;
 
+#ifndef CONFIG_FSL_DPAA2_ETH_LINK_POLL
 err_setup_irqs:
+#endif
 	ldpaa_eth_free_rings(priv);
 err_alloc_rings:
 err_csum:
@@ -2093,6 +2137,10 @@ ldpaa_eth_remove(struct fsl_mc_device *ls_dev)
 	dev = &ls_dev->dev;
 	net_dev = dev_get_drvdata(dev);
 	priv = netdev_priv(net_dev);
+
+#ifdef CONFIG_FSL_DPAA2_ETH_LINK_POLL
+	kthread_stop(priv->poll_thread);
+#endif
 	ldpaa_dpio_free(priv);
 
 	unregister_netdev(net_dev);
