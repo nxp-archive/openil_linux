@@ -750,6 +750,7 @@ static int ldpaa_eth_poll(struct napi_struct *napi, int budget)
 
 	fq = container_of(napi, struct ldpaa_eth_fq, napi);
 	/* TODO Must prioritize TxConf over Rx NAPIs */
+	__ldpaa_eth_pull_fq(fq);
 
 	do {
 		store_cleaned = ldpaa_eth_store_consume(fq);
@@ -1133,9 +1134,6 @@ static void ldpaa_eth_fqdan_cb(struct dpaa_io_notification_ctx *ctx)
 {
 	struct ldpaa_eth_fq *fq = container_of(ctx, struct ldpaa_eth_fq, nctx);
 
-	/* TODO check return value */
-	__ldpaa_eth_pull_fq(fq);
-
 	/* Update NAPI statistics */
 	switch (fq->type) {
 	case LDPAA_RX_FQ:
@@ -1155,16 +1153,6 @@ static void ldpaa_eth_fqdan_cb(struct dpaa_io_notification_ctx *ctx)
 
 	fq->has_frames = true;
 	napi_schedule(&fq->napi);
-	/* Provide a guaranteed scheduling point for the bottom-half;
-	 * with threaded interrupts, that isn't automatically the case.
-	 * FIXME: we're effectively running in the software portal's top-half.
-	 * As long as:
-	 *   1. the Ethernet driver is the only client of the portal, and
-	 *   2. we only expect Dequeue Available Notifications,
-	 * this approach is fine. Once either of the conditions no longer holds,
-	 * we will have to move this to a separate execution context.
-	 */
-	do_softirq();
 }
 
 static void ldpaa_eth_setup_fqs(struct ldpaa_eth_priv *priv)
