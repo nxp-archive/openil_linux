@@ -77,14 +77,6 @@ static int dpio_thread(void *data)
 	return 0;
 }
 
-static irqreturn_t dpio_irq_pre_handler(int irq_num, void *arg)
-{
-	struct device *dev = (struct device *)arg;
-	struct dpio_priv *priv = dev_get_drvdata(dev);
-
-	return dpaa_io_preirq(priv->io);
-}
-
 static irqreturn_t dpio_irq_handler(int irq_num, void *arg)
 {
 	struct device *dev = (struct device *)arg;
@@ -122,14 +114,12 @@ static int register_dpio_irq_handlers(struct fsl_mc_device *ls_dev, int cpu)
 
 	for (i = 0; i < irq_count; i++) {
 		irq = ls_dev->irqs[i];
-		error = devm_request_threaded_irq(&ls_dev->dev,
-						irq->irq_number,
-						dpio_irq_pre_handler,
-						dpio_irq_handler,
-						IRQF_NO_SUSPEND |
-							IRQF_ONESHOT,
-						priv->irq_name,
-						&ls_dev->dev);
+		error = devm_request_irq(&ls_dev->dev,
+					 irq->irq_number,
+					 dpio_irq_handler,
+					 0,
+					 priv->irq_name,
+					 &ls_dev->dev);
 		if (error < 0) {
 			dev_err(&ls_dev->dev,
 				"devm_request_threaded_irq() failed: %d\n",

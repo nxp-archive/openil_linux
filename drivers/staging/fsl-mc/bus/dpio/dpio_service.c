@@ -326,16 +326,19 @@ int dpaa_io_get_descriptor(struct dpaa_io *obj, struct dpaa_io_desc *desc)
 }
 EXPORT_SYMBOL(dpaa_io_get_descriptor);
 
+#define DPAA_POLL_MAX 32
+
 int dpaa_io_poll(struct dpaa_io *obj)
 {
 	const struct ldpaa_dq *dq;
 	struct qbman_swp *swp;
+	int max = 0;
 
 	if (obj->magic != MAGIC_OBJECT)
 		return -EINVAL;
 	swp = obj->object.swp;
 	dq = qbman_swp_dqrr_next(swp);
-	if (dq) {
+	while (dq) {
 		if (qbman_result_is_FQDAN(dq)) {
 			struct dpaa_io_notification_ctx *ctx;
 			uint64_t q64;
@@ -346,25 +349,14 @@ int dpaa_io_poll(struct dpaa_io *obj)
 		} else
 			pr_crit("Unrecognised/ignored DQRR entry\n");
 		qbman_swp_dqrr_consume(swp, dq);
+		++max;
+		if (max > DPAA_POLL_MAX)
+			return 0;
+		dq = qbman_swp_dqrr_next(swp);
 	}
 	return 0;
 }
 EXPORT_SYMBOL(dpaa_io_poll);
-
-int dpaa_io_preirq(struct dpaa_io *obj)
-{
-	struct qbman_swp *swp;
-	uint32_t status;
-
-	if (obj->magic != MAGIC_OBJECT)
-		return -EINVAL;
-	swp = obj->object.swp;
-	status = qbman_swp_interrupt_read_status(swp);
-	if (!status)
-		return IRQ_NONE;
-	qbman_swp_interrupt_set_inhibit(swp, 1);
-	return IRQ_WAKE_THREAD;
-}
 
 int dpaa_io_irq(struct dpaa_io *obj)
 {
