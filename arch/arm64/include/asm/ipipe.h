@@ -231,7 +231,7 @@ static inline void ipipe_handle_multi_irq(int irq, struct pt_regs *regs)
 
 static inline unsigned long __ipipe_ffnz(unsigned long ul)
 {
-	return ffs(ul) - 1;
+	return __builtin_ffsl(ul) - 1;
 }
 
 #define __ipipe_syscall_watched_p(p, sc)				\
