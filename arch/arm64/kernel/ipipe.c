@@ -50,6 +50,10 @@
 #include <asm/mmu_context.h>
 #include <asm/exception.h>
 
+#ifndef CONFIG_IPIPE_ARM_KUSER_TSC
+#include <asm/arch_timer.h>
+#endif
+
 static void __ipipe_do_IRQ(unsigned irq, void *cookie);
 
 #ifdef CONFIG_IPIPE_DEBUG_INTERNAL
@@ -590,6 +594,9 @@ void __init __ipipe_tsc_register(struct __ipipe_tscinfo *info)
 void __ipipe_mach_get_tscinfo(struct __ipipe_tscinfo *info)
 {
 	*info = tsc_info;
+}
+unsigned long long __ipipe_mach_get_tsc(void) {
+	return arch_counter_get_cntvct();
 }
 #endif
 
