@@ -341,5 +341,9 @@ struct ldpaa_dq *dpaa_io_store_next(struct dpaa_io_store *, int *is_last);
  */
 int dpaa_io_query_fq_count(struct dpaa_io *s, uint32_t fqid,
 			   uint32_t *fcnt, uint32_t *bcnt);
+
+/* Query the number of buffers currenty in a buffer pool */
+int dpaa_io_query_bp_count(struct dpaa_io *d, uint32_t bpid,
+			   uint32_t *num);
 #endif
 #endif /* __FSL_DPAA_IO_H */

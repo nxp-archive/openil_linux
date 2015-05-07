@@ -702,6 +702,29 @@ int dpaa_io_query_fq_count(struct dpaa_io *d, uint32_t fqid,
 
 	return 0;
 }
+
+int dpaa_io_query_bp_count(struct dpaa_io *d, uint32_t bpid,
+			   uint32_t *num)
+{
+	struct qbman_attr state;
+	struct qbman_swp *swp;
+	unsigned long irqflags;
+	int ret;
+
+	d = service_select_any(d);
+	if (!d)
+		return -ENODEV;
+
+	swp = d->object.swp;
+	spin_lock_irqsave(&d->object.lock_mgmt_cmd, irqflags);
+	ret = qbman_bp_query(swp, bpid, &state);
+	spin_unlock_irqrestore(&d->object.lock_mgmt_cmd, irqflags);
+	if (ret)
+		return ret;
+	*num = qbman_bp_info_num_free_bufs(&state);
+	return 0;
+}
+
 #endif
 
 /* module init/exit hooks called from dpio-drv.c. These are declared in
