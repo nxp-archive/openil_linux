@@ -55,9 +55,6 @@ static int fsl_mc_bus_match(struct device *dev, struct device_driver *drv)
 	bool major_version_mismatch = false;
 	bool minor_version_mismatch = false;
 
-	if (WARN_ON(!fsl_mc_bus_type.dev_root))
-		goto out;
-
 	/* When driver_override is set, only bind to the matching driver */
 	if (mc_dev->driver_override) {
 		found = !strcmp(mc_dev->driver_override, mc_drv->driver.name);
@@ -70,9 +67,12 @@ static int fsl_mc_bus_match(struct device *dev, struct device_driver *drv)
 	/*
 	 * If the object is not 'plugged' don't match.
 	 * Only exception is the root DPRC, which is a special case.
+	 *
+	 * NOTE: Only when this function is invoked for the root DPRC,
+	 * mc_dev->mc_io is not NULL
 	 */
 	if ((mc_dev->obj_desc.state & DPRC_OBJ_STATE_PLUGGED) == 0 &&
-	    &mc_dev->dev != fsl_mc_bus_type.dev_root)
+	    !mc_dev->mc_io)
 		goto out;
 
 	/*
@@ -508,9 +508,6 @@ int fsl_mc_device_add(struct dprc_obj_desc *obj_desc,
 			}
 
 			mc_io2 = mc_io;
-
-			if (!fsl_mc_bus_type.dev_root)
-				fsl_mc_bus_type.dev_root = &mc_dev->dev;
 		}
 
 		error = get_dprc_icid(mc_io2, obj_desc->id, &mc_dev->icid);

@@ -800,14 +800,27 @@ static int dprc_probe(struct fsl_mc_device *mc_dev)
 	size_t region_size;
 	struct fsl_mc_bus *mc_bus = to_fsl_mc_bus(mc_dev);
 	bool mc_io_created = false;
+	bool dev_root_set = false;
 
 	if (WARN_ON(strcmp(mc_dev->obj_desc.type, "dprc") != 0))
 		return -EINVAL;
 
-	if (!mc_dev->mc_io) {
+	if (mc_dev->mc_io) {
 		/*
-		 * This is a child DPRC:
+		 * This is the root DPRC
 		 */
+		if (WARN_ON(fsl_mc_bus_type.dev_root))
+			return -EINVAL;
+
+		fsl_mc_bus_type.dev_root = &mc_dev->dev;
+		dev_root_set = true;
+	} else {
+		/*
+		 * This is a child DPRC
+		 */
+		if (WARN_ON(!fsl_mc_bus_type.dev_root))
+			return -EINVAL;
+
 		if (WARN_ON(mc_dev->obj_desc.region_count == 0))
 			return -EINVAL;
 
@@ -910,6 +923,10 @@ error_cleanup_mc_io:
 		fsl_destroy_mc_io(mc_dev->mc_io);
 		mc_dev->mc_io = NULL;
 	}
+
+	if (dev_root_set)
+		fsl_mc_bus_type.dev_root = NULL;
+
 	return error;
 }
 
