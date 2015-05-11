@@ -711,6 +711,19 @@ el0_svc:
 el0_svc_naked:					// compat entry point
 	stp	x0, scno, [sp, #S_ORIG_X0]	// save the original x0 and syscall number
 	enable_dbg_and_irq
+
+#ifdef CONFIG_IPIPE
+	mov	x1, sp
+	mov	x0, scno
+	bl	__ipipe_syscall_root
+	cmp	x0, #0
+	blt	__ipipe_ret_to_user
+	get_thread_info tsk
+	bgt	ret_to_user
+	ldp	x0, x1, [sp]
+	ldp	x2, x3, [sp, #S_X2]
+#endif /* CONFIG_IPIPE */
+
 	ct_user_exit 1
 
 	ldr	x16, [tsk, #TI_FLAGS]		// check for syscall hooks
