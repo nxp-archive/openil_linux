@@ -355,18 +355,15 @@ __ipipe_switch_to_notifier_call_chain(struct atomic_notifier_head *nh,
 		(void)(flags);			\
 	})
 
+#ifndef __NR_SYSCALL_BASE
+#define __NR_SYSCALL_BASE 0
+#endif
+
 asmlinkage int __ipipe_syscall_root(unsigned long scno, struct pt_regs *regs)
 {
-#ifdef CONFIG_OABI_COMPAT
-	const bool oabi = scno + __NR_SYSCALL_BASE != regs->ARM_r7;
-#elif defined(CONFIG_AEABI)
-	const bool oabi = false;
-#else /* OABI */
-	const bool oabi = true;
-#endif
 	struct task_struct *const task = current;
 	struct ipipe_percpu_domain_data *p;
-	unsigned long orig_r7;
+	unsigned long orig_x8;
 	unsigned long flags;
 	int ret = 0;
 
@@ -387,18 +384,15 @@ asmlinkage int __ipipe_syscall_root(unsigned long scno, struct pt_regs *regs)
 	if (!__ipipe_syscall_watched_p(task, scno))
 		goto out;
 
-	if (oabi) {
-		/*
-		 * We use r7 to pass the syscall number to the other domains.
-		 */
-		orig_r7 = regs->ARM_r7;
-		regs->ARM_r7 = scno;
-	}
+	/*
+	 * We use x8 to pass the syscall number to the other domains.
+	 */
+	orig_x8 = regs->regs[8];
+	regs->regs[8] = scno;
 
 	ret = __ipipe_notify_syscall(regs);
 
-	if (oabi)
-		regs->ARM_r7 = orig_r7;
+	regs->regs[8] = orig_x8;
 
 	flags = fast_irq_disable();
 
