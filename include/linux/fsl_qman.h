@@ -274,15 +274,20 @@ struct qm_sg_entry {
 #endif
 		};
 	};
+	union {
+		struct {
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-	u32 extension:1;	/* Extension bit */
-	u32 final:1;		/* Final bit */
-	u32 length:30;
+			u32 extension:1;	/* Extension bit */
+			u32 final:1;		/* Final bit */
+			u32 length:30;
 #else
-	u32 length:30;
-	u32 final:1;		/* Final bit */
-	u32 extension:1;	/* Extension bit */
+			u32 length:30;
+			u32 final:1;		/* Final bit */
+			u32 extension:1;	/* Extension bit */
 #endif
+		};
+		u32 sgt_efl;
+	};
 	u8 __reserved2;
 	u8 bpid;
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
