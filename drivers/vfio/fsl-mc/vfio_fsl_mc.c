@@ -205,7 +205,7 @@ static int vfio_fsl_mc_mmap(void *device_data, struct vm_area_struct *vma)
 
 #define QBMAN_SWP_CENA_BASE 0x818000000ULL
 	if ((addr & 0xFFF000000) == QBMAN_SWP_CENA_BASE)
-		vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
+		vma->vm_page_prot = pgprot_cached(vma->vm_page_prot);
 	else
 		vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 
