@@ -1276,14 +1276,12 @@ static int ldpaa_bp_add_7(struct ldpaa_eth_priv *priv, uint16_t bpid)
 		/* Allocate buffer visible to WRIOP + skb shared info +
 		 * alignment padding
 		 */
-		buf = netdev_alloc_frag(LDPAA_ETH_RX_BUFFER_SIZE +
-					sizeof(struct skb_shared_info) +
-					2 * SMP_CACHE_BYTES);
+		buf = netdev_alloc_frag(LDPAA_ETH_BUF_RAW_SIZE);
 		if (unlikely(!buf)) {
 			dev_err(dev, "buffer allocation failed\n");
 			goto err_alloc;
 		}
-		buf = PTR_ALIGN(buf, SMP_CACHE_BYTES);
+		buf = PTR_ALIGN(buf, LDPAA_ETH_BUF_ALIGN);
 
 		addr = dma_map_single(dev, buf, LDPAA_ETH_RX_BUFFER_SIZE,
 				      DMA_FROM_DEVICE);

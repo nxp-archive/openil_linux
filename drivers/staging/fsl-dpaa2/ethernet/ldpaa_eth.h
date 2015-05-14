@@ -56,7 +56,6 @@
  */
 #define LDPAA_ETH_NUM_BUFS		(300 * 7)
 #define LDPAA_ETH_REFILL_THRESH		(LDPAA_ETH_NUM_BUFS * 5 / 6)
-#define LDPAA_ETH_RX_BUFFER_SIZE	2048
 
 /* Maximum receive frame size is 64K */
 #define LDPAA_ETH_MAX_SG_ENTRIES	((64 * 1024) / LDPAA_ETH_RX_BUFFER_SIZE)
@@ -71,9 +70,15 @@
 /* Hardware requires alignment for ingress/egress buffer addresses
  * and ingress buffer lengths.
  */
+#define LDPAA_ETH_RX_BUFFER_SIZE	2048
 #define LDPAA_ETH_BUF_ALIGN		64
 #define LDPAA_ETH_NEEDED_HEADROOM(p_priv) \
 	((p_priv)->tx_data_offset + LDPAA_ETH_BUF_ALIGN)
+
+#define LDPAA_ETH_BUF_RAW_SIZE \
+	(LDPAA_ETH_RX_BUFFER_SIZE + \
+	SKB_DATA_ALIGN(sizeof(struct skb_shared_info)) + \
+	LDPAA_ETH_BUF_ALIGN)
 
 /* So far we're only accomodating a skb backpointer in the frame's
  * software annotation, but the hardware options are either 0 or 64.
