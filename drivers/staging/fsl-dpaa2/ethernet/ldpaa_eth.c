@@ -58,6 +58,8 @@ module_param(debug, byte, S_IRUGO);
 MODULE_PARM_DESC(debug, "Module/Driver verbosity level");
 
 static int ldpaa_dpbp_refill(struct ldpaa_eth_priv *priv, uint16_t bpid);
+static int ldpaa_dpbp_seed(struct ldpaa_eth_priv *priv, uint16_t bpid);
+static void __cold __ldpaa_dpbp_free(struct ldpaa_eth_priv *priv);
 
 
 static void ldpaa_eth_rx_csum(struct ldpaa_eth_priv *priv,
@@ -791,6 +793,16 @@ static int __cold ldpaa_eth_open(struct net_device *net_dev)
 	struct ldpaa_eth_priv *priv = netdev_priv(net_dev);
 	int err;
 
+	err = ldpaa_dpbp_seed(priv, priv->dpbp_attrs.bpid);
+	if (err) {
+		/* Not much to do; the buffer pool, though not filled up,
+		 * may still contain some buffers which would enable us
+		 * to limp on.
+		 */
+		netdev_err(net_dev, "Buffer seeding failed for DPBP %d (bpid=%d)\n",
+			   priv->dpbp_dev->obj_desc.id, priv->dpbp_attrs.bpid);
+	}
+
 	/* We'll only start the txqs when the link is actually ready; make sure
 	 * we don't race against the link up notification, which may come
 	 * immediately after dpni_enable();
@@ -802,12 +814,16 @@ static int __cold ldpaa_eth_open(struct net_device *net_dev)
 	err = dpni_enable(priv->mc_io, priv->mc_token);
 	if (err < 0) {
 		dev_err(net_dev->dev.parent, "dpni_enable() failed\n");
-		return err;
+		goto enable_err;
 	}
 
 	ldpaa_eth_napi_enable(priv);
 
 	return 0;
+
+enable_err:
+	__ldpaa_dpbp_free(priv);
+	return err;
 }
 
 static int __cold ldpaa_eth_stop(struct net_device *net_dev)
@@ -823,6 +839,8 @@ static int __cold ldpaa_eth_stop(struct net_device *net_dev)
 
 	ldpaa_eth_napi_disable(priv);
 	msleep(100);
+
+	__ldpaa_dpbp_free(priv);
 
 	return 0;
 }
@@ -1305,10 +1323,16 @@ static int ldpaa_dpbp_seed(struct ldpaa_eth_priv *priv, uint16_t bpid)
 			new_count = ldpaa_bp_add_7(priv, bpid);
 			count = per_cpu_ptr(priv->buf_count, j);
 			*count += new_count;
+
+			if (unlikely(new_count < 7))
+				goto out_of_memory;
 		}
 	}
 
 	return 0;
+
+out_of_memory:
+	return -ENOMEM;
 }
 
 /* Function is called from softirq context only, so we don't need to guard
@@ -1374,16 +1398,8 @@ static int __cold ldpaa_dpbp_setup(struct ldpaa_eth_priv *priv)
 		goto err_get_attr;
 	}
 
-	err = ldpaa_dpbp_seed(priv, priv->dpbp_attrs.bpid);
-	if (err) {
-		dev_err(dev, "Buffer seeding failed for DPBP %d (bpid=%d)\n",
-			priv->dpbp_dev->obj_desc.id, priv->dpbp_attrs.bpid);
-		goto err_seed;
-	}
-
 	return 0;
 
-err_seed:
 err_get_attr:
 	dpbp_disable(priv->mc_io, dpbp_dev->mc_handle);
 err_enable:
@@ -1394,9 +1410,22 @@ err_open:
 	return err;
 }
 
+
+static void __cold __ldpaa_dpbp_free(struct ldpaa_eth_priv *priv)
+{
+	int cpu, *count;
+
+	ldpaa_dpbp_drain(priv);
+
+	for_each_possible_cpu(cpu) {
+		count = per_cpu_ptr(priv->buf_count, cpu);
+		*count = 0;
+	}
+}
+
 static void __cold ldpaa_dpbp_free(struct ldpaa_eth_priv *priv)
 {
-	ldpaa_dpbp_drain(priv);
+	__ldpaa_dpbp_free(priv);
 	dpbp_disable(priv->mc_io, priv->dpbp_dev->mc_handle);
 	dpbp_close(priv->mc_io, priv->dpbp_dev->mc_handle);
 	fsl_mc_object_free(priv->dpbp_dev);
@@ -2154,6 +2183,7 @@ ldpaa_eth_remove(struct fsl_mc_device *ls_dev)
 
 	free_percpu(priv->percpu_stats);
 	free_percpu(priv->percpu_extras);
+	free_percpu(priv->buf_count);
 
 	dev_set_drvdata(dev, NULL);
 	free_netdev(net_dev);
