@@ -193,9 +193,9 @@ struct ldpaa_eth_ring {
 	struct dpaa_io_store *store;
 };
 
-/* Maximum number of Rx queues serviced by a CPU */
-#define LDPAA_ETH_MAX_RX_QUEUES		16
-#define LDPAA_ETH_MAX_TX_QUEUES		1
+/* Maximum number of Rx queues associated with a DPNI */
+#define LDPAA_ETH_MAX_RX_QUEUES		NR_CPUS
+#define LDPAA_ETH_MAX_TX_QUEUES		NR_CPUS
 #define LDPAA_ETH_MAX_QUEUES	\
 	(LDPAA_ETH_MAX_RX_QUEUES + LDPAA_ETH_MAX_TX_QUEUES)
 
