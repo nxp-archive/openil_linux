@@ -73,6 +73,7 @@ char ldpaa_ethtool_extras[][ETH_GSTRING_LEN] = {
 	"rx pending bytes",
 	"tx conf pending frames",
 	"tx conf pending bytes",
+	"buffer count"
 #endif
 };
 #define LDPAA_ETH_NUM_EXTRA_STATS	ARRAY_SIZE(ldpaa_ethtool_extras)
@@ -191,6 +192,7 @@ static void ldpaa_get_ethtool_stats(struct net_device *net_dev,
 	uint32_t fcnt, bcnt;
 	uint32_t fcnt_rx_total = 0, fcnt_tx_total = 0;
 	uint32_t bcnt_rx_total = 0, bcnt_tx_total = 0;
+	uint32_t buf_cnt;
 #endif
 	struct ldpaa_eth_priv *priv = netdev_priv(net_dev);
 	struct ldpaa_eth_stats *extras;
@@ -245,6 +247,13 @@ static void ldpaa_get_ethtool_stats(struct net_device *net_dev,
 	*(data + i++) = bcnt_rx_total;
 	*(data + i++) = fcnt_tx_total;
 	*(data + i++) = bcnt_tx_total;
+
+	err = dpaa_io_query_bp_count(NULL, priv->dpbp_attrs.bpid, &buf_cnt);
+	if (unlikely(err)) {
+		netdev_warn(net_dev, "Buffer count query error %d\n", err);
+		return;
+	}
+	*(data + i++) = buf_cnt;
 #endif
 }
 
