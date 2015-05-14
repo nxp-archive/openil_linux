@@ -259,8 +259,21 @@ struct ldpaa_eth_priv {
 
 	struct dpni_link_state link_state;
 	struct task_struct *poll_thread;
+
+	/* enabled ethtool hashing bits */
+	u64 rx_hash_fields;
 };
 
+/* default Rx hash options, set during probing */
+#define LDPAA_RXH_SUPPORTED	(RXH_L2DA | RXH_VLAN | RXH_L3_PROTO \
+				| RXH_IP_SRC | RXH_IP_DST | RXH_L4_B_0_1 \
+				| RXH_L4_B_2_3)
+
 extern const struct ethtool_ops ldpaa_ethtool_ops;
+
+/* Set RX hash options
+ * flags is a combination of RXH_ bits
+ */
+int ldpaa_set_hash(struct net_device *net_dev, u64 flags);
 
 #endif	/* __LDPAA_H */

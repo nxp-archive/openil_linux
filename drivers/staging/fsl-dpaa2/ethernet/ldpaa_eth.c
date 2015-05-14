@@ -1602,11 +1602,7 @@ static int ldpaa_dpni_bind(struct ldpaa_eth_priv *priv)
 {
 	struct net_device *net_dev = priv->net_dev;
 	struct device *dev = net_dev->dev.parent;
-	struct dpni_rx_tc_dist_cfg dist_cfg;
-	struct dpkg_profile_cfg key_cfg;
 	struct dpni_pools_cfg pools_params;
-	void *dist_mem;
-	dma_addr_t dist_dma_mem;
 	int err = 0;
 	int i;
 
@@ -1619,79 +1615,11 @@ static int ldpaa_dpni_bind(struct ldpaa_eth_priv *priv)
 		return err;
 	}
 
-	memset(&dist_cfg, 0, sizeof(dist_cfg));
-
-	/* MC does nasty things to the dist_size value that we provide, but
-	 * doesn't offer any getter function for the value they compute and
-	 * subsequently use.
-	 * So we basically must provide the desired value minus one, and account
-	 * for the roundup to the next power of two that's done inside MC.
+	/* have the interface implicitly distribute traffic based on supported
+	 * header fields
 	 */
-	dist_cfg.dist_size = num_possible_cpus() - 1;
-	dist_cfg.dist_mode = DPNI_DIST_MODE_HASH;
-
-	memset(&key_cfg, 0, sizeof(key_cfg));
-	key_cfg.num_extracts = 4;
-	/* IP source address */
-	key_cfg.extracts[0].type = DPKG_EXTRACT_FROM_HDR;
-	key_cfg.extracts[0].extract.from_hdr.prot = NET_PROT_IP;
-	key_cfg.extracts[0].extract.from_hdr.type = DPKG_FULL_FIELD;
-	key_cfg.extracts[0].extract.from_hdr.field = NH_FLD_IP_SRC;
-	key_cfg.extracts[0].num_of_byte_masks = 0;
-	/* IP destination address */
-	key_cfg.extracts[1].type = DPKG_EXTRACT_FROM_HDR;
-	key_cfg.extracts[1].extract.from_hdr.prot = NET_PROT_IP;
-	key_cfg.extracts[1].extract.from_hdr.type = DPKG_FULL_FIELD;
-	key_cfg.extracts[1].extract.from_hdr.field = NH_FLD_IP_DST;
-	key_cfg.extracts[1].num_of_byte_masks = 0;
-	/* UDP source port */
-	key_cfg.extracts[2].type = DPKG_EXTRACT_FROM_HDR;
-	key_cfg.extracts[2].extract.from_hdr.prot = NET_PROT_UDP;
-	key_cfg.extracts[2].extract.from_hdr.type = DPKG_FULL_FIELD;
-	key_cfg.extracts[2].extract.from_hdr.field = NH_FLD_UDP_PORT_SRC;
-	key_cfg.extracts[2].num_of_byte_masks = 0;
-	/* UDP destination port */
-	key_cfg.extracts[3].type = DPKG_EXTRACT_FROM_HDR;
-	key_cfg.extracts[3].extract.from_hdr.prot = NET_PROT_UDP;
-	key_cfg.extracts[3].extract.from_hdr.type = DPKG_FULL_FIELD;
-	key_cfg.extracts[3].extract.from_hdr.field = NH_FLD_UDP_PORT_DST;
-	key_cfg.extracts[3].num_of_byte_masks = 0;
-	/* Note: The above key works well for TCP also, as MC translates
-	 * the UDP extract field values to generic L4 source/destination ports
-	 */
-
-	dist_mem = kzalloc(256, GFP_KERNEL);
-	if (unlikely(!dist_mem)) {
-		netdev_err(priv->net_dev, "kzalloc() failed\n");
-		return -ENOMEM;
-	}
-
-	/* The function writes into dist_mem, so we must call it before
-	 * dma-mapping the buffer.
-	 */
-	err = dpni_prepare_key_cfg(&key_cfg, dist_mem);
+	err = ldpaa_set_hash(net_dev, LDPAA_RXH_SUPPORTED);
 	if (unlikely(err)) {
-		dev_err(dev, "dpni_prepare_key_cfg error %d", err);
-		goto err_key_cfg;
-	}
-
-	/* Prepare for setting the rx dist */
-	dist_dma_mem = dma_map_single(dev, dist_mem, 256, DMA_BIDIRECTIONAL);
-	if (unlikely(dma_mapping_error(dev, dist_dma_mem))) {
-		netdev_err(priv->net_dev, "DMA mapping failed\n");
-		err = -ENOMEM;
-		goto err_map;
-	}
-	dist_cfg.key_cfg_iova = dist_dma_mem;
-
-	err = dpni_set_rx_tc_dist(priv->mc_io, priv->mc_token, 0, &dist_cfg);
-
-	/* Regardless of return status, we can now unmap and free the IOVA */
-	dma_unmap_single(dev, dist_dma_mem, 256, DMA_BIDIRECTIONAL);
-	kfree(dist_mem);
-
-	if (unlikely(err)) {
-		netdev_err(priv->net_dev, "dpni_set_rx_tc_dist() failed\n");
 		return err;
 	}
 
@@ -1712,11 +1640,6 @@ static int ldpaa_dpni_bind(struct ldpaa_eth_priv *priv)
 	}
 
 	return 0;
-
-err_map:
-err_key_cfg:
-	kfree(dist_mem);
-	return err;
 }
 
 static int ldpaa_eth_alloc_rings(struct ldpaa_eth_priv *priv)
