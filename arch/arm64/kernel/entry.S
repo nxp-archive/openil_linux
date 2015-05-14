@@ -720,8 +720,10 @@ el0_svc_naked:					// compat entry point
 	blt	__ipipe_ret_to_user
 	get_thread_info tsk
 	bgt	ret_to_user
-	ldp	x0, x1, [sp]
+	ldp	x0, x1, [sp]			// restore the syscall args
 	ldp	x2, x3, [sp, #S_X2]
+	ldp	x4, x5, [sp, #S_X4]
+	ldp	x6, x7, [sp, #S_X6]
 #endif /* CONFIG_IPIPE */
 
 	ct_user_exit 1
