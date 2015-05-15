@@ -29,4 +29,14 @@ config FSL_DPAA2_ETH_LINK_POLL
 	---help---
 	  Poll for detecting link state changes instead of using
 	  interrupts.
+
+config FSL_DPAA2_ETH_USE_ERR_QUEUE
+	bool "Enable Rx error queue"
+	default n
+	---help---
+	  Allow Rx error frames to be enqueued on an error queue
+	  and processed by the driver (by default they are dropped
+	  in hardware).
+	  This may impact performance, recommended for debugging
+	  purposes only.
 endif

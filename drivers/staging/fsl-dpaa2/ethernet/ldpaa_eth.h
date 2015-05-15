@@ -140,8 +140,7 @@ struct ldpaa_fas {
 /* L4 csum error */
 #define LDPAA_ETH_FAS_L4CE		0x00000001
 /* These bits always signal errors */
-#define LDPAA_ETH_RX_ERR_MASK		(LDPAA_ETH_FAS_DISC	| \
-					 LDPAA_ETH_FAS_KSE	| \
+#define LDPAA_ETH_RX_ERR_MASK		(LDPAA_ETH_FAS_KSE	| \
 					 LDPAA_ETH_FAS_EOFHE	| \
 					 LDPAA_ETH_FAS_MNLE	| \
 					 LDPAA_ETH_FAS_TIDE	| \
@@ -201,12 +200,15 @@ struct ldpaa_eth_ring {
 /* Maximum number of Rx queues associated with a DPNI */
 #define LDPAA_ETH_MAX_RX_QUEUES		NR_CPUS
 #define LDPAA_ETH_MAX_TX_QUEUES		NR_CPUS
-#define LDPAA_ETH_MAX_QUEUES	\
-	(LDPAA_ETH_MAX_RX_QUEUES + LDPAA_ETH_MAX_TX_QUEUES)
+#define LDPAA_ETH_MAX_RX_ERR_QUEUES	1
+#define LDPAA_ETH_MAX_QUEUES	(LDPAA_ETH_MAX_RX_QUEUES + \
+				LDPAA_ETH_MAX_TX_QUEUES + \
+				LDPAA_ETH_MAX_RX_ERR_QUEUES)
 
 enum ldpaa_eth_fq_type {
 	LDPAA_RX_FQ = 0,
-	LDPAA_TX_CONF_FQ
+	LDPAA_TX_CONF_FQ,
+	LDPAA_RX_ERR_FQ
 };
 
 struct ldpaa_eth_priv;

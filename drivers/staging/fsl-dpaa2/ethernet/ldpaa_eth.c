@@ -243,32 +243,6 @@ static void ldpaa_eth_rx(struct ldpaa_eth_priv *priv,
 	percpu_stats = this_cpu_ptr(priv->percpu_stats);
 	percpu_extras = this_cpu_ptr(priv->percpu_extras);
 
-	if (fd->simple.frc & LDPAA_FD_FRC_FASV) {
-		/* Read the frame annotation status word and check for errors */
-		/* TODO ideally, we'd have a struct describing the HW FA */
-		fas = (struct ldpaa_fas *)
-				(vaddr + priv->buf_layout.private_data_size);
-		status = le32_to_cpu(fas->status);
-		if (status & LDPAA_ETH_RX_ERR_MASK) {
-			dev_err(dev, "Rx frame error(s): 0x%08x\n",
-				status & LDPAA_ETH_RX_ERR_MASK);
-			/* TODO when we grow up and get to run in Rx softirq,
-			* we won't need this. Besides, on RT we'd only need
-			* migrate_disable().
-			*/
-			percpu_stats->rx_errors++;
-			ldpaa_eth_free_rx_fd(priv, fd);
-			return;
-		} else if (status & LDPAA_ETH_RX_UNSUPP_MASK) {
-			/* TODO safety net; to be removed as we support more and
-			* more of these, e.g. rx multicast
-			*/
-			netdev_info(priv->net_dev,
-				    "Unsupported feature in bitmask: 0x%08x\n",
-				    status & LDPAA_ETH_RX_UNSUPP_MASK);
-		}
-	}
-
 	if (fd_format == dpaa_fd_single) {
 		skb = ldpaa_eth_build_linear_skb(priv, fd, vaddr);
 	} else if (fd_format == dpaa_fd_sg) {
@@ -292,8 +266,12 @@ static void ldpaa_eth_rx(struct ldpaa_eth_priv *priv,
 	skb->protocol = eth_type_trans(skb, priv->net_dev);
 
 	/* Check if we need to validate the L4 csum */
-	if (fd->simple.frc & LDPAA_FD_FRC_FASV)
+	if (likely(fd->simple.frc & LDPAA_FD_FRC_FASV)) {
+		fas = (struct ldpaa_fas *)
+				(vaddr + priv->buf_layout.private_data_size);
+		status = le32_to_cpu(fas->status);
 		ldpaa_eth_rx_csum(priv, status, skb);
+	}
 
 	if (unlikely(netif_rx(skb) == NET_RX_DROP))
 		/* Nothing to do here, the stack updates the dropped counter */
@@ -307,6 +285,38 @@ err_build_skb:
 	ldpaa_eth_free_rx_fd(priv, fd);
 	percpu_stats->rx_dropped++;
 }
+
+#ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
+static void ldpaa_eth_rx_err(struct ldpaa_eth_priv *priv,
+			     const struct dpaa_fd *fd)
+{
+	struct device *dev = priv->net_dev->dev.parent;
+	dma_addr_t addr = ldpaa_fd_get_addr(fd);
+	void *vaddr;
+	struct rtnl_link_stats64 *percpu_stats;
+	struct ldpaa_fas *fas;
+	uint32_t status = 0;
+
+	dma_unmap_single(dev, addr, LDPAA_ETH_RX_BUFFER_SIZE, DMA_FROM_DEVICE);
+	vaddr = phys_to_virt(addr);
+
+	if (fd->simple.frc & LDPAA_FD_FRC_FASV) {
+		fas = (struct ldpaa_fas *)
+			(vaddr + priv->buf_layout.private_data_size);
+		status = le32_to_cpu(fas->status);
+
+		/* All frames received on this queue should have at least
+		 * one of the Rx error bits set */
+		WARN_ON_ONCE((status & LDPAA_ETH_RX_ERR_MASK) == 0);
+		netdev_dbg(priv->net_dev, "Rx frame error: 0x%08x\n",
+			   status & LDPAA_ETH_RX_ERR_MASK);
+	}
+	ldpaa_eth_free_rx_fd(priv, fd);
+
+	percpu_stats = this_cpu_ptr(priv->percpu_stats);
+	percpu_stats->rx_errors++;
+}
+#endif
 
 /* Consume all frames pull-dequeued into the store. This is the simplest way to
  * make sure we don't accidentally issue another volatile dequeue which would
@@ -1135,6 +1145,11 @@ static void ldpaa_eth_fqdan_cb(struct dpaa_io_notification_ctx *ctx)
 	case LDPAA_TX_CONF_FQ:
 		fq->stats.tx_conf_fqdan++;
 		break;
+#ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
+	case LDPAA_RX_ERR_FQ:
+		/* For now, we don't collect FQDAN stats on the error queue */
+		break;
+#endif
 	default:
 		WARN_ONCE(1, "Unknown FQ type: %d!", fq->type);
 	}
@@ -1179,6 +1194,13 @@ static void ldpaa_eth_setup_fqs(struct ldpaa_eth_priv *priv)
 		priv->fq[priv->num_fqs].consume = ldpaa_eth_rx;
 		priv->fq[priv->num_fqs++].flowid = i;
 	}
+
+#ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
+	/* We have exactly one Rx error queue per DPNI */
+	priv->fq[priv->num_fqs].netdev_priv = priv;
+	priv->fq[priv->num_fqs].type = LDPAA_RX_ERR_FQ;
+	priv->fq[priv->num_fqs++].consume = ldpaa_eth_rx_err;
+#endif
 }
 
 static int __cold ldpaa_dpio_setup(struct ldpaa_eth_priv *priv)
@@ -1595,12 +1617,46 @@ static int ldpaa_tx_flow_setup(struct ldpaa_eth_priv *priv,
 	return 0;
 }
 
+#ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
+static int ldpaa_rx_err_setup(struct ldpaa_eth_priv *priv,
+			      struct ldpaa_eth_fq *fq)
+{
+	struct dpni_queue_attr queue_attr;
+	struct dpni_queue_cfg queue_cfg;
+	int err;
+
+	/* Configure the Rx error queue to generate FQDANs,
+	 * just like the Rx queues */
+	queue_cfg.options = DPNI_QUEUE_OPT_USER_CTX | DPNI_QUEUE_OPT_DEST;
+	queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPIO;
+	queue_cfg.dest_cfg.priority = 4;	/* FIXME */
+	queue_cfg.user_ctx = fq->nctx.qman64;
+	queue_cfg.dest_cfg.dest_id = fq->nctx.dpio_id;
+	err = dpni_set_rx_err_queue(priv->mc_io, priv->mc_token, &queue_cfg);
+	if (unlikely(err)) {
+		netdev_err(priv->net_dev, "dpni_set_rx_err_queue() failed\n");
+		return err;
+	}
+
+	/* Get the FQID */
+	err = dpni_get_rx_err_queue(priv->mc_io, priv->mc_token, &queue_attr);
+	if (unlikely(err)) {
+		netdev_err(priv->net_dev, "dpni_get_rx_err_queue() failed\n");
+		return err;
+	}
+	fq->fqid = queue_attr.fqid;
+	fq->nctx.id = fq->fqid;
+
+	return 0;
+}
+#endif
 
 static int ldpaa_dpni_bind(struct ldpaa_eth_priv *priv)
 {
 	struct net_device *net_dev = priv->net_dev;
 	struct device *dev = net_dev->dev.parent;
 	struct dpni_pools_cfg pools_params;
+	struct dpni_error_cfg err_cfg;
 	int err = 0;
 	int i;
 
@@ -1621,12 +1677,39 @@ static int ldpaa_dpni_bind(struct ldpaa_eth_priv *priv)
 		return err;
 	}
 
+	/* Configure handling of error frames */
+	err_cfg.errors = LDPAA_ETH_RX_ERR_MASK;
+	err_cfg.set_frame_annotation = 1;
+#ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
+	err_cfg.error_action = DPNI_ERROR_ACTION_SEND_TO_ERROR_QUEUE;
+#else
+	err_cfg.error_action = DPNI_ERROR_ACTION_DISCARD;
+#endif
+	err = dpni_set_errors_behavior(priv->mc_io, priv->mc_token, &err_cfg);
+	if (unlikely(err)) {
+		netdev_err(priv->net_dev, "dpni_set_errors_behavior failed\n");
+		return err;
+	}
+
 	/* Configure Rx and Tx conf queues to generate FQDANs */
 	for (i = 0; i < priv->num_fqs; i++) {
-		if (priv->fq[i].type == LDPAA_RX_FQ)
+		switch (priv->fq[i].type) {
+		case LDPAA_RX_FQ:
 			err = ldpaa_rx_flow_setup(priv, &priv->fq[i]);
-		else
+			break;
+		case LDPAA_TX_CONF_FQ:
 			err = ldpaa_tx_flow_setup(priv, &priv->fq[i]);
+			break;
+#ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
+		case LDPAA_RX_ERR_FQ:
+			err = ldpaa_rx_err_setup(priv, &priv->fq[i]);
+			break;
+#endif
+		default:
+			netdev_err(net_dev, "Invalid FQ type %d\n",
+				   priv->fq[i].type);
+			return -EINVAL;
+		}
 		if (unlikely(err))
 			return err;
 	}
