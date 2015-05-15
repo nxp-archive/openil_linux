@@ -47,7 +47,6 @@
 #include <asm/hardirq.h>
 #include <asm/io.h>
 #include <asm/unistd.h>
-#include <asm/mach/irq.h>
 #include <asm/mmu_context.h>
 #include <asm/exception.h>
 
@@ -293,19 +292,6 @@ void __ipipe_enable_pipeline(void)
 	unsigned long flags;
 	unsigned int irq;
 
-#ifdef CONFIG_CPU_ARM926T
-	/*
-	 * We do not want "wfi" to be called in arm926ejs based
-	 * processor, as this causes Linux to disable the I-cache
-	 * when idle.
-	 */
-	extern void cpu_arm926_proc_init(void);
-	if (likely(cpu_proc_init == &cpu_arm926_proc_init)) {
-		printk("I-pipe: ARM926EJ-S detected, disabling wfi instruction"
-		       " in idle loop\n");
-		cpu_idle_poll_ctrl(true);
-	}
-#endif
 	flags = ipipe_critical_enter(NULL);
 
 	/* virtualize all interrupts from the root domain. */
@@ -354,10 +340,6 @@ __ipipe_switch_to_notifier_call_chain(struct atomic_notifier_head *nh,
 	return ret;
 }
 
-#if __LINUX_ARM_ARCH__ <= 5
-#define fast_irq_disable() hard_local_irq_save()
-#define fast_irq_enable(flags) hard_local_irq_restore(flags)
-#else
 #define fast_irq_disable()			\
 	({					\
 		hard_local_irq_disable();	\
@@ -368,7 +350,6 @@ __ipipe_switch_to_notifier_call_chain(struct atomic_notifier_head *nh,
 		hard_local_irq_enable();	\
 		(void)(flags);			\
 	})
-#endif
 
 asmlinkage int __ipipe_syscall_root(unsigned long scno, struct pt_regs *regs)
 {
@@ -532,7 +513,6 @@ void __switch_mm_inner(struct mm_struct *prev, struct mm_struct *next,
 				*active_mm = prev;
 			else {
 				*active_mm = next;
-				fcse_switch_mm_end(next);
 			}
 			hard_local_irq_restore(flags);
 			return;
@@ -555,7 +535,6 @@ void __switch_mm_inner(struct mm_struct *prev, struct mm_struct *next,
 		*active_mm = prev;
 	else {
 		*active_mm = next;
-		fcse_switch_mm_end(next);
 	}
 #endif /* IPIPE_WANT_ACTIVE_MM */
 }
@@ -588,7 +567,6 @@ void deferred_switch_mm(struct mm_struct *next)
 		flags = hard_local_irq_save();
 		if (__test_and_clear_bit(TIF_MMSWITCH_INT, &tip->flags) == 0) {
 			*active_mm = next;
-			fcse_switch_mm_end(next);
 			hard_local_irq_restore(flags);
 			return;
 		}
@@ -597,7 +575,6 @@ void deferred_switch_mm(struct mm_struct *next)
 	}
 #elif defined(CONFIG_IPIPE_WANT_ACTIVE_MM)
 	*active_mm = next;
-	fcse_switch_mm_end(next);
 #endif /* CONFIG_IPIPE_WANT_ACTIVE_MM */
 }
 #endif
@@ -641,7 +618,6 @@ EXPORT_SYMBOL_GPL(init_mm);
 #ifndef MULTI_CPU
 EXPORT_SYMBOL_GPL(cpu_do_switch_mm);
 #endif
-EXPORT_SYMBOL_GPL(__check_vmalloc_seq);
 #if defined(CONFIG_SMP) || defined(CONFIG_DEBUG_SPINLOCK)
 EXPORT_SYMBOL_GPL(tasklist_lock);
 #endif /* CONFIG_SMP || CONFIG_DEBUG_SPINLOCK */
@@ -657,5 +633,3 @@ EXPORT_SYMBOL_GPL(check_and_switch_context);
 #if defined(CONFIG_SMP) && defined(CONFIG_IPIPE_LEGACY)
 EXPORT_SYMBOL_GPL(__cpu_logical_map);
 #endif /* CONFIG_IPIPE */
-
-EXPORT_SYMBOL_GPL(cpu_architecture);
