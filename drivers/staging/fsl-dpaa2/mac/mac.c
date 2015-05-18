@@ -53,15 +53,15 @@
 
 
 /* use different err functions if the driver registers phyX netdevs */
-#ifdef FSL_DPAA2_MAC_NETDEVS
+#ifdef CONFIG_FSL_DPAA2_MAC_NETDEVS
 #define ppx_err(netdev, ...)  netdev_err(netdev, __VA_ARGS__)
 #define ppx_warn(netdev, ...) netdev_err(netdev, __VA_ARGS__)
 #define ppx_info(netdev, ...) netdev_err(netdev, __VA_ARGS__)
-#else /* FSL_DPAA2_MAC_NETDEVS */
+#else /* CONFIG_FSL_DPAA2_MAC_NETDEVS */
 #define ppx_err(netdev, ...)  dev_err(&netdev->dev, __VA_ARGS__)
 #define ppx_warn(netdev, ...) dev_err(&netdev->dev, __VA_ARGS__)
 #define ppx_info(netdev, ...) dev_err(&netdev->dev, __VA_ARGS__)
-#endif /* FSL_DPAA2_MAC_NETDEVS */
+#endif /* CONFIG_FSL_DPAA2_MAC_NETDEVS */
 
 struct phy_device *fixed_phy_register2(unsigned int irq,
 				       struct fixed_phy_status *status,
@@ -107,7 +107,7 @@ static phy_interface_t ppx_eth_iface_mode[] __maybe_unused =  {
 
 static void ppx_link_changed(struct net_device *netdev);
 
-#ifdef FSL_DPAA2_MAC_NETDEVS
+#ifdef CONFIG_FSL_DPAA2_MAC_NETDEVS
 static netdev_tx_t ppx_dropframe(struct sk_buff *skb, struct net_device *dev);
 static int ppx_open(struct net_device *netdev);
 static int ppx_stop(struct net_device *netdev);
@@ -321,36 +321,7 @@ static int ppx_ethtool_get_sset_count(struct net_device *dev, int sset)
 		return -EOPNOTSUPP;
 	}
 }
-#endif /* FSL_DPAA2_MAC_NETDEVS */
-
-#ifdef CONFIG_FSL_DPAA2_FIXED_PHY_HACK
-static struct phy_device *ppx_register_fixed_link(struct net_device *netdev)
-{
-	struct fixed_phy_status status = {
-		.link = 1,
-		.speed = 100,
-		.duplex = 0,
-	};
-	struct phy_device *phy;
-	int err;
-
-	phy = fixed_phy_register2(PHY_POLL, &status, NULL);
-	if (!phy)
-		return NULL;
-	/* disable aneg to let the user fake speeds */
-	phy->autoneg = 0;
-
-	/* TODO: interface mode */
-	err = phy_connect_direct(netdev, phy, &ppx_link_changed,
-				 PHY_INTERFACE_MODE_NA);
-	if (err) {
-		ppx_err(netdev, "phy_connect_direct err %d\n", err);
-		return NULL;
-	}
-
-	return phy;
-}
-#endif /* CONFIG_FSL_DPAA2_FIXED_PHY_HACK */
+#endif /* CONFIG_FSL_DPAA2_MAC_NETDEVS */
 
 static void ppx_link_changed(struct net_device *netdev)
 {
@@ -558,7 +529,8 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 
 	dev_set_drvdata(dev, priv);
 
-	err = fsl_mc_portal_allocate(mc_dev, 0, &mc_dev->mc_io);
+	err = fsl_mc_portal_allocate(mc_dev, FSL_MC_IO_ATOMIC_CONTEXT_PORTAL,
+				     &mc_dev->mc_io);
 	if (err) {
 		dev_err(dev, "fsl_mc_portal_allocate err %d\n", err);
 		goto err_free_netdev;
@@ -592,7 +564,7 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 	if (err)
 		goto err_close;
 
-#ifdef FSL_DPAA2_MAC_NETDEVS
+#ifdef CONFIG_FSL_DPAA2_MAC_NETDEVS
 	/* OPTIONAL, register netdev just to make it visible to the user */
 	netdev->netdev_ops = &ppx_ndo;
 	netdev->ethtool_ops = &ppx_ethtool_ops;
@@ -605,7 +577,7 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 		dev_err(dev, "register_netdev error %d\n", err);
 		goto err_free_irq;
 	}
-#endif /* FSL_DPAA2_MAC_NETDEVS */
+#endif /* CONFIG_FSL_DPAA2_MAC_NETDEVS */
 
 	/* try to connect to the PHY */
 	/* phy_node = of_find_node_by_phandle(priv->attr.phy_id); */
@@ -625,7 +597,6 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 			goto err_no_phy;
 		}
 	}
-	pr_info("dpmac %d -> phy %d (%s)\n", priv->attr.id, phy_cnt, phy_name);
 	phy_cnt++;
 /*
 	if (priv->attr.eth_if <
@@ -653,26 +624,30 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 	dev_info(dev, "found a PHY!\n");
 
 err_no_phy:
-#ifdef CONFIG_FSL_DPAA2_FIXED_PHY_HACK
 	if (!netdev->phydev) {
+		struct fixed_phy_status status = {
+			.link = 1,
+			.speed = 1000,
+			.duplex = 1,
+		};
+
 		/* try to register a fixed link phy */
-		netdev->phydev = ppx_register_fixed_link(netdev);
-		if (!netdev->phydev) {
+		netdev->phydev = fixed_phy_register(PHY_POLL, &status, NULL);
+		if (!netdev->phydev || IS_ERR(netdev->phydev)) {
 			dev_err(dev, "error trying to register fixed PHY!\n");
 			err = -EFAULT;
 			goto err_free_irq;
 		}
-		dev_info(dev, "registered fixed PHY!\n");
+		dev_info(dev, "Registered fixed PHY %d (%s) connected to DPMAC %d\n",
+			 phy_cnt, phy_name, priv->attr.id);
 	}
 
-#endif /* CONFIG_FSL_DPAA2_FIXED_PHY_HACK */
-
 	/* start PHY state machine */
-#ifdef FSL_DPAA2_MAC_NETDEVS
+#ifdef CONFIG_FSL_DPAA2_MAC_NETDEVS
 	ppx_open(netdev);
-#else /* FSL_DPAA2_MAC_NETDEVS */
+#else /* CONFIG_FSL_DPAA2_MAC_NETDEVS */
 	phy_start(netdev->phydev);
-#endif /* FSL_DPAA2_MAC_NETDEVS */
+#endif /* CONFIG_FSL_DPAA2_MAC_NETDEVS */
 	return 0;
 
 err_free_irq:

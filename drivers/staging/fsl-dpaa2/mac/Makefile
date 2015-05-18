@@ -1,5 +1,4 @@
 
-obj-$(CONFIG_FSL_DPAA2_FIXED_PHY_HACK) += fixed.o
 obj-$(CONFIG_FSL_DPAA2_MAC) += dpaa2-mac.o
 
 dpaa2-mac-objs := mac.o dpmac.o

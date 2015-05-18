@@ -20,12 +20,3 @@ config FSL_DPAA2_MAC_NETDEVS
 	.
 	Leave disabled if unsure.
 
-config FSL_DPAA2_FIXED_PHY_HACK
-	bool "Hack for fixed links, to remove in v3.18"
-	default y
-	depends on FSL_DPAA2_MAC
-	---help---
-	Temporary hack to allow registration of a fixed PHY without a device
-	tree node and actual fixed-link property or child node.
-	Plan is to remove this in kernel 3.18, it includes an updated API which
-	should make this work.
