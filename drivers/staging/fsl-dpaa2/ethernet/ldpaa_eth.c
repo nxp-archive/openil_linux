@@ -1186,8 +1186,9 @@ static void ldpaa_eth_setup_fqs(struct ldpaa_eth_priv *priv)
 	 * TODO: We still only have one traffic class for now,
 	 * but for multiple TCs may need an array of dist sizes.
 	 */
-	priv->rx_dist_size = (uint8_t)roundup_pow_of_two(num_possible_cpus());
-	for (i = 0; i < priv->rx_dist_size; i++) {
+	priv->num_rx_flows = ldpaa_eth_hash_enabled(priv) ?
+			(uint8_t)roundup_pow_of_two(num_possible_cpus()) : 1;
+	for (i = 0; i < priv->num_rx_flows; i++) {
 		priv->fq[priv->num_fqs].netdev_priv = priv;
 		priv->fq[priv->num_fqs].type = LDPAA_RX_FQ;
 		priv->fq[priv->num_fqs].consume = ldpaa_eth_rx;
@@ -1672,9 +1673,10 @@ static int ldpaa_dpni_bind(struct ldpaa_eth_priv *priv)
 	/* have the interface implicitly distribute traffic based on supported
 	 * header fields
 	 */
-	err = ldpaa_set_hash(net_dev, LDPAA_RXH_SUPPORTED);
-	if (unlikely(err)) {
-		return err;
+	if (ldpaa_eth_hash_enabled(priv)) {
+		err = ldpaa_set_hash(net_dev, LDPAA_RXH_SUPPORTED);
+		if (unlikely(err))
+			return err;
 	}
 
 	/* Configure handling of error frames */

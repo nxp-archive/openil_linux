@@ -307,6 +307,11 @@ int ldpaa_set_hash(struct net_device *net_dev, u64 flags)
 	int i;
 	int err = 0;
 
+	if (!ldpaa_eth_hash_enabled(priv)) {
+		netdev_err(net_dev, "Hashing support is not enabled\n");
+		return -ENOTSUPP;
+	}
+
 	if (flags & ~LDPAA_RXH_SUPPORTED) {
 		/* RXH_DISCARD is not supported */
 		netdev_err(net_dev,

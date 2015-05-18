@@ -262,7 +262,7 @@ struct ldpaa_eth_priv {
 	uint32_t msg_enable;	/* net_device message level */
 
 	uint16_t mc_token;
-	uint8_t rx_dist_size;
+	uint8_t num_rx_flows;
 
 	struct dpni_link_state link_state;
 	struct task_struct *poll_thread;
@@ -275,6 +275,9 @@ struct ldpaa_eth_priv {
 #define LDPAA_RXH_SUPPORTED	(RXH_L2DA | RXH_VLAN | RXH_L3_PROTO \
 				| RXH_IP_SRC | RXH_IP_DST | RXH_L4_B_0_1 \
 				| RXH_L4_B_2_3)
+
+#define ldpaa_eth_hash_enabled(priv)	\
+	((priv)->dpni_attrs.options & DPNI_OPT_DIST_HASH)
 
 extern const struct ethtool_ops ldpaa_ethtool_ops;
 
