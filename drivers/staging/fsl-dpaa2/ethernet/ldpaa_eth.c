@@ -251,7 +251,7 @@ static void ldpaa_eth_rx(struct ldpaa_eth_priv *priv,
 		skb = ldpaa_eth_build_frag_skb(priv, sgt);
 		put_page(virt_to_head_page(vaddr));
 		percpu_extras->rx_sg_frames++;
-		percpu_extras->rx_sg_bytes += skb->len;
+		percpu_extras->rx_sg_bytes += ldpaa_fd_get_len(fd);
 	} else {
 		/* We don't support any other format */
 		netdev_err(priv->net_dev, "Received invalid frame format\n");
@@ -512,7 +512,6 @@ static int ldpaa_eth_build_single_fd(struct ldpaa_eth_priv *priv,
 static int ldpaa_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 {
 	struct ldpaa_eth_priv *priv = netdev_priv(net_dev);
-	struct device *dev = net_dev->dev.parent;
 	struct dpaa_fd fd;
 	struct rtnl_link_stats64 *percpu_stats;
 	struct ldpaa_eth_stats *percpu_extras;
@@ -569,7 +568,7 @@ static int ldpaa_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 			break;
 	}
 	if (unlikely(err < 0)) {
-		dev_dbg(dev, "error enqueueing Tx frame\n");
+		netdev_dbg(net_dev, "error enqueueing Tx frame\n");
 		percpu_stats->tx_errors++;
 		goto err_enqueue;
 	}
@@ -1187,12 +1186,12 @@ static void ldpaa_eth_setup_fqs(struct ldpaa_eth_priv *priv)
 	 * TODO: We still only have one traffic class for now,
 	 * but for multiple TCs may need an array of dist sizes.
 	 */
-	priv->rx_dist_size = roundup_pow_of_two(num_possible_cpus());
+	priv->rx_dist_size = (uint8_t)roundup_pow_of_two(num_possible_cpus());
 	for (i = 0; i < priv->rx_dist_size; i++) {
 		priv->fq[priv->num_fqs].netdev_priv = priv;
 		priv->fq[priv->num_fqs].type = LDPAA_RX_FQ;
 		priv->fq[priv->num_fqs].consume = ldpaa_eth_rx;
-		priv->fq[priv->num_fqs++].flowid = i;
+		priv->fq[priv->num_fqs++].flowid = (uint16_t)i;
 	}
 
 #ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
@@ -1555,6 +1554,7 @@ static int ldpaa_rx_flow_setup(struct ldpaa_eth_priv *priv,
 	struct dpni_queue_cfg queue_cfg;
 	int err;
 
+	memset(&queue_cfg, 0, sizeof(queue_cfg));
 	queue_cfg.options = DPNI_QUEUE_OPT_USER_CTX | DPNI_QUEUE_OPT_DEST;
 	queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPIO;
 	queue_cfg.dest_cfg.priority = 3;
@@ -1869,12 +1869,10 @@ static irqreturn_t dpni_irq0_handler(int irq_num, void *arg)
 
 static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 {
-	int irq_index = DPNI_IRQ_INDEX;
+	uint8_t irq_index = DPNI_IRQ_INDEX;
 	uint32_t status, clear = 0;
 	struct device *dev = (struct device *)arg;
 	struct fsl_mc_device *dpni_dev = to_fsl_mc_device(dev);
-	struct fsl_mc_io *io = dpni_dev->mc_io;
-	uint16_t token = dpni_dev->mc_handle;
 	struct net_device *net_dev = dev_get_drvdata(dev);
 	int err;
 
@@ -1884,7 +1882,8 @@ static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 	if (WARN_ON(dpni_dev->irqs[irq_index]->irq_number != irq_num))
 		goto out;
 
-	err = dpni_get_irq_status(io, token, irq_index, &status);
+	err = dpni_get_irq_status(dpni_dev->mc_io, dpni_dev->mc_handle,
+				  irq_index, &status);
 	if (unlikely(err)) {
 		netdev_err(net_dev, "Can't get irq status (err %d)", err);
 		clear = 0xffffffff;
@@ -1893,14 +1892,12 @@ static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 
 	if (status & DPNI_IRQ_EVENT_LINK_CHANGED) {
 		clear |= DPNI_IRQ_EVENT_LINK_CHANGED;
-
-		err = ldpaa_link_state_update(netdev_priv(net_dev));
-		if (unlikely(err))
-			goto out;
+		ldpaa_link_state_update(netdev_priv(net_dev));
 	}
 
 out:
-	dpni_clear_irq_status(io, token, irq_index, clear);
+	dpni_clear_irq_status(dpni_dev->mc_io, dpni_dev->mc_handle,
+			      irq_index, clear);
 	return IRQ_HANDLED;
 }
 
@@ -1909,7 +1906,7 @@ static int ldpaa_eth_setup_irqs(struct fsl_mc_device *ls_dev)
 	int err = 0;
 	struct fsl_mc_device_irq *irq;
 	int irq_count = ls_dev->obj_desc.irq_count;
-	int irq_index = 0;
+	uint8_t irq_index = DPNI_IRQ_INDEX;
 	uint32_t mask = ~0x0u;
 
 	/* The only interrupt supported now is the link state notification. */

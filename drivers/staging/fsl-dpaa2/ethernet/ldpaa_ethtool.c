@@ -361,7 +361,7 @@ int ldpaa_set_hash(struct net_device *net_dev, u64 flags)
 	}
 
 	/* TODO: should be # of device queues */
-	dist_cfg.dist_size = num_possible_cpus() - 1;
+	dist_cfg.dist_size = (uint8_t)(num_possible_cpus() - 1);
 	dist_cfg.dist_mode = DPNI_DIST_MODE_HASH;
 
 	err = dpni_set_rx_tc_dist(priv->mc_io, priv->mc_token, 0, &dist_cfg);
