@@ -29,7 +29,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "../../fsl-mc/include/dpni.h"	/* DPNI_LINK_OPT_* */
+#include "dpni.h"	/* DPNI_LINK_OPT_* */
 #include "ldpaa_eth.h"
 
 /* size of DMA memory used to pass configuration to classifier, in bytes */

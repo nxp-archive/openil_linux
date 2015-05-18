@@ -37,8 +37,8 @@
 #include "../../fsl-mc/include/fsl_dpaa_io.h"
 #include "../../fsl-mc/include/fsl_dpaa_fd.h"
 #include "../../fsl-mc/include/dpbp.h"
-#include "../../fsl-mc/include/dpni.h"
-#include "../../fsl-mc/include/dpni-cmd.h"
+#include "dpni.h"
+#include "dpni-cmd.h"
 
 #include "ldpaa_eth_trace.h"
 

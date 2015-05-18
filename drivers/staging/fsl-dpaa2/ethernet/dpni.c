@@ -31,8 +31,8 @@
  */
 #include "../../fsl-mc/include/mc-sys.h"
 #include "../../fsl-mc/include/mc-cmd.h"
-#include "../../fsl-mc/include/dpni.h"
-#include "../../fsl-mc/include/dpni-cmd.h"
+#include "dpni.h"
+#include "dpni-cmd.h"
 
 int dpni_prepare_key_cfg(struct dpkg_profile_cfg *cfg,
 			 uint8_t *key_cfg_buf)

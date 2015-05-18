@@ -33,7 +33,7 @@
 #define __FSL_DPKG_H_
 
 #include <linux/types.h>
-#include "net.h"
+#include "../../fsl-mc/include/net.h"
 
 /* Data Path Key Generator API
  * Contains initialization APIs and runtime APIs for the Key Generator
