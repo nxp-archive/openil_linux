@@ -727,6 +727,9 @@ static inline int __update_flow(struct pme_ctx *ctx, u32 flags,
 	BUG_ON(ctx->flags & PME_CTX_FLAG_DIRECT);
 	if (!hw_res)
 		return -ENOMEM;
+	/* Direct mode is not enabled. Therefore the call back token must not
+	 * be NULL */
+	BUG_ON(!token);
 	token->internal_flow_ptr = pme_hw_flow_new();
 	if (!token->internal_flow_ptr) {
 		pme_hw_residue_free(hw_res);
