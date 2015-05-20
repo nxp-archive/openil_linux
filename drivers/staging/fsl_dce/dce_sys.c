@@ -87,7 +87,7 @@ static int dce_sys_init(void)
 	slab_scr_128b = kmem_cache_create("fsl_dce_scr_128b",
 			sizeof(struct scf_128b), /* 128 byte size */
 			DCE_SCR_ALIGN, SLAB_HWCACHE_ALIGN, NULL);
-	if (!slab_scr_64b)
+	if (!slab_scr_128b)
 		goto end;
 	slab_compress_history = kmem_cache_create("fsl_dce_compress_history",
 			DCE_COMP_HISTORY_SIZE,
