@@ -61,6 +61,13 @@ static int ldpaa_dpbp_refill(struct ldpaa_eth_priv *priv, uint16_t bpid);
 static int ldpaa_dpbp_seed(struct ldpaa_eth_priv *priv, uint16_t bpid);
 static void __cold __ldpaa_dpbp_free(struct ldpaa_eth_priv *priv);
 
+/* TODO Assert it is smaller than LDPAA_ETH_SWA_SIZE */
+struct ldpaa_eth_swa {
+	struct sk_buff *skb;
+	struct scatterlist *scl;
+	int num_sg;
+	int num_dma_bufs;
+};
 
 static void ldpaa_eth_rx_csum(struct ldpaa_eth_priv *priv,
 			      uint32_t fd_status,
@@ -365,21 +372,44 @@ static int ldpaa_eth_build_sg_fd(struct ldpaa_eth_priv *priv,
 	struct device *dev = priv->net_dev->dev.parent;
 	void *sgt_buf = NULL;
 	dma_addr_t addr;
-	skb_frag_t *frag;
 	int nr_frags = skb_shinfo(skb)->nr_frags;
 	struct dpaa_sg_entry *sgt;
-	int i = 0, j, err;
+	int i, err;
 	int sgt_buf_size;
-	struct sk_buff **skbh;
+	struct scatterlist *scl, *crt_scl;
+	int num_sg;
+	int num_dma_bufs;
+	struct ldpaa_eth_swa bps;
 
+	/* Create and map scatterlist.
+	 * We don't advertise NETIF_F_FRAGLIST, so skb_to_sgvec() will not have
+	 * to go beyond nr_frags+1.
+	 * TODO We don't support chained scatterlists; we could just fallback
+	 * to the old implementation.
+	 */
+	WARN_ON(PAGE_SIZE / sizeof(struct scatterlist) < nr_frags + 1);
+	scl = kcalloc(nr_frags + 1, sizeof(struct scatterlist), GFP_ATOMIC);
+	if (unlikely(!scl))
+		return -ENOMEM;
+
+	sg_init_table(scl, nr_frags + 1);
+	num_sg = skb_to_sgvec(skb, scl, 0, skb->len);
+	num_dma_bufs = dma_map_sg(dev, scl, num_sg, DMA_TO_DEVICE);
+	if (unlikely(!num_dma_bufs)) {
+		netdev_err(priv->net_dev, "dma_map_sg() error\n");
+		err = -ENOMEM;
+		goto dma_map_sg_failed;
+	}
+
+	/* Prepare the HW SGT structure */
 	sgt_buf_size = priv->tx_data_offset +
-		       sizeof(struct dpaa_sg_entry) * (1 + nr_frags);
+		       sizeof(struct dpaa_sg_entry) * (1 + num_dma_bufs);
 	sgt_buf = kzalloc(sgt_buf_size + LDPAA_ETH_BUF_ALIGN, GFP_ATOMIC);
 	if (unlikely(!sgt_buf)) {
 		netdev_err(priv->net_dev, "failed to allocate SGT buffer\n");
-		return -ENOMEM;
+		err = -ENOMEM;
+		goto sgt_buf_alloc_failed;
 	}
-
 	sgt_buf = PTR_ALIGN(sgt_buf, LDPAA_ETH_BUF_ALIGN);
 
 	/* PTA from egress side is passed as is to the confirmation side so
@@ -389,74 +419,55 @@ static int ldpaa_eth_build_sg_fd(struct ldpaa_eth_priv *priv,
 	 */
 	memset(sgt_buf + priv->buf_layout.private_data_size, 0, 8);
 
-	/* Store the skb backpointer in the SGT buffer */
-	skbh = (struct sk_buff **)sgt_buf;
-	*skbh = skb;
-
 	sgt = (struct dpaa_sg_entry *)(sgt_buf + priv->tx_data_offset);
 
-	/* First S/G buffer built from linear part of skb */
-	ldpaa_sg_set_len(&sgt[0], skb_headlen(skb));
-	ldpaa_sg_set_offset(&sgt[0], (u16)skb_headroom(skb));
-	ldpaa_sg_set_bpid(&sgt[0], priv->dpbp_attrs.bpid);
-	ldpaa_sg_set_format(&sgt[0], dpaa_sg_single);
-
-	addr = dma_map_single(dev, skb->head, skb_tail_pointer(skb) - skb->head,
-			      DMA_TO_DEVICE);
-	if (unlikely(dma_mapping_error(dev, addr))) {
-		netdev_err(priv->net_dev, "dma_map_single() failed\n");
-		err = -EINVAL;
-		goto map0_failed;
+	/* Fill in the HW SGT structure.
+	 *
+	 * sgt_buf is zeroed out, so the following fields are implicit
+	 * in all sgt entries:
+	 *   - offset is 0
+	 *   - format is 'dpaa_sg_single'
+	 */
+	for_each_sg(scl, crt_scl, num_dma_bufs, i) {
+		ldpaa_sg_set_addr(&sgt[i], sg_dma_address(crt_scl));
+		ldpaa_sg_set_len(&sgt[i], sg_dma_len(crt_scl));
 	}
-	ldpaa_sg_set_addr(&sgt[0], addr);
-
-	/* The rest of the S/G buffers built from skb frags */
-	for (i = 1; i <= nr_frags; i++) {
-		frag = &skb_shinfo(skb)->frags[i-1];
-
-		ldpaa_sg_set_bpid(&sgt[i], priv->dpbp_attrs.bpid);
-		ldpaa_sg_set_format(&sgt[0], dpaa_sg_single);
-		ldpaa_sg_set_offset(&sgt[i], 0);
-		ldpaa_sg_set_len(&sgt[i], frag->size);
-
-		addr = skb_frag_dma_map(dev, frag, 0, frag->size,
-					DMA_TO_DEVICE);
-		if (unlikely(dma_mapping_error(dev, addr))) {
-			netdev_err(priv->net_dev, "dma_map_single() failed\n");
-			err = -EINVAL;
-			goto map_failed;
-		}
-		ldpaa_sg_set_addr(&sgt[i], addr);
-	}
-
 	ldpaa_sg_set_final(&sgt[i-1], true);
 
+	/* Store the skb backpointer in the SGT buffer.
+	 * Fit the scatterlist and the number of buffers alongside the
+	 * skb backpointer in the SWA. We'll need all of them on Tx Conf.
+	 */
+	bps.skb = skb;
+	bps.scl = scl;
+	bps.num_sg = num_sg;
+	bps.num_dma_bufs = num_dma_bufs;
+	*(struct ldpaa_eth_swa *)sgt_buf = bps;
+
+	/* Separately map the SGT buffer */
 	addr = dma_map_single(dev, sgt_buf, sgt_buf_size, DMA_TO_DEVICE);
 	if (unlikely(dma_mapping_error(dev, addr))) {
 		netdev_err(priv->net_dev, "dma_map_single() failed\n");
-		err = -EINVAL;
-		goto map_failed;
+		err = -ENOMEM;
+		goto dma_map_single_failed;
 	}
-	ldpaa_fd_set_addr(fd, addr);
 	ldpaa_fd_set_offset(fd, priv->tx_data_offset);
-	ldpaa_fd_set_len(fd, skb->len);
 	ldpaa_fd_set_bpid(fd, priv->dpbp_attrs.bpid);
 	ldpaa_fd_set_format(fd, dpaa_fd_sg);
+	ldpaa_fd_set_addr(fd, addr);
+	ldpaa_fd_set_len(fd, skb->len);
 
 	fd->simple.ctrl = LDPAA_FD_CTRL_ASAL | LDPAA_FD_CTRL_PTA |
 			 LDPAA_FD_CTRL_PTV1;
 
 	return 0;
 
-map_failed:
-	dma_unmap_single(dev, ldpaa_sg_get_addr(&sgt[0]),
-			 ldpaa_sg_get_len(&sgt[0]), DMA_TO_DEVICE);
-	for (j = 1; j < i; j++)
-		dma_unmap_page(dev, ldpaa_sg_get_addr(&sgt[j]),
-			       ldpaa_sg_get_len(&sgt[j]),
-			       DMA_TO_DEVICE);
-map0_failed:
+dma_map_single_failed:
 	kfree(sgt_buf);
+sgt_buf_alloc_failed:
+	dma_unmap_sg(dev, scl, num_sg, DMA_TO_DEVICE);
+dma_map_sg_failed:
+	kfree(scl);
 	return err;
 }
 
@@ -524,6 +535,10 @@ static int ldpaa_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 
 	if (unlikely(skb_headroom(skb) < LDPAA_ETH_NEEDED_HEADROOM(priv))) {
 		struct sk_buff *ns;
+
+		/* FIXME remove debug message or add a ethtool counter */
+		netdev_warn(net_dev, "skb_realloc_headroom()!");
+
 		/* ...Empty line to appease checkpatch... */
 		ns = skb_realloc_headroom(skb, LDPAA_ETH_NEEDED_HEADROOM(priv));
 		if (unlikely(!ns)) {
@@ -589,15 +604,18 @@ static void ldpaa_eth_tx_conf(struct ldpaa_eth_priv *priv,
 			      const struct dpaa_fd *fd)
 {
 	struct device *dev = priv->net_dev->dev.parent;
-	dma_addr_t fd_addr, sg_addr;
+	dma_addr_t fd_addr;
 	struct sk_buff **skbh, *skb;
 	struct ldpaa_fas *fas;
 	uint32_t status;
 	struct rtnl_link_stats64 *percpu_stats;
 	struct ldpaa_eth_stats *percpu_extras;
 	unsigned char *buffer_start;
-	int i, nr_frags, unmap_size;
-	struct dpaa_sg_entry *sgt;
+	int nr_frags, unmap_size;
+	struct scatterlist *scl;
+	bool fd_single = (ldpaa_fd_get_format(fd) == dpaa_fd_single);
+	int num_sg, num_dma_bufs;
+	struct ldpaa_eth_swa bps;
 
 	/* Tracing point */
 	trace_ldpaa_tx_conf_fd(priv->net_dev, fd);
@@ -605,13 +623,8 @@ static void ldpaa_eth_tx_conf(struct ldpaa_eth_priv *priv,
 	fd_addr = ldpaa_fd_get_addr(fd);
 
 	skbh = phys_to_virt(fd_addr);
-	skb = *skbh;
-
-	percpu_extras = this_cpu_ptr(priv->percpu_extras);
-	percpu_extras->tx_conf_frames++;
-	percpu_extras->tx_conf_bytes += skb->len;
-
-	if (ldpaa_fd_get_format(fd) == dpaa_fd_single) {
+	if (fd_single) {
+		skb = *skbh;
 		buffer_start = (unsigned char *)skbh;
 		/* Accessing the skb buffer is safe before dma unmap, because
 		 * we didn't map the actual skb shell.
@@ -620,12 +633,26 @@ static void ldpaa_eth_tx_conf(struct ldpaa_eth_priv *priv,
 				 skb_end_pointer(skb) - buffer_start,
 				 DMA_TO_DEVICE);
 	} else {
-		/* Unmap the SGT buffer first. We didn't map the skb shell. */
+		/* Unmap the scatterlist and the HW SGT buffer */
+		bps = *(struct ldpaa_eth_swa *)skbh;
+		skb = bps.skb;
+		scl = bps.scl;
+		num_sg = bps.num_sg;
+		num_dma_bufs = bps.num_dma_bufs;
+
+		dma_unmap_sg(dev, scl, num_sg, DMA_TO_DEVICE);
+		kfree(scl);
+
+		/* Unmap the SGT buffer. We'll free it after we check the FAS */
 		nr_frags = skb_shinfo(skb)->nr_frags;
 		unmap_size = priv->tx_data_offset +
-		       sizeof(struct dpaa_sg_entry) * (1 + nr_frags);
+		       sizeof(struct dpaa_sg_entry) * (1 + num_dma_bufs);
 		dma_unmap_single(dev, fd_addr, unmap_size, DMA_TO_DEVICE);
 	}
+
+	percpu_extras = this_cpu_ptr(priv->percpu_extras);
+	percpu_extras->tx_conf_frames++;
+	percpu_extras->tx_conf_bytes += skb->len;
 
 	/* Check the status from the Frame Annotation after we unmap the first
 	 * buffer but before we free it.
@@ -644,27 +671,9 @@ static void ldpaa_eth_tx_conf(struct ldpaa_eth_priv *priv,
 			percpu_stats->tx_errors++;
 		}
 	}
-
-	if (ldpaa_fd_get_format(fd) == dpaa_fd_sg) {
-		/* First sg entry was dma_map_single'd, the rest were
-		 * dma_map_page'd.
-		 */
-		sgt = (void *)skbh + ldpaa_fd_get_offset(fd);
-		sg_addr = ldpaa_sg_get_addr(&sgt[0]);
-		unmap_size = ldpaa_sg_get_len(&sgt[0]) +
-			     ldpaa_sg_get_offset(&sgt[0]);
-		dma_unmap_single(dev, sg_addr, unmap_size,
-				 DMA_TO_DEVICE);
-		nr_frags = skb_shinfo(skb)->nr_frags;
-		for (i = 1; i <= nr_frags; i++) {
-			sg_addr = ldpaa_sg_get_addr(&sgt[i]);
-			unmap_size = ldpaa_sg_get_len(&sgt[i]) +
-				     ldpaa_sg_get_offset(&sgt[i]);
-			dma_unmap_page(dev, sg_addr, unmap_size, DMA_TO_DEVICE);
-		}
-		/* SGT buffer was kmalloc'ed on tx */
+	/* Free SGT buffer kmalloc'ed on tx */
+	if (!fd_single)
 		kfree(skbh);
-	}
 
 	/* Move on with skb release */
 	dev_kfree_skb(skb);

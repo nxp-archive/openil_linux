@@ -80,8 +80,9 @@
 	SKB_DATA_ALIGN(sizeof(struct skb_shared_info)) + \
 	LDPAA_ETH_BUF_ALIGN)
 
-/* So far we're only accomodating a skb backpointer in the frame's
- * software annotation, but the hardware options are either 0 or 64.
+/* We are accomodating a skb backpointer and potentially other data (see
+ * struct backpointers) in the frame's software annotation. The hardware
+ * options are either 0 or 64, so we choose the latter.
  */
 #define LDPAA_ETH_SWA_SIZE		64
 
