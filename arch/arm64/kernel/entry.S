@@ -351,6 +351,13 @@ el1_undef:
 	/*
 	 * Undefined instruction
 	 */
+	#ifdef CONFIG_IPIPE
+	mov	x0, #7				//@ x0 = IPIPE_TRAP_UNDEFINSTR
+	mov	x1, sp				//@ x1 = &regs
+	bl	__ipipe_notify_trap		//@ branch to trap handler
+	cmp	x0, #0
+	bne	__ipipe_fast_svc_irq_exit
+	#endif /* CONFIG_IPIPE */
 	enable_dbg
 	mov	x0, sp
 	b	do_undefinstr
@@ -557,6 +564,13 @@ el0_undef:
 	/*
 	 * Undefined instruction
 	 */
+	#ifdef CONFIG_IPIPE
+	mov	x0, #7				// x0 = IPIPE_TRAP_UNDEFINSTR
+	mov	x1, sp				// x1 = &regs
+	bl	__ipipe_notify_trap		// branch to trap handler
+	cmp	x0, #0
+	bne	ret_from_exception
+	#endif /* CONFIG_IPIPE */
 	// enable interrupts before calling the main handler
 	enable_dbg_and_irq
 	ct_user_exit
@@ -605,6 +619,17 @@ el0_irq_naked:
 #endif
 	b	ret_to_user
 ENDPROC(el0_irq)
+
+#ifdef CONFIG_IPIPE
+ret_from_exception:
+	disable_irq
+	bl	__ipipe_check_root
+	cmp     x0, #1
+	bne	__ipipe_ret_to_user_irqs_disabled  //Fast exit path over non-root domains
+	ct_user_exit
+	b	ret_to_user
+ENDPROC(ret_from_exception)
+#endif
 
 /*
  * Register switch for AArch64. The callee-saved registers need to be saved
