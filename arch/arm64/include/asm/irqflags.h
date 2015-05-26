@@ -20,6 +20,10 @@
 
 #include <asm/ptrace.h>
 
+#include <asm/ipipe_hwirq.h>
+
+#ifndef CONFIG_IPIPE
+
 /*
  * CPU interrupt mask handling.
  */
@@ -90,6 +94,7 @@ static inline int arch_irqs_disabled_flags(unsigned long flags)
 	return flags & PSR_I_BIT;
 }
 
+#endif /* CONFIG_IPIPE */
 /*
  * save and restore debug state
  */

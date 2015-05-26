@@ -37,7 +37,7 @@ static inline u32 mpidr_hash_size(void)
 /*
  * Logical CPU mapping.
  */
-extern u64 __cpu_logical_map[NR_CPUS];
+extern u64 __cpu_logical_map[];
 #define cpu_logical_map(cpu)    __cpu_logical_map[cpu]
 
 void __init do_post_cpus_up_work(void);

@@ -86,6 +86,11 @@ config ARM64
 	help
 	  ARM 64-bit (AArch64) Linux support.
 
+if IPIPE
+config IPIPE_WANT_ACTIVE_MM
+       def_bool y
+endif
+
 config 64BIT
 	def_bool y
 
@@ -566,6 +571,8 @@ config HOTPLUG_CPU
 	help
 	  Say Y here to experiment with turning CPUs off and on.  CPUs
 	  can be controlled through /sys/devices/system/cpu.
+
+source kernel/ipipe/Kconfig
 
 source kernel/Kconfig.preempt
 

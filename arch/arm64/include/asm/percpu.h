@@ -16,7 +16,7 @@
 #ifndef __ASM_PERCPU_H
 #define __ASM_PERCPU_H
 
-#ifdef CONFIG_SMP
+#if defined(CONFIG_SMP) && !defined(CONFIG_IPIPE)
 
 static inline void set_my_cpu_offset(unsigned long off)
 {
@@ -39,6 +39,10 @@ static inline unsigned long __my_cpu_offset(void)
 #define __my_cpu_offset __my_cpu_offset()
 
 #else	/* !CONFIG_SMP */
+
+#if defined(CONFIG_SMP) && defined(CONFIG_IPIPE)
+#define __my_cpu_offset (per_cpu_offset(ipipe_processor_id()))
+#endif /* SMP && IPIPE */
 
 #define set_my_cpu_offset(x)	do { } while (0)
 
