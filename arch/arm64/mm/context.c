@@ -32,7 +32,7 @@
 
 #define ASID_FIRST_VERSION	(1 << MAX_ASID_BITS)
 
-static DEFINE_RAW_SPINLOCK(cpu_asid_lock);
+static IPIPE_DEFINE_RAW_SPINLOCK(cpu_asid_lock);
 unsigned int cpu_last_asid = ASID_FIRST_VERSION;
 
 /*

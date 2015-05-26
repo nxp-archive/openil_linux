@@ -118,8 +118,9 @@ static inline void switch_new_context(struct mm_struct *mm)
 	local_irq_restore(flags);
 }
 
-static inline void check_and_switch_context(struct mm_struct *mm,
-					    struct task_struct *tsk)
+static inline int
+check_and_switch_context(struct mm_struct *mm,
+			 struct task_struct *tsk, bool may_defer)
 {
 	/*
 	 * Required during context switch to avoid speculative page table
@@ -127,27 +128,40 @@ static inline void check_and_switch_context(struct mm_struct *mm,
 	 */
 	cpu_set_reserved_ttbr0();
 
-	if (!((mm->context.id ^ cpu_last_asid) >> MAX_ASID_BITS))
+	if (!((mm->context.id ^ cpu_last_asid) >> MAX_ASID_BITS)) {
 		/*
 		 * The ASID is from the current generation, just switch to the
 		 * new pgd. This condition is only true for calls from
 		 * context_switch() and interrupts are already disabled.
 		 */
 		cpu_switch_mm(mm->pgd, mm);
-	else if (irqs_disabled())
+	} else if (may_defer && irqs_disabled()) {
 		/*
 		 * Defer the new ASID allocation until after the context
 		 * switch critical region since __new_context() cannot be
 		 * called with interrupts disabled.
 		 */
 		set_ti_thread_flag(task_thread_info(tsk), TIF_SWITCH_MM);
-	else
+		return -EAGAIN;
+	} else {
 		/*
 		 * That is a direct call to switch_mm() or activate_mm() with
 		 * interrupts enabled and a new context.
 		 */
 		switch_new_context(mm);
+	}
+
+	return 0;
 }
+
+#ifdef CONFIG_IPIPE
+extern void deferred_switch_mm(struct mm_struct *mm);
+#else /* !I-pipe */
+static inline void deferred_switch_mm(struct mm_struct *next)
+{
+	cpu_switch_mm(next->pgd, next);
+}
+#endif /* !I-pipe */
 
 #define init_new_context(tsk,mm)	(__init_new_context(tsk,mm),0)
 #define destroy_context(mm)		do { } while(0)
@@ -162,9 +176,9 @@ static inline void finish_arch_post_lock_switch(void)
 
 		__new_context(mm);
 
-		local_irq_save(flags);
-		cpu_switch_mm(mm->pgd, mm);
-		local_irq_restore(flags);
+		ipipe_mm_switch_protect(flags);
+		deferred_switch_mm(mm);
+		ipipe_mm_switch_unprotect(flags);
 	}
 }
 
@@ -188,11 +202,11 @@ enter_lazy_tlb(struct mm_struct *mm, struct task_struct *tsk)
  * calling the CPU specific function when the mm hasn't
  * actually changed.
  */
-static inline void
-switch_mm(struct mm_struct *prev, struct mm_struct *next,
-	  struct task_struct *tsk)
+static inline int
+__do_switch_mm(struct mm_struct *prev, struct mm_struct *next,
+	       struct task_struct *tsk, bool may_defer)
 {
-	unsigned int cpu = smp_processor_id();
+	const unsigned int cpu = ipipe_processor_id();
 
 	/*
 	 * init_mm.pgd does not contain any user mappings and it is always
@@ -200,14 +214,56 @@ switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	 */
 	if (next == &init_mm) {
 		cpu_set_reserved_ttbr0();
-		return;
+		return 0;
 	}
 
-	if (!cpumask_test_and_set_cpu(cpu, mm_cpumask(next)) || prev != next)
-		check_and_switch_context(next, tsk);
+	if (!cpumask_test_and_set_cpu(cpu, mm_cpumask(next)) || prev != next) {
+		int rc = check_and_switch_context(next, tsk, may_defer);
+#ifdef CONFIG_IPIPE
+		if (rc < 0) {
+			cpumask_clear_cpu(cpu, mm_cpumask(next));
+			return rc;
+		}
+#else /* !CONFIG_IPIPE */
+		(void)rc;
+#endif /* CONFIG_IPIPE */
+	}
+	return 0;
+}
+
+#if defined(CONFIG_IPIPE) && defined(CONFIG_MMU)
+extern void __switch_mm_inner(struct mm_struct *prev, struct mm_struct *next,
+			      struct task_struct *tsk);
+#else /* !I-pipe || !MMU */
+#define __switch_mm_inner(prev, next, tsk) __do_switch_mm(prev, next, tsk, true)
+#endif /* !I-pipe  || !MMU */
+
+static inline void
+ipipe_switch_mm_head(struct mm_struct *prev, struct mm_struct *next,
+			   struct task_struct *tsk)
+{
+	__do_switch_mm(prev, next, tsk, false);
+}
+
+static inline void
+__switch_mm(struct mm_struct *prev, struct mm_struct *next,
+	    struct task_struct *tsk)
+{
+	__switch_mm_inner(prev, next, tsk);
+}
+
+static inline void
+switch_mm(struct mm_struct *prev, struct mm_struct *next,
+	  struct task_struct *tsk)
+{
+	unsigned long flags;
+	ipipe_mm_switch_protect(flags);
+	__switch_mm(prev, next, tsk);
+	ipipe_mm_switch_unprotect(flags);
 }
 
 #define deactivate_mm(tsk,mm)	do { } while (0)
-#define activate_mm(prev,next)	switch_mm(prev, next, NULL)
+
+#define activate_mm(prev,next) __switch_mm(prev, next, NULL)
 
 #endif

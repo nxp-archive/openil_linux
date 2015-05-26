@@ -30,6 +30,7 @@
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/syscalls.h>
+#include <linux/ipipe.h>
 
 #include <asm/atomic.h>
 #include <asm/debug-monitors.h>
@@ -426,6 +427,15 @@ asmlinkage void bad_mode(struct pt_regs *regs, int reason, unsigned int esr)
 {
 	siginfo_t info;
 	void __user *pc = (void __user *)instruction_pointer(regs);
+
+	if (__ipipe_report_trap(IPIPE_TRAP_UNKNOWN,regs))
+		return;
+
+#ifdef CONFIG_IPIPE
+	ipipe_stall_root();
+	hard_local_irq_enable();
+#endif
+
 	console_verbose();
 
 	pr_crit("Bad mode in %s handler detected, code 0x%08x -- %s\n",
@@ -438,6 +448,11 @@ asmlinkage void bad_mode(struct pt_regs *regs, int reason, unsigned int esr)
 	info.si_addr  = pc;
 
 	arm64_notify_die("Oops - bad mode", regs, &info, 0);
+
+#ifdef CONFIG_IPIPE
+	hard_local_irq_disable();
+	__ipipe_root_status &= ~IPIPE_STALL_FLAG;
+#endif
 }
 
 void __pte_error(const char *file, int line, unsigned long val)
