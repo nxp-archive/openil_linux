@@ -62,6 +62,8 @@ struct dpaa_io {
 		struct dpaa_io_service {
 			spinlock_t lock;
 			struct list_head list;
+			/* for targeted dpaa_io selection */
+			struct dpaa_io *objects_by_cpu[NR_CPUS];
 			cpumask_t cpus_notifications;
 			cpumask_t cpus_stashing;
 			int has_nonaffine;
@@ -129,13 +131,43 @@ static void service_init(struct dpaa_io *d, int is_defservice)
 
 /* Selection algorithms, stupid ones at that. These are to handle the case where
  * the given dpaa_io is a service, by choosing the non-service dpaa_io within it
- * to use. Two variants for now, one for cpu-sensitive selection, and another
- * which doesn't care about cpu.
+ * to use.
  */
-static inline struct dpaa_io *service_select_by_cpu(struct dpaa_io *d, int cpu)
+static struct dpaa_io *_service_select_by_cpu_slow(struct dpaa_io_service *ss,
+						   int cpu)
+{
+	struct dpaa_io *o;
+	unsigned long irqflags;
+
+	spin_lock_irqsave(&ss->lock, irqflags);
+	/* TODO: this is about the dumbest and slowest selection algorithm you
+	 * could imagine. (We're looking for something working first, and
+	 * something efficient second...)
+	 */
+	list_for_each_entry(o, &ss->list, object.node)
+		if (o->object.dpio_desc.cpu == cpu)
+			goto found;
+
+	/* No joy. Try the first nonaffine portal (bleurgh) */
+	if (ss->has_nonaffine)
+		list_for_each_entry(o, &ss->list, object.node)
+			if (!o->object.dpio_desc.stash_affinity)
+				goto found;
+
+	/* No joy. Try the first object. Told you it was horrible. */
+	if (!list_empty(&ss->list))
+		o = list_entry(ss->list.next, struct dpaa_io, object.node);
+	else
+		o = NULL;
+
+found:
+	spin_unlock_irqrestore(&ss->lock, irqflags);
+	return o;
+}
+
+static struct dpaa_io *service_select_by_cpu(struct dpaa_io *d, int cpu)
 {
 	struct dpaa_io_service *ss;
-	struct dpaa_io *o;
 	unsigned long irqflags;
 
 	if (!d)
@@ -144,42 +176,21 @@ static inline struct dpaa_io *service_select_by_cpu(struct dpaa_io *d, int cpu)
 		return d;
 	BUG_ON(d->magic != MAGIC_SERVICE);
 
-	/* TODO: this is about the dumbest and slowest selection algorithm you
-	 * could imagine. (We're looking for something working first, and
-	 * something efficient second...)
-	 *
-	 * Lock the service, iterate the linked-list looking for the first DPIO
-	 * object matching the required cpu, ignore everything else about that
-	 * DPIO, and choose it to do the operation! As a post-selection step,
-	 * move the DPIO to the end of the list. It should improve
-	 * load-balancing a little, though will make the list iterations
-	 * slower...
-	 */
 	ss = &d->service;
-	spin_lock_irqsave(&ss->lock, irqflags);
-	/* If cpu==-1, choose the current cpu, now we're in atomic context */
-	if (cpu < 0)
+
+	/* If cpu==-1, choose the current cpu, with no guarantees about
+	 * potentially being migrated away.
+	 */
+	if (unlikely(cpu < 0)) {
+		spin_lock_irqsave(&ss->lock, irqflags);
 		cpu = smp_processor_id();
-	list_for_each_entry(o, &ss->list, object.node)
-		if (o->object.dpio_desc.cpu == cpu)
-			goto found;
-	/* No joy. Try the first nonaffine portal (bleurgh) */
-	if (ss->has_nonaffine)
-		list_for_each_entry(o, &ss->list, object.node)
-			if (!o->object.dpio_desc.stash_affinity)
-				goto found;
-	/* No joy. Try the first object. Told you it was horrible. */
-	if (!list_empty(&ss->list))
-		o = list_entry(ss->list.next, struct dpaa_io, object.node);
-	else
-		o = NULL;
-found:
-	if (o) {
-		list_del(&o->object.node);
-		list_add_tail(&o->object.node, &ss->list);
+		spin_unlock_irqrestore(&ss->lock, irqflags);
+
+		return _service_select_by_cpu_slow(ss, cpu);
 	}
-	spin_unlock_irqrestore(&ss->lock, irqflags);
-	return o;
+
+	/* If a specific cpu was requested, pick it up immediately */
+	return ss->objects_by_cpu[cpu];
 }
 
 static inline struct dpaa_io *service_select_any(struct dpaa_io *d)
@@ -194,6 +205,14 @@ static inline struct dpaa_io *service_select_any(struct dpaa_io *d)
 		return d;
 	BUG_ON(d->magic != MAGIC_SERVICE);
 
+	/*
+	 * Lock the service, looking for the first DPIO object in the list,
+	 * ignore everything else about that DPIO, and choose it to do the
+	 * operation! As a post-selection step, move the DPIO to the end of
+	 * the list. It should improve load-balancing a little, although it
+	 * might also incur a performance hit, given that the lock is *global*
+	 * and this may be called on the fast-path...
+	 */
 	ss = &d->service;
 	spin_lock_irqsave(&ss->lock, irqflags);
 	if (!list_empty(&ss->list)) {
@@ -204,6 +223,21 @@ static inline struct dpaa_io *service_select_any(struct dpaa_io *d)
 		o = NULL;
 	spin_unlock_irqrestore(&ss->lock, irqflags);
 	return o;
+}
+
+/* If the context is not preemptible, select the service affine to the
+ * current cpu. Otherwise, "select any".
+ */
+static inline struct dpaa_io *_service_select(struct dpaa_io *d)
+{
+	struct dpaa_io *temp = d;
+
+	if (likely(!preemptible())) {
+		d = service_select_by_cpu(d, smp_processor_id());
+		if (likely(d))
+			return d;
+	}
+	return service_select_any(temp);
 }
 
 /**********************/
@@ -296,9 +330,13 @@ int dpaa_io_service_add(struct dpaa_io *s, struct dpaa_io *o)
 	if (!oo->service) {
 		oo->service = s;
 		list_add(&oo->node, &ss->list);
-		if (oo->dpio_desc.receives_notifications)
+		if (oo->dpio_desc.receives_notifications) {
 			cpumask_set_cpu(oo->dpio_desc.cpu,
 					&ss->cpus_notifications);
+			/* Update the fast-access array */
+			ss->objects_by_cpu[oo->dpio_desc.cpu] =
+				container_of(oo, struct dpaa_io, object);
+		}
 		if (oo->dpio_desc.stash_affinity)
 			cpumask_set_cpu(oo->dpio_desc.cpu,
 					&ss->cpus_stashing);
@@ -423,6 +461,8 @@ int dpaa_io_service_register(struct dpaa_io *d,
 	unsigned long irqflags;
 
 	d = service_select_by_cpu(d, ctx->desired_cpu);
+	if (!d)
+		return -ENODEV;
 	ctx->dpio_id = d->object.dpio_desc.dpio_id;
 	ctx->qman64 = (uint64_t)ctx;
 	ctx->dpio_private = d;
@@ -454,7 +494,7 @@ int dpaa_io_service_rearm(struct dpaa_io *d,
 	int err;
 
 	BUG_ON(ctx->is_cdan);
-	d = service_select_any(d);
+	d = _service_select(d);
 	if (!d)
 		return -ENODEV;
 	spin_lock_irqsave(&d->object.lock_mgmt_cmd, irqflags);
@@ -515,13 +555,11 @@ int dpaa_io_service_pull_fq(struct dpaa_io *d, uint32_t fqid,
 	qbman_pull_desc_set_storage(&pd, s->vaddr, s->paddr, 1);
 	qbman_pull_desc_set_numframes(&pd, s->max);
 	qbman_pull_desc_set_fq(&pd, fqid);
-	d = service_select_by_cpu(d, -1);
-	if (d) {
-		s->swp = d->object.swp;
-		err = qbman_swp_pull(d->object.swp, &pd);
-	}
+	d = _service_select(d);
 	if (!d)
 		return -ENODEV;
+	s->swp = d->object.swp;
+	err = qbman_swp_pull(d->object.swp, &pd);
 	if (err)
 		s->swp = NULL;
 	return err;
@@ -559,7 +597,7 @@ int dpaa_io_service_enqueue_qd(struct dpaa_io *d,
 {
 	struct qbman_eq_desc ed;
 
-	d = service_select_any(d);
+	d = _service_select(d);
 	if (!d)
 		return -ENODEV;
 	qbman_eq_desc_clear(&ed);
