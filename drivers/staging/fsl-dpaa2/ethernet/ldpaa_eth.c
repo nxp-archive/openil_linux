@@ -574,10 +574,10 @@ static int ldpaa_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	/* Tracing point */
 	trace_ldpaa_tx_fd(net_dev, &fd);
 
-	/* FIXME Ugly hack, and not even cpu hotplug-friendly */
-	for (i = 0; i < 100000; i++) {
-		err = dpaa_io_service_enqueue_qd(NULL, priv->tx_qdid,
-						 0, priv->fq[0].flowid, &fd);
+	for (i = 0; i < (LDPAA_ETH_TX_QUEUES << 1); i++) {
+		err = dpaa_io_service_enqueue_qd(NULL, priv->tx_qdid, 0,
+						 priv->fq[0].flowid,
+						 &fd);
 		if (err != -EBUSY)
 			break;
 	}
