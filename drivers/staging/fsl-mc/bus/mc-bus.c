@@ -719,10 +719,10 @@ static int create_mc_irq_domain(struct platform_device *mc_pdev,
 	struct irq_domain *irq_domain;
 	struct device_node *mc_of_node = mc_pdev->dev.of_node;
 
-	its_of_node = of_parse_phandle(mc_of_node, "lpi-parent", 0);
+	its_of_node = of_parse_phandle(mc_of_node, "msi-parent", 0);
 	if (!its_of_node) {
 		dev_err(&mc_pdev->dev,
-			"lpi-parent phandle missing for %s\n",
+			"msi-parent phandle missing for %s\n",
 			mc_of_node->full_name);
 		return -ENOENT;
 	}
