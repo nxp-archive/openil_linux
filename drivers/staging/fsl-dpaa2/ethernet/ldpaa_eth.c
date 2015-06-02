@@ -345,7 +345,6 @@ static int ldpaa_eth_store_consume(struct ldpaa_eth_fq *fq)
 				 */
 				continue;
 			}
-			fq->has_frames = false;
 			/* TODO add a ethtool counter for empty dequeues */
 			break;
 		}
@@ -766,12 +765,13 @@ static int ldpaa_eth_poll(struct napi_struct *napi, int budget)
 			break;
 	} while (1);
 
-	if (cleaned < budget)
+	if (cleaned < budget) {
 		napi_complete(napi);
-
-	err = dpaa_io_service_rearm(NULL, &fq->nctx);
-	if (unlikely(err))
-		netdev_err(fq->netdev_priv->net_dev, "Rx notif rearm failed\n");
+		err = dpaa_io_service_rearm(NULL, &fq->nctx);
+		if (unlikely(err))
+			netdev_err(fq->netdev_priv->net_dev,
+				   "Notif rearm failed for FQ %d\n", fq->fqid);
+	}
 
 	return cleaned;
 }
@@ -1151,7 +1151,6 @@ static void ldpaa_eth_fqdan_cb(struct dpaa_io_notification_ctx *ctx)
 		WARN_ONCE(1, "Unknown FQ type: %d!", fq->type);
 	}
 
-	fq->has_frames = true;
 	napi_schedule(&fq->napi);
 }
 
