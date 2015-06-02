@@ -280,30 +280,36 @@ static const struct ldpaa_hash_fields {
 	u64 rxnfc_field;
 	enum net_prot cls_prot;
 	int cls_field;
+	int size;
 } ldpaa_hash_fields[] = {
 	{
 		/* L2 header */
 		.rxnfc_field = RXH_L2DA,
 		.cls_prot = NET_PROT_ETH,
 		.cls_field = NH_FLD_ETH_DA,
+		.size = 6,
 	}, {
 		/* VLAN header */
 		.rxnfc_field = RXH_VLAN,
 		.cls_prot = NET_PROT_VLAN,
 		.cls_field = NH_FLD_VLAN_TCI,
+		.size = 2,
 	}, {
 		/* IP header */
 		.rxnfc_field = RXH_IP_SRC,
 		.cls_prot = NET_PROT_IP,
 		.cls_field = NH_FLD_IP_SRC,
+		.size = 4,
 	}, {
 		.rxnfc_field = RXH_IP_DST,
 		.cls_prot = NET_PROT_IP,
 		.cls_field = NH_FLD_IP_DST,
+		.size = 4,
 	}, {
 		.rxnfc_field = RXH_L3_PROTO,
 		.cls_prot = NET_PROT_IP,
 		.cls_field = NH_FLD_IP_PROTO,
+		.size = 1,
 	}, {
 		/* Using UDP ports, this is functionally equivalent to raw
 		 * byte pairs from L4 header.
@@ -311,12 +317,75 @@ static const struct ldpaa_hash_fields {
 		.rxnfc_field = RXH_L4_B_0_1,
 		.cls_prot = NET_PROT_UDP,
 		.cls_field = NH_FLD_UDP_PORT_SRC,
+		.size = 2,
 	}, {
 		.rxnfc_field = RXH_L4_B_2_3,
 		.cls_prot = NET_PROT_UDP,
 		.cls_field = NH_FLD_UDP_PORT_DST,
+		.size = 2,
 	},
 };
+
+static int ldpaa_cls_is_enabled(struct net_device *net_dev, u64 flag)
+{
+	struct ldpaa_eth_priv *priv = netdev_priv(net_dev);
+
+	return !!(priv->rx_hash_fields & flag);
+}
+
+static int ldpaa_cls_key_off(struct net_device *net_dev, u64 flag)
+{
+	int i, off = 0;
+
+	for (i = 0; i < ARRAY_SIZE(ldpaa_hash_fields); i++) {
+		if (ldpaa_hash_fields[i].rxnfc_field & flag)
+			return off;
+		if (ldpaa_cls_is_enabled(net_dev,
+					 ldpaa_hash_fields[i].rxnfc_field))
+			off += ldpaa_hash_fields[i].size;
+	}
+
+	return -1;
+}
+
+static int ldpaa_cls_key_size(struct net_device *net_dev)
+{
+	int i, size = 0;
+
+	for (i = 0; i < ARRAY_SIZE(ldpaa_hash_fields); i++) {
+		if (!ldpaa_cls_is_enabled(net_dev,
+					  ldpaa_hash_fields[i].rxnfc_field))
+			continue;
+		size += ldpaa_hash_fields[i].size;
+	}
+
+	return size;
+}
+
+static int ldpaa_cls_max_key_size(struct net_device *net_dev)
+{
+	int i, size = 0;
+
+	for (i = 0; i < ARRAY_SIZE(ldpaa_hash_fields); i++)
+		size += ldpaa_hash_fields[i].size;
+
+	return size;
+}
+
+void ldpaa_cls_check(struct net_device *net_dev)
+{
+	int key_size = ldpaa_cls_max_key_size(net_dev);
+	struct ldpaa_eth_priv *priv = netdev_priv(net_dev);
+
+	if (priv->dpni_attrs.options & DPNI_OPT_DIST_FS &&
+	    priv->dpni_attrs.max_dist_key_size < key_size) {
+		dev_err(&net_dev->dev,
+			"max_dist_key_size = %d, expected %d.  Steering is disabled\n",
+			priv->dpni_attrs.max_dist_key_size,
+			key_size);
+		priv->dpni_attrs.options &= ~DPNI_OPT_DIST_FS;
+	}
+}
 
 int ldpaa_set_hash(struct net_device *net_dev, u64 flags)
 {
@@ -330,12 +399,8 @@ int ldpaa_set_hash(struct net_device *net_dev, u64 flags)
 
 	if (!ldpaa_eth_hash_enabled(priv)) {
 		netdev_err(net_dev, "Hashing support is not enabled\n");
-		return -ENOTSUPP;
-	}
-
-	if (!(priv->dpni_attrs.options & DPNI_OPT_DIST_HASH))
-		/* dev doesn't support hashing */
 		return -EOPNOTSUPP;
+	}
 
 	if (flags & ~LDPAA_RXH_SUPPORTED) {
 		/* RXH_DISCARD is not supported */
@@ -391,9 +456,13 @@ int ldpaa_set_hash(struct net_device *net_dev, u64 flags)
 		return -ENOMEM;
 	}
 
-	/* TODO: should be # of device queues */
-	dist_cfg.dist_size = (uint8_t)(num_possible_cpus() - 1);
-	dist_cfg.dist_mode = DPNI_DIST_MODE_HASH;
+	dist_cfg.dist_size = ldpaa_queue_count(priv) - 1;
+	if (ldpaa_eth_fs_enabled(priv)) {
+		dist_cfg.dist_mode = DPNI_DIST_MODE_FS;
+		dist_cfg.fs_cfg.miss_action = DPNI_FS_MISS_HASH;
+	} else {
+		dist_cfg.dist_mode = DPNI_DIST_MODE_HASH;
+	}
 
 	err = dpni_set_rx_tc_dist(priv->mc_io, priv->mc_token, 0, &dist_cfg);
 	dma_unmap_single(net_dev->dev.parent, dist_cfg.key_cfg_iova,
@@ -409,6 +478,281 @@ int ldpaa_set_hash(struct net_device *net_dev, u64 flags)
 	return 0;
 }
 
+static int ldpaa_cls_prep_rule(struct net_device *net_dev,
+			       struct ethtool_rx_flow_spec *fs,
+			       void *key)
+{
+	struct ethtool_tcpip4_spec *l4ip4_h, *l4ip4_m;
+	struct ethhdr *eth_h, *eth_m;
+	struct ethtool_flow_ext *ext_h, *ext_m;
+	const int key_size = ldpaa_cls_key_size(net_dev);
+	void *msk = key + key_size;
+
+	memset(key, 0, key_size * 2);
+
+
+	/* This code is a major mess, it has to be cleaned up after the
+	 * classification mask issue is fixed and key format will be made static
+	 */
+
+	switch (fs->flow_type & 0xff) {
+	case TCP_V4_FLOW:
+		l4ip4_h = &fs->h_u.tcp_ip4_spec;
+		l4ip4_m = &fs->m_u.tcp_ip4_spec;
+		/* TODO: ethertype to match IPv4 and protocol to match TCP */
+		goto l4ip4;
+
+	case UDP_V4_FLOW:
+		l4ip4_h = &fs->h_u.udp_ip4_spec;
+		l4ip4_m = &fs->m_u.udp_ip4_spec;
+		goto l4ip4;
+
+	case SCTP_V4_FLOW:
+		l4ip4_h = &fs->h_u.sctp_ip4_spec;
+		l4ip4_m = &fs->m_u.sctp_ip4_spec;
+
+l4ip4:
+		if (l4ip4_m->tos) {
+			netdev_err(net_dev,
+				   "ToS is not supported for IPv4 L4\n");
+			return -EOPNOTSUPP;
+		}
+		if (l4ip4_m->ip4src &&
+		    !ldpaa_cls_is_enabled(net_dev, RXH_IP_SRC)) {
+			netdev_err(net_dev, "IP SRC not supported!\n");
+			return -EOPNOTSUPP;
+		}
+		if (l4ip4_m->ip4dst &&
+		    !ldpaa_cls_is_enabled(net_dev, RXH_IP_DST)) {
+			netdev_err(net_dev, "IP DST not supported!\n");
+			return -EOPNOTSUPP;
+		}
+		if (l4ip4_m->psrc &&
+		    !ldpaa_cls_is_enabled(net_dev, RXH_L4_B_0_1)) {
+			netdev_err(net_dev, "PSRC not supported, ignored\n");
+			return -EOPNOTSUPP;
+		}
+		if (l4ip4_m->pdst &&
+		    !ldpaa_cls_is_enabled(net_dev, RXH_L4_B_2_3)) {
+			netdev_err(net_dev, "PDST not supported, ignored\n");
+			return -EOPNOTSUPP;
+		}
+
+		if (ldpaa_cls_is_enabled(net_dev, RXH_IP_SRC)) {
+			*(u32 *)(key + ldpaa_cls_key_off(net_dev, RXH_IP_SRC))
+				= l4ip4_h->ip4src;
+			*(u32 *)(msk + ldpaa_cls_key_off(net_dev, RXH_IP_SRC))
+				= l4ip4_m->ip4src;
+		}
+		if (ldpaa_cls_is_enabled(net_dev, RXH_IP_DST)) {
+			*(u32 *)(key + ldpaa_cls_key_off(net_dev, RXH_IP_DST))
+				= l4ip4_h->ip4dst;
+			*(u32 *)(msk + ldpaa_cls_key_off(net_dev, RXH_IP_DST))
+				= l4ip4_m->ip4dst;
+		}
+
+		if (ldpaa_cls_is_enabled(net_dev, RXH_L4_B_0_1)) {
+			*(u32 *)(key + ldpaa_cls_key_off(net_dev, RXH_L4_B_0_1))
+				= l4ip4_h->psrc;
+			*(u32 *)(msk + ldpaa_cls_key_off(net_dev, RXH_L4_B_0_1))
+				= l4ip4_m->psrc;
+		}
+
+		if (ldpaa_cls_is_enabled(net_dev, RXH_L4_B_2_3)) {
+			*(u32 *)(key + ldpaa_cls_key_off(net_dev, RXH_L4_B_2_3))
+				= l4ip4_h->pdst;
+			*(u32 *)(msk + ldpaa_cls_key_off(net_dev, RXH_L4_B_2_3))
+				= l4ip4_m->pdst;
+		}
+		break;
+
+	case ETHER_FLOW:
+		eth_h = &fs->h_u.ether_spec;
+		eth_m = &fs->m_u.ether_spec;
+
+		if (eth_m->h_proto) {
+			netdev_err(net_dev, "Ethertype is not supported!\n");
+			return -EOPNOTSUPP;
+		}
+
+		if (!is_zero_ether_addr(eth_m->h_source)) {
+			netdev_err(net_dev, "ETH SRC is not supported!\n");
+			return -EOPNOTSUPP;
+		}
+
+		if (ldpaa_cls_is_enabled(net_dev, RXH_L2DA)) {
+			ether_addr_copy(key
+					+ ldpaa_cls_key_off(net_dev, RXH_L2DA),
+					eth_h->h_dest);
+			ether_addr_copy(msk
+					+ ldpaa_cls_key_off(net_dev, RXH_L2DA),
+					eth_m->h_dest);
+		} else {
+			if (!is_zero_ether_addr(eth_m->h_dest)) {
+				netdev_err(net_dev,
+					   "ETH DST is not supported!\n");
+				return -EOPNOTSUPP;
+			}
+		}
+		break;
+
+	default:
+		/* TODO: IP user flow, AH, ESP */
+		return -EOPNOTSUPP;
+	}
+
+	if (fs->flow_type & FLOW_EXT) {
+		/* TODO: ETH data, VLAN ethertype, VLAN TCI .. */
+		return -EOPNOTSUPP;
+	}
+
+	if (fs->flow_type & FLOW_MAC_EXT) {
+		ext_h = &fs->h_ext;
+		ext_m = &fs->m_ext;
+
+		if (ldpaa_cls_is_enabled(net_dev, RXH_L2DA)) {
+			ether_addr_copy(key
+					+ ldpaa_cls_key_off(net_dev, RXH_L2DA),
+					ext_h->h_dest);
+			ether_addr_copy(msk
+					+ ldpaa_cls_key_off(net_dev, RXH_L2DA),
+					ext_m->h_dest);
+		} else {
+			if (!is_zero_ether_addr(ext_m->h_dest)) {
+				netdev_err(net_dev,
+					   "ETH DST is not supported!\n");
+				return -EOPNOTSUPP;
+			}
+		}
+	}
+	return 0;
+}
+
+static int ldpaa_do_cls(struct net_device *net_dev,
+			struct ethtool_rx_flow_spec *fs,
+			bool add)
+{
+	struct ldpaa_eth_priv *priv = netdev_priv(net_dev);
+	const int rule_cnt = LDPAA_CLASSIFIER_ENTRY_COUNT;
+	struct dpni_rule_cfg rule_cfg;
+	void *dma_mem;
+	int err = 0;
+
+	if (!ldpaa_eth_fs_enabled(priv)) {
+		netdev_err(net_dev, "dev does not support steering!\n");
+		/* dev doesn't support steering */
+		return -EOPNOTSUPP;
+	}
+
+	if ((fs->ring_cookie != RX_CLS_FLOW_DISC
+	    && fs->ring_cookie >= ldpaa_queue_count(priv))
+	    || fs->location >= rule_cnt)
+		return -EINVAL;
+
+	memset(&rule_cfg, 0, sizeof(rule_cfg));
+	rule_cfg.key_size = ldpaa_cls_key_size(net_dev);
+
+	/* allocate twice the key size, for the actual key and for mask */
+	dma_mem =  kzalloc(rule_cfg.key_size * 2, GFP_DMA | GFP_KERNEL);
+	if (!dma_mem)
+		return -ENOMEM;
+
+	err = ldpaa_cls_prep_rule(net_dev, fs, dma_mem);
+	if (err)
+		goto err_free_mem;
+
+	rule_cfg.key_iova = dma_map_single(net_dev->dev.parent, dma_mem,
+					   rule_cfg.key_size * 2,
+					   DMA_TO_DEVICE);
+
+	rule_cfg.mask_iova = rule_cfg.key_iova + rule_cfg.key_size;
+
+	if (!(priv->dpni_attrs.options & DPNI_OPT_FS_MASK_SUPPORT)) {
+		int i;
+		u8 *mask = dma_mem + rule_cfg.key_size;
+
+		/* check that nothing is masked out, otherwise it won't work */
+		for (i = 0; i < rule_cfg.key_size; i++) {
+			if (mask[i] == 0xff)
+				continue;
+			netdev_err(net_dev, "dev does not support masking!\n");
+			err = -EOPNOTSUPP;
+			goto err_free_mem;
+		}
+		rule_cfg.mask_iova = 0;
+	}
+
+	/* TODO: no way to control rule order in firmware! */
+	if (add)
+		err = dpni_add_fs_entry(priv->mc_io, priv->mc_token, 0,
+					&rule_cfg, (u16)fs->ring_cookie);
+	else
+		err = dpni_remove_fs_entry(priv->mc_io, priv->mc_token, 0,
+					   &rule_cfg);
+
+	dma_unmap_single(net_dev->dev.parent, rule_cfg.mask_iova,
+			 rule_cfg.key_size * 2, DMA_TO_DEVICE);
+	if (err) {
+		netdev_err(net_dev, "ldpaa_add_cls() error %d\n", err);
+		goto err_free_mem;
+	}
+
+	priv->cls_rule[fs->location].fs = *fs;
+	priv->cls_rule[fs->location].in_use = 1;
+
+err_free_mem:
+	kfree(dma_mem);
+
+	return err;
+
+}
+
+static int ldpaa_add_cls(struct net_device *net_dev,
+			 struct ethtool_rx_flow_spec *fs)
+{
+	struct ldpaa_eth_priv *priv = netdev_priv(net_dev);
+	int err;
+
+	err = ldpaa_do_cls(net_dev, fs, true);
+	if (err)
+		return err;
+
+	priv->cls_rule[fs->location].in_use = true;
+	priv->cls_rule[fs->location].fs = *fs;
+
+	return 0;
+}
+
+static int ldpaa_del_cls(struct net_device *net_dev, int location)
+{
+	struct ldpaa_eth_priv *priv = netdev_priv(net_dev);
+	int err;
+
+	err = ldpaa_do_cls(net_dev, &priv->cls_rule[location].fs, false);
+	if (err)
+		return err;
+
+	priv->cls_rule[location].in_use = false;
+
+	return 0;
+}
+
+static void ldpaa_clear_cls(struct net_device *net_dev)
+{
+	struct ldpaa_eth_priv *priv = netdev_priv(net_dev);
+	int i, err;
+
+	for (i = 0; i < LDPAA_CLASSIFIER_ENTRY_COUNT; i++) {
+		if (!priv->cls_rule[i].in_use)
+			continue;
+
+		err = ldpaa_del_cls(net_dev, i);
+		if (err)
+			netdev_warn(net_dev,
+				    "err trying to delete classification entry %d\n",
+				    i);
+	}
+}
 
 static int ldpaa_set_rxnfc(struct net_device *net_dev,
 			   struct ethtool_rxnfc *rxnfc)
@@ -417,12 +761,24 @@ static int ldpaa_set_rxnfc(struct net_device *net_dev,
 
 	switch (rxnfc->cmd) {
 	case ETHTOOL_SRXFH:
+		/* first off clear ALL classification rules, chaging key
+		 * composition will break them anyway
+		 */
+		ldpaa_clear_cls(net_dev);
 		/* we purposely ignore cmd->flow_type for now, because the
 		 * classifier only supports a single set of fields for all
 		 * protocols
 		 */
 		err = ldpaa_set_hash(net_dev, rxnfc->data);
 		break;
+	case ETHTOOL_SRXCLSRLINS:
+		err = ldpaa_add_cls(net_dev, &rxnfc->fs);
+		break;
+
+	case ETHTOOL_SRXCLSRLDEL:
+		err = ldpaa_del_cls(net_dev, rxnfc->fs.location);
+		break;
+
 	default:
 		err = -EOPNOTSUPP;
 	}
@@ -434,6 +790,8 @@ static int ldpaa_get_rxnfc(struct net_device *net_dev,
 			   struct ethtool_rxnfc *rxnfc, u32 *rule_locs)
 {
 	struct ldpaa_eth_priv *priv = netdev_priv(net_dev);
+	const int rule_cnt = LDPAA_CLASSIFIER_ENTRY_COUNT;
+	int i, j;
 
 	switch (rxnfc->cmd) {
 	case ETHTOOL_GRXFH:
@@ -443,6 +801,37 @@ static int ldpaa_get_rxnfc(struct net_device *net_dev,
 		 */
 		rxnfc->data = priv->rx_hash_fields;
 		break;
+
+	case ETHTOOL_GRXRINGS:
+		rxnfc->data = ldpaa_queue_count(priv);
+		break;
+
+	case ETHTOOL_GRXCLSRLCNT:
+		for (i = 0, rxnfc->rule_cnt = 0; i < rule_cnt; i++)
+			if (priv->cls_rule[i].in_use)
+				rxnfc->rule_cnt++;
+		rxnfc->data = rule_cnt;
+		break;
+
+	case ETHTOOL_GRXCLSRULE:
+		if (!priv->cls_rule[rxnfc->fs.location].in_use)
+			return -EINVAL;
+
+		rxnfc->fs = priv->cls_rule[rxnfc->fs.location].fs;
+		break;
+
+	case ETHTOOL_GRXCLSRLALL:
+		for (i = 0, j = 0; i < rule_cnt; i++) {
+			if (!priv->cls_rule[i].in_use)
+				continue;
+			if (j == rxnfc->rule_cnt)
+				return -EMSGSIZE;
+			rule_locs[j++] = i;
+		}
+		rxnfc->rule_cnt = j;
+		rxnfc->data = rule_cnt;
+		break;
+
 	default:
 		return -EOPNOTSUPP;
 	}

@@ -203,7 +203,8 @@ struct ldpaa_eth_ring {
 };
 
 /* Maximum number of Rx queues associated with a DPNI */
-#define LDPAA_ETH_MAX_RX_QUEUES		NR_CPUS
+/* TODO: Use dynamic allocation based on max dist size reported by MC */
+#define LDPAA_ETH_MAX_RX_QUEUES		16
 #define LDPAA_ETH_MAX_TX_QUEUES		NR_CPUS
 #define LDPAA_ETH_MAX_RX_ERR_QUEUES	1
 #define LDPAA_ETH_MAX_QUEUES	(LDPAA_ETH_MAX_RX_QUEUES + \
@@ -233,6 +234,11 @@ struct ldpaa_eth_fq {
 	void (*consume)(struct ldpaa_eth_priv *, const struct dpaa_fd *);
 	struct ldpaa_eth_priv *netdev_priv;	/* backpointer */
 	struct ldpaa_eth_fq_stats stats;
+};
+
+struct ldpaa_cls_rule {
+	struct ethtool_rx_flow_spec fs;
+	bool in_use;
 };
 
 struct ldpaa_eth_priv {
@@ -269,7 +275,6 @@ struct ldpaa_eth_priv {
 	uint32_t msg_enable;	/* net_device message level */
 
 	uint16_t mc_token;
-	uint8_t num_rx_flows;
 
 	struct dpni_link_state link_state;
 	struct task_struct *poll_thread;
@@ -280,6 +285,9 @@ struct ldpaa_eth_priv {
 #ifdef CONFIG_FSL_DPAA2_ETH_DEBUGFS
 	struct ldpaa_debugfs dbg;
 #endif
+
+	/* array of classification rules */
+	struct ldpaa_cls_rule *cls_rule;
 };
 
 /* default Rx hash options, set during probing */
@@ -290,11 +298,27 @@ struct ldpaa_eth_priv {
 #define ldpaa_eth_hash_enabled(priv)	\
 	((priv)->dpni_attrs.options & DPNI_OPT_DIST_HASH)
 
+#define ldpaa_eth_fs_enabled(priv)	\
+	((priv)->dpni_attrs.options & DPNI_OPT_DIST_FS)
+
+/*TODO: this should be taken from DPNI attributes */
+#define LDPAA_CLASSIFIER_ENTRY_COUNT 16
+
 extern const struct ethtool_ops ldpaa_ethtool_ops;
 
 /* Set RX hash options
  * flags is a combination of RXH_ bits
  */
 int ldpaa_set_hash(struct net_device *net_dev, u64 flags);
+
+static inline int ldpaa_queue_count(struct ldpaa_eth_priv *priv)
+{
+	/* TODO: fix for multiple TCs */
+	if (ldpaa_eth_hash_enabled(priv))
+		return priv->dpni_attrs.max_dist_per_tc[0] + 1;
+	return 1;
+}
+
+void ldpaa_cls_check(struct net_device *);
 
 #endif	/* __LDPAA_H */

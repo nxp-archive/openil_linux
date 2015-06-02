@@ -1194,9 +1194,7 @@ static void ldpaa_eth_setup_fqs(struct ldpaa_eth_priv *priv)
 	 * TODO: We still only have one traffic class for now,
 	 * but for multiple TCs may need an array of dist sizes.
 	 */
-	priv->num_rx_flows = ldpaa_eth_hash_enabled(priv) ?
-			(uint8_t)roundup_pow_of_two(num_possible_cpus()) : 1;
-	for (i = 0; i < priv->num_rx_flows; i++) {
+	for (i = 0; i < ldpaa_queue_count(priv); i++) {
 		priv->fq[priv->num_fqs].netdev_priv = priv;
 		priv->fq[priv->num_fqs].type = LDPAA_RX_FQ;
 		priv->fq[priv->num_fqs].consume = ldpaa_eth_rx;
@@ -1225,7 +1223,6 @@ static int __cold __ldpaa_dpio_setup(struct ldpaa_eth_priv *priv,
 	 */
 	rx_cpu = cpumask_first(cpu_online_mask);
 	txconf_cpu = cpumask_first(&priv->txconf_cpumask);
-
 	for (i = 0; i < priv->num_fqs; i++) {
 		nctx = &priv->fq[i].nctx;
 		nctx->is_cdan = 0;
@@ -1596,6 +1593,12 @@ static int __cold ldpaa_dpni_setup(struct fsl_mc_device *ls_dev)
 	/* Accommodate SWA space. */
 	priv->tx_data_offset += LDPAA_ETH_SWA_SIZE;
 
+	/* allocate classification rule space */
+	priv->cls_rule = kzalloc(sizeof(struct ldpaa_cls_rule)
+				 * LDPAA_CLASSIFIER_ENTRY_COUNT, GFP_KERNEL);
+	if (!priv->cls_rule)
+		return -ENOMEM;
+
 	return 0;
 
 err_data_offset:
@@ -1739,6 +1742,8 @@ static int ldpaa_dpni_bind(struct ldpaa_eth_priv *priv)
 		dev_err(dev, "dpni_set_pools() failed\n");
 		return err;
 	}
+
+	ldpaa_cls_check(net_dev);
 
 	/* have the interface implicitly distribute traffic based on supported
 	 * header fields
@@ -2339,6 +2344,7 @@ err_alloc_bp_count:
 	ldpaa_dpio_free(priv);
 err_dpio_setup:
 	ldpaa_eth_napi_del(priv);
+	kfree(priv->cls_rule);
 	dpni_close(priv->mc_io, priv->mc_token);
 err_dpni_setup:
 #ifndef CONFIG_FSL_DPAA2_ETH_LINK_POLL
@@ -2388,6 +2394,9 @@ ldpaa_eth_remove(struct fsl_mc_device *ls_dev)
 #else
 	fsl_mc_free_irqs(ls_dev);
 #endif
+
+	kfree(priv->cls_rule);
+
 	dev_set_drvdata(dev, NULL);
 	free_netdev(net_dev);
 
