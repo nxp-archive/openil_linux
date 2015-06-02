@@ -57,6 +57,14 @@ static uint8_t debug = -1;
 module_param(debug, byte, S_IRUGO);
 MODULE_PARM_DESC(debug, "Module/Driver verbosity level");
 
+/* Iterate through the cpumask in a round-robin fashion. */
+#define cpumask_rr(cpu, maskptr) \
+do { \
+	(cpu) = cpumask_next((cpu), (maskptr)); \
+	if ((cpu) >= nr_cpu_ids) \
+		(cpu) = cpumask_first((maskptr)); \
+} while (0)
+
 static int ldpaa_dpbp_refill(struct ldpaa_eth_priv *priv, uint16_t bpid);
 static int ldpaa_dpbp_seed(struct ldpaa_eth_priv *priv, uint16_t bpid);
 static void __cold __ldpaa_dpbp_free(struct ldpaa_eth_priv *priv);
@@ -1199,22 +1207,48 @@ static void ldpaa_eth_setup_fqs(struct ldpaa_eth_priv *priv)
 #endif
 }
 
-static int __cold ldpaa_dpio_setup(struct ldpaa_eth_priv *priv)
+static int __cold __ldpaa_dpio_setup(struct ldpaa_eth_priv *priv,
+				     bool setup_rx_fqs,
+				     bool setup_txconf_fqs)
 {
 	struct dpaa_io_notification_ctx *nctx;
 	int err, i, j;
-	int cpu;
+	int rx_cpu, txconf_cpu;
 
 	/* For each FQ, pick one CPU to deliver FQDANs to.
 	 * This may well change at runtime, either through irqbalance or
 	 * through direct user intervention.
 	 */
-	cpu = cpumask_first(cpu_online_mask);
+	rx_cpu = cpumask_first(cpu_online_mask);
+	txconf_cpu = cpumask_first(&priv->txconf_cpumask);
+
 	for (i = 0; i < priv->num_fqs; i++) {
 		nctx = &priv->fq[i].nctx;
 		nctx->is_cdan = 0;
-		nctx->desired_cpu = cpu;
 		nctx->cb = ldpaa_eth_fqdan_cb;
+
+		switch (priv->fq[i].type) {
+		case LDPAA_RX_FQ:
+		case LDPAA_RX_ERR_FQ:
+			if (!setup_rx_fqs)
+				/* Skip dpaa_io_service_register() */
+				continue;
+			nctx->desired_cpu = rx_cpu;
+			cpumask_rr(rx_cpu, cpu_online_mask);
+			break;
+		case LDPAA_TX_CONF_FQ:
+			if (!setup_txconf_fqs)
+				/* Skip dpaa_io_service_register() */
+				continue;
+			nctx->desired_cpu = txconf_cpu;
+			cpumask_rr(txconf_cpu, &priv->txconf_cpumask);
+			break;
+		default:
+			netdev_err(priv->net_dev, "Unknown FQ type: %d\n",
+				   priv->fq[i].type);
+			return -EINVAL;
+		}
+
 		/* Register the new context */
 		err = dpaa_io_service_register(NULL, nctx);
 		if (unlikely(err)) {
@@ -1223,16 +1257,23 @@ static int __cold ldpaa_dpio_setup(struct ldpaa_eth_priv *priv)
 			nctx->cb = NULL;
 			goto err_service_reg;
 		}
-
-		cpu = cpumask_next(cpu, cpu_online_mask);
-		if (cpu >= nr_cpu_ids)
-			cpu = cpumask_first(cpu_online_mask);
 	}
 
 	return 0;
 
 err_service_reg:
 	for (j = 0; j < i; j++) {
+		switch (priv->fq[j].type) {
+		case LDPAA_RX_FQ:
+		case LDPAA_RX_ERR_FQ:
+			if (!setup_rx_fqs)
+				continue;
+			break;
+		case LDPAA_TX_CONF_FQ:
+			if (!setup_txconf_fqs)
+				continue;
+			break;
+		}
 		nctx = &priv->fq[j].nctx;
 		dpaa_io_service_deregister(NULL, nctx);
 	}
@@ -1240,13 +1281,32 @@ err_service_reg:
 	return err;
 }
 
-static void __cold ldpaa_dpio_free(struct ldpaa_eth_priv *priv)
+static int __cold ldpaa_dpio_setup(struct ldpaa_eth_priv *priv)
+{
+	return __ldpaa_dpio_setup(priv, true, true);
+}
+
+
+static void __cold __ldpaa_dpio_free(struct ldpaa_eth_priv *priv,
+				     bool free_rx_fqs,
+				     bool free_txconf_fqs)
 {
 	int i;
+	struct ldpaa_eth_fq *fq;
 
 	/* deregister FQDAN notifications */
-	for (i = 0; i < priv->num_fqs; i++)
-		dpaa_io_service_deregister(NULL, &priv->fq[i].nctx);
+	for (i = 0; i < priv->num_fqs; i++) {
+		fq = &priv->fq[i];
+		if ((free_rx_fqs &&
+		    (fq->type == LDPAA_RX_FQ || fq->type == LDPAA_RX_ERR_FQ)) ||
+		    (free_txconf_fqs && fq->type == LDPAA_TX_CONF_FQ))
+			dpaa_io_service_deregister(NULL, &fq->nctx);
+	}
+}
+
+static void __cold ldpaa_dpio_free(struct ldpaa_eth_priv *priv)
+{
+	__ldpaa_dpio_free(priv, true, true);
 }
 
 static void ldpaa_dpbp_drain_cnt(struct ldpaa_eth_priv *priv, int count)
@@ -1979,6 +2039,124 @@ static void ldpaa_eth_napi_del(struct ldpaa_eth_priv *priv)
 	}
 }
 
+/* SysFS support */
+
+static ssize_t ldpaa_eth_show_txconf_cpumask(struct device *dev,
+					     struct device_attribute *attr,
+					     char *buf)
+{
+	struct ldpaa_eth_priv *priv = netdev_priv(to_net_dev(dev));
+
+	return cpumap_print_to_pagebuf(1, buf, &priv->txconf_cpumask);
+}
+
+static ssize_t ldpaa_eth_write_txconf_cpumask(struct device *dev,
+					      struct device_attribute *attr,
+					      const char *buf,
+					      size_t count)
+{
+	int i, err;
+	struct dpni_queue_cfg queue_cfg;
+	struct dpni_tx_flow_cfg tx_flow_cfg;
+	struct dpni_tx_flow_attr tx_flow_attr;
+	struct ldpaa_eth_priv *priv = netdev_priv(to_net_dev(dev));
+
+	err = cpulist_parse(buf, &priv->txconf_cpumask);
+	if (unlikely(err))
+		return err;
+
+	/* Rewiring the TxConf FQs requires interface shutdown.
+	 * FIXME hold device lock
+	 */
+	err = ldpaa_eth_stop(priv->net_dev);
+	if (unlikely(err))
+		/* FIXME skip this is ni is already down */
+		return -ENODEV;
+
+	/* Get a new DPIO for the TxConf FQs */
+	__ldpaa_dpio_free(priv, false, true);
+	__ldpaa_dpio_setup(priv, false, true);
+
+#ifdef CONFIG_FSL_DPAA2_ETH_LINK_POLL
+	/* ldpaa_eth_open() below will *stop* the Tx queues until an explicit
+	 * link up notification is received. Give the polling thread enough time
+	 * to detect the link state change, or else we'll end up with the
+	 * transmission side forever shut down.
+	 */
+	msleep(2 * LDPAA_ETH_LINK_STATE_REFRESH);
+#endif
+
+	for (i = 0; i < priv->num_fqs; i++) {
+		if (priv->fq[i].type != LDPAA_TX_CONF_FQ)
+			continue;
+
+		memset(&tx_flow_cfg, 0, sizeof(tx_flow_cfg));
+		tx_flow_cfg.options = DPNI_TX_FLOW_OPT_QUEUE;
+		queue_cfg.options = DPNI_QUEUE_OPT_DEST;
+		queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPIO;
+		queue_cfg.dest_cfg.dest_id = priv->fq[i].nctx.dpio_id;
+		queue_cfg.dest_cfg.priority = 2;
+		tx_flow_cfg.conf_err_cfg.queue_cfg = queue_cfg;
+		err = dpni_set_tx_flow(priv->mc_io, priv->mc_token,
+				       &priv->fq[i].flowid, &tx_flow_cfg);
+		if (unlikely(err)) {
+			netdev_err(priv->net_dev,
+				   "dpni_set_tx_flow() failed\n");
+			return -EPERM;
+		}
+
+		err = dpni_get_tx_flow(priv->mc_io, priv->mc_token,
+				       priv->fq[i].flowid, &tx_flow_attr);
+		if (unlikely(err)) {
+			netdev_err(priv->net_dev,
+				   "dpni_get_tx_flow() failed\n");
+			return -EPERM;
+		}
+		priv->fq[i].fqid = tx_flow_attr.conf_err_attr.queue_attr.fqid;
+		/* TODO factor out priv->fq[i] */
+		priv->fq[i].nctx.id = priv->fq[i].fqid;
+	}
+
+	err = ldpaa_eth_open(priv->net_dev);
+	if (unlikely(err))
+		return -ENODEV;
+
+	return count;
+}
+
+static struct device_attribute ldpaa_eth_attrs[] = {
+	__ATTR(txconf_cpumask,
+	       S_IRUSR | S_IWUSR,
+	       ldpaa_eth_show_txconf_cpumask,
+	       ldpaa_eth_write_txconf_cpumask),
+};
+
+void ldpaa_eth_sysfs_init(struct device *dev)
+{
+	int i, err;
+
+	for (i = 0; i < ARRAY_SIZE(ldpaa_eth_attrs); i++) {
+		err = device_create_file(dev, &ldpaa_eth_attrs[i]);
+		if (unlikely(err)) {
+			dev_err(dev, "ERROR creating sysfs file\n");
+			goto undo;
+		}
+	}
+	return;
+
+undo:
+	while (i > 0)
+		device_remove_file(dev, &ldpaa_eth_attrs[--i]);
+}
+
+void ldpaa_eth_sysfs_remove(struct device *dev)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(ldpaa_eth_attrs); i++)
+		device_remove_file(dev, &ldpaa_eth_attrs[i]);
+}
+
 static int __cold
 ldpaa_eth_probe(struct fsl_mc_device *dpni_dev)
 {
@@ -2026,6 +2204,7 @@ ldpaa_eth_probe(struct fsl_mc_device *dpni_dev)
 		goto err_dpni_setup;
 
 	/* FQs and NAPI */
+	cpumask_copy(&priv->txconf_cpumask, cpu_online_mask);
 	ldpaa_eth_setup_fqs(priv);
 	ldpaa_eth_napi_add(priv);
 
@@ -2117,6 +2296,8 @@ ldpaa_eth_probe(struct fsl_mc_device *dpni_dev)
 	}
 #endif
 
+	ldpaa_eth_sysfs_init(&net_dev->dev);
+
 	dev_info(dev, "ldpaa ethernet: Probed interface %s\n", net_dev->name);
 	return 0;
 
@@ -2165,6 +2346,7 @@ ldpaa_eth_remove(struct fsl_mc_device *ls_dev)
 	net_dev = dev_get_drvdata(dev);
 	priv = netdev_priv(net_dev);
 
+	ldpaa_eth_sysfs_remove(&net_dev->dev);
 	unregister_netdev(net_dev);
 
 	ldpaa_dpio_free(priv);

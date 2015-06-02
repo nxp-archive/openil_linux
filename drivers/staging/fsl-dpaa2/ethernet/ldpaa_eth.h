@@ -255,6 +255,8 @@ struct ldpaa_eth_priv {
 	uint16_t tx_qdid;
 	struct fsl_mc_io *mc_io;
 	struct dentry *debugfs_file;
+	/* SysFS-controlled affinity mask for TxConf FQs */
+	struct cpumask txconf_cpumask;
 
 	/* Standard statistics */
 	struct rtnl_link_stats64 __percpu *percpu_stats;
