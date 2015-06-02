@@ -282,19 +282,17 @@ static const struct ldpaa_hash_fields {
 	int cls_field;
 } ldpaa_hash_fields[] = {
 	{
+		/* L2 header */
 		.rxnfc_field = RXH_L2DA,
 		.cls_prot = NET_PROT_ETH,
 		.cls_field = NH_FLD_ETH_DA,
 	}, {
+		/* VLAN header */
 		.rxnfc_field = RXH_VLAN,
 		.cls_prot = NET_PROT_VLAN,
 		.cls_field = NH_FLD_VLAN_TCI,
 	}, {
-		.rxnfc_field = RXH_L3_PROTO,
-		.cls_prot = NET_PROT_IP,
-		.cls_field = NH_FLD_IP_PROTO,
-	}, {
-		/* following fields apply both to IPv4 and IPv6 */
+		/* IP header */
 		.rxnfc_field = RXH_IP_SRC,
 		.cls_prot = NET_PROT_IP,
 		.cls_field = NH_FLD_IP_SRC,
@@ -302,6 +300,10 @@ static const struct ldpaa_hash_fields {
 		.rxnfc_field = RXH_IP_DST,
 		.cls_prot = NET_PROT_IP,
 		.cls_field = NH_FLD_IP_DST,
+	}, {
+		.rxnfc_field = RXH_L3_PROTO,
+		.cls_prot = NET_PROT_IP,
+		.cls_field = NH_FLD_IP_PROTO,
 	}, {
 		/* Using UDP ports, this is functionally equivalent to raw
 		 * byte pairs from L4 header.
@@ -331,6 +333,10 @@ int ldpaa_set_hash(struct net_device *net_dev, u64 flags)
 		return -ENOTSUPP;
 	}
 
+	if (!(priv->dpni_attrs.options & DPNI_OPT_DIST_HASH))
+		/* dev doesn't support hashing */
+		return -EOPNOTSUPP;
+
 	if (flags & ~LDPAA_RXH_SUPPORTED) {
 		/* RXH_DISCARD is not supported */
 		netdev_err(net_dev,
@@ -341,26 +347,27 @@ int ldpaa_set_hash(struct net_device *net_dev, u64 flags)
 	memset(&cls_cfg, 0, sizeof(cls_cfg));
 
 	for (i = 0; i < ARRAY_SIZE(ldpaa_hash_fields); i++) {
-		if (flags & ldpaa_hash_fields[i].rxnfc_field) {
-			struct dpkg_extract *key =
-				&cls_cfg.extracts[cls_cfg.num_extracts];
+		struct dpkg_extract *key =
+			&cls_cfg.extracts[cls_cfg.num_extracts];
 
-			if (cls_cfg.num_extracts >= DPKG_MAX_NUM_OF_EXTRACTS) {
-				netdev_err(net_dev,
-					"error adding key extraction rule, too many rules?\n");
-				return -E2BIG;
-			}
+		if (!(flags & ldpaa_hash_fields[i].rxnfc_field))
+			continue;
 
-			key->type = DPKG_EXTRACT_FROM_HDR;
-			key->extract.from_hdr.prot =
-				ldpaa_hash_fields[i].cls_prot;
-			key->extract.from_hdr.type = DPKG_FULL_FIELD;
-			key->extract.from_hdr.field =
-				ldpaa_hash_fields[i].cls_field;
-			cls_cfg.num_extracts++;
-
-			enabled_flags |= ldpaa_hash_fields[i].rxnfc_field;
+		if (cls_cfg.num_extracts >= DPKG_MAX_NUM_OF_EXTRACTS) {
+			netdev_err(net_dev,
+				"error adding key extraction rule, too many rules?\n");
+			return -E2BIG;
 		}
+
+		key->type = DPKG_EXTRACT_FROM_HDR;
+		key->extract.from_hdr.prot =
+			ldpaa_hash_fields[i].cls_prot;
+		key->extract.from_hdr.type = DPKG_FULL_FIELD;
+		key->extract.from_hdr.field =
+			ldpaa_hash_fields[i].cls_field;
+		cls_cfg.num_extracts++;
+
+		enabled_flags |= ldpaa_hash_fields[i].rxnfc_field;
 	}
 
 	dma_mem =  kzalloc(LDPAA_CLASSIFIER_DMA_SIZE, GFP_DMA | GFP_KERNEL);
