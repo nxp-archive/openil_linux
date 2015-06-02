@@ -43,7 +43,7 @@
 #include "ldpaa_eth_trace.h"
 
 /* TODO : how many queues here? NR_CPUS? */
-#define LDPAA_ETH_TX_QUEUES		1
+#define LDPAA_ETH_TX_QUEUES		8	/* FIXME */
 #define LDPAA_ETH_STORE_SIZE		16
 /* NAPI weights *must* be a multiple of 16, i.e. the store size. */
 #define LDPAA_ETH_RX_NAPI_WEIGHT	64

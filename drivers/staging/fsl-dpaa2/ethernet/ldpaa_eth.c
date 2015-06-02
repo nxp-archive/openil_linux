@@ -534,6 +534,7 @@ static int ldpaa_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	struct rtnl_link_stats64 *percpu_stats;
 	struct ldpaa_eth_stats *percpu_extras;
 	int err, i;
+	int queue_mapping = skb_get_queue_mapping(skb);
 
 	percpu_stats = this_cpu_ptr(priv->percpu_stats);
 	percpu_extras = this_cpu_ptr(priv->percpu_extras);
@@ -584,7 +585,7 @@ static int ldpaa_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 
 	for (i = 0; i < (LDPAA_ETH_TX_QUEUES << 1); i++) {
 		err = dpaa_io_service_enqueue_qd(NULL, priv->tx_qdid, 0,
-						 priv->fq[0].flowid,
+						 priv->fq[queue_mapping].flowid,
 						 &fd);
 		if (err != -EBUSY)
 			break;
@@ -1135,6 +1136,17 @@ static int ldpaa_eth_set_features(struct net_device *net_dev,
 	return 0;
 }
 
+static inline u16 ldpaa_eth_select_queue(struct net_device *dev,
+					 struct sk_buff *skb,
+					 void *accel_priv,
+					 select_queue_fallback_t fallback)
+{
+	if (likely(!preemptible()))
+		return smp_processor_id();
+
+	return skb_get_hash(skb) % dev->real_num_tx_queues;
+}
+
 static const struct net_device_ops ldpaa_eth_ops = {
 	.ndo_open = ldpaa_eth_open,
 	.ndo_start_xmit = ldpaa_eth_tx,
@@ -1145,6 +1157,7 @@ static const struct net_device_ops ldpaa_eth_ops = {
 	.ndo_change_mtu = ldpaa_eth_change_mtu,
 	.ndo_set_rx_mode = ldpaa_eth_set_rx_mode,
 	.ndo_set_features = ldpaa_eth_set_features,
+	.ndo_select_queue = ldpaa_eth_select_queue,
 };
 
 static void ldpaa_eth_fqdan_cb(struct dpaa_io_notification_ctx *ctx)
