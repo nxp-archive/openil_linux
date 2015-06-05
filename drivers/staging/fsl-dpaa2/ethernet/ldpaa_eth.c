@@ -794,6 +794,8 @@ static int ldpaa_eth_poll(struct napi_struct *napi, int budget)
 				   "Notif rearm failed for FQ %d\n", fq->fqid);
 	}
 
+	fq->stats.frames += cleaned;
+
 	return cleaned;
 }
 
@@ -2310,6 +2312,10 @@ ldpaa_eth_probe(struct fsl_mc_device *dpni_dev)
 
 	ldpaa_eth_sysfs_init(&net_dev->dev);
 
+#ifdef CONFIG_FSL_DPAA2_ETH_DEBUGFS
+	ldpaa_dbg_add(priv);
+#endif
+
 	dev_info(dev, "ldpaa ethernet: Probed interface %s\n", net_dev->name);
 	return 0;
 
@@ -2362,6 +2368,9 @@ ldpaa_eth_remove(struct fsl_mc_device *ls_dev)
 	unregister_netdev(net_dev);
 	dev_info(net_dev->dev.parent, "Removed interface %s\n", net_dev->name);
 
+#ifdef CONFIG_FSL_DPAA2_ETH_DEBUGFS
+	ldpaa_dbg_remove(priv);
+#endif
 	ldpaa_dpio_free(priv);
 	ldpaa_eth_free_rings(priv);
 	ldpaa_eth_napi_del(priv);

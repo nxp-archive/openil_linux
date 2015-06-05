@@ -40,6 +40,10 @@
 #include "dpni.h"
 #include "dpni-cmd.h"
 
+#ifdef CONFIG_FSL_DPAA2_ETH_DEBUGFS
+#include "ldpaa_eth_debugfs.h"
+#endif
+
 #include "ldpaa_eth_trace.h"
 
 /* TODO : how many queues here? NR_CPUS? */
@@ -190,6 +194,8 @@ struct ldpaa_eth_fq_stats {
 	__u64	dequeue_portal_busy;
 	/* Number of FQDANs from queues; useful to estimate avg NAPI len */
 	__u64	fqdan;
+	/* Number of frames received on this queue */
+	__u64 frames;
 };
 
 struct ldpaa_eth_ring {
@@ -270,6 +276,10 @@ struct ldpaa_eth_priv {
 
 	/* enabled ethtool hashing bits */
 	u64 rx_hash_fields;
+
+#ifdef CONFIG_FSL_DPAA2_ETH_DEBUGFS
+	struct ldpaa_debugfs dbg;
+#endif
 };
 
 /* default Rx hash options, set during probing */

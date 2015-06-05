@@ -8,6 +8,7 @@
 
 ccflags-y += -DVERSION=\"\"
 
+obj-$(CONFIG_FSL_DPAA2_ETH_DEBUGFS) += ldpaa_eth_debugfs.o
 obj-$(CONFIG_FSL_DPAA2_ETH) += fsl-ldpaa-eth.o
 
 fsl-ldpaa-eth-objs    := ldpaa_eth.o ldpaa_ethtool.o dpni.o
