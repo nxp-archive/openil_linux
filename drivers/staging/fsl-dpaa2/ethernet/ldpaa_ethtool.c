@@ -66,6 +66,7 @@ char ldpaa_ethtool_extras[][ETH_GSTRING_LEN] = {
 
 	/* How many times we had to retry the volatile dequeue command */
 	"rx portal busy",
+	"tx conf portal_busy",
 	"rx fqdan",
 	"tx conf fqdan",
 #ifdef CONFIG_FSL_QBMAN_DEBUG
@@ -194,6 +195,8 @@ static void ldpaa_get_ethtool_stats(struct net_device *net_dev,
 	uint32_t bcnt_rx_total = 0, bcnt_tx_total = 0;
 	uint32_t buf_cnt;
 #endif
+	uint64_t txconf_fqdan = 0, rx_fqdan = 0;
+	uint64_t rx_portal_busy = 0, txconf_portal_busy = 0;
 	struct ldpaa_eth_priv *priv = netdev_priv(net_dev);
 	struct ldpaa_eth_stats *extras;
 	struct ldpaa_eth_fq_stats *fq_stats;
@@ -220,10 +223,26 @@ static void ldpaa_get_ethtool_stats(struct net_device *net_dev,
 
 	for (j = 0; j < priv->num_fqs; j++) {
 		fq_stats = &priv->fq[j].stats;
-		for (k = 0; k < sizeof(*fq_stats) / sizeof(__u64); k++)
-			*((__u64 *)data + i + k) += *((__u64 *)fq_stats + k);
+
+		switch (priv->fq[j].type) {
+		case LDPAA_TX_CONF_FQ:
+			txconf_fqdan += fq_stats->fqdan;
+			txconf_portal_busy += fq_stats->dequeue_portal_busy;
+			break;
+		case LDPAA_RX_FQ:
+			rx_fqdan += fq_stats->fqdan;
+			rx_portal_busy += fq_stats->dequeue_portal_busy;
+			break;
+		default:
+			break;
+		}
 	}
-	i += k;
+
+	*(data + i++) = rx_portal_busy;
+	*(data + i++) = txconf_portal_busy;
+	*(data + i++) = rx_fqdan;
+	*(data + i++) = txconf_fqdan;
+
 
 #ifdef CONFIG_FSL_QBMAN_DEBUG
 	for (j = 0; j < priv->num_fqs; j++) {

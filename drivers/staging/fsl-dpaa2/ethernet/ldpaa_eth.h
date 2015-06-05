@@ -187,11 +187,9 @@ struct ldpaa_eth_stats {
 /* Per-FQ statistics */
 struct ldpaa_eth_fq_stats {
 	/* Volatile dequeues retried due to portal busy */
-	__u64	rx_portal_busy;
-	/* Number of FQDANs from Rx queues; useful to estimate avg NAPI len */
-	__u64	rx_fqdan;
-	/* Number of FQDANs from Tx Conf queues */
-	__u64	tx_conf_fqdan;
+	__u64	dequeue_portal_busy;
+	/* Number of FQDANs from queues; useful to estimate avg NAPI len */
+	__u64	fqdan;
 };
 
 struct ldpaa_eth_ring {

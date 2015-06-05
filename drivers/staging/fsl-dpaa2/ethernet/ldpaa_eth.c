@@ -752,7 +752,7 @@ static inline int __ldpaa_eth_pull_fq(struct ldpaa_eth_fq *fq)
 	if (unlikely(err))
 		netdev_err(priv->net_dev, "dpaa_io_service_pull err %d", err);
 
-	fq->stats.rx_portal_busy += dequeues;
+	fq->stats.dequeue_portal_busy += dequeues;
 	return err;
 }
 
@@ -1167,21 +1167,7 @@ static void ldpaa_eth_fqdan_cb(struct dpaa_io_notification_ctx *ctx)
 	struct ldpaa_eth_fq *fq = container_of(ctx, struct ldpaa_eth_fq, nctx);
 
 	/* Update NAPI statistics */
-	switch (fq->type) {
-	case LDPAA_RX_FQ:
-		fq->stats.rx_fqdan++;
-		break;
-	case LDPAA_TX_CONF_FQ:
-		fq->stats.tx_conf_fqdan++;
-		break;
-#ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
-	case LDPAA_RX_ERR_FQ:
-		/* For now, we don't collect FQDAN stats on the error queue */
-		break;
-#endif
-	default:
-		WARN_ONCE(1, "Unknown FQ type: %d!", fq->type);
-	}
+	fq->stats.fqdan++;
 
 	napi_schedule(&fq->napi);
 }
