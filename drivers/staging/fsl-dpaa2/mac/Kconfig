@@ -1,7 +1,6 @@
 config FSL_DPAA2_MAC
 	tristate "DPAA2 MAC / PHY interface"
-	depends on FSL_MC_BUS && FSL_DPAA2
-	select FSL_DPAA2_FIXED_PHY_HACK
+	depends on FSL_MC_BUS && FSL_DPAA2 && FIXED_PHY
 	---help---
 	Prototype driver for DPAA2 MAC / PHY interface object.
 	This driver works as a proxy between phylib including phy drivers and
