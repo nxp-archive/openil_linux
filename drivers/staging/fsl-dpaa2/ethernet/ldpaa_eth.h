@@ -47,7 +47,7 @@
 #define LDPAA_ETH_STORE_SIZE		16
 /* NAPI weights *must* be a multiple of 16, i.e. the store size. */
 #define LDPAA_ETH_RX_NAPI_WEIGHT	64
-#define LDPAA_ETH_TX_CONF_NAPI_WEIGHT   256
+#define LDPAA_ETH_TX_CONF_NAPI_WEIGHT   64
 
 /* TODO: Sort of arbitrary values for bpools, but we'll need to tune.
  * Supply enough buffers to reassembly several fragmented datagrams. Making it a
