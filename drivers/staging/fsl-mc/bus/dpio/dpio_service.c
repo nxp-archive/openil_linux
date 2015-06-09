@@ -477,12 +477,14 @@ int dpaa_io_service_deregister(struct dpaa_io *service,
 			       struct dpaa_io_notification_ctx *ctx)
 {
 	struct dpaa_io *d = ctx->dpio_private;
+	unsigned long irqflags;
 
 	if (!service)
 		service = &def_serv;
 	BUG_ON((service != d) && (service != d->object.service));
-	/* TBD: lock! */
+	spin_lock_irqsave(&d->object.lock_notifications, irqflags);
 	list_del(&ctx->node);
+	spin_unlock_irqrestore(&d->object.lock_notifications, irqflags);
 	return 0;
 }
 EXPORT_SYMBOL(dpaa_io_service_deregister);
