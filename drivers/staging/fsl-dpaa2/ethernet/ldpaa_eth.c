@@ -776,7 +776,7 @@ static int ldpaa_eth_poll(struct napi_struct *napi, int budget)
 		cleaned += store_cleaned;
 
 		if (store_cleaned < LDPAA_ETH_STORE_SIZE ||
-		    cleaned >= budget - LDPAA_ETH_STORE_SIZE)
+		    cleaned > budget - LDPAA_ETH_STORE_SIZE)
 			break;
 
 		/* Try to dequeue some more */
