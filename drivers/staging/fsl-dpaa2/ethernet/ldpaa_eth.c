@@ -1253,10 +1253,20 @@ static int __cold __ldpaa_dpio_setup(struct ldpaa_eth_priv *priv,
 		/* Register the new context */
 		err = dpaa_io_service_register(NULL, nctx);
 		if (unlikely(err)) {
-			netdev_err(priv->net_dev,
-				   "Rx notifications register failed\n");
-			nctx->cb = NULL;
-			goto err_service_reg;
+			dev_info_once(priv->net_dev->dev.parent,
+				     "Could not get (some) affine DPIO(s), probably there are not enough of them in the DPL\n");
+			/* Try to get *any* portal, not necessarily affine to
+			 * the requested cpu. This might be the case if there
+			 * are fewer DPIO objects in the container than CPUs.
+			 */
+			nctx->desired_cpu = -1;
+			err = dpaa_io_service_register(NULL, nctx);
+			if (unlikely(err)) {
+				dev_err(priv->net_dev->dev.parent,
+					"Could not get any DPIO!\n");
+				nctx->cb = NULL;
+				goto err_service_reg;
+			}
 		}
 	}
 
