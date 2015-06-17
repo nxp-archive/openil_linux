@@ -41,6 +41,7 @@ extern unsigned long arm_return_addr(int level);
 
 #include <linux/jump_label.h>
 #include <linux/ipipe_trace.h>
+#include <linux/ipipe_debug.h>
 
 #define IPIPE_CORE_RELEASE	12
 
@@ -231,7 +232,16 @@ static inline void ipipe_handle_multi_irq(int irq, struct pt_regs *regs)
 
 static inline unsigned long __ipipe_ffnz(unsigned long ul)
 {
-	return __builtin_ffsl(ul) - 1;
+	int __r;
+
+	/* zero input is not valid */
+	IPIPE_WARN(ul == 0);
+
+	__asm__ ("rbit\t%0, %1\n"
+	         "clz\t%0, %0\n"
+	        : "=r" (__r) : "r"(ul) : "cc");
+
+	return __r;
 }
 
 #define __ipipe_syscall_watched_p(p, sc)				\
