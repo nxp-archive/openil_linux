@@ -639,7 +639,7 @@ static inline void _dpa_assign_wq(struct dpa_fq *fq)
 
 #else
 #define dpa_get_queue_mapping(skb) \
-	smp_processor_id()
+	raw_smp_processor_id()
 #endif
 #else
 /* Use the queue selected by XPS */
