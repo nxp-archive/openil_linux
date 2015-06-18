@@ -249,9 +249,6 @@ static void ldpaa_eth_rx(struct ldpaa_eth_priv *priv,
 	/* Tracing point */
 	trace_ldpaa_rx_fd(priv->net_dev, fd);
 
-	/* Refill pool if appropriate */
-	ldpaa_dpbp_refill(priv, priv->dpbp_attrs.bpid);
-
 	dma_unmap_single(dev, addr, LDPAA_ETH_RX_BUFFER_SIZE, DMA_FROM_DEVICE);
 	vaddr = phys_to_virt(addr);
 
@@ -763,13 +760,18 @@ static int ldpaa_eth_poll(struct napi_struct *napi, int budget)
 {
 	struct ldpaa_eth_fq *fq;
 	int cleaned = 0, store_cleaned;
+	struct ldpaa_eth_priv *priv;
 	int err;
 
 	fq = container_of(napi, struct ldpaa_eth_fq, napi);
+	priv = fq->netdev_priv;
 	/* TODO Must prioritize TxConf over Rx NAPIs */
 	__ldpaa_eth_pull_fq(fq);
 
 	do {
+		/* Refill pool if appropriate */
+		ldpaa_dpbp_refill(priv, priv->dpbp_attrs.bpid);
+
 		store_cleaned = ldpaa_eth_store_consume(fq);
 		cleaned += store_cleaned;
 
