@@ -50,6 +50,10 @@
 #include <../drivers/staging/fsl-mc/include/mc.h>
 #endif
 
+#ifdef CONFIG_PCI_LAYERSCAPE
+#include <../drivers/pci/host/pci-layerscape.h>
+#endif
+
 #include <asm/pgalloc.h>
 
 /* Maximum number of stream IDs assigned to a single device */
@@ -1377,10 +1381,16 @@ static int arm_smmu_add_pci_device(struct pci_dev *pdev)
 	u16 sid;
 	struct iommu_group *group;
 	struct arm_smmu_master_cfg *cfg;
+#ifdef CONFIG_PCI_LAYERSCAPE
+       u32 streamid;
+#endif
 
 	group = iommu_group_get_for_dev(&pdev->dev);
 	if (IS_ERR(group))
 		return PTR_ERR(group);
+
+	if (pci_is_bridge(pdev))
+		goto out_put_group;
 
 	cfg = iommu_group_get_iommudata(group);
 	if (!cfg) {
@@ -1411,6 +1421,16 @@ static int arm_smmu_add_pci_device(struct pci_dev *pdev)
 	/* Avoid duplicate SIDs, as this can lead to SMR conflicts */
 	if (i == cfg->num_streamids)
 		cfg->streamids[cfg->num_streamids++] = sid;
+
+#ifdef CONFIG_PCI_LAYERSCAPE
+	streamid = set_pcie_streamid_translation(pdev, sid);
+	if (~streamid == 0) {
+		ret = -ENODEV;
+		goto out_put_group;
+	}
+	cfg->streamids[0] = streamid;
+	cfg->mask = 0x7c00;
+#endif
 
 	return 0;
 out_put_group:
@@ -1583,8 +1603,8 @@ static void arm_fsl_mc_smmu_remove_device(struct device *dev)
 
 static struct iommu_ops arm_fsl_mc_smmu_ops = {
 	.capable		= arm_smmu_capable,
-	.domain_init		= arm_smmu_domain_init,
-	.domain_destroy		= arm_smmu_domain_destroy,
+	.domain_alloc		= arm_smmu_domain_alloc,
+	.domain_free		= arm_smmu_domain_free,
 	.attach_dev		= arm_smmu_attach_dev,
 	.detach_dev		= arm_smmu_detach_dev,
 	.map			= arm_smmu_map,
