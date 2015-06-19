@@ -252,6 +252,9 @@ static void ldpaa_eth_rx(struct ldpaa_eth_priv *priv,
 	dma_unmap_single(dev, addr, LDPAA_ETH_RX_BUFFER_SIZE, DMA_FROM_DEVICE);
 	vaddr = phys_to_virt(addr);
 
+	prefetch(vaddr + priv->buf_layout.private_data_size);
+	prefetch(vaddr + ldpaa_fd_get_offset(fd));
+
 	percpu_stats = this_cpu_ptr(priv->percpu_stats);
 	percpu_extras = this_cpu_ptr(priv->percpu_extras);
 
@@ -275,7 +278,7 @@ static void ldpaa_eth_rx(struct ldpaa_eth_priv *priv,
 		goto err_build_skb;
 	}
 
-	skb->protocol = eth_type_trans(skb, priv->net_dev);
+	prefetch(skb->data);
 
 	/* Check if we need to validate the L4 csum */
 	if (likely(fd->simple.frc & LDPAA_FD_FRC_FASV)) {
@@ -284,6 +287,8 @@ static void ldpaa_eth_rx(struct ldpaa_eth_priv *priv,
 		status = le32_to_cpu(fas->status);
 		ldpaa_eth_rx_csum(priv, status, skb);
 	}
+
+	skb->protocol = eth_type_trans(skb, priv->net_dev);
 
 	if (unlikely(netif_rx(skb) == NET_RX_DROP))
 		/* Nothing to do here, the stack updates the dropped counter */
