@@ -1368,7 +1368,7 @@ static int ldpaa_bp_add_7(struct ldpaa_eth_priv *priv, uint16_t bpid)
 		/* Allocate buffer visible to WRIOP + skb shared info +
 		 * alignment padding
 		 */
-		buf = netdev_alloc_frag(LDPAA_ETH_BUF_RAW_SIZE);
+		buf = napi_alloc_frag(LDPAA_ETH_BUF_RAW_SIZE);
 		if (unlikely(!buf)) {
 			dev_err(dev, "buffer allocation failed\n");
 			goto err_alloc;
