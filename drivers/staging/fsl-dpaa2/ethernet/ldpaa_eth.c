@@ -290,12 +290,10 @@ static void ldpaa_eth_rx(struct ldpaa_eth_priv *priv,
 
 	skb->protocol = eth_type_trans(skb, priv->net_dev);
 
-	if (unlikely(netif_rx(skb) == NET_RX_DROP))
-		/* Nothing to do here, the stack updates the dropped counter */
-		return;
-
 	percpu_stats->rx_packets++;
 	percpu_stats->rx_bytes += skb->len;
+
+	netif_receive_skb(skb);
 	return;
 
 err_build_skb:
