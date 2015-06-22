@@ -90,6 +90,7 @@ enum qbman_sdqcr_fc {
 	qbman_sdqcr_fc_one = 0,
 	qbman_sdqcr_fc_up_to_3 = 1
 };
+struct qb_attr_code code_sdqcr_dqsrc = QB_CODE(0, 0, 16);
 
 /*********************************/
 /* Portal constructor/destructor */
@@ -142,7 +143,11 @@ struct qbman_swp *qbman_swp_init(const struct qbman_swp_desc *d)
 		pr_err("qbman_swp_sys_init() failed %d\n", ret);
 		return NULL;
 	}
-	qbman_cinh_write(&p->sys, QBMAN_CINH_SWP_SDQCR, p->sdq);
+	/* SDQCR needs to be initialized to 0 when no channels are
+	   being dequeued from or else the QMan HW will indicate an
+	   error.  The values that were calculated above will be
+	   applied when dequeues from a specific channel are enabled */
+	qbman_cinh_write(&p->sys, QBMAN_CINH_SWP_SDQCR, 0);
 	return p;
 }
 
@@ -447,11 +452,18 @@ void qbman_swp_push_get(struct qbman_swp *s, uint8_t channel_idx, int *enabled)
 
 void qbman_swp_push_set(struct qbman_swp *s, uint8_t channel_idx, int enable)
 {
+	uint16_t dqsrc;
 	struct qb_attr_code code = CODE_SDQCR_DQSRC(channel_idx);
 
 	BUG_ON(channel_idx > 15);
 	qb_attr_code_encode(&code, &s->sdq, !!enable);
-	qbman_cinh_write(&s->sys, QBMAN_CINH_SWP_SDQCR, s->sdq);
+	/* Read make the complete src map.  If no channels are enabled
+	   the SDQCR must be 0 or else QMan will assert errors */
+	dqsrc = qb_attr_code_decode(&code_sdqcr_dqsrc, &s->sdq);
+	if (dqsrc != 0)
+		qbman_cinh_write(&s->sys, QBMAN_CINH_SWP_SDQCR, s->sdq);
+	else
+		qbman_cinh_write(&s->sys, QBMAN_CINH_SWP_SDQCR, 0);
 }
 
 /***************************/
