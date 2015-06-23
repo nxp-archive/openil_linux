@@ -179,7 +179,7 @@ static int do_test(struct dce_test_ctx *ctx,
 	nop_req = kmalloc(sizeof(*nop_req), GFP_KERNEL);
 	if (!nop_req) {
 		ret = -ENOMEM;
-		goto fail_deflate_nop;
+		goto fail_nop;
 	}
 
 	init_completion(&nop_req->cb_done);
@@ -188,7 +188,7 @@ static int do_test(struct dce_test_ctx *ctx,
 	ret = fsl_dce_chunk_nop(&ctx->deflate_chunk, 0, nop_req);
 	if (ret) {
 		BUG();
-		goto fail_deflate_nop;
+		goto fail_nop;
 	}
 	pr_info("Sent NOP on deflate path\n");
 
@@ -199,7 +199,7 @@ static int do_test(struct dce_test_ctx *ctx,
 	ret = fsl_dce_chunk_nop(&ctx->inflate_chunk, 0, nop_req);
 	if (ret) {
 		BUG();
-		goto fail_inflate_nop;
+		goto fail_nop;
 	}
 	pr_info("Sent NOP on inflate path\n");
 
@@ -212,14 +212,16 @@ static int do_test(struct dce_test_ctx *ctx,
 	def_process_req = kzalloc(sizeof(*def_process_req), GFP_KERNEL);
 	if (!def_process_req) {
 		BUG();
-		goto fail_inflate_params;
+		ret = -ENOMEM;
+		goto fail_nop;
 	}
 	pr_info("Allocated def_process_req\n");
 
 	def_process_req->v_output = vmalloc(output_len);
-	if (!def_process_req) {
+	if (!def_process_req->v_output) {
 		BUG();
-		goto fail_v_output;
+		ret = -ENOMEM;
+		goto fail_deflate_v_output;
 	}
 
 	init_completion(&def_process_req->cb_done);
@@ -228,7 +230,7 @@ static int do_test(struct dce_test_ctx *ctx,
 		&def_process_req->input_data);
 	if (ret) {
 		BUG();
-		goto fail_alloc_dce_data_input;
+		goto fail_deflate_alloc_dce_data_input;
 	}
 
 	if (verbose_level == 1) {
@@ -240,7 +242,7 @@ static int do_test(struct dce_test_ctx *ctx,
 		&def_process_req->output_data);
 	if (ret) {
 		BUG();
-		goto fail_alloc_dce_data_output;
+		goto fail_deflate_alloc_dce_data_output;
 	}
 
 	if (verbose_level == 1) {
@@ -252,7 +254,7 @@ static int do_test(struct dce_test_ctx *ctx,
 					&def_process_req->input_data);
 	if (ret) {
 		BUG();
-		goto fail_alloc_dce_data_output;
+		goto fail_deflate_copy_input_to_dce_data;
 	}
 
 	if (verbose_level == 1) {
@@ -263,7 +265,7 @@ static int do_test(struct dce_test_ctx *ctx,
 	ret = dma_map_dce_data(&def_process_req->input_data, DMA_BIDIRECTIONAL);
 	if (ret) {
 		BUG();
-		goto fail_alloc_dce_data_output;
+		goto fail_deflate_dma_map_dce_data_input;
 	}
 
 	if (verbose_level == 1) {
@@ -275,7 +277,7 @@ static int do_test(struct dce_test_ctx *ctx,
 				DMA_BIDIRECTIONAL);
 	if (ret) {
 		BUG();
-		goto fail_dma_map_deflate_output_data;
+		goto fail_deflate_dma_map_dce_data_output;
 	}
 
 	if (verbose_level == 1) {
@@ -288,7 +290,7 @@ static int do_test(struct dce_test_ctx *ctx,
 			DMA_BIDIRECTIONAL);
 	if (ret) {
 		BUG();
-		goto fail_output_attach_data_to_sg_deflate;
+		goto fail_deflate_attach_data_list_to_sg_output;
 	}
 
 	ret = attach_data_list_to_sg(&def_process_req->dce_cf[1],
@@ -296,7 +298,7 @@ static int do_test(struct dce_test_ctx *ctx,
 			DMA_BIDIRECTIONAL);
 	if (ret) {
 		BUG();
-		goto fail_input_attach_data_to_sg_deflate;
+		goto fail_deflate_attach_data_list_to_sg_input;
 	}
 
 	def_process_req->dce_cf[2].final = 1;
@@ -304,7 +306,7 @@ static int do_test(struct dce_test_ctx *ctx,
 	def_process_req->input_fd._format2 = qm_fd_compound;
 	def_process_req->input_fd.cong_weight = 1;
 	qm_fd_addr_set64(&def_process_req->input_fd,
-		fsl_dce_map(def_process_req->dce_cf));
+	fsl_dce_map(def_process_req->dce_cf));
 
 	print_dce_fd(def_process_req->input_fd);
 	print_dce_sg(def_process_req->dce_cf[0]);
@@ -336,28 +338,28 @@ static int do_test(struct dce_test_ctx *ctx,
 			&def_process_req->input_data, DMA_BIDIRECTIONAL);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
-		goto fail_input_attach_data_to_sg_deflate;
+		goto fail_deflate_attach_data_list_to_sg_input;
 	}
 
 	ret = detach_data_list_from_sg(&def_process_req->dce_cf[0],
 			&def_process_req->output_data, DMA_BIDIRECTIONAL);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
-		goto fail_output_attach_data_to_sg_deflate;
+		goto fail_deflate_attach_data_list_to_sg_output;
 	}
 
 	ret = dma_unmap_dce_data(&def_process_req->output_data,
 				DMA_BIDIRECTIONAL);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
-		goto fail_dma_map_deflate_output_data;
+		goto fail_deflate_dma_map_dce_data_output;
 	}
 
 	ret = dma_unmap_dce_data(&def_process_req->input_data,
 				DMA_BIDIRECTIONAL);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
-		goto fail_alloc_dce_data_output;
+		goto fail_deflate_dma_map_dce_data_input;
 	}
 
 	pr_info("Got chunk process, status = %d, sg_table[0].length = %d\n",
@@ -376,8 +378,10 @@ static int do_test(struct dce_test_ctx *ctx,
 	def_process_req->v_output = vmalloc(def_process_req->dce_cf[0].length);
 	if (!def_process_req->v_output) {
 		pr_err("Error %d\n", __LINE__);
-		goto fail_alloc_dce_data_output;
+		ret = -ENOMEM;
+		goto fail_deflate_copy_input_to_dce_data;
 	}
+
 	def_process_req->v_output_size = def_process_req->dce_cf[0].length;
 
 	ret = copy_output_dce_data_to_buffer(&def_process_req->output_data,
@@ -386,7 +390,7 @@ static int do_test(struct dce_test_ctx *ctx,
 
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
+		goto fail_deflate_copy_input_to_dce_data;
 	}
 
 	/* Free dce data deflate operation, but keep vmalloc output */
@@ -398,14 +402,16 @@ static int do_test(struct dce_test_ctx *ctx,
 	inf_process_req = kzalloc(sizeof(*inf_process_req), GFP_KERNEL);
 	if (!inf_process_req) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
+		ret = -ENOMEM;
+		goto fail_inflate_params;
 	}
 	pr_info("Allocated inf_process_req\n");
 
 	inf_process_req->v_output = vmalloc(input_len);
-	if (!def_process_req) {
+	if (!inf_process_req->v_output) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
+		ret = -ENOMEM;
+		goto fail_inflate_v_output;
 	}
 
 	init_completion(&inf_process_req->cb_done);
@@ -415,7 +421,7 @@ static int do_test(struct dce_test_ctx *ctx,
 		&inf_process_req->input_data);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
+		goto fail_inflate_alloc_dce_data_input;
 	}
 
 	if (verbose_level == 1) {
@@ -427,7 +433,7 @@ static int do_test(struct dce_test_ctx *ctx,
 			&inf_process_req->output_data);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
+		goto fail_inflate_alloc_dce_data_output;
 	}
 
 	if (verbose_level == 1) {
@@ -439,7 +445,7 @@ static int do_test(struct dce_test_ctx *ctx,
 		def_process_req->v_output_size, &inf_process_req->input_data);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
+		goto fail_inflate_copy_input_to_dce_data;
 	}
 
 	if (verbose_level == 1) {
@@ -450,7 +456,7 @@ static int do_test(struct dce_test_ctx *ctx,
 	ret = dma_map_dce_data(&inf_process_req->input_data, DMA_BIDIRECTIONAL);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
+		goto fail_inflate_dma_map_dce_data_input;
 	}
 
 	if (verbose_level == 1) {
@@ -462,7 +468,7 @@ static int do_test(struct dce_test_ctx *ctx,
 				DMA_BIDIRECTIONAL);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
+		goto fail_inflate_dma_map_dce_data_output;
 	}
 
 	if (verbose_level == 1) {
@@ -474,21 +480,21 @@ static int do_test(struct dce_test_ctx *ctx,
 			&inf_process_req->output_data, true, DMA_BIDIRECTIONAL);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
+		goto fail_inflate_attach_data_list_to_sg_output;
 	}
 
 	ret = attach_data_list_to_sg(&inf_process_req->dce_cf[1],
 			&inf_process_req->input_data, false, DMA_BIDIRECTIONAL);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
+		goto fail_inflate_attach_data_list_to_sg_input;
 	}
 
 	inf_process_req->dce_cf[2].final = 1;
 
 	inf_process_req->input_fd._format2 = qm_fd_compound;
 	qm_fd_addr_set64(&inf_process_req->input_fd,
-		fsl_dce_map(inf_process_req->dce_cf));
+	fsl_dce_map(inf_process_req->dce_cf));
 
 	print_dce_fd(inf_process_req->input_fd);
 	print_dce_sg(inf_process_req->dce_cf[0]);
@@ -503,32 +509,32 @@ static int do_test(struct dce_test_ctx *ctx,
 	pr_info("Output FD\n");
 	print_dce_fd(inf_process_req->output_fd);
 
-	ret = dma_unmap_dce_data(&inf_process_req->input_data,
-				DMA_BIDIRECTIONAL);
+	ret = detach_data_list_from_sg(&inf_process_req->dce_cf[1],
+			&inf_process_req->input_data, DMA_BIDIRECTIONAL);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
-	}
-
-	ret = dma_unmap_dce_data(&inf_process_req->output_data,
-				DMA_BIDIRECTIONAL);
-	if (ret) {
-		pr_err("Error %d\n", __LINE__);
-		return ret;
+		goto fail_inflate_attach_data_list_to_sg_input;
 	}
 
 	ret = detach_data_list_from_sg(&inf_process_req->dce_cf[0],
 			&inf_process_req->output_data, DMA_BIDIRECTIONAL);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
+		goto fail_inflate_attach_data_list_to_sg_output;
 	}
 
-	ret = detach_data_list_from_sg(&inf_process_req->dce_cf[1],
-			&inf_process_req->input_data, DMA_BIDIRECTIONAL);
+	ret = dma_unmap_dce_data(&inf_process_req->output_data,
+				DMA_BIDIRECTIONAL);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
+		goto fail_inflate_dma_map_dce_data_output;
+	}
+
+	ret = dma_unmap_dce_data(&inf_process_req->input_data,
+				DMA_BIDIRECTIONAL);
+	if (ret) {
+		pr_err("Error %d\n", __LINE__);
+		goto fail_inflate_dma_map_dce_data_input;
 	}
 
 	pr_info("Got chunk process, status = 0x%x, sg_table[0].length = %d\n",
@@ -537,7 +543,8 @@ static int do_test(struct dce_test_ctx *ctx,
 
 	if (inf_process_req->dce_cf[0].length != input_len) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
+		ret = -EINVAL;
+		goto fail_inflate_copy_input_to_dce_data;
 	}
 
 	print_dce_sg(inf_process_req->dce_cf[0]);
@@ -546,7 +553,8 @@ static int do_test(struct dce_test_ctx *ctx,
 
 	if (!inf_process_req->v_output) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
+		ret = -ENOMEM;
+		goto fail_inflate_copy_input_to_dce_data;
 	}
 	inf_process_req->v_output_size = inf_process_req->dce_cf[0].length;
 
@@ -555,14 +563,15 @@ static int do_test(struct dce_test_ctx *ctx,
 		input_len);
 	if (ret) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
+		goto fail_inflate_copy_input_to_dce_data;
 	}
-	/* compare output to orinal data */
+	/* compare output to original data */
 	if (memcmp(inf_process_req->v_output, input_data, input_len)) {
 		pr_err("Error %d\n", __LINE__);
-		return ret;
+		ret = -EINVAL;
+		goto fail_inflate_copy_input_to_dce_data;
 	}
-	pr_info("Ouput inflate data matched original!\n");
+	pr_info("Output inflate data matched original!\n");
 
 	/* Free dce data deflate operation, but keep vmalloc output */
 	free_dce_data(&inf_process_req->output_data);
@@ -574,12 +583,13 @@ static int do_test(struct dce_test_ctx *ctx,
 	kfree(def_process_req);
 
 	ret = destroy_test_ctx(ctx);
-	if (ret)
+	if (ret) {
 		pr_err("Error with test\n");
-	else
-		pr_info("Done test loop\n");
+		return ret;
+	}
 
 	pr_info("Done test loop\n");
+
 	return 0;
 
 fail_deflate_process:
@@ -587,34 +597,69 @@ fail_deflate_process:
 		&def_process_req->input_data,
 		DMA_BIDIRECTIONAL);
 
-fail_input_attach_data_to_sg_deflate:
+fail_deflate_attach_data_list_to_sg_input:
 	detach_data_list_from_sg(&def_process_req->dce_cf[0],
 		&def_process_req->output_data,
 		DMA_BIDIRECTIONAL);
 
-fail_output_attach_data_to_sg_deflate:
+fail_deflate_attach_data_list_to_sg_output:
 	dma_unmap_dce_data(&def_process_req->output_data, DMA_BIDIRECTIONAL);
 
-fail_dma_map_deflate_output_data:
+fail_deflate_dma_map_dce_data_output:
 	dma_unmap_dce_data(&def_process_req->input_data, DMA_BIDIRECTIONAL);
 
-fail_alloc_dce_data_output:
+fail_deflate_dma_map_dce_data_input:
+fail_deflate_copy_input_to_dce_data:
+	free_dce_data(&def_process_req->output_data);
+
+fail_deflate_alloc_dce_data_output:
 	free_dce_data(&def_process_req->input_data);
 
-fail_alloc_dce_data_input:
+fail_deflate_alloc_dce_data_input:
 	vfree(def_process_req->v_output);
 
-fail_v_output:
+fail_deflate_v_output:
 	kfree(def_process_req);
 
-fail_inflate_params:
-	fsl_dce_chunk_destroy(&ctx->inflate_chunk, 0, NULL);
-
-fail_inflate_nop:
-fail_deflate_nop:
+fail_nop:
 	destroy_test_ctx(ctx);
 
 fail_init_test_ctx:
+	return ret;
+
+/* this section can't be added before deflate fail section
+as it would cause seg fault */
+fail_inflate_process:
+	detach_data_list_from_sg(&inf_process_req->dce_cf[1],
+		&inf_process_req->input_data,
+		DMA_BIDIRECTIONAL);
+
+fail_inflate_attach_data_list_to_sg_input:
+	detach_data_list_from_sg(&inf_process_req->dce_cf[0],
+		&inf_process_req->output_data,
+		DMA_BIDIRECTIONAL);
+
+fail_inflate_attach_data_list_to_sg_output:
+	dma_unmap_dce_data(&inf_process_req->output_data, DMA_BIDIRECTIONAL);
+
+fail_inflate_dma_map_dce_data_output:
+	dma_unmap_dce_data(&inf_process_req->input_data, DMA_BIDIRECTIONAL);
+
+fail_inflate_dma_map_dce_data_input:
+fail_inflate_copy_input_to_dce_data:
+	free_dce_data(&inf_process_req->output_data);
+
+fail_inflate_alloc_dce_data_output:
+	free_dce_data(&inf_process_req->input_data);
+
+fail_inflate_alloc_dce_data_input:
+	vfree(inf_process_req->v_output);
+
+fail_inflate_v_output:
+	kfree(inf_process_req);
+
+fail_inflate_params:
+	destroy_test_ctx(ctx);
 	return ret;
 }
 
