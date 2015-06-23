@@ -816,8 +816,10 @@ static int do_operation(void)
 		pr_err("fsl_dce_chunk_deflate_params failed %d\n", ret);
 
 	def_process_req = kzalloc(sizeof(*def_process_req), GFP_KERNEL);
-	if (!def_process_req)
+	if (!def_process_req) {
 		pr_err("Line %d\n", __LINE__);
+		return -ENOMEM;
+	}
 
 	init_completion(&def_process_req->cb_done);
 
@@ -951,8 +953,10 @@ done:
 	if (fsl_dce_get_status(def_process_req->output_fd.status) != STREAM_END)
 		goto skip_output_copy;
 	test_data->out_data = vmalloc(def_process_req->dce_cf[0].length);
-	if (!test_data->out_data)
+	if (!test_data->out_data) {
 		pr_err("Unable to allocate output data\n");
+		return -ENOMEM;
+	}
 	test_data->out_data_len = def_process_req->dce_cf[0].length;
 
 	if (!bman_output) {

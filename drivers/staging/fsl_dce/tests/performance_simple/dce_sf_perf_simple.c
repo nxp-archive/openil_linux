@@ -926,8 +926,10 @@ static int do_operation(void)
 
 	for (i = 0; i < chunk_count; i++) {
 		def_process_req = kzalloc(sizeof(*def_process_req), GFP_KERNEL);
-		if (!def_process_req)
+		if (!def_process_req) {
 			pr_err("Line %d\n", __LINE__);
+			return -ENOMEM;
+		}
 
 		def_process_req->extra_data_size = i;
 
@@ -1065,6 +1067,11 @@ try_again:
 		}
 		i++;
 	}
+
+	if (!def_process_req) {
+		pr_err("Line %d\n", __LINE__);
+		return -EINVAL;
+	}
 	/* wait for last request to be processed */
 	wait_for_completion(&def_process_req->cb_done);
 	end_time = mfatb();
@@ -1092,8 +1099,10 @@ done:
 	pr_info("Total output required %d\n", total_out);
 	test_data->out_data_len = total_out;
 	test_data->out_data = vmalloc(total_out);
-	if (!test_data->out_data)
+	if (!test_data->out_data) {
 		pr_err("vmalloc FAILED\n");
+		return -ENOMEM;
+	}
 	p_out = test_data->out_data;
 
 	/* copy output */
