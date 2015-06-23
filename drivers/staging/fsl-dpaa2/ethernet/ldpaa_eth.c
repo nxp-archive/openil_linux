@@ -2360,6 +2360,7 @@ ldpaa_eth_remove(struct fsl_mc_device *ls_dev)
 
 	ldpaa_eth_sysfs_remove(&net_dev->dev);
 	unregister_netdev(net_dev);
+	dev_info(net_dev->dev.parent, "Removed interface %s\n", net_dev->name);
 
 	ldpaa_dpio_free(priv);
 	ldpaa_eth_free_rings(priv);
