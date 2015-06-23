@@ -545,10 +545,8 @@ static int ldpaa_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	if (unlikely(skb_headroom(skb) < LDPAA_ETH_NEEDED_HEADROOM(priv))) {
 		struct sk_buff *ns;
 
-		/* FIXME remove debug message or add a ethtool counter */
-		netdev_warn(net_dev, "skb_realloc_headroom()!");
-
-		/* ...Empty line to appease checkpatch... */
+		dev_info_once(net_dev->dev.parent,
+			      "skb headroom too small, must realloc.\n");
 		ns = skb_realloc_headroom(skb, LDPAA_ETH_NEEDED_HEADROOM(priv));
 		if (unlikely(!ns)) {
 			percpu_stats->tx_dropped++;
