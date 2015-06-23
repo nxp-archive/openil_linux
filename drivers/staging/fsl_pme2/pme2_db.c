@@ -295,6 +295,7 @@ comp_frame_free_rx:
 	kfree(rx_data);
 	goto unmap_input_frame;
 single_frame_unmap_frame:
+	kfree(rx_data);
 unmap_input_frame:
 free_tx_data:
 	kfree(tx_data);

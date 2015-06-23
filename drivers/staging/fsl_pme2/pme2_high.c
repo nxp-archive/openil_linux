@@ -933,6 +933,7 @@ static inline void cb_helper(__always_unused struct qman_portal *portal,
 	if (error)
 		do_flags(ctx, 0, 0, PME_CTX_FLAG_DEAD, 0);
 	token = pop_matching_token(ctx, fd);
+	BUG_ON(!token);
 	if (likely(token->cmd_type == pme_cmd_scan)) {
 		ctx->cb(ctx, fd, token);
 	} else if (token->cmd_type == pme_cmd_pmtcc) {
@@ -1002,6 +1003,7 @@ static void cb_ern(__always_unused struct qman_portal *portal,
 	ctx = data->parent;
 
 	token = pop_matching_token(ctx, &mr->ern.fd);
+	BUG_ON(!token);
 	if (likely(token->cmd_type == pme_cmd_scan)) {
 		BUG_ON(!ctx->ern_cb);
 		ctx->ern_cb(ctx, mr, token);

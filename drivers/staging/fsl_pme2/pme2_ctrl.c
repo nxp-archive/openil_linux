@@ -136,6 +136,10 @@ static __init int parse_mem_property(struct device_node *node, const char *name,
 	} else if (zero) {
 		/* map as cacheable, non-guarded */
 		void *tmpp = ioremap_prot(*addr, *sz, 0);
+		if (!tmpp) {
+			pr_err("pme: Failed to remap\n");
+			return -EINVAL;
+		}
 		memset(tmpp, 0, *sz);
 		iounmap(tmpp);
 	}
