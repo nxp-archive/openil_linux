@@ -559,7 +559,6 @@ static int register_dprc_irq_handlers(struct fsl_mc_device *mc_dev)
 	struct fsl_mc_device_irq *irq;
 	unsigned int num_irq_handlers_registered = 0;
 	int irq_count = mc_dev->obj_desc.irq_count;
-	struct dprc_irq_cfg irq_cfg;
 
 	if (WARN_ON(irq_count != ARRAY_SIZE(irq_handlers)))
 		return -EINVAL;
@@ -567,20 +566,9 @@ static int register_dprc_irq_handlers(struct fsl_mc_device *mc_dev)
 	for (i = 0; i < ARRAY_SIZE(irq_handlers); i++) {
 		irq = mc_dev->irqs[i];
 
-		if (WARN_ON(irq->dev_irq_index != i)) {
-			error = -EINVAL;
-			goto error_unregister_irq_handlers;
-		}
-
 		/*
-		 * NOTE: Normally, devm_request_threaded_irq() programs the MSI
-		 * physically in the device (by invoking a device-specific
-		 * callback). However, for MC IRQs, we have to program the MSI
-		 * outside of this callback, because this callback is invoked
-		 * with interrupts disabled, and we don't have a reliable
-		 * way of sending commands to the MC from atomic context.
-		 * The MC callback just set the msi_paddr and msi_value
-		 * fields of the irq structure.
+		 * NOTE: devm_request_threaded_irq() invokes the device-specific
+		 * function that programs the MSI physically in the device
 		 */
 		error = devm_request_threaded_irq(&mc_dev->dev,
 						  irq->irq_number,
@@ -599,20 +587,6 @@ static int register_dprc_irq_handlers(struct fsl_mc_device *mc_dev)
 		}
 
 		num_irq_handlers_registered++;
-		irq_cfg.paddr = irq->msi_paddr;
-		irq_cfg.val = irq->msi_value;
-		irq_cfg.user_irq_id = irq->irq_number;
-		error = dprc_set_irq(mc_dev->mc_io,
-				     0,
-				     mc_dev->mc_handle,
-				     i,
-				     &irq_cfg);
-		if (error < 0) {
-			dev_err(&mc_dev->dev,
-				"dprc_set_irq() failed for IRQ %u: %d\n",
-				i, error);
-			goto error_unregister_irq_handlers;
-		}
 	}
 
 	return 0;
@@ -905,6 +879,31 @@ static int dprc_probe(struct fsl_mc_device *mc_dev)
 		}
 
 		/*
+		 * Allocate MC portal to be used in atomic context
+		 * (e.g., to program MSIs from program_msi_at_mc())
+		 */
+		error = fsl_mc_portal_allocate(NULL,
+					       FSL_MC_IO_ATOMIC_CONTEXT_PORTAL,
+					       &mc_bus->atomic_mc_io);
+		if (error < 0)
+			goto error_cleanup_dprc_scan;
+
+		pr_info("fsl-mc: Allocated dpmcp.%d to dprc.%d for atomic MC I/O\n",
+			mc_bus->atomic_mc_io->dpmcp_dev->obj_desc.id,
+			mc_dev->obj_desc.id);
+
+		/*
+		 * Open DPRC handle to be used with mc_bus->atomic_mc_io:
+		 */
+		error = dprc_open(mc_bus->atomic_mc_io, 0, mc_dev->obj_desc.id,
+				  &mc_bus->atomic_dprc_handle);
+		if (error < 0) {
+			dev_err(&mc_dev->dev, "dprc_open() failed: %d\n",
+				error);
+			goto error_cleanup_atomic_mc_io;
+		}
+
+		/*
 		 * Configure interrupt for the DPMCP object associated with the
 		 * DPRC object's built-in portal:
 		 *
@@ -914,7 +913,7 @@ static int dprc_probe(struct fsl_mc_device *mc_dev)
 		 */
 		error = fsl_mc_io_setup_dpmcp_irq(mc_dev->mc_io);
 		if (error < 0)
-			goto error_cleanup_dprc_scan;
+			goto error_cleanup_atomic_dprc_handle;
 
 		/*
 		 * Configure interrupts for the DPRC object associated with
@@ -922,11 +921,17 @@ static int dprc_probe(struct fsl_mc_device *mc_dev)
 		 */
 		error = dprc_setup_irqs(mc_dev);
 		if (error < 0)
-			goto error_cleanup_dprc_scan;
+			goto error_cleanup_atomic_dprc_handle;
 	}
 
 	dev_info(&mc_dev->dev, "DPRC device bound to driver");
 	return 0;
+
+error_cleanup_atomic_dprc_handle:
+	(void)dprc_close(mc_bus->atomic_mc_io, 0, mc_bus->atomic_dprc_handle);
+
+error_cleanup_atomic_mc_io:
+	fsl_mc_portal_free(mc_bus->atomic_mc_io);
 
 error_cleanup_dprc_scan:
 	fsl_mc_io_unset_dpmcp(mc_dev->mc_io);
@@ -986,8 +991,17 @@ static int dprc_remove(struct fsl_mc_device *mc_dev)
 	if (WARN_ON(!mc_bus->irq_resources))
 		return -EINVAL;
 
-	if (fsl_mc_interrupts_supported())
+	if (fsl_mc_interrupts_supported()) {
 		dprc_teardown_irqs(mc_dev);
+		error = dprc_close(mc_bus->atomic_mc_io, 0,
+				   mc_bus->atomic_dprc_handle);
+		if (error < 0) {
+			dev_err(&mc_dev->dev, "dprc_close() failed: %d\n",
+				error);
+		}
+
+		fsl_mc_portal_free(mc_bus->atomic_mc_io);
+	}
 
 	fsl_mc_io_unset_dpmcp(mc_dev->mc_io);
 	device_for_each_child(&mc_dev->dev, NULL, __fsl_mc_device_remove);

@@ -193,7 +193,6 @@ static int register_dpmcp_irq_handler(struct fsl_mc_device *dpmcp_dev)
 {
 	int error;
 	struct fsl_mc_device_irq *irq = dpmcp_dev->irqs[DPMCP_IRQ_INDEX];
-	struct dpmcp_irq_cfg irq_cfg;
 
 	error = devm_request_irq(&dpmcp_dev->dev,
 				 irq->irq_number,
@@ -208,26 +207,7 @@ static int register_dpmcp_irq_handler(struct fsl_mc_device *dpmcp_dev)
 		return error;
 	}
 
-	irq_cfg.paddr = irq->msi_paddr;
-	irq_cfg.val = irq->msi_value;
-	irq_cfg.user_irq_id = irq->irq_number;
-
-	error = dpmcp_set_irq(dpmcp_dev->mc_io,
-			      MC_CMD_FLAG_INTR_DIS,
-			      dpmcp_dev->mc_handle,
-			      DPMCP_IRQ_INDEX,
-			      &irq_cfg);
-	if (error < 0) {
-		dev_err(&dpmcp_dev->dev,
-			"dpmcp_set_irq() failed: %d\n", error);
-		goto error_unregister_irq_handler;
-	}
-
 	return 0;
-
-error_unregister_irq_handler:
-	devm_free_irq(&dpmcp_dev->dev, irq->irq_number, &dpmcp_dev->dev);
-	return error;
 }
 
 static int enable_dpmcp_irq(struct fsl_mc_device *dpmcp_dev)
@@ -339,7 +319,8 @@ int fsl_mc_io_setup_dpmcp_irq(struct fsl_mc_io *mc_io)
 	return 0;
 
 error_close_dpmcp:
-	(void)dpmcp_close(fsl_mc_dpmcp_isr.mc_io, 0,
+	(void)dpmcp_close(fsl_mc_dpmcp_isr.mc_io,
+			  MC_CMD_FLAG_INTR_DIS,
 			  mc_io->dpmcp_isr_mc_handle);
 
 error_unregister_irq_handler:
@@ -364,6 +345,7 @@ EXPORT_SYMBOL_GPL(fsl_mc_io_setup_dpmcp_irq);
  */
 static void teardown_dpmcp_irq(struct fsl_mc_io *mc_io)
 {
+	int error;
 	struct fsl_mc_device *dpmcp_dev = mc_io->dpmcp_dev;
 
 	if (WARN_ON(!dpmcp_dev))
@@ -380,6 +362,14 @@ static void teardown_dpmcp_irq(struct fsl_mc_io *mc_io)
 	(void)disable_dpmcp_irq(dpmcp_dev);
 	unregister_dpmcp_irq_handler(dpmcp_dev);
 	fsl_mc_free_irqs(dpmcp_dev);
+	error = dpmcp_close(fsl_mc_dpmcp_isr.mc_io,
+			    MC_CMD_FLAG_INTR_DIS,
+			    mc_io->dpmcp_isr_mc_handle);
+	if (error < 0) {
+		dev_err(&dpmcp_dev->dev,
+			"dpmcp_close(dpmcp_isr_mc_handle) failed: %d\n", error);
+	}
+
 	if (atomic_sub_return(1, &fsl_mc_dpmcp_isr.dpmcp_count) == 0) {
 		fsl_mc_portal_free(fsl_mc_dpmcp_isr.mc_io);
 		fsl_mc_dpmcp_isr.mc_io = NULL;

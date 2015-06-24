@@ -109,6 +109,9 @@ struct fsl_mc_resource_pool {
  * @resource_pools: array of resource pools (one pool per resource type)
  * for this MC bus. These resources represent allocatable entities
  * from the physical DPRC.
+ * @atomic_mc_io: mc_io object to be used to send DPRC commands to the MC
+ * in atomic context (e.g., when programming MSIs in program_msi_at_mc()).
+ * @atomic_dprc_handle: DPRC handle opened using the atomic_mc_io's portal.
  * @irq_resources: Pointer to array of IRQ objects for the IRQ pool.
  * @scan_mutex: Serializes bus scanning
  * @dprc_attr: DPRC attributes
@@ -117,6 +120,8 @@ struct fsl_mc_bus {
 	struct fsl_mc_device mc_dev;
 	struct fsl_mc_resource_pool resource_pools[FSL_MC_NUM_POOL_TYPES];
 	struct fsl_mc_device_irq *irq_resources;
+	struct fsl_mc_io *atomic_mc_io;
+	uint16_t atomic_dprc_handle;
 	struct mutex scan_mutex;    /* serializes bus scanning */
 	struct dprc_attributes dprc_attr;
 };

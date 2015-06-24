@@ -666,6 +666,61 @@ static void mc_bus_unmask_msi_irq(struct irq_data *d)
 	irq_chip_unmask_parent(d);
 }
 
+static void program_msi_at_mc(struct fsl_mc_device *mc_bus_dev,
+			      struct fsl_mc_device_irq *irq)
+{
+	int error;
+	struct fsl_mc_device *owner_mc_dev = irq->mc_dev;
+	struct fsl_mc_bus *mc_bus = to_fsl_mc_bus(mc_bus_dev);
+	struct dprc_irq_cfg irq_cfg;
+
+	if (WARN_ON(!owner_mc_dev))
+		return;
+
+	if (owner_mc_dev == mc_bus_dev) {
+		/*
+		 * IRQ is for the mc_bus_dev's DPRC itself
+		 */
+		irq_cfg.paddr = irq->msi_paddr;
+		irq_cfg.val = irq->msi_value;
+		irq_cfg.user_irq_id = irq->irq_number;
+
+		/*
+		 * TODO: Add the MC_CMD_FLAG_PRI flag below when
+		 * a fix for CR:ENGR00361583 becomes available
+		 */
+		error = dprc_set_irq(mc_bus->atomic_mc_io,
+				     MC_CMD_FLAG_INTR_DIS,
+				     mc_bus->atomic_dprc_handle,
+				     irq->dev_irq_index,
+				     &irq_cfg);
+		if (error < 0) {
+			dev_err(&owner_mc_dev->dev,
+				"dprc_set_irq() failed: %d\n", error);
+		}
+	} else {
+		irq_cfg.paddr = irq->msi_paddr;
+		irq_cfg.val = irq->msi_value;
+		irq_cfg.user_irq_id = irq->irq_number;
+
+		/*
+		 * TODO: Add the MC_CMD_FLAG_PRI flag below when
+		 * a fix for CR:ENGR00361583 becomes available
+		 */
+		error = dprc_set_obj_irq(mc_bus->atomic_mc_io,
+					 MC_CMD_FLAG_INTR_DIS,
+					 mc_bus->atomic_dprc_handle,
+					 owner_mc_dev->obj_desc.type,
+					 owner_mc_dev->obj_desc.id,
+					 irq->dev_irq_index,
+					 &irq_cfg);
+		if (error < 0) {
+			dev_err(&owner_mc_dev->dev,
+				"dprc_obj_set_irq() failed: %d\n", error);
+		}
+	}
+}
+
 /*
  * This function is invoked from devm_request_irq(),
  * devm_request_threaded_irq(), dev_free_irq()
@@ -690,11 +745,9 @@ static void mc_bus_msi_domain_write_msg(struct irq_data *irq_data,
 		irq_res->msi_value = msg->data;
 
 		/*
-		 * NOTE: We cannot do the actual programming of the MSI
-		 * in the MC, as this function is invoked in atomic context
-		 * (interrupts disabled) and we cannot reliably send MC commands
-		 * in atomic context.
+		 * Program the MSI (paddr, value) pair in the device:
 		 */
+		program_msi_at_mc(mc_bus_dev, irq_res);
 	}
 }
 
