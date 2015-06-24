@@ -63,10 +63,24 @@ struct mc_command;
  * is currently armed.
  * @mc_command_done_completion: Completion variable to be signaled when an MC
  * command sent to the MC fw is completed.
+ *
+ * Fields are only meaningful if the FSL_MC_IO_ATOMIC_CONTEXT_PORTAL flag is not
+ * set:
  * @mutex: Mutex to serialize mc_send_command() calls that use the same MC
  * portal, if the fsl_mc_io object was created with the
  * FSL_MC_IO_ATOMIC_CONTEXT_PORTAL flag off. mc_send_command() calls for this
  * fsl_mc_io object must be made only from non-atomic context.
+ * @mc_command_done_completion: Linux completion variable to be signaled
+ * when a DPMCP command completion interrupts is received.
+ * @mc_command_done_irq_armed: Boolean flag that indicates if interrupts have
+ * been successfully configured for the corresponding DPMCP object.
+ * @ dpmcp_isr_mc_handle: MC handle to be used to send the command to clear
+ * DPMCP command completion interrupts. (We need as separate MC handle that
+ * was opened using the portal that will be used to send the clear interrupt
+ * command).
+ *
+ * Fields are only meaningful if the FSL_MC_IO_ATOMIC_CONTEXT_PORTAL flag is
+ * set:
  * @spinlock: Spinlock to serialize mc_send_command() calls that use the same MC
  * portal, if the fsl_mc_io object was created with the
  * FSL_MC_IO_ATOMIC_CONTEXT_PORTAL flag on. mc_send_command() calls for this
@@ -88,6 +102,7 @@ struct fsl_mc_io {
 			struct mutex mutex; /* serializes mc_send_command() */
 			struct completion mc_command_done_completion;
 			bool mc_command_done_irq_armed;
+			uint16_t dpmcp_isr_mc_handle;
 		};
 
 		/*

@@ -290,7 +290,12 @@ int __must_check fsl_mc_portal_allocate(struct fsl_mc_device *mc_dev,
 	struct fsl_mc_resource *resource = NULL;
 	struct fsl_mc_io *mc_io = NULL;
 
-	if (mc_dev->flags & FSL_MC_IS_DPRC) {
+	if (!mc_dev) {
+		if (WARN_ON(!fsl_mc_bus_type.dev_root))
+			return error;
+
+		mc_bus_dev = to_fsl_mc_device(fsl_mc_bus_type.dev_root);
+	} else if (mc_dev->flags & FSL_MC_IS_DPRC) {
 		mc_bus_dev = mc_dev;
 	} else {
 		if (WARN_ON(mc_dev->dev.parent->bus != &fsl_mc_bus_type))

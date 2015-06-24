@@ -875,7 +875,9 @@ static int dprc_probe(struct fsl_mc_device *mc_dev)
 
 	if (fsl_mc_interrupts_supported()) {
 		/*
-		 * Create DPMCP for the DPRC's built-in portal:
+		 * Create DPMCP for the DPRC's built-in portal, to have
+		 * DPMCP completion interrupts for MC commands sent on
+		 * the DPRC's built-in portal:
 		 */
 		error = dprc_create_dpmcp(mc_dev);
 		if (error < 0)
@@ -907,7 +909,7 @@ static int dprc_probe(struct fsl_mc_device *mc_dev)
 		 * DPRC object's built-in portal:
 		 *
 		 * NOTE: We have to do this after calling dprc_scan_container(),
-		 * since dprc_scan_container() will populate the IRQ pool for
+		 * since dprc_scan_container() populates the IRQ pool for
 		 * this DPRC.
 		 */
 		error = fsl_mc_io_setup_dpmcp_irq(mc_dev->mc_io);
