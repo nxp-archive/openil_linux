@@ -1987,7 +1987,6 @@ static int ldpaa_eth_setup_irqs(struct fsl_mc_device *ls_dev)
 {
 	int err = 0;
 	struct fsl_mc_device_irq *irq;
-	struct dpni_irq_cfg irq_cfg;
 	int irq_count = ls_dev->obj_desc.irq_count;
 	uint8_t irq_index = DPNI_IRQ_INDEX;
 	uint32_t mask = ~0x0u;
@@ -2004,16 +2003,6 @@ static int ldpaa_eth_setup_irqs(struct fsl_mc_device *ls_dev)
 					dev_name(&ls_dev->dev), &ls_dev->dev);
 	if (err < 0) {
 		dev_err(&ls_dev->dev, "devm_request_threaded_irq(): %d", err);
-		return err;
-	}
-
-	irq_cfg.addr = irq->msi_paddr;
-	irq_cfg.val = irq->msi_value;
-	irq_cfg.user_irq_id = irq->irq_number;
-	err = dpni_set_irq(ls_dev->mc_io, 0, ls_dev->mc_handle,
-			   irq_index, &irq_cfg);
-	if (err < 0) {
-		dev_err(&ls_dev->dev, "dpni_set_irq(): %d", err);
 		return err;
 	}
 
