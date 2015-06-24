@@ -286,6 +286,7 @@ static int vfio_fsl_mc_probe(struct fsl_mc_device *mc_dev)
 		mc_dev->mc_io = vfio_mc_io;
 
 		ret = dprc_open(mc_dev->mc_io,
+				0,
 				mc_dev->obj_desc.id,
 				&mc_dev->mc_handle);
 		if (ret) {
@@ -301,7 +302,9 @@ static int vfio_fsl_mc_probe(struct fsl_mc_device *mc_dev)
 		mutex_unlock(&mc_bus->scan_mutex);
 		if (ret) {
 			dev_err(dev, "dprc_scan_objects() fails (%d)\n", ret);
-			dprc_close(mc_dev->mc_io, mc_dev->mc_handle);
+			dprc_close(mc_dev->mc_io,
+				   0,
+				   mc_dev->mc_handle);
 			goto err;
 		}
 
@@ -311,7 +314,9 @@ static int vfio_fsl_mc_probe(struct fsl_mc_device *mc_dev)
 				__func__);
 			device_for_each_child(&mc_dev->dev, NULL,
 					      vfio_fsl_mc_device_remove);
-			dprc_close(mc_dev->mc_io, mc_dev->mc_handle);
+			dprc_close(mc_dev->mc_io,
+				   0,
+				   mc_dev->mc_handle);
 			goto err;
 		}
 	} else {
@@ -349,7 +354,9 @@ static int vfio_fsl_mc_remove(struct fsl_mc_device *mc_dev)
 		device_for_each_child(&mc_dev->dev, NULL,
 				      vfio_fsl_mc_device_remove);
 
-		ret = dprc_close(mc_dev->mc_io, mc_dev->mc_handle);
+		ret = dprc_close(mc_dev->mc_io,
+				 0,
+				 mc_dev->mc_handle);
 		if (ret < 0) {
 			dev_err(&mc_dev->dev, "dprc_close() fails: error %d\n",
 				ret);
