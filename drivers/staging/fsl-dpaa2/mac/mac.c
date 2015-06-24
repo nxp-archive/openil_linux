@@ -436,7 +436,6 @@ err:
 static int ppx_setup_irqs(struct fsl_mc_device *mc_dev)
 {
 	int err;
-	struct dpmac_irq_cfg irq_cfg;
 
 	err = fsl_mc_allocate_irqs(mc_dev);
 	if (err) {
@@ -460,16 +459,6 @@ static int ppx_setup_irqs(struct fsl_mc_device *mc_dev)
 		dev_err(&mc_dev->dev, "devm_request_threaded_irq err %d\n",
 			err);
 		goto free_irq;
-	}
-
-	irq_cfg.addr = mc_dev->irqs[0]->msi_paddr;
-	irq_cfg.val = mc_dev->irqs[0]->msi_value;
-	irq_cfg.user_irq_id = mc_dev->irqs[0]->irq_number;
-	err = dpmac_set_irq(mc_dev->mc_io, 0, mc_dev->mc_handle,
-			    DPMAC_IRQ_INDEX, &irq_cfg);
-	if (err) {
-		dev_err(&mc_dev->dev, "dpmac_set_irq err %d\n", err);
-		goto unregister_irq;
 	}
 
 	err = dpmac_set_irq_enable(mc_dev->mc_io, 0, mc_dev->mc_handle,
