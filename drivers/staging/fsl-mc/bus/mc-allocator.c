@@ -384,7 +384,7 @@ int fsl_mc_portal_reset(struct fsl_mc_io *mc_io)
 	if (WARN_ON(!dpmcp_dev))
 		return -EINVAL;
 
-	error = dpmcp_reset(mc_io, dpmcp_dev->mc_handle);
+	error = dpmcp_reset(mc_io, 0, dpmcp_dev->mc_handle);
 	if (error < 0) {
 		dev_err(&dpmcp_dev->dev, "dpmcp_reset() failed: %d\n", error);
 		return error;

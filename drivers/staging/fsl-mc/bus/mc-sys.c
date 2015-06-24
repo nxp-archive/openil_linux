@@ -97,6 +97,7 @@ static int disable_dpmcp_irq(struct fsl_mc_device *dpmcp_dev)
 	 * Disable generation of the DPMCP interrupt:
 	 */
 	error = dpmcp_set_irq_enable(dpmcp_dev->mc_io,
+				     MC_CMD_FLAG_INTR_DIS,
 				     dpmcp_dev->mc_handle,
 				     DPMCP_IRQ_INDEX, 0);
 	if (error < 0) {
@@ -109,7 +110,9 @@ static int disable_dpmcp_irq(struct fsl_mc_device *dpmcp_dev)
 	/*
 	 * Disable all DPMCP interrupt causes:
 	 */
-	error = dpmcp_set_irq_mask(dpmcp_dev->mc_io, dpmcp_dev->mc_handle,
+	error = dpmcp_set_irq_mask(dpmcp_dev->mc_io,
+				   MC_CMD_FLAG_INTR_DIS,
+				   dpmcp_dev->mc_handle,
 				   DPMCP_IRQ_INDEX, 0x0);
 	if (error < 0) {
 		dev_err(&dpmcp_dev->dev,
@@ -121,7 +124,9 @@ static int disable_dpmcp_irq(struct fsl_mc_device *dpmcp_dev)
 	/*
 	 * Clear any leftover interrupts:
 	 */
-	error = dpmcp_clear_irq_status(dpmcp_dev->mc_io, dpmcp_dev->mc_handle,
+	error = dpmcp_clear_irq_status(dpmcp_dev->mc_io,
+				       MC_CMD_FLAG_INTR_DIS,
+				       dpmcp_dev->mc_handle,
 				       DPMCP_IRQ_INDEX, ~0x0U);
 	if (error < 0) {
 		dev_err(&dpmcp_dev->dev,
@@ -144,6 +149,7 @@ static int register_dpmcp_irq_handler(struct fsl_mc_device *dpmcp_dev)
 {
 	int error;
 	struct fsl_mc_device_irq *irq = dpmcp_dev->irqs[DPMCP_IRQ_INDEX];
+	struct dpmcp_irq_cfg irq_cfg;
 
 	error = devm_request_irq(&dpmcp_dev->dev,
 				 irq->irq_number,
@@ -158,12 +164,15 @@ static int register_dpmcp_irq_handler(struct fsl_mc_device *dpmcp_dev)
 		return error;
 	}
 
+	irq_cfg.paddr = irq->msi_paddr;
+	irq_cfg.val = irq->msi_value;
+	irq_cfg.user_irq_id = irq->irq_number;
+
 	error = dpmcp_set_irq(dpmcp_dev->mc_io,
+			      MC_CMD_FLAG_INTR_DIS,
 			      dpmcp_dev->mc_handle,
 			      DPMCP_IRQ_INDEX,
-			      irq->msi_paddr,
-			      irq->msi_value,
-			      irq->irq_number);
+			      &irq_cfg);
 	if (error < 0) {
 		dev_err(&dpmcp_dev->dev,
 			"dpmcp_set_irq() failed: %d\n", error);
@@ -185,6 +194,7 @@ static int enable_dpmcp_irq(struct fsl_mc_device *dpmcp_dev)
 	 * Enable MC command completion event to trigger DPMCP interrupt:
 	 */
 	error = dpmcp_set_irq_mask(dpmcp_dev->mc_io,
+				   MC_CMD_FLAG_INTR_DIS,
 				   dpmcp_dev->mc_handle,
 				   DPMCP_IRQ_INDEX,
 				   DPMCP_IRQ_EVENT_CMD_DONE);
@@ -199,6 +209,7 @@ static int enable_dpmcp_irq(struct fsl_mc_device *dpmcp_dev)
 	 * Enable generation of the interrupt:
 	 */
 	error = dpmcp_set_irq_enable(dpmcp_dev->mc_io,
+				     MC_CMD_FLAG_INTR_DIS,
 				     dpmcp_dev->mc_handle,
 				     DPMCP_IRQ_INDEX, 1);
 	if (error < 0) {
@@ -403,7 +414,9 @@ int fsl_mc_io_set_dpmcp(struct fsl_mc_io *mc_io,
 		return -EINVAL;
 
 	if (!(mc_io->flags & FSL_MC_IO_ATOMIC_CONTEXT_PORTAL)) {
-		error = dpmcp_open(mc_io, dpmcp_dev->obj_desc.id,
+		error = dpmcp_open(mc_io,
+				   0,
+				   dpmcp_dev->obj_desc.id,
 				   &dpmcp_dev->mc_handle);
 		if (error < 0)
 			return error;
@@ -430,7 +443,9 @@ void fsl_mc_io_unset_dpmcp(struct fsl_mc_io *mc_io)
 		if (dpmcp_dev->irqs)
 			teardown_dpmcp_irq(mc_io);
 
-		error = dpmcp_close(mc_io, dpmcp_dev->mc_handle);
+		error = dpmcp_close(mc_io,
+				    0,
+				    dpmcp_dev->mc_handle);
 		if (error < 0) {
 			dev_err(&dpmcp_dev->dev, "dpmcp_close() failed: %d\n",
 				error);
@@ -616,7 +631,8 @@ int mc_send_command(struct fsl_mc_io *mc_io, struct mc_command *cmd)
 	int error;
 	enum mc_cmd_status status;
 
-	if (WARN_ON(in_irq()))
+	if (WARN_ON(in_irq() &&
+		!(MC_CMD_HDR_READ_FLAGS(cmd->header) & MC_CMD_FLAG_INTR_DIS)))
 		return -EINVAL;
 
 	if (mc_io->flags & FSL_MC_IO_ATOMIC_CONTEXT_PORTAL)
@@ -632,7 +648,8 @@ int mc_send_command(struct fsl_mc_io *mc_io, struct mc_command *cmd)
 	/*
 	 * Wait for response from the MC hardware:
 	 */
-	if (mc_io->mc_command_done_irq_armed)
+	if (mc_io->mc_command_done_irq_armed &&
+	    !(MC_CMD_HDR_READ_FLAGS(cmd->header) & MC_CMD_FLAG_INTR_DIS))
 		error = mc_completion_wait(mc_io, cmd, &status);
 	else
 		error = mc_polling_wait(mc_io, cmd, &status);

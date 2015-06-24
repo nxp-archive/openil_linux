@@ -302,14 +302,14 @@ static int get_dprc_icid(struct fsl_mc_io *mc_io,
 	struct dprc_attributes attr;
 	int error;
 
-	error = dprc_open(mc_io, container_id, &dprc_handle);
+	error = dprc_open(mc_io, 0, container_id, &dprc_handle);
 	if (error < 0) {
 		pr_err("dprc_open() failed: %d\n", error);
 		return error;
 	}
 
 	memset(&attr, 0, sizeof(attr));
-	error = dprc_get_attributes(mc_io, dprc_handle, &attr);
+	error = dprc_get_attributes(mc_io, 0, dprc_handle, &attr);
 	if (error < 0) {
 		pr_err("dprc_get_attributes() failed: %d\n", error);
 		goto common_cleanup;
@@ -319,7 +319,7 @@ static int get_dprc_icid(struct fsl_mc_io *mc_io,
 	error = 0;
 
 common_cleanup:
-	(void)dprc_close(mc_io, dprc_handle);
+	(void)dprc_close(mc_io, 0, dprc_handle);
 	return error;
 }
 
@@ -387,6 +387,7 @@ static int fsl_mc_device_get_mmio_regions(struct fsl_mc_device *mc_dev,
 		struct dprc_region_desc region_desc;
 
 		error = dprc_get_obj_region(mc_bus_dev->mc_io,
+					    0,
 					    mc_bus_dev->mc_handle,
 					    obj_desc->type,
 					    obj_desc->id, i, &region_desc);
@@ -402,7 +403,7 @@ static int fsl_mc_device_get_mmio_regions(struct fsl_mc_device *mc_dev,
 					  &regions[i].start);
 		if (error < 0) {
 			dev_err(parent_dev,
-				"Invalid MC offset: %#llx (for %s.%d\'s region %d)\n",
+				"Invalid MC offset: %#x (for %s.%d\'s region %d)\n",
 				region_desc.base_offset,
 				obj_desc->type, obj_desc->id, i);
 			goto error_cleanup_regions;
@@ -625,6 +626,7 @@ static int mc_bus_msi_prepare(struct irq_domain *domain, struct device *dev,
 		return -EINVAL;
 
 	error = dprc_get_attributes(mc_bus_dev->mc_io,
+				    0,
 				    mc_bus_dev->mc_handle, &dprc_attr);
 	if (error < 0) {
 		dev_err(&mc_bus_dev->dev,
@@ -1045,7 +1047,7 @@ static int fsl_mc_bus_probe(struct platform_device *pdev)
 	if (error < 0)
 		goto error_cleanup_irq_domain;
 
-	error = mc_get_version(mc_io, &mc_version);
+	error = mc_get_version(mc_io, 0, &mc_version);
 	if (error != 0) {
 		dev_err(&pdev->dev,
 			"mc_get_version() failed with error %d\n", error);
@@ -1076,7 +1078,7 @@ static int fsl_mc_bus_probe(struct platform_device *pdev)
 	if (error < 0)
 		goto error_cleanup_mc_io;
 
-	error = dpmng_get_container_id(mc_io, &container_id);
+	error = dpmng_get_container_id(mc_io, 0, &container_id);
 	if (error < 0) {
 		dev_err(&pdev->dev,
 			"dpmng_get_container_id() failed: %d\n", error);

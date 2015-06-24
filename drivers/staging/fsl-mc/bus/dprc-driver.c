@@ -278,6 +278,7 @@ int dprc_scan_objects(struct fsl_mc_device *mc_bus_dev,
 	struct dprc_obj_desc *child_obj_desc_array = NULL;
 
 	error = dprc_get_obj_count(mc_bus_dev->mc_io,
+				   0,
 				   mc_bus_dev->mc_handle,
 				   &num_child_objects);
 	if (error < 0) {
@@ -305,6 +306,7 @@ int dprc_scan_objects(struct fsl_mc_device *mc_bus_dev,
 			    &child_obj_desc_array[i];
 
 			error = dprc_get_obj(mc_bus_dev->mc_io,
+					     0,
 					     mc_bus_dev->mc_handle,
 					     i, obj_desc);
 			if (error < 0) {
@@ -424,7 +426,7 @@ static irqreturn_t dprc_irq0_handler_thread(int irq_num, void *arg)
 	if (WARN_ON(mc_dev->irqs[irq_index]->irq_number != (uint32_t)irq_num))
 		goto out;
 
-	error = dprc_get_irq_status(mc_io, mc_dev->mc_handle, irq_index,
+	error = dprc_get_irq_status(mc_io, 0, mc_dev->mc_handle, irq_index,
 				    &status);
 	if (error < 0) {
 		dev_err(dev,
@@ -432,7 +434,7 @@ static irqreturn_t dprc_irq0_handler_thread(int irq_num, void *arg)
 		goto out;
 	}
 
-	error = dprc_clear_irq_status(mc_io, mc_dev->mc_handle, irq_index,
+	error = dprc_clear_irq_status(mc_io, 0, mc_dev->mc_handle, irq_index,
 				      status);
 	if (error < 0) {
 		dev_err(dev,
@@ -487,7 +489,7 @@ static int disable_dprc_irqs(struct fsl_mc_device *mc_dev)
 		/*
 		 * Disable generation of interrupt i, while we configure it:
 		 */
-		error = dprc_set_irq_enable(mc_io, mc_dev->mc_handle, i, 0);
+		error = dprc_set_irq_enable(mc_io, 0, mc_dev->mc_handle, i, 0);
 		if (error < 0) {
 			dev_err(&mc_dev->dev,
 				"Disabling DPRC IRQ %d failed: dprc_set_irq_enable() failed: %d\n",
@@ -499,7 +501,7 @@ static int disable_dprc_irqs(struct fsl_mc_device *mc_dev)
 		/*
 		 * Disable all interrupt causes for interrupt i:
 		 */
-		error = dprc_set_irq_mask(mc_io, mc_dev->mc_handle, i, 0x0);
+		error = dprc_set_irq_mask(mc_io, 0, mc_dev->mc_handle, i, 0x0);
 		if (error < 0) {
 			dev_err(&mc_dev->dev,
 				"Disabling DPRC IRQ %d failed: dprc_set_irq_mask() failed: %d\n",
@@ -511,7 +513,7 @@ static int disable_dprc_irqs(struct fsl_mc_device *mc_dev)
 		/*
 		 * Clear any leftover interrupt i:
 		 */
-		error = dprc_clear_irq_status(mc_io, mc_dev->mc_handle, i,
+		error = dprc_clear_irq_status(mc_io, 0, mc_dev->mc_handle, i,
 					      ~0x0U);
 		if (error < 0) {
 			dev_err(&mc_dev->dev,
@@ -557,6 +559,7 @@ static int register_dprc_irq_handlers(struct fsl_mc_device *mc_dev)
 	struct fsl_mc_device_irq *irq;
 	unsigned int num_irq_handlers_registered = 0;
 	int irq_count = mc_dev->obj_desc.irq_count;
+	struct dprc_irq_cfg irq_cfg;
 
 	if (WARN_ON(irq_count != ARRAY_SIZE(irq_handlers)))
 		return -EINVAL;
@@ -596,12 +599,14 @@ static int register_dprc_irq_handlers(struct fsl_mc_device *mc_dev)
 		}
 
 		num_irq_handlers_registered++;
+		irq_cfg.paddr = irq->msi_paddr;
+		irq_cfg.val = irq->msi_value;
+		irq_cfg.user_irq_id = irq->irq_number;
 		error = dprc_set_irq(mc_dev->mc_io,
+				     0,
 				     mc_dev->mc_handle,
 				     i,
-				     irq->msi_paddr,
-				     irq->msi_value,
-				     irq->irq_number);
+				     &irq_cfg);
 		if (error < 0) {
 			dev_err(&mc_dev->dev,
 				"dprc_set_irq() failed for IRQ %u: %d\n",
@@ -633,6 +638,7 @@ static int enable_dprc_irqs(struct fsl_mc_device *mc_dev)
 		 * Enable all interrupt causes for the interrupt:
 		 */
 		error = dprc_set_irq_mask(mc_dev->mc_io,
+					  0,
 					  mc_dev->mc_handle,
 					  i,
 					  ~0x0u);
@@ -648,6 +654,7 @@ static int enable_dprc_irqs(struct fsl_mc_device *mc_dev)
 		 * Enable generation of the interrupt:
 		 */
 		error = dprc_set_irq_enable(mc_dev->mc_io,
+					    0,
 					    mc_dev->mc_handle,
 					    i, 1);
 		if (error < 0) {
@@ -708,7 +715,10 @@ static int dprc_create_dpmcp(struct fsl_mc_device *dprc_dev)
 	struct fsl_mc_bus *mc_bus = to_fsl_mc_bus(dprc_dev);
 
 	dpmcp_cfg.portal_id = mc_bus->dprc_attr.portal_id;
-	error = dpmcp_create(dprc_dev->mc_io, &dpmcp_cfg, &dpmcp_handle);
+	error = dpmcp_create(dprc_dev->mc_io,
+			     MC_CMD_FLAG_INTR_DIS,
+			     &dpmcp_cfg,
+			     &dpmcp_handle);
 	if (error < 0) {
 		dev_err(&dprc_dev->dev, "dpmcp_create() failed: %d\n",
 			error);
@@ -719,7 +729,9 @@ static int dprc_create_dpmcp(struct fsl_mc_device *dprc_dev)
 	 * Set the state of the newly created DPMCP object to be "plugged":
 	 */
 
-	error = dpmcp_get_attributes(dprc_dev->mc_io, dpmcp_handle,
+	error = dpmcp_get_attributes(dprc_dev->mc_io,
+				     MC_CMD_FLAG_INTR_DIS,
+				     dpmcp_handle,
 				     &dpmcp_attr);
 	if (error < 0) {
 		dev_err(&dprc_dev->dev, "dpmcp_get_attributes() failed: %d\n",
@@ -739,6 +751,7 @@ static int dprc_create_dpmcp(struct fsl_mc_device *dprc_dev)
 	res_req.id_base_align = dpmcp_attr.id;
 
 	error = dprc_assign(dprc_dev->mc_io,
+			    MC_CMD_FLAG_INTR_DIS,
 			    dprc_dev->mc_handle,
 			    dprc_dev->obj_desc.id,
 			    &res_req);
@@ -748,11 +761,15 @@ static int dprc_create_dpmcp(struct fsl_mc_device *dprc_dev)
 		goto error_destroy_dpmcp;
 	}
 
-	(void)dpmcp_close(dprc_dev->mc_io, dpmcp_handle);
+	(void)dpmcp_close(dprc_dev->mc_io,
+			  MC_CMD_FLAG_INTR_DIS,
+			  dpmcp_handle);
 	return 0;
 
 error_destroy_dpmcp:
-	(void)dpmcp_destroy(dprc_dev->mc_io, dpmcp_handle);
+	(void)dpmcp_destroy(dprc_dev->mc_io,
+			    MC_CMD_FLAG_INTR_DIS,
+			    dpmcp_handle);
 	return error;
 }
 
@@ -768,7 +785,9 @@ static void dprc_destroy_dpmcp(struct fsl_mc_device *dprc_dev)
 	if (WARN_ON(!dprc_dev->mc_io || dprc_dev->mc_io->dpmcp_dev))
 		return;
 
-	error = dpmcp_open(dprc_dev->mc_io, mc_bus->dprc_attr.portal_id,
+	error = dpmcp_open(dprc_dev->mc_io,
+			   MC_CMD_FLAG_INTR_DIS,
+			   mc_bus->dprc_attr.portal_id,
 			   &dpmcp_handle);
 	if (error < 0) {
 		dev_err(&dprc_dev->dev, "dpmcp_open() failed: %d\n",
@@ -776,7 +795,9 @@ static void dprc_destroy_dpmcp(struct fsl_mc_device *dprc_dev)
 		return;
 	}
 
-	error = dpmcp_destroy(dprc_dev->mc_io, dpmcp_handle);
+	error = dpmcp_destroy(dprc_dev->mc_io,
+			      MC_CMD_FLAG_INTR_DIS,
+			      dpmcp_handle);
 	if (error < 0) {
 		dev_err(&dprc_dev->dev, "dpmcp_destroy() failed: %d\n",
 			error);
@@ -837,14 +858,14 @@ static int dprc_probe(struct fsl_mc_device *mc_dev)
 		mc_io_created = true;
 	}
 
-	error = dprc_open(mc_dev->mc_io, mc_dev->obj_desc.id,
+	error = dprc_open(mc_dev->mc_io, 0, mc_dev->obj_desc.id,
 			  &mc_dev->mc_handle);
 	if (error < 0) {
 		dev_err(&mc_dev->dev, "dprc_open() failed: %d\n", error);
 		goto error_cleanup_mc_io;
 	}
 
-	error = dprc_get_attributes(mc_dev->mc_io, mc_dev->mc_handle,
+	error = dprc_get_attributes(mc_dev->mc_io, 0, mc_dev->mc_handle,
 				    &mc_bus->dprc_attr);
 	if (error < 0) {
 		dev_err(&mc_dev->dev, "dprc_get_attributes() failed: %d\n",
@@ -916,7 +937,7 @@ error_destroy_dpmcp:
 	dprc_destroy_dpmcp(mc_dev);
 
 error_cleanup_open:
-	(void)dprc_close(mc_dev->mc_io, mc_dev->mc_handle);
+	(void)dprc_close(mc_dev->mc_io, 0, mc_dev->mc_handle);
 
 error_cleanup_mc_io:
 	if (mc_io_created) {
@@ -970,7 +991,7 @@ static int dprc_remove(struct fsl_mc_device *mc_dev)
 	device_for_each_child(&mc_dev->dev, NULL, __fsl_mc_device_remove);
 	dprc_cleanup_all_resource_pools(mc_dev);
 	dprc_destroy_dpmcp(mc_dev);
-	error = dprc_close(mc_dev->mc_io, mc_dev->mc_handle);
+	error = dprc_close(mc_dev->mc_io, 0, mc_dev->mc_handle);
 	if (error < 0)
 		dev_err(&mc_dev->dev, "dprc_close() failed: %d\n", error);
 
