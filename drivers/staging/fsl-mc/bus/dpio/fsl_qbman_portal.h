@@ -387,6 +387,7 @@ int qbman_swp_fq_xoff(struct qbman_swp *, uint32_t fqid);
 int qbman_swp_CDAN_set_context(struct qbman_swp *, uint16_t channelid,
 				uint64_t ctx);
 int qbman_swp_CDAN_enable(struct qbman_swp *, uint16_t channelid);
+int qbman_swp_CDAN_disable(struct qbman_swp *, uint16_t channelid);
 int qbman_swp_CDAN_set_context_enable(struct qbman_swp *, uint16_t channelid,
 				      uint64_t ctx);
 

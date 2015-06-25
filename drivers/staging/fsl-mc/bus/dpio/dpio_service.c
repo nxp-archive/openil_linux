@@ -377,7 +377,7 @@ int dpaa_io_poll(struct dpaa_io *obj)
 	swp = obj->object.swp;
 	dq = qbman_swp_dqrr_next(swp);
 	while (dq) {
-		if (qbman_result_is_FQDAN(dq)) {
+		if (qbman_result_is_SCN(dq)) {
 			struct dpaa_io_notification_ctx *ctx;
 			uint64_t q64;
 
@@ -469,6 +469,11 @@ int dpaa_io_service_register(struct dpaa_io *d,
 	spin_lock_irqsave(&d->object.lock_notifications, irqflags);
 	list_add(&ctx->node, &d->object.notifications);
 	spin_unlock_irqrestore(&d->object.lock_notifications, irqflags);
+	if (ctx->is_cdan)
+		/* Enable the generation of CDAN notifications */
+		qbman_swp_CDAN_set_context_enable(d->object.swp,
+						  ctx->id,
+						  ctx->qman64);
 	return 0;
 }
 EXPORT_SYMBOL(dpaa_io_service_register);
@@ -482,6 +487,9 @@ int dpaa_io_service_deregister(struct dpaa_io *service,
 	if (!service)
 		service = &def_serv;
 	BUG_ON((service != d) && (service != d->object.service));
+	if (ctx->is_cdan)
+		qbman_swp_CDAN_disable(d->object.swp,
+				       ctx->id);
 	spin_lock_irqsave(&d->object.lock_notifications, irqflags);
 	list_del(&ctx->node);
 	spin_unlock_irqrestore(&d->object.lock_notifications, irqflags);
@@ -495,12 +503,14 @@ int dpaa_io_service_rearm(struct dpaa_io *d,
 	unsigned long irqflags;
 	int err;
 
-	BUG_ON(ctx->is_cdan);
 	d = _service_select(d);
 	if (!d)
 		return -ENODEV;
 	spin_lock_irqsave(&d->object.lock_mgmt_cmd, irqflags);
-	err = qbman_swp_fq_schedule(d->object.swp, ctx->id);
+	if (ctx->is_cdan)
+		err = qbman_swp_CDAN_enable(d->object.swp, ctx->id);
+	else
+		err = qbman_swp_fq_schedule(d->object.swp, ctx->id);
 	spin_unlock_irqrestore(&d->object.lock_mgmt_cmd, irqflags);
 	return err;
 }
