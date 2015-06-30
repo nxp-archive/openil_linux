@@ -116,14 +116,18 @@ int dpni_prepare_key_cfg(struct dpkg_profile_cfg *cfg,
 	return 0;
 }
 
-int dpni_open(struct fsl_mc_io *mc_io, int dpni_id, uint16_t *token)
+int dpni_open(struct fsl_mc_io *mc_io,
+	      uint32_t cmd_flags,
+	      int dpni_id,
+	      uint16_t *token)
 {
 	struct mc_command cmd = { 0 };
 	int err;
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_OPEN,
-					  MC_CMD_PRI_LOW, 0);
+					  cmd_flags,
+					  0);
 	DPNI_CMD_OPEN(cmd, dpni_id);
 
 	/* send command to mc*/
@@ -137,19 +141,23 @@ int dpni_open(struct fsl_mc_io *mc_io, int dpni_id, uint16_t *token)
 	return 0;
 }
 
-int dpni_close(struct fsl_mc_io *mc_io, uint16_t token)
+int dpni_close(struct fsl_mc_io *mc_io,
+	       uint32_t cmd_flags,
+	       uint16_t token)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_CLOSE,
-					  MC_CMD_PRI_HIGH, token);
+					  cmd_flags,
+					  token);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
 int dpni_create(struct fsl_mc_io *mc_io,
+		uint32_t cmd_flags,
 		const struct dpni_cfg *cfg,
 		uint16_t *token)
 {
@@ -158,7 +166,7 @@ int dpni_create(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_CREATE,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  0);
 	DPNI_CMD_CREATE(cmd, cfg);
 
@@ -173,13 +181,15 @@ int dpni_create(struct fsl_mc_io *mc_io,
 	return 0;
 }
 
-int dpni_destroy(struct fsl_mc_io *mc_io, uint16_t token)
+int dpni_destroy(struct fsl_mc_io *mc_io,
+		 uint32_t cmd_flags,
+		 uint16_t token)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_DESTROY,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 
 	/* send command to mc*/
@@ -187,6 +197,7 @@ int dpni_destroy(struct fsl_mc_io *mc_io, uint16_t token)
 }
 
 int dpni_set_pools(struct fsl_mc_io *mc_io,
+		   uint32_t cmd_flags,
 		   uint16_t token,
 		   const struct dpni_pools_cfg *cfg)
 {
@@ -194,7 +205,7 @@ int dpni_set_pools(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_POOLS,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 	DPNI_CMD_SET_POOLS(cmd, cfg);
 
@@ -202,37 +213,45 @@ int dpni_set_pools(struct fsl_mc_io *mc_io,
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_enable(struct fsl_mc_io *mc_io, uint16_t token)
+int dpni_enable(struct fsl_mc_io *mc_io,
+		uint32_t cmd_flags,
+		uint16_t token)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_ENABLE,
-					  MC_CMD_PRI_LOW, token);
-
-	/* send command to mc*/
-	return mc_send_command(mc_io, &cmd);
-}
-
-int dpni_disable(struct fsl_mc_io *mc_io, uint16_t token)
-{
-	struct mc_command cmd = { 0 };
-
-	/* prepare command */
-	cmd.header = mc_encode_cmd_header(DPNI_CMDID_DISABLE,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_is_enabled(struct fsl_mc_io *mc_io, uint16_t token, int *en)
+int dpni_disable(struct fsl_mc_io *mc_io,
+		 uint32_t cmd_flags,
+		 uint16_t token)
+{
+	struct mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPNI_CMDID_DISABLE,
+					  cmd_flags,
+					  token);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
+
+int dpni_is_enabled(struct fsl_mc_io *mc_io,
+		    uint32_t cmd_flags,
+		    uint16_t token,
+		    int *en)
 {
 	struct mc_command cmd = { 0 };
 	int err;
 	/* prepare command */
-	cmd.header = mc_encode_cmd_header(DPNI_CMDID_IS_ENABLED, MC_CMD_PRI_LOW,
+	cmd.header = mc_encode_cmd_header(DPNI_CMDID_IS_ENABLED, cmd_flags,
 					  token);
 
 	/* send command to mc*/
@@ -246,54 +265,52 @@ int dpni_is_enabled(struct fsl_mc_io *mc_io, uint16_t token, int *en)
 	return 0;
 }
 
-int dpni_reset(struct fsl_mc_io *mc_io, uint16_t token)
+int dpni_reset(struct fsl_mc_io *mc_io,
+	       uint32_t cmd_flags,
+	       uint16_t token)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_RESET,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-
-
-int dpni_set_irq(struct fsl_mc_io *mc_io,
-		 uint16_t token,
-		 uint8_t irq_index,
-		 uint64_t irq_addr,
-		 uint32_t irq_val,
-		 int user_irq_id)
+int dpni_set_irq(struct fsl_mc_io	*mc_io,
+		 uint32_t		cmd_flags,
+		 uint16_t		token,
+		 uint8_t		irq_index,
+		 struct dpni_irq_cfg	*irq_cfg)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_IRQ,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
-	DPNI_CMD_SET_IRQ(cmd, irq_index, irq_addr, irq_val, user_irq_id);
+	DPNI_CMD_SET_IRQ(cmd, irq_index, irq_cfg);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-
-int dpni_get_irq(struct fsl_mc_io *mc_io,
-		 uint16_t token,
-		 uint8_t irq_index,
-		 int *type,
-		 uint64_t *irq_addr,
-		 uint32_t *irq_val,
-		 int *user_irq_id)
+int dpni_get_irq(struct fsl_mc_io	*mc_io,
+		 uint32_t		cmd_flags,
+		 uint16_t		token,
+		 uint8_t		irq_index,
+		 int			*type,
+		 struct dpni_irq_cfg	*irq_cfg)
 {
 	struct mc_command cmd = { 0 };
 	int err;
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_IRQ,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 	DPNI_CMD_GET_IRQ(cmd, irq_index);
 
@@ -303,12 +320,13 @@ int dpni_get_irq(struct fsl_mc_io *mc_io,
 		return err;
 
 	/* retrieve response parameters */
-	DPNI_RSP_GET_IRQ(cmd, *type, *irq_addr, *irq_val, *user_irq_id);
+	DPNI_RSP_GET_IRQ(cmd, *type, irq_cfg);
 
 	return 0;
 }
 
 int dpni_set_irq_enable(struct fsl_mc_io *mc_io,
+			uint32_t cmd_flags,
 			uint16_t token,
 			uint8_t irq_index,
 			uint8_t en)
@@ -317,7 +335,8 @@ int dpni_set_irq_enable(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_IRQ_ENABLE,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_IRQ_ENABLE(cmd, irq_index, en);
 
 	/* send command to mc*/
@@ -325,6 +344,7 @@ int dpni_set_irq_enable(struct fsl_mc_io *mc_io,
 }
 
 int dpni_get_irq_enable(struct fsl_mc_io *mc_io,
+			uint32_t cmd_flags,
 			uint16_t token,
 			uint8_t irq_index,
 			uint8_t *en)
@@ -334,7 +354,8 @@ int dpni_get_irq_enable(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_IRQ_ENABLE,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_GET_IRQ_ENABLE(cmd, irq_index);
 
 	/* send command to mc*/
@@ -349,6 +370,7 @@ int dpni_get_irq_enable(struct fsl_mc_io *mc_io,
 }
 
 int dpni_set_irq_mask(struct fsl_mc_io *mc_io,
+		      uint32_t cmd_flags,
 		      uint16_t token,
 		      uint8_t irq_index,
 		      uint32_t mask)
@@ -357,7 +379,8 @@ int dpni_set_irq_mask(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_IRQ_MASK,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_IRQ_MASK(cmd, irq_index, mask);
 
 	/* send command to mc*/
@@ -365,6 +388,7 @@ int dpni_set_irq_mask(struct fsl_mc_io *mc_io,
 }
 
 int dpni_get_irq_mask(struct fsl_mc_io *mc_io,
+		      uint32_t cmd_flags,
 		      uint16_t token,
 		      uint8_t irq_index,
 		      uint32_t *mask)
@@ -374,7 +398,8 @@ int dpni_get_irq_mask(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_IRQ_MASK,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_GET_IRQ_MASK(cmd, irq_index);
 
 	/* send command to mc*/
@@ -389,6 +414,7 @@ int dpni_get_irq_mask(struct fsl_mc_io *mc_io,
 }
 
 int dpni_get_irq_status(struct fsl_mc_io *mc_io,
+			uint32_t cmd_flags,
 			uint16_t token,
 			uint8_t irq_index,
 			uint32_t *status)
@@ -398,7 +424,8 @@ int dpni_get_irq_status(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_IRQ_STATUS,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_GET_IRQ_STATUS(cmd, irq_index);
 
 	/* send command to mc*/
@@ -413,6 +440,7 @@ int dpni_get_irq_status(struct fsl_mc_io *mc_io,
 }
 
 int dpni_clear_irq_status(struct fsl_mc_io *mc_io,
+			  uint32_t cmd_flags,
 			  uint16_t token,
 			  uint8_t irq_index,
 			  uint32_t status)
@@ -421,7 +449,8 @@ int dpni_clear_irq_status(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_CLEAR_IRQ_STATUS,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_CLEAR_IRQ_STATUS(cmd, irq_index, status);
 
 	/* send command to mc*/
@@ -429,6 +458,7 @@ int dpni_clear_irq_status(struct fsl_mc_io *mc_io,
 }
 
 int dpni_get_attributes(struct fsl_mc_io *mc_io,
+			uint32_t cmd_flags,
 			uint16_t token,
 			struct dpni_attr *attr)
 {
@@ -437,7 +467,7 @@ int dpni_get_attributes(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_ATTR,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 
 	/* send command to mc*/
@@ -452,6 +482,7 @@ int dpni_get_attributes(struct fsl_mc_io *mc_io,
 }
 
 int dpni_set_errors_behavior(struct fsl_mc_io *mc_io,
+			     uint32_t cmd_flags,
 			     uint16_t token,
 			      struct dpni_error_cfg *cfg)
 {
@@ -459,7 +490,8 @@ int dpni_set_errors_behavior(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_ERRORS_BEHAVIOR,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_ERRORS_BEHAVIOR(cmd, cfg);
 
 	/* send command to mc*/
@@ -467,6 +499,7 @@ int dpni_set_errors_behavior(struct fsl_mc_io *mc_io,
 }
 
 int dpni_get_rx_buffer_layout(struct fsl_mc_io *mc_io,
+			      uint32_t cmd_flags,
 			      uint16_t token,
 			      struct dpni_buffer_layout *layout)
 {
@@ -475,7 +508,8 @@ int dpni_get_rx_buffer_layout(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_RX_BUFFER_LAYOUT,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 
 	/* send command to mc*/
 	err = mc_send_command(mc_io, &cmd);
@@ -489,6 +523,7 @@ int dpni_get_rx_buffer_layout(struct fsl_mc_io *mc_io,
 }
 
 int dpni_set_rx_buffer_layout(struct fsl_mc_io *mc_io,
+			      uint32_t cmd_flags,
 			      uint16_t token,
 			      const struct dpni_buffer_layout *layout)
 {
@@ -496,7 +531,8 @@ int dpni_set_rx_buffer_layout(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_RX_BUFFER_LAYOUT,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_RX_BUFFER_LAYOUT(cmd, layout);
 
 	/* send command to mc*/
@@ -504,6 +540,7 @@ int dpni_set_rx_buffer_layout(struct fsl_mc_io *mc_io,
 }
 
 int dpni_get_tx_buffer_layout(struct fsl_mc_io *mc_io,
+			      uint32_t cmd_flags,
 			      uint16_t token,
 			      struct dpni_buffer_layout *layout)
 {
@@ -512,7 +549,8 @@ int dpni_get_tx_buffer_layout(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_TX_BUFFER_LAYOUT,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 
 	/* send command to mc*/
 	err = mc_send_command(mc_io, &cmd);
@@ -526,6 +564,7 @@ int dpni_get_tx_buffer_layout(struct fsl_mc_io *mc_io,
 }
 
 int dpni_set_tx_buffer_layout(struct fsl_mc_io *mc_io,
+			      uint32_t cmd_flags,
 			      uint16_t token,
 			      const struct dpni_buffer_layout *layout)
 {
@@ -533,7 +572,8 @@ int dpni_set_tx_buffer_layout(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_TX_BUFFER_LAYOUT,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_TX_BUFFER_LAYOUT(cmd, layout);
 
 	/* send command to mc*/
@@ -541,6 +581,7 @@ int dpni_set_tx_buffer_layout(struct fsl_mc_io *mc_io,
 }
 
 int dpni_get_tx_conf_buffer_layout(struct fsl_mc_io *mc_io,
+				   uint32_t cmd_flags,
 				   uint16_t token,
 				   struct dpni_buffer_layout *layout)
 {
@@ -549,7 +590,8 @@ int dpni_get_tx_conf_buffer_layout(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_TX_CONF_BUFFER_LAYOUT,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 
 	/* send command to mc*/
 	err = mc_send_command(mc_io, &cmd);
@@ -563,6 +605,7 @@ int dpni_get_tx_conf_buffer_layout(struct fsl_mc_io *mc_io,
 }
 
 int dpni_set_tx_conf_buffer_layout(struct fsl_mc_io *mc_io,
+				   uint32_t cmd_flags,
 				   uint16_t token,
 				   const struct dpni_buffer_layout *layout)
 {
@@ -570,7 +613,8 @@ int dpni_set_tx_conf_buffer_layout(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_TX_CONF_BUFFER_LAYOUT,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_TX_CONF_BUFFER_LAYOUT(cmd, layout);
 
 	/* send command to mc*/
@@ -578,6 +622,7 @@ int dpni_set_tx_conf_buffer_layout(struct fsl_mc_io *mc_io,
 }
 
 int dpni_get_l3_chksum_validation(struct fsl_mc_io *mc_io,
+				  uint32_t cmd_flags,
 				  uint16_t token,
 				  int *en)
 {
@@ -586,7 +631,7 @@ int dpni_get_l3_chksum_validation(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_L3_CHKSUM_VALIDATION,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 
 	/* send command to mc*/
@@ -601,6 +646,7 @@ int dpni_get_l3_chksum_validation(struct fsl_mc_io *mc_io,
 }
 
 int dpni_set_l3_chksum_validation(struct fsl_mc_io *mc_io,
+				  uint32_t cmd_flags,
 				  uint16_t token,
 				  int en)
 {
@@ -608,7 +654,8 @@ int dpni_set_l3_chksum_validation(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_L3_CHKSUM_VALIDATION,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_L3_CHKSUM_VALIDATION(cmd, en);
 
 	/* send command to mc*/
@@ -616,6 +663,7 @@ int dpni_set_l3_chksum_validation(struct fsl_mc_io *mc_io,
 }
 
 int dpni_get_l4_chksum_validation(struct fsl_mc_io *mc_io,
+				  uint32_t cmd_flags,
 				  uint16_t token,
 				  int *en)
 {
@@ -624,7 +672,8 @@ int dpni_get_l4_chksum_validation(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_L4_CHKSUM_VALIDATION,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 
 	/* send command to mc*/
 	err = mc_send_command(mc_io, &cmd);
@@ -638,6 +687,7 @@ int dpni_get_l4_chksum_validation(struct fsl_mc_io *mc_io,
 }
 
 int dpni_set_l4_chksum_validation(struct fsl_mc_io *mc_io,
+				  uint32_t cmd_flags,
 				  uint16_t token,
 				  int en)
 {
@@ -645,21 +695,25 @@ int dpni_set_l4_chksum_validation(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_L4_CHKSUM_VALIDATION,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_L4_CHKSUM_VALIDATION(cmd, en);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_get_qdid(struct fsl_mc_io *mc_io, uint16_t token, uint16_t *qdid)
+int dpni_get_qdid(struct fsl_mc_io *mc_io,
+		  uint32_t cmd_flags,
+		  uint16_t token,
+		  uint16_t *qdid)
 {
 	struct mc_command cmd = { 0 };
 	int err;
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_QDID,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 
 	/* send command to mc*/
@@ -673,14 +727,17 @@ int dpni_get_qdid(struct fsl_mc_io *mc_io, uint16_t token, uint16_t *qdid)
 	return 0;
 }
 
-int dpni_get_spid(struct fsl_mc_io *mc_io, uint16_t token, uint16_t *spid)
+int dpni_get_sp_info(struct fsl_mc_io *mc_io,
+		     uint32_t cmd_flags,
+		     uint16_t token,
+		     struct dpni_sp_info *sp_info)
 {
 	struct mc_command cmd = { 0 };
 	int err;
 
 	/* prepare command */
-	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_SPID,
-					  MC_CMD_PRI_LOW,
+	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_SP_INFO,
+					  cmd_flags,
 					  token);
 
 	/* send command to mc*/
@@ -689,12 +746,13 @@ int dpni_get_spid(struct fsl_mc_io *mc_io, uint16_t token, uint16_t *spid)
 		return err;
 
 	/* retrieve response parameters */
-	DPNI_RSP_GET_SPID(cmd, *spid);
+	DPNI_RSP_GET_SP_INFO(cmd, sp_info);
 
 	return 0;
 }
 
 int dpni_get_tx_data_offset(struct fsl_mc_io *mc_io,
+			    uint32_t cmd_flags,
 			    uint16_t token,
 			    uint16_t *data_offset)
 {
@@ -703,7 +761,8 @@ int dpni_get_tx_data_offset(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_TX_DATA_OFFSET,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 
 	/* send command to mc*/
 	err = mc_send_command(mc_io, &cmd);
@@ -717,6 +776,7 @@ int dpni_get_tx_data_offset(struct fsl_mc_io *mc_io,
 }
 
 int dpni_get_counter(struct fsl_mc_io *mc_io,
+		     uint32_t cmd_flags,
 		     uint16_t token,
 		     enum dpni_counter counter,
 		     uint64_t *value)
@@ -726,7 +786,8 @@ int dpni_get_counter(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_COUNTER,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_GET_COUNTER(cmd, counter);
 
 	/* send command to mc*/
@@ -741,6 +802,7 @@ int dpni_get_counter(struct fsl_mc_io *mc_io,
 }
 
 int dpni_set_counter(struct fsl_mc_io *mc_io,
+		     uint32_t cmd_flags,
 		     uint16_t token,
 		     enum dpni_counter counter,
 		     uint64_t value)
@@ -749,7 +811,8 @@ int dpni_set_counter(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_COUNTER,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_COUNTER(cmd, counter, value);
 
 	/* send command to mc*/
@@ -757,14 +820,16 @@ int dpni_set_counter(struct fsl_mc_io *mc_io,
 }
 
 int dpni_set_link_cfg(struct fsl_mc_io *mc_io,
+		      uint32_t cmd_flags,
 		      uint16_t token,
-		     const struct dpni_link_cfg *cfg)
+		      const struct dpni_link_cfg *cfg)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_LINK_CFG,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_LINK_CFG(cmd, cfg);
 
 	/* send command to mc*/
@@ -772,6 +837,7 @@ int dpni_set_link_cfg(struct fsl_mc_io *mc_io,
 }
 
 int dpni_get_link_state(struct fsl_mc_io *mc_io,
+			uint32_t cmd_flags,
 			uint16_t token,
 			struct dpni_link_state *state)
 {
@@ -780,7 +846,8 @@ int dpni_get_link_state(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_LINK_STATE,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 
 	/* send command to mc*/
 	err = mc_send_command(mc_io, &cmd);
@@ -793,14 +860,33 @@ int dpni_get_link_state(struct fsl_mc_io *mc_io,
 	return 0;
 }
 
-int dpni_set_max_frame_length(struct fsl_mc_io *mc_io, uint16_t token,
+int dpni_set_tx_shaping(struct fsl_mc_io *mc_io,
+			uint32_t cmd_flags,
+			uint16_t token,
+			const struct dpni_tx_shaping_cfg *tx_shaper)
+{
+	struct mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_TX_SHAPING,
+					  cmd_flags,
+					  token);
+	DPNI_CMD_SET_TX_SHAPING(cmd, tx_shaper);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
+
+int dpni_set_max_frame_length(struct fsl_mc_io *mc_io,
+			      uint32_t cmd_flags,
+			      uint16_t token,
 			      uint16_t max_frame_length)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_MAX_FRAME_LENGTH,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 	DPNI_CMD_SET_MAX_FRAME_LENGTH(cmd, max_frame_length);
 
@@ -808,7 +894,9 @@ int dpni_set_max_frame_length(struct fsl_mc_io *mc_io, uint16_t token,
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_get_max_frame_length(struct fsl_mc_io *mc_io, uint16_t token,
+int dpni_get_max_frame_length(struct fsl_mc_io *mc_io,
+			      uint32_t cmd_flags,
+			      uint16_t token,
 			      uint16_t *max_frame_length)
 {
 	struct mc_command cmd = { 0 };
@@ -816,7 +904,7 @@ int dpni_get_max_frame_length(struct fsl_mc_io *mc_io, uint16_t token,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_MAX_FRAME_LENGTH,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 
 	/* send command to mc*/
@@ -830,13 +918,16 @@ int dpni_get_max_frame_length(struct fsl_mc_io *mc_io, uint16_t token,
 	return 0;
 }
 
-int dpni_set_mtu(struct fsl_mc_io *mc_io, uint16_t token, uint16_t mtu)
+int dpni_set_mtu(struct fsl_mc_io *mc_io,
+		 uint32_t cmd_flags,
+		 uint16_t token,
+		 uint16_t mtu)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_MTU,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 	DPNI_CMD_SET_MTU(cmd, mtu);
 
@@ -844,14 +935,17 @@ int dpni_set_mtu(struct fsl_mc_io *mc_io, uint16_t token, uint16_t mtu)
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_get_mtu(struct fsl_mc_io *mc_io, uint16_t token, uint16_t *mtu)
+int dpni_get_mtu(struct fsl_mc_io *mc_io,
+		 uint32_t cmd_flags,
+		 uint16_t token,
+		 uint16_t *mtu)
 {
 	struct mc_command cmd = { 0 };
 	int err;
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_MTU,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 
 	/* send command to mc*/
@@ -865,27 +959,35 @@ int dpni_get_mtu(struct fsl_mc_io *mc_io, uint16_t token, uint16_t *mtu)
 	return 0;
 }
 
-int dpni_set_multicast_promisc(struct fsl_mc_io *mc_io, uint16_t token, int en)
+int dpni_set_multicast_promisc(struct fsl_mc_io *mc_io,
+			       uint32_t cmd_flags,
+			       uint16_t token,
+			       int en)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_MCAST_PROMISC,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_MULTICAST_PROMISC(cmd, en);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_get_multicast_promisc(struct fsl_mc_io *mc_io, uint16_t token, int *en)
+int dpni_get_multicast_promisc(struct fsl_mc_io *mc_io,
+			       uint32_t cmd_flags,
+			       uint16_t token,
+			       int *en)
 {
 	struct mc_command cmd = { 0 };
 	int err;
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_MCAST_PROMISC,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 
 	/* send command to mc*/
 	err = mc_send_command(mc_io, &cmd);
@@ -898,27 +1000,35 @@ int dpni_get_multicast_promisc(struct fsl_mc_io *mc_io, uint16_t token, int *en)
 	return 0;
 }
 
-int dpni_set_unicast_promisc(struct fsl_mc_io *mc_io, uint16_t token, int en)
+int dpni_set_unicast_promisc(struct fsl_mc_io *mc_io,
+			     uint32_t cmd_flags,
+			     uint16_t token,
+			     int en)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_UNICAST_PROMISC,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_UNICAST_PROMISC(cmd, en);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_get_unicast_promisc(struct fsl_mc_io *mc_io, uint16_t token, int *en)
+int dpni_get_unicast_promisc(struct fsl_mc_io *mc_io,
+			     uint32_t cmd_flags,
+			     uint16_t token,
+			     int *en)
 {
 	struct mc_command cmd = { 0 };
 	int err;
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_UNICAST_PROMISC,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 
 	/* send command to mc*/
 	err = mc_send_command(mc_io, &cmd);
@@ -932,6 +1042,7 @@ int dpni_get_unicast_promisc(struct fsl_mc_io *mc_io, uint16_t token, int *en)
 }
 
 int dpni_set_primary_mac_addr(struct fsl_mc_io *mc_io,
+			      uint32_t cmd_flags,
 			      uint16_t token,
 			      const uint8_t mac_addr[6])
 {
@@ -939,7 +1050,8 @@ int dpni_set_primary_mac_addr(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_PRIM_MAC,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_PRIMARY_MAC_ADDR(cmd, mac_addr);
 
 	/* send command to mc*/
@@ -947,6 +1059,7 @@ int dpni_set_primary_mac_addr(struct fsl_mc_io *mc_io,
 }
 
 int dpni_get_primary_mac_addr(struct fsl_mc_io *mc_io,
+			      uint32_t cmd_flags,
 			      uint16_t token,
 			      uint8_t mac_addr[6])
 {
@@ -955,7 +1068,8 @@ int dpni_get_primary_mac_addr(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_PRIM_MAC,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 
 	/* send command to mc*/
 	err = mc_send_command(mc_io, &cmd);
@@ -969,6 +1083,7 @@ int dpni_get_primary_mac_addr(struct fsl_mc_io *mc_io,
 }
 
 int dpni_add_mac_addr(struct fsl_mc_io *mc_io,
+		      uint32_t cmd_flags,
 		      uint16_t token,
 		      const uint8_t mac_addr[6])
 {
@@ -976,7 +1091,8 @@ int dpni_add_mac_addr(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_ADD_MAC_ADDR,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_ADD_MAC_ADDR(cmd, mac_addr);
 
 	/* send command to mc*/
@@ -984,6 +1100,7 @@ int dpni_add_mac_addr(struct fsl_mc_io *mc_io,
 }
 
 int dpni_remove_mac_addr(struct fsl_mc_io *mc_io,
+			 uint32_t cmd_flags,
 			 uint16_t token,
 			 const uint8_t mac_addr[6])
 {
@@ -991,47 +1108,60 @@ int dpni_remove_mac_addr(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_REMOVE_MAC_ADDR,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_REMOVE_MAC_ADDR(cmd, mac_addr);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_clear_mac_filters(struct fsl_mc_io *mc_io, uint16_t token, int unicast,
+int dpni_clear_mac_filters(struct fsl_mc_io *mc_io,
+			   uint32_t cmd_flags,
+			   uint16_t token,
+			   int unicast,
 			   int multicast)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_CLR_MAC_FILTERS,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_CLEAR_MAC_FILTERS(cmd, unicast, multicast);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_set_vlan_filters(struct fsl_mc_io *mc_io, uint16_t token, int en)
+int dpni_set_vlan_filters(struct fsl_mc_io *mc_io,
+			  uint32_t cmd_flags,
+			  uint16_t token,
+			  int en)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_VLAN_FILTERS,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_VLAN_FILTERS(cmd, en);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_add_vlan_id(struct fsl_mc_io *mc_io, uint16_t token, uint16_t vlan_id)
+int dpni_add_vlan_id(struct fsl_mc_io *mc_io,
+		     uint32_t cmd_flags,
+		     uint16_t token,
+		     uint16_t vlan_id)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_ADD_VLAN_ID,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_ADD_VLAN_ID(cmd, vlan_id);
 
 	/* send command to mc*/
@@ -1039,6 +1169,7 @@ int dpni_add_vlan_id(struct fsl_mc_io *mc_io, uint16_t token, uint16_t vlan_id)
 }
 
 int dpni_remove_vlan_id(struct fsl_mc_io *mc_io,
+			uint32_t cmd_flags,
 			uint16_t token,
 			uint16_t vlan_id)
 {
@@ -1046,26 +1177,31 @@ int dpni_remove_vlan_id(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_REMOVE_VLAN_ID,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_REMOVE_VLAN_ID(cmd, vlan_id);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_clear_vlan_filters(struct fsl_mc_io *mc_io, uint16_t token)
+int dpni_clear_vlan_filters(struct fsl_mc_io *mc_io,
+			    uint32_t cmd_flags,
+			    uint16_t token)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_CLR_VLAN_FILTERS,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
 int dpni_set_tx_tc(struct fsl_mc_io *mc_io,
+		   uint32_t cmd_flags,
 		   uint16_t token,
 		   uint8_t tc_id,
 		   const struct dpni_tx_tc_cfg *cfg)
@@ -1074,7 +1210,7 @@ int dpni_set_tx_tc(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_TX_TC,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 	DPNI_CMD_SET_TX_TC(cmd, tc_id, cfg);
 
@@ -1082,7 +1218,25 @@ int dpni_set_tx_tc(struct fsl_mc_io *mc_io,
 	return mc_send_command(mc_io, &cmd);
 }
 
+int dpni_set_tx_selection(struct fsl_mc_io			*mc_io,
+			  uint32_t				cmd_flags,
+			  uint16_t				token,
+			  const struct dpni_tx_selection_cfg	*cfg)
+{
+	struct mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_TX_SELECTION,
+					  cmd_flags,
+					  token);
+	DPNI_CMD_SET_TX_SELECTION(cmd, cfg);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
+
 int dpni_set_rx_tc_dist(struct fsl_mc_io *mc_io,
+			uint32_t cmd_flags,
 			uint16_t token,
 			uint8_t tc_id,
 			const struct dpni_rx_tc_dist_cfg *cfg)
@@ -1091,7 +1245,7 @@ int dpni_set_rx_tc_dist(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_RX_TC_DIST,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 	DPNI_CMD_SET_RX_TC_DIST(cmd, tc_id, cfg);
 
@@ -1100,6 +1254,7 @@ int dpni_set_rx_tc_dist(struct fsl_mc_io *mc_io,
 }
 
 int dpni_set_tx_flow(struct fsl_mc_io *mc_io,
+		     uint32_t cmd_flags,
 		     uint16_t token,
 		     uint16_t *flow_id,
 		     const struct dpni_tx_flow_cfg *cfg)
@@ -1109,7 +1264,8 @@ int dpni_set_tx_flow(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_TX_FLOW,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_TX_FLOW(cmd, *flow_id, cfg);
 
 	/* send command to mc*/
@@ -1124,6 +1280,7 @@ int dpni_set_tx_flow(struct fsl_mc_io *mc_io,
 }
 
 int dpni_get_tx_flow(struct fsl_mc_io *mc_io,
+		     uint32_t cmd_flags,
 		     uint16_t token,
 		     uint16_t flow_id,
 		     struct dpni_tx_flow_attr *attr)
@@ -1133,7 +1290,8 @@ int dpni_get_tx_flow(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_TX_FLOW,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_GET_TX_FLOW(cmd, flow_id);
 
 	/* send command to mc*/
@@ -1148,6 +1306,7 @@ int dpni_get_tx_flow(struct fsl_mc_io *mc_io,
 }
 
 int dpni_set_rx_flow(struct fsl_mc_io *mc_io,
+		     uint32_t cmd_flags,
 		     uint16_t token,
 		     uint8_t tc_id,
 		     uint16_t flow_id,
@@ -1157,7 +1316,8 @@ int dpni_set_rx_flow(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_RX_FLOW,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_RX_FLOW(cmd, tc_id, flow_id, cfg);
 
 	/* send command to mc*/
@@ -1165,6 +1325,7 @@ int dpni_set_rx_flow(struct fsl_mc_io *mc_io,
 }
 
 int dpni_get_rx_flow(struct fsl_mc_io *mc_io,
+		     uint32_t cmd_flags,
 		     uint16_t token,
 		     uint8_t tc_id,
 		     uint16_t flow_id,
@@ -1174,7 +1335,8 @@ int dpni_get_rx_flow(struct fsl_mc_io *mc_io,
 	int err;
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_RX_FLOW,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_GET_RX_FLOW(cmd, tc_id, flow_id);
 
 	/* send command to mc*/
@@ -1188,22 +1350,26 @@ int dpni_get_rx_flow(struct fsl_mc_io *mc_io,
 	return 0;
 }
 
-
-int dpni_set_rx_err_queue(struct fsl_mc_io *mc_io, uint16_t token,
+int dpni_set_rx_err_queue(struct fsl_mc_io *mc_io,
+			  uint32_t cmd_flags,
+			  uint16_t token,
 			  const struct dpni_queue_cfg *cfg)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_RX_ERR_QUEUE,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_RX_ERR_QUEUE(cmd, cfg);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_get_rx_err_queue(struct fsl_mc_io *mc_io, uint16_t token,
+int dpni_get_rx_err_queue(struct fsl_mc_io *mc_io,
+			  uint32_t cmd_flags,
+			  uint16_t token,
 			  struct dpni_queue_attr *attr)
 {
 	struct mc_command cmd = { 0 };
@@ -1211,7 +1377,7 @@ int dpni_get_rx_err_queue(struct fsl_mc_io *mc_io, uint16_t token,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_RX_ERR_QUEUE,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 
 	/* send command to mc*/
@@ -1225,21 +1391,26 @@ int dpni_get_rx_err_queue(struct fsl_mc_io *mc_io, uint16_t token,
 	return 0;
 }
 
-int dpni_set_tx_conf_err_queue(struct fsl_mc_io *mc_io, uint16_t token,
+int dpni_set_tx_conf_err_queue(struct fsl_mc_io *mc_io,
+			       uint32_t cmd_flags,
+			       uint16_t token,
 			       const struct dpni_queue_cfg *cfg)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_TX_CONF_ERR_QUEUE,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_TX_CONF_ERR_QUEUE(cmd, cfg);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_get_tx_conf_err_queue(struct fsl_mc_io *mc_io, uint16_t token,
+int dpni_get_tx_conf_err_queue(struct fsl_mc_io *mc_io,
+			       uint32_t cmd_flags,
+			       uint16_t token,
 			       struct dpni_queue_attr *attr)
 {
 	struct mc_command cmd = { 0 };
@@ -1247,7 +1418,7 @@ int dpni_get_tx_conf_err_queue(struct fsl_mc_io *mc_io, uint16_t token,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_TX_CONF_ERR_QUEUE,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 
 	/* send command to mc*/
@@ -1261,8 +1432,25 @@ int dpni_get_tx_conf_err_queue(struct fsl_mc_io *mc_io, uint16_t token,
 	return 0;
 }
 
+int dpni_set_tx_conf_revoke(struct fsl_mc_io	*mc_io,
+			    uint32_t		cmd_flags,
+			    uint16_t		token,
+			    int		revoke)
+{
+	struct mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_TX_CONF_REVOKE,
+					  cmd_flags,
+					  token);
+	DPNI_CMD_SET_TX_CONF_REVOKE(cmd, revoke);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
 
 int dpni_set_qos_table(struct fsl_mc_io *mc_io,
+		       uint32_t cmd_flags,
 		       uint16_t token,
 		       const struct dpni_qos_tbl_cfg *cfg)
 {
@@ -1270,7 +1458,8 @@ int dpni_set_qos_table(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_QOS_TBL,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_SET_QOS_TABLE(cmd, cfg);
 
 	/* send command to mc*/
@@ -1278,6 +1467,7 @@ int dpni_set_qos_table(struct fsl_mc_io *mc_io,
 }
 
 int dpni_add_qos_entry(struct fsl_mc_io *mc_io,
+		       uint32_t cmd_flags,
 		       uint16_t token,
 		       const struct dpni_rule_cfg *cfg,
 		       uint8_t tc_id)
@@ -1286,8 +1476,8 @@ int dpni_add_qos_entry(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_ADD_QOS_ENT,
-					  MC_CMD_PRI_LOW, token);
-
+					  cmd_flags,
+					  token);
 	DPNI_CMD_ADD_QOS_ENTRY(cmd, cfg, tc_id);
 
 	/* send command to mc*/
@@ -1295,6 +1485,7 @@ int dpni_add_qos_entry(struct fsl_mc_io *mc_io,
 }
 
 int dpni_remove_qos_entry(struct fsl_mc_io *mc_io,
+			  uint32_t cmd_flags,
 			  uint16_t token,
 			  const struct dpni_rule_cfg *cfg)
 {
@@ -1302,26 +1493,31 @@ int dpni_remove_qos_entry(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_REMOVE_QOS_ENT,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_REMOVE_QOS_ENTRY(cmd, cfg);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_clear_qos_table(struct fsl_mc_io *mc_io, uint16_t token)
+int dpni_clear_qos_table(struct fsl_mc_io *mc_io,
+			 uint32_t cmd_flags,
+			 uint16_t token)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_CLR_QOS_TBL,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
 int dpni_add_fs_entry(struct fsl_mc_io *mc_io,
+		      uint32_t cmd_flags,
 		      uint16_t token,
 		      uint8_t tc_id,
 		      const struct dpni_rule_cfg *cfg,
@@ -1331,7 +1527,7 @@ int dpni_add_fs_entry(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_ADD_FS_ENT,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 	DPNI_CMD_ADD_FS_ENTRY(cmd, tc_id, cfg, flow_id);
 
@@ -1340,6 +1536,7 @@ int dpni_add_fs_entry(struct fsl_mc_io *mc_io,
 }
 
 int dpni_remove_fs_entry(struct fsl_mc_io *mc_io,
+			 uint32_t cmd_flags,
 			 uint16_t token,
 			 uint8_t tc_id,
 			 const struct dpni_rule_cfg *cfg)
@@ -1348,21 +1545,24 @@ int dpni_remove_fs_entry(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_REMOVE_FS_ENT,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPNI_CMD_REMOVE_FS_ENTRY(cmd, tc_id, cfg);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_clear_fs_entries(struct fsl_mc_io *mc_io, uint16_t token,
+int dpni_clear_fs_entries(struct fsl_mc_io *mc_io,
+			  uint32_t cmd_flags,
+			  uint16_t token,
 			  uint8_t tc_id)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_CLR_FS_ENT,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 	DPNI_CMD_CLEAR_FS_ENTRIES(cmd, tc_id);
 
@@ -1370,39 +1570,48 @@ int dpni_clear_fs_entries(struct fsl_mc_io *mc_io, uint16_t token,
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_set_vlan_insertion(struct fsl_mc_io *mc_io, uint16_t token, int en)
+int dpni_set_vlan_insertion(struct fsl_mc_io *mc_io,
+			    uint32_t cmd_flags,
+			    uint16_t token,
+			    int en)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_VLAN_INSERTION,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags, token);
 	DPNI_CMD_SET_VLAN_INSERTION(cmd, en);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_set_vlan_removal(struct fsl_mc_io *mc_io, uint16_t token, int en)
+int dpni_set_vlan_removal(struct fsl_mc_io *mc_io,
+			  uint32_t cmd_flags,
+			  uint16_t token,
+			  int en)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_VLAN_REMOVAL,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags, token);
 	DPNI_CMD_SET_VLAN_REMOVAL(cmd, en);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_set_ipr(struct fsl_mc_io *mc_io, uint16_t token, int en)
+int dpni_set_ipr(struct fsl_mc_io *mc_io,
+		 uint32_t cmd_flags,
+		 uint16_t token,
+		 int en)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_IPR,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 	DPNI_CMD_SET_IPR(cmd, en);
 
@@ -1410,13 +1619,16 @@ int dpni_set_ipr(struct fsl_mc_io *mc_io, uint16_t token, int en)
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_set_ipf(struct fsl_mc_io *mc_io, uint16_t token, int en)
+int dpni_set_ipf(struct fsl_mc_io *mc_io,
+		 uint32_t cmd_flags,
+		 uint16_t token,
+		 int en)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_IPF,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 	DPNI_CMD_SET_IPF(cmd, en);
 
@@ -1425,6 +1637,7 @@ int dpni_set_ipf(struct fsl_mc_io *mc_io, uint16_t token, int en)
 }
 
 int dpni_set_rx_tc_policing(struct fsl_mc_io	*mc_io,
+			    uint32_t		cmd_flags,
 			    uint16_t		token,
 			    uint8_t		tc_id,
 			    const struct dpni_rx_tc_policing_cfg *cfg)
@@ -1433,7 +1646,7 @@ int dpni_set_rx_tc_policing(struct fsl_mc_io	*mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_RX_TC_POLICING,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 	DPNI_CMD_SET_RX_TC_POLICING(cmd, tc_id, cfg);
 
@@ -1450,15 +1663,16 @@ void dpni_prepare_rx_tc_early_drop(const struct dpni_rx_tc_early_drop_cfg *cfg,
 }
 
 int dpni_set_rx_tc_early_drop(struct fsl_mc_io	*mc_io,
+			      uint32_t		cmd_flags,
 			      uint16_t		token,
-			    uint8_t		tc_id,
-			    uint64_t		early_drop_iova)
+			      uint8_t		tc_id,
+			      uint64_t		early_drop_iova)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_RX_TC_EARLY_DROP,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 	DPNI_CMD_SET_RX_TC_EARLY_DROP(cmd, tc_id, early_drop_iova);
 

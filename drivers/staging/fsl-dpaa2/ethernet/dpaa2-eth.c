@@ -690,7 +690,7 @@ static int ldpaa_eth_set_rx_csum(struct ldpaa_eth_priv *priv, bool enable)
 {
 	int err;
 
-	err = dpni_set_l3_chksum_validation(priv->mc_io, priv->mc_token,
+	err = dpni_set_l3_chksum_validation(priv->mc_io, 0, priv->mc_token,
 					    enable);
 	if (unlikely(err)) {
 		netdev_err(priv->net_dev,
@@ -698,7 +698,7 @@ static int ldpaa_eth_set_rx_csum(struct ldpaa_eth_priv *priv, bool enable)
 		return err;
 	}
 
-	err = dpni_set_l4_chksum_validation(priv->mc_io, priv->mc_token,
+	err = dpni_set_l4_chksum_validation(priv->mc_io, 0, priv->mc_token,
 					    enable);
 	if (unlikely(err)) {
 		netdev_err(priv->net_dev,
@@ -728,7 +728,7 @@ static int ldpaa_eth_set_tx_csum(struct ldpaa_eth_priv *priv, bool enable)
 			continue;
 
 		/* The Tx flowid is kept in the corresponding TxConf FQ. */
-		err = dpni_set_tx_flow(priv->mc_io, priv->mc_token,
+		err = dpni_set_tx_flow(priv->mc_io, 0, priv->mc_token,
 				       &fq->flowid, &tx_flow_cfg);
 		if (unlikely(err)) {
 			netdev_err(priv->net_dev, "dpni_set_tx_flow failed\n");
@@ -844,7 +844,7 @@ static int __cold ldpaa_eth_open(struct net_device *net_dev)
 	 */
 	netif_tx_stop_all_queues(net_dev);
 
-	err = dpni_enable(priv->mc_io, priv->mc_token);
+	err = dpni_enable(priv->mc_io, 0, priv->mc_token);
 	if (err < 0) {
 		dev_err(net_dev->dev.parent, "dpni_enable() failed\n");
 		goto enable_err;
@@ -865,7 +865,7 @@ static int __cold ldpaa_eth_stop(struct net_device *net_dev)
 
 	/* Stop Tx and Rx traffic */
 	netif_tx_stop_all_queues(net_dev);
-	dpni_disable(priv->mc_io, priv->mc_token);
+	dpni_disable(priv->mc_io, 0, priv->mc_token);
 
 	/* TODO: Make sure queues are drained before if down is complete! */
 	msleep(100);
@@ -922,7 +922,7 @@ static int ldpaa_eth_set_addr(struct net_device *net_dev, void *addr)
 		return err;
 	}
 
-	err = dpni_set_primary_mac_addr(priv->mc_io, priv->mc_token,
+	err = dpni_set_primary_mac_addr(priv->mc_io, 0, priv->mc_token,
 					net_dev->dev_addr);
 	if (err) {
 		dev_err(dev, "dpni_set_primary_mac_addr() failed (%d)\n", err);
@@ -970,7 +970,7 @@ static int ldpaa_eth_change_mtu(struct net_device *net_dev, int mtu)
 	/* Set the maximum Rx frame length to match the transmit side;
 	 * account for L2 headers when computing the MFL
 	 */
-	err = dpni_set_max_frame_length(priv->mc_io, priv->mc_token,
+	err = dpni_set_max_frame_length(priv->mc_io, 0, priv->mc_token,
 					(uint16_t)LDPAA_ETH_L2_MAX_FRM(mtu));
 	if (err) {
 		netdev_err(net_dev, "dpni_set_mfl() failed\n");
@@ -998,7 +998,8 @@ static inline void _ldpaa_eth_hw_add_uc_addr(const struct net_device *net_dev,
 	int err;
 
 	netdev_for_each_uc_addr(ha, net_dev) {
-		err = dpni_add_mac_addr(priv->mc_io, priv->mc_token, ha->addr);
+		err = dpni_add_mac_addr(priv->mc_io, 0, priv->mc_token,
+					ha->addr);
 		LDPAA_ETH_WARN_IF_ERR(err, priv->net_dev,
 				      "Could not add ucast MAC %pM to the filtering table (err %d)\n",
 				      ha->addr, err);
@@ -1015,7 +1016,8 @@ static inline void _ldpaa_eth_hw_add_mc_addr(const struct net_device *net_dev,
 	int err;
 
 	netdev_for_each_mc_addr(ha, net_dev) {
-		err = dpni_add_mac_addr(priv->mc_io, priv->mc_token, ha->addr);
+		err = dpni_add_mac_addr(priv->mc_io, 0, priv->mc_token,
+					ha->addr);
 		LDPAA_ETH_WARN_IF_ERR(err, priv->net_dev,
 				      "Could not add mcast MAC %pM to the filtering table (err %d)\n",
 				      ha->addr, err);
@@ -1069,16 +1071,16 @@ static void ldpaa_eth_set_rx_mode(struct net_device *net_dev)
 		 * making an MC call to find it is expensive; so set uc promisc
 		 * nonetheless.
 		 */
-		err = dpni_set_unicast_promisc(mc_io, mc_token, 1);
+		err = dpni_set_unicast_promisc(mc_io, 0, mc_token, 1);
 		LDPAA_ETH_WARN_IF_ERR(err, net_dev, "Can't set uc promisc\n");
 
 		/* Actual uc table reconstruction. */
-		err = dpni_clear_mac_filters(mc_io, mc_token, 1, 0);
+		err = dpni_clear_mac_filters(mc_io, 0, mc_token, 1, 0);
 		LDPAA_ETH_WARN_IF_ERR(err, net_dev, "Can't clear uc filters\n");
 		_ldpaa_eth_hw_add_uc_addr(net_dev, priv);
 
 		/* Finally, clear uc promisc and set mc promisc as requested. */
-		err = dpni_set_unicast_promisc(mc_io, mc_token, 0);
+		err = dpni_set_unicast_promisc(mc_io, 0, mc_token, 0);
 		LDPAA_ETH_WARN_IF_ERR(err, net_dev, "Can't clear uc promisc\n");
 		goto force_mc_promisc;
 	}
@@ -1086,13 +1088,13 @@ static void ldpaa_eth_set_rx_mode(struct net_device *net_dev)
 	/* Neither unicast, nor multicast promisc will be on... eventually.
 	 * For now, rebuild mac filtering tables while forcing both of them on.
 	 */
-	err = dpni_set_unicast_promisc(mc_io, mc_token, 1);
+	err = dpni_set_unicast_promisc(mc_io, 0, mc_token, 1);
 	LDPAA_ETH_WARN_IF_ERR(err, net_dev, "Can't set uc promisc (%d)\n", err);
-	err = dpni_set_multicast_promisc(mc_io, mc_token, 1);
+	err = dpni_set_multicast_promisc(mc_io, 0, mc_token, 1);
 	LDPAA_ETH_WARN_IF_ERR(err, net_dev, "Can't set mc promisc (%d)\n", err);
 
 	/* Actual mac filtering tables reconstruction */
-	err = dpni_clear_mac_filters(mc_io, mc_token, 1, 1);
+	err = dpni_clear_mac_filters(mc_io, 0, mc_token, 1, 1);
 	LDPAA_ETH_WARN_IF_ERR(err, net_dev, "Can't clear mac filters\n");
 	_ldpaa_eth_hw_add_mc_addr(net_dev, priv);
 	_ldpaa_eth_hw_add_uc_addr(net_dev, priv);
@@ -1100,18 +1102,18 @@ static void ldpaa_eth_set_rx_mode(struct net_device *net_dev)
 	/* Now we can clear both ucast and mcast promisc, without risking
 	 * to drop legitimate frames anymore.
 	 */
-	err = dpni_set_unicast_promisc(mc_io, mc_token, 0);
+	err = dpni_set_unicast_promisc(mc_io, 0, mc_token, 0);
 	LDPAA_ETH_WARN_IF_ERR(err, net_dev, "Can't clear ucast promisc\n");
-	err = dpni_set_multicast_promisc(mc_io, mc_token, 0);
+	err = dpni_set_multicast_promisc(mc_io, 0, mc_token, 0);
 	LDPAA_ETH_WARN_IF_ERR(err, net_dev, "Can't clear mcast promisc\n");
 
 	return;
 
 force_promisc:
-	err = dpni_set_unicast_promisc(mc_io, mc_token, 1);
+	err = dpni_set_unicast_promisc(mc_io, 0, mc_token, 1);
 	LDPAA_ETH_WARN_IF_ERR(err, net_dev, "Can't set ucast promisc\n");
 force_mc_promisc:
-	err = dpni_set_multicast_promisc(mc_io, mc_token, 1);
+	err = dpni_set_multicast_promisc(mc_io, 0, mc_token, 1);
 	LDPAA_ETH_WARN_IF_ERR(err, net_dev, "Can't set mcast promisc\n");
 }
 
@@ -1465,20 +1467,20 @@ static int __cold ldpaa_dpbp_setup(struct ldpaa_eth_priv *priv)
 
 	priv->dpbp_dev = dpbp_dev;
 
-	err = dpbp_open(priv->mc_io, priv->dpbp_dev->obj_desc.id,
+	err = dpbp_open(priv->mc_io, 0, priv->dpbp_dev->obj_desc.id,
 			&dpbp_dev->mc_handle);
 	if (err) {
 		dev_err(dev, "dpbp_open() failed\n");
 		goto err_open;
 	}
 
-	err = dpbp_enable(priv->mc_io, dpbp_dev->mc_handle);
+	err = dpbp_enable(priv->mc_io, 0, dpbp_dev->mc_handle);
 	if (err) {
 		dev_err(dev, "dpbp_enable() failed\n");
 		goto err_enable;
 	}
 
-	err = dpbp_get_attributes(priv->mc_io, dpbp_dev->mc_handle,
+	err = dpbp_get_attributes(priv->mc_io, 0, dpbp_dev->mc_handle,
 				  &priv->dpbp_attrs);
 	if (err) {
 		dev_err(dev, "dpbp_get_attributes() failed\n");
@@ -1488,9 +1490,9 @@ static int __cold ldpaa_dpbp_setup(struct ldpaa_eth_priv *priv)
 	return 0;
 
 err_get_attr:
-	dpbp_disable(priv->mc_io, dpbp_dev->mc_handle);
+	dpbp_disable(priv->mc_io, 0, dpbp_dev->mc_handle);
 err_enable:
-	dpbp_close(priv->mc_io, dpbp_dev->mc_handle);
+	dpbp_close(priv->mc_io, 0, dpbp_dev->mc_handle);
 err_open:
 	fsl_mc_object_free(dpbp_dev);
 
@@ -1513,8 +1515,8 @@ static void __cold __ldpaa_dpbp_free(struct ldpaa_eth_priv *priv)
 static void __cold ldpaa_dpbp_free(struct ldpaa_eth_priv *priv)
 {
 	__ldpaa_dpbp_free(priv);
-	dpbp_disable(priv->mc_io, priv->dpbp_dev->mc_handle);
-	dpbp_close(priv->mc_io, priv->dpbp_dev->mc_handle);
+	dpbp_disable(priv->mc_io, 0, priv->dpbp_dev->mc_handle);
+	dpbp_close(priv->mc_io, 0, priv->dpbp_dev->mc_handle);
 	fsl_mc_object_free(priv->dpbp_dev);
 }
 
@@ -1531,7 +1533,7 @@ static int __cold ldpaa_dpni_setup(struct fsl_mc_device *ls_dev)
 	priv->dpni_id = ls_dev->obj_desc.id;
 
 	/* and get a handle for the DPNI this interface is associate with */
-	err = dpni_open(priv->mc_io, priv->dpni_id, &priv->mc_token);
+	err = dpni_open(priv->mc_io, 0, priv->dpni_id, &priv->mc_token);
 	if (err) {
 		dev_err(dev, "dpni_open() failed\n");
 		goto err_open;
@@ -1540,7 +1542,7 @@ static int __cold ldpaa_dpni_setup(struct fsl_mc_device *ls_dev)
 	/* FIXME Alex's moral compass says this must be done */
 	ls_dev->mc_io = priv->mc_io;
 	ls_dev->mc_handle = priv->mc_token;
-	err = dpni_get_attributes(priv->mc_io, priv->mc_token,
+	err = dpni_get_attributes(priv->mc_io, 0, priv->mc_token,
 				  &priv->dpni_attrs);
 	if (err) {
 		dev_err(dev, "dpni_get_attributes() failed (err=%d)\n", err);
@@ -1555,7 +1557,7 @@ static int __cold ldpaa_dpni_setup(struct fsl_mc_device *ls_dev)
 	priv->buf_layout.pass_frame_status = true;
 	priv->buf_layout.private_data_size = LDPAA_ETH_SWA_SIZE;
 	/* ...rx, ... */
-	err = dpni_set_rx_buffer_layout(priv->mc_io, priv->mc_token,
+	err = dpni_set_rx_buffer_layout(priv->mc_io, 0, priv->mc_token,
 					&priv->buf_layout);
 	if (err) {
 		dev_err(dev, "dpni_set_rx_buffer_layout() failed");
@@ -1563,7 +1565,7 @@ static int __cold ldpaa_dpni_setup(struct fsl_mc_device *ls_dev)
 	}
 	/* ... tx, ... */
 	priv->buf_layout.options &= ~DPNI_BUF_LAYOUT_OPT_PARSER_RESULT;
-	err = dpni_set_tx_buffer_layout(priv->mc_io, priv->mc_token,
+	err = dpni_set_tx_buffer_layout(priv->mc_io, 0, priv->mc_token,
 					&priv->buf_layout);
 	if (err) {
 		dev_err(dev, "dpni_set_tx_buffer_layout() failed");
@@ -1571,7 +1573,7 @@ static int __cold ldpaa_dpni_setup(struct fsl_mc_device *ls_dev)
 	}
 	/* ... tx-confirm. */
 	priv->buf_layout.options &= ~DPNI_BUF_LAYOUT_OPT_PRIVATE_DATA_SIZE;
-	err = dpni_set_tx_conf_buffer_layout(priv->mc_io, priv->mc_token,
+	err = dpni_set_tx_conf_buffer_layout(priv->mc_io, 0, priv->mc_token,
 					     &priv->buf_layout);
 	if (err) {
 		dev_err(dev, "dpni_set_tx_conf_buffer_layout() failed");
@@ -1580,7 +1582,7 @@ static int __cold ldpaa_dpni_setup(struct fsl_mc_device *ls_dev)
 	/* Now that we've set our tx buffer layout, retrieve the minimum
 	 * required tx data offset.
 	 */
-	err = dpni_get_tx_data_offset(priv->mc_io, priv->mc_token,
+	err = dpni_get_tx_data_offset(priv->mc_io, 0, priv->mc_token,
 				      &priv->tx_data_offset);
 	if (err) {
 		dev_err(dev, "dpni_get_tx_data_offset() failed\n");
@@ -1604,7 +1606,7 @@ static int __cold ldpaa_dpni_setup(struct fsl_mc_device *ls_dev)
 err_data_offset:
 err_buf_layout:
 err_get_attr:
-	dpni_close(priv->mc_io, priv->mc_token);
+	dpni_close(priv->mc_io, 0, priv->mc_token);
 err_open:
 	return err;
 }
@@ -1613,12 +1615,12 @@ static void ldpaa_dpni_free(struct ldpaa_eth_priv *priv)
 {
 	int err;
 
-	err = dpni_reset(priv->mc_io, priv->mc_token);
+	err = dpni_reset(priv->mc_io, 0, priv->mc_token);
 	if (unlikely(err))
 		netdev_warn(priv->net_dev, "dpni_reset() failed (err %d)\n",
 			    err);
 
-	dpni_close(priv->mc_io, priv->mc_token);
+	dpni_close(priv->mc_io, 0, priv->mc_token);
 }
 
 static int ldpaa_rx_flow_setup(struct ldpaa_eth_priv *priv,
@@ -1634,7 +1636,7 @@ static int ldpaa_rx_flow_setup(struct ldpaa_eth_priv *priv,
 	queue_cfg.dest_cfg.priority = 3;
 	queue_cfg.user_ctx = fq->nctx.qman64;
 	queue_cfg.dest_cfg.dest_id = fq->nctx.dpio_id;
-	err = dpni_set_rx_flow(priv->mc_io, priv->mc_token, 0, fq->flowid,
+	err = dpni_set_rx_flow(priv->mc_io, 0, priv->mc_token, 0, fq->flowid,
 			       &queue_cfg);
 	if (unlikely(err)) {
 		netdev_err(priv->net_dev, "dpni_set_rx_flow() failed\n");
@@ -1642,7 +1644,7 @@ static int ldpaa_rx_flow_setup(struct ldpaa_eth_priv *priv,
 	}
 
 	/* Get the actual FQID that was assigned by MC */
-	err = dpni_get_rx_flow(priv->mc_io, priv->mc_token, 0, fq->flowid,
+	err = dpni_get_rx_flow(priv->mc_io, 0, priv->mc_token, 0, fq->flowid,
 			       &rx_queue_attr);
 	if (unlikely(err)) {
 		netdev_err(priv->net_dev, "dpni_get_rx_flow() failed\n");
@@ -1672,14 +1674,14 @@ static int ldpaa_tx_flow_setup(struct ldpaa_eth_priv *priv,
 	queue_cfg.dest_cfg.dest_id = fq->nctx.dpio_id;
 	queue_cfg.dest_cfg.priority = 3;
 	tx_flow_cfg.conf_err_cfg.queue_cfg = queue_cfg;
-	err = dpni_set_tx_flow(priv->mc_io, priv->mc_token,
+	err = dpni_set_tx_flow(priv->mc_io, 0, priv->mc_token,
 			       &fq->flowid, &tx_flow_cfg);
 	if (unlikely(err)) {
 		netdev_err(priv->net_dev, "dpni_set_tx_flow() failed\n");
 		return err;
 	}
 
-	err = dpni_get_tx_flow(priv->mc_io, priv->mc_token,
+	err = dpni_get_tx_flow(priv->mc_io, 0, priv->mc_token,
 			       fq->flowid, &tx_flow_attr);
 	if (unlikely(err)) {
 		netdev_err(priv->net_dev, "dpni_get_tx_flow() failed\n");
@@ -1737,7 +1739,7 @@ static int ldpaa_dpni_bind(struct ldpaa_eth_priv *priv)
 	pools_params.num_dpbp = 1;
 	pools_params.pools[0].dpbp_id = priv->dpbp_dev->obj_desc.id;
 	pools_params.pools[0].buffer_size = LDPAA_ETH_RX_BUFFER_SIZE;
-	err = dpni_set_pools(priv->mc_io, priv->mc_token, &pools_params);
+	err = dpni_set_pools(priv->mc_io, 0, priv->mc_token, &pools_params);
 	if (unlikely(err)) {
 		dev_err(dev, "dpni_set_pools() failed\n");
 		return err;
@@ -1762,7 +1764,8 @@ static int ldpaa_dpni_bind(struct ldpaa_eth_priv *priv)
 #else
 	err_cfg.error_action = DPNI_ERROR_ACTION_DISCARD;
 #endif
-	err = dpni_set_errors_behavior(priv->mc_io, priv->mc_token, &err_cfg);
+	err = dpni_set_errors_behavior(priv->mc_io, 0, priv->mc_token,
+				       &err_cfg);
 	if (unlikely(err)) {
 		netdev_err(priv->net_dev, "dpni_set_errors_behavior failed\n");
 		return err;
@@ -1791,7 +1794,7 @@ static int ldpaa_dpni_bind(struct ldpaa_eth_priv *priv)
 			return err;
 	}
 
-	err = dpni_get_qdid(priv->mc_io, priv->mc_token, &priv->tx_qdid);
+	err = dpni_get_qdid(priv->mc_io, 0, priv->mc_token, &priv->tx_qdid);
 	if (unlikely(err)) {
 		netdev_err(net_dev, "dpni_get_qdid() failed\n");
 		return err;
@@ -1842,7 +1845,8 @@ static int ldpaa_eth_netdev_init(struct net_device *net_dev)
 	net_dev->netdev_ops = &ldpaa_eth_ops;
 
 	/* If the DPL contains all-0 mac_addr, set a random hardware address */
-	err = dpni_get_primary_mac_addr(priv->mc_io, priv->mc_token, mac_addr);
+	err = dpni_get_primary_mac_addr(priv->mc_io, 0, priv->mc_token,
+					mac_addr);
 	if (unlikely(err)) {
 		netdev_err(net_dev, "dpni_get_primary_mac_addr() failed (%d)",
 			   err);
@@ -1855,7 +1859,7 @@ static int ldpaa_eth_netdev_init(struct net_device *net_dev)
 		eth_hw_addr_random(net_dev);
 		netdev_info(net_dev, "Replacing all-zero hwaddr with %pM",
 			    net_dev->dev_addr);
-		err = dpni_set_primary_mac_addr(priv->mc_io, priv->mc_token,
+		err = dpni_set_primary_mac_addr(priv->mc_io, 0, priv->mc_token,
 						net_dev->dev_addr);
 		if (unlikely(err)) {
 			netdev_err(net_dev,
@@ -1896,7 +1900,7 @@ static int ldpaa_link_state_update(struct ldpaa_eth_priv *priv)
 	struct dpni_link_state state;
 	int err;
 
-	err = dpni_get_link_state(priv->mc_io, priv->mc_token, &state);
+	err = dpni_get_link_state(priv->mc_io, 0, priv->mc_token, &state);
 	if (unlikely(err)) {
 		netdev_err(priv->net_dev,
 			   "dpni_get_link_state() failed\n");
@@ -1959,7 +1963,7 @@ static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 	if (WARN_ON(dpni_dev->irqs[irq_index]->irq_number != irq_num))
 		goto out;
 
-	err = dpni_get_irq_status(dpni_dev->mc_io, dpni_dev->mc_handle,
+	err = dpni_get_irq_status(dpni_dev->mc_io, 0, dpni_dev->mc_handle,
 				  irq_index, &status);
 	if (unlikely(err)) {
 		netdev_err(net_dev, "Can't get irq status (err %d)", err);
@@ -1973,7 +1977,7 @@ static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 	}
 
 out:
-	dpni_clear_irq_status(dpni_dev->mc_io, dpni_dev->mc_handle,
+	dpni_clear_irq_status(dpni_dev->mc_io, 0, dpni_dev->mc_handle,
 			      irq_index, clear);
 	return IRQ_HANDLED;
 }
@@ -1982,6 +1986,7 @@ static int ldpaa_eth_setup_irqs(struct fsl_mc_device *ls_dev)
 {
 	int err = 0;
 	struct fsl_mc_device_irq *irq;
+	struct dpni_irq_cfg irq_cfg;
 	int irq_count = ls_dev->obj_desc.irq_count;
 	uint8_t irq_index = DPNI_IRQ_INDEX;
 	uint32_t mask = ~0x0u;
@@ -2001,22 +2006,24 @@ static int ldpaa_eth_setup_irqs(struct fsl_mc_device *ls_dev)
 		return err;
 	}
 
-	err = dpni_set_irq(ls_dev->mc_io, ls_dev->mc_handle,
-			   irq_index, irq->msi_paddr,
-			   irq->msi_value, irq->irq_number);
+	irq_cfg.addr = irq->msi_paddr;
+	irq_cfg.val = irq->msi_value;
+	irq_cfg.user_irq_id = irq->irq_number;
+	err = dpni_set_irq(ls_dev->mc_io, 0, ls_dev->mc_handle,
+			   irq_index, &irq_cfg);
 	if (err < 0) {
 		dev_err(&ls_dev->dev, "dpni_set_irq(): %d", err);
 		return err;
 	}
 
-	err = dpni_set_irq_mask(ls_dev->mc_io, ls_dev->mc_handle,
+	err = dpni_set_irq_mask(ls_dev->mc_io, 0, ls_dev->mc_handle,
 				irq_index, mask);
 	if (err < 0) {
 		dev_err(&ls_dev->dev, "dpni_set_irq_mask(): %d", err);
 		return err;
 	}
 
-	err = dpni_set_irq_enable(ls_dev->mc_io, ls_dev->mc_handle,
+	err = dpni_set_irq_enable(ls_dev->mc_io, 0, ls_dev->mc_handle,
 				  irq_index, 1);
 	if (err < 0) {
 		dev_err(&ls_dev->dev, "dpni_set_irq_enable(): %d", err);
@@ -2116,7 +2123,7 @@ static ssize_t ldpaa_eth_write_txconf_cpumask(struct device *dev,
 		queue_cfg.dest_cfg.dest_id = priv->fq[i].nctx.dpio_id;
 		queue_cfg.dest_cfg.priority = 2;
 		tx_flow_cfg.conf_err_cfg.queue_cfg = queue_cfg;
-		err = dpni_set_tx_flow(priv->mc_io, priv->mc_token,
+		err = dpni_set_tx_flow(priv->mc_io, 0, priv->mc_token,
 				       &priv->fq[i].flowid, &tx_flow_cfg);
 		if (unlikely(err)) {
 			netdev_err(priv->net_dev,
@@ -2124,7 +2131,7 @@ static ssize_t ldpaa_eth_write_txconf_cpumask(struct device *dev,
 			return -EPERM;
 		}
 
-		err = dpni_get_tx_flow(priv->mc_io, priv->mc_token,
+		err = dpni_get_tx_flow(priv->mc_io, 0, priv->mc_token,
 				       priv->fq[i].flowid, &tx_flow_attr);
 		if (unlikely(err)) {
 			netdev_err(priv->net_dev,
@@ -2279,7 +2286,7 @@ ldpaa_eth_probe(struct fsl_mc_device *dpni_dev)
 	 * the MC won't do that for us.
 	 */
 	eth_broadcast_addr(bcast_addr);
-	err = dpni_add_mac_addr(priv->mc_io, priv->mc_token, bcast_addr);
+	err = dpni_add_mac_addr(priv->mc_io, 0, priv->mc_token, bcast_addr);
 	if (err) {
 		netdev_warn(net_dev,
 			    "dpni_add_mac_addr() failed with code %d\n", err);
@@ -2345,7 +2352,7 @@ err_alloc_bp_count:
 err_dpio_setup:
 	ldpaa_eth_napi_del(priv);
 	kfree(priv->cls_rule);
-	dpni_close(priv->mc_io, priv->mc_token);
+	dpni_close(priv->mc_io, 0, priv->mc_token);
 err_dpni_setup:
 #ifndef CONFIG_FSL_DPAA2_ETH_LINK_POLL
 	fsl_mc_free_irqs(dpni_dev);

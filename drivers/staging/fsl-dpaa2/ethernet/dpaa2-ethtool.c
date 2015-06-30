@@ -108,7 +108,7 @@ static int __cold ldpaa_get_settings(struct net_device *net_dev,
 	int err = 0;
 	struct ldpaa_eth_priv *priv = netdev_priv(net_dev);
 
-	err = dpni_get_link_state(priv->mc_io, priv->mc_token, &state);
+	err = dpni_get_link_state(priv->mc_io, 0, priv->mc_token, &state);
 	if (unlikely(err)) {
 		netdev_err(net_dev, "ERROR %d getting link state", err);
 		goto out;
@@ -143,7 +143,7 @@ static int __cold ldpaa_set_settings(struct net_device *net_dev,
 	else
 		cfg.options &= ~DPNI_LINK_OPT_HALF_DUPLEX;
 
-	err = dpni_set_link_cfg(priv->mc_io, priv->mc_token, &cfg);
+	err = dpni_set_link_cfg(priv->mc_io, 0, priv->mc_token, &cfg);
 	if (unlikely(err))
 		netdev_err(net_dev, "ERROR %d setting link cfg", err);
 
@@ -206,7 +206,7 @@ static void ldpaa_get_ethtool_stats(struct net_device *net_dev,
 
 	/* Print standard counters, from DPNI statistics */
 	for (i = 0; i < DPNI_CNT_NUM_STATS; i++) {
-		err = dpni_get_counter(priv->mc_io, priv->mc_token, i,
+		err = dpni_get_counter(priv->mc_io, 0, priv->mc_token, i,
 				       data + i);
 		if (err != 0)
 			netdev_warn(net_dev, "Err %d getting DPNI counter %d",
@@ -464,7 +464,7 @@ int ldpaa_set_hash(struct net_device *net_dev, u64 flags)
 		dist_cfg.dist_mode = DPNI_DIST_MODE_HASH;
 	}
 
-	err = dpni_set_rx_tc_dist(priv->mc_io, priv->mc_token, 0, &dist_cfg);
+	err = dpni_set_rx_tc_dist(priv->mc_io, 0, priv->mc_token, 0, &dist_cfg);
 	dma_unmap_single(net_dev->dev.parent, dist_cfg.key_cfg_iova,
 			 LDPAA_CLASSIFIER_DMA_SIZE, DMA_TO_DEVICE);
 	kfree(dma_mem);
@@ -684,10 +684,10 @@ static int ldpaa_do_cls(struct net_device *net_dev,
 
 	/* TODO: no way to control rule order in firmware! */
 	if (add)
-		err = dpni_add_fs_entry(priv->mc_io, priv->mc_token, 0,
+		err = dpni_add_fs_entry(priv->mc_io, 0, priv->mc_token, 0,
 					&rule_cfg, (u16)fs->ring_cookie);
 	else
-		err = dpni_remove_fs_entry(priv->mc_io, priv->mc_token, 0,
+		err = dpni_remove_fs_entry(priv->mc_io, 0, priv->mc_token, 0,
 					   &rule_cfg);
 
 	dma_unmap_single(net_dev->dev.parent, rule_cfg.mask_iova,
