@@ -581,8 +581,21 @@ EXPORT_SYMBOL(dpaa_io_service_pull_fq);
 int dpaa_io_service_pull_channel(struct dpaa_io *d, uint32_t channelid,
 				 struct dpaa_io_store *s)
 {
-	UNIMPLEMENTED();
-	return -EINVAL;
+	struct qbman_pull_desc pd;
+	int err;
+
+	qbman_pull_desc_clear(&pd);
+	qbman_pull_desc_set_storage(&pd, s->vaddr, s->paddr, 1);
+	qbman_pull_desc_set_numframes(&pd, s->max);
+	qbman_pull_desc_set_channel(&pd, channelid, qbman_pull_type_prio);
+	d = _service_select(d);
+	if (!d)
+		return -ENODEV;
+	s->swp = d->object.swp;
+	err = qbman_swp_pull(d->object.swp, &pd);
+	if (err)
+		s->swp = NULL;
+	return err;
 }
 EXPORT_SYMBOL(dpaa_io_service_pull_channel);
 
