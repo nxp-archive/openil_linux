@@ -357,7 +357,7 @@ static void ppx_link_changed(struct net_device *netdev)
 	/* we intentionally ignore the error here as MC will return an error
 	 * if peer L2 interface (like a DPNI) is down at this time
 	 */
-	err = dpmac_set_link_state(priv->mc_dev->mc_io,
+	err = dpmac_set_link_state(priv->mc_dev->mc_io, 0,
 				   priv->mc_dev->mc_handle, &state);
 
 	if (err && err != -EACCES && err != -ENAVAIL)
@@ -406,7 +406,7 @@ static irqreturn_t ppx_irq_handler(int irq_num, void *arg)
 		goto err;
 	}
 
-	err = dpmac_get_link_cfg(mc_dev->mc_io,
+	err = dpmac_get_link_cfg(mc_dev->mc_io, 0,
 				 priv->mc_dev->mc_handle, &link_cfg);
 	if (err) {
 		dev_err(dev, "dpmac_get_link_cfg err %d\n", err);
@@ -417,7 +417,7 @@ static irqreturn_t ppx_irq_handler(int irq_num, void *arg)
 	if (err)
 		goto err;
 
-	err = dpmac_clear_irq_status(mc_dev->mc_io,
+	err = dpmac_clear_irq_status(mc_dev->mc_io, 0,
 				     priv->mc_dev->mc_handle,
 				     0, DPMAC_IRQ_EVENT_LINK_CFG_REQ);
 	if (err < 0) {
@@ -435,6 +435,7 @@ err:
 static int ppx_setup_irqs(struct fsl_mc_device *mc_dev)
 {
 	int err;
+	struct dpmac_irq_cfg irq_cfg;
 
 	err = fsl_mc_allocate_irqs(mc_dev);
 	if (err) {
@@ -442,7 +443,7 @@ static int ppx_setup_irqs(struct fsl_mc_device *mc_dev)
 		return err;
 	}
 
-	err = dpmac_set_irq_enable(mc_dev->mc_io, mc_dev->mc_handle,
+	err = dpmac_set_irq_enable(mc_dev->mc_io, 0, mc_dev->mc_handle,
 				   DPMAC_IRQ_INDEX, 0);
 	if (err) {
 		dev_err(&mc_dev->dev, "dpmac_set_irq_enable err %d\n", err);
@@ -460,15 +461,17 @@ static int ppx_setup_irqs(struct fsl_mc_device *mc_dev)
 		goto free_irq;
 	}
 
-	err = dpmac_set_irq(mc_dev->mc_io, mc_dev->mc_handle, DPMAC_IRQ_INDEX,
-			    mc_dev->irqs[0]->msi_paddr,
-			    mc_dev->irqs[0]->msi_value, 0 /*?*/);
+	irq_cfg.addr = mc_dev->irqs[0]->msi_paddr;
+	irq_cfg.val = mc_dev->irqs[0]->msi_value;
+	irq_cfg.user_irq_id = mc_dev->irqs[0]->irq_number;
+	err = dpmac_set_irq(mc_dev->mc_io, 0, mc_dev->mc_handle,
+			    DPMAC_IRQ_INDEX, &irq_cfg);
 	if (err) {
 		dev_err(&mc_dev->dev, "dpmac_set_irq err %d\n", err);
 		goto unregister_irq;
 	}
 
-	err = dpmac_set_irq_enable(mc_dev->mc_io, mc_dev->mc_handle,
+	err = dpmac_set_irq_enable(mc_dev->mc_io, 0, mc_dev->mc_handle,
 				   DPMAC_IRQ_INDEX, 1);
 	if (err) {
 		dev_err(&mc_dev->dev, "dpmac_set_irq_enable err %d\n", err);
@@ -487,7 +490,7 @@ free_irq:
 
 static void ppx_teardown_irqs(struct fsl_mc_device *mc_dev)
 {
-	dpmac_set_irq_enable(mc_dev->mc_io, mc_dev->mc_handle,
+	dpmac_set_irq_enable(mc_dev->mc_io, 0, mc_dev->mc_handle,
 			     DPMAC_IRQ_INDEX, 0);
 	devm_free_irq(&mc_dev->dev, mc_dev->irqs[0]->irq_number, &mc_dev->dev);
 	fsl_mc_free_irqs(mc_dev);
@@ -541,7 +544,7 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 		goto err_free_netdev;
 	}
 
-	err = dpmac_open(mc_dev->mc_io, mc_dev->obj_desc.id,
+	err = dpmac_open(mc_dev->mc_io, 0, mc_dev->obj_desc.id,
 			 &mc_dev->mc_handle);
 	if (err) {
 		dev_err(dev, "dpmac_open err %d\n", err);
@@ -553,7 +556,7 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 		goto err_free_mcp;
 	}
 
-	err = dpmac_get_attributes(mc_dev->mc_io,
+	err = dpmac_get_attributes(mc_dev->mc_io, 0,
 				   mc_dev->mc_handle, &priv->attr);
 	if (err) {
 		dev_err(dev, "dpmac_get_attributes err %d\n", err);
@@ -653,7 +656,7 @@ err_no_phy:
 err_free_irq:
 	ppx_teardown_irqs(mc_dev);
 err_close:
-	dpmac_close(mc_dev->mc_io, mc_dev->mc_handle);
+	dpmac_close(mc_dev->mc_io, 0, mc_dev->mc_handle);
 err_free_mcp:
 	fsl_mc_portal_free(mc_dev->mc_io);
 err_free_netdev:
@@ -670,7 +673,7 @@ ppx_remove(struct fsl_mc_device *devppx)
 
 	unregister_netdev(priv->netdev);
 	ppx_teardown_irqs(priv->mc_dev);
-	dpmac_close(priv->mc_dev->mc_io, priv->mc_dev->mc_handle);
+	dpmac_close(priv->mc_dev->mc_io, 0, priv->mc_dev->mc_handle);
 	fsl_mc_portal_free(priv->mc_dev->mc_io);
 	free_netdev(priv->netdev);
 
