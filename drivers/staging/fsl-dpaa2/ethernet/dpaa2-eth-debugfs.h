@@ -33,7 +33,7 @@
 #define LDPAA_ETH_DEBUGFS_H
 
 #include <linux/dcache.h>
-#include "ldpaa_eth.h"
+#include "dpaa2-eth.h"
 
 extern struct ldpaa_eth_priv *priv;
 

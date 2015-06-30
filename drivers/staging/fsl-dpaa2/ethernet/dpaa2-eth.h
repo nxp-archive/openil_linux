@@ -41,10 +41,10 @@
 #include "dpni-cmd.h"
 
 #ifdef CONFIG_FSL_DPAA2_ETH_DEBUGFS
-#include "ldpaa_eth_debugfs.h"
+#include "dpaa2-eth-debugfs.h"
 #endif
 
-#include "ldpaa_eth_trace.h"
+#include "dpaa2-eth-trace.h"
 
 /* TODO : how many queues here? NR_CPUS? */
 #define LDPAA_ETH_TX_QUEUES		8	/* FIXME */

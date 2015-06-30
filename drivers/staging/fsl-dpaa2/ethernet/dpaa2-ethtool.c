@@ -30,7 +30,7 @@
  */
 
 #include "dpni.h"	/* DPNI_LINK_OPT_* */
-#include "ldpaa_eth.h"
+#include "dpaa2-eth.h"
 
 /* size of DMA memory used to pass configuration to classifier, in bytes */
 #define LDPAA_CLASSIFIER_DMA_SIZE 256

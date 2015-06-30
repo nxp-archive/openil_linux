@@ -37,7 +37,7 @@
 
 #include <linux/skbuff.h>
 #include <linux/netdevice.h>
-#include "ldpaa_eth.h"
+#include "dpaa2-eth.h"
 #include <linux/tracepoint.h>
 
 #define TR_FMT "[%s] fd: addr=0x%llx, len=%u, off=%u"
@@ -126,5 +126,5 @@ DEFINE_EVENT(ldpaa_eth_fd, ldpaa_tx_conf_fd,
 #undef TRACE_INCLUDE_PATH
 #define TRACE_INCLUDE_PATH .
 #undef TRACE_INCLUDE_FILE
-#define TRACE_INCLUDE_FILE	ldpaa_eth_trace
+#define TRACE_INCLUDE_FILE	dpaa2-eth-trace
 #include <trace/define_trace.h>

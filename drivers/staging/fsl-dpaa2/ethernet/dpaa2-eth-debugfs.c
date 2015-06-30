@@ -33,8 +33,8 @@
 
 #include <linux/module.h>
 #include <linux/debugfs.h>
-#include "ldpaa_eth.h"
-#include "ldpaa_eth_debugfs.h"
+#include "dpaa2-eth.h"
+#include "dpaa2-eth-debugfs.h"
 
 #define LDPAA_ETH_DBG_ROOT "dpaa2-eth"
 
