@@ -902,8 +902,10 @@ int __must_check fsl_mc_populate_irq_pool(struct fsl_mc_bus *mc_bus,
 
 cleanup_msi_entries:
 	list_for_each_entry_safe(msi_entry, next_msi_entry,
-				 &mc_bus_dev->dev.msi_list, list)
+				 &mc_bus_dev->dev.msi_list, list) {
+		list_del(&msi_entry->list);
 		kfree(msi_entry);
+	}
 
 	devm_kfree(&mc_bus_dev->dev, irq_resources);
 	return error;
@@ -933,8 +935,10 @@ void fsl_mc_cleanup_irq_pool(struct fsl_mc_bus *mc_bus)
 
 	msi_domain_free_irqs(mc->irq_domain, &mc_bus->mc_dev.dev);
 	list_for_each_entry_safe(msi_entry, next_msi_entry,
-				 &mc_bus->mc_dev.dev.msi_list, list)
+				 &mc_bus->mc_dev.dev.msi_list, list) {
+		list_del(&msi_entry->list);
 		kfree(msi_entry);
+	}
 
 	devm_kfree(&mc_bus->mc_dev.dev, mc_bus->irq_resources);
 	res_pool->max_count = 0;
