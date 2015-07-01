@@ -183,58 +183,58 @@ static struct rtnl_link_stats64
 	u64			tmp;
 	int			err;
 
-	err = dpmac_get_counter(priv->mc_dev->mc_io, priv->mc_dev->mc_handle,
+	err = dpmac_get_counter(priv->mc_dev->mc_io, 0, priv->mc_dev->mc_handle,
 				DPMAC_CNT_EGR_MCAST_FRAME,
 				&storage->tx_packets);
 	if (err)
 		goto error;
-	err = dpmac_get_counter(priv->mc_dev->mc_io, priv->mc_dev->mc_handle,
+	err = dpmac_get_counter(priv->mc_dev->mc_io, 0, priv->mc_dev->mc_handle,
 				DPMAC_CNT_EGR_BCAST_FRAME, &tmp);
 	if (err)
 		goto error;
 	storage->tx_packets += tmp;
-	err = dpmac_get_counter(priv->mc_dev->mc_io, priv->mc_dev->mc_handle,
+	err = dpmac_get_counter(priv->mc_dev->mc_io, 0, priv->mc_dev->mc_handle,
 				DPMAC_CNT_EGR_UCAST_FRAME, &tmp);
 	if (err)
 		goto error;
 	storage->tx_packets += tmp;
 
-	err = dpmac_get_counter(priv->mc_dev->mc_io, priv->mc_dev->mc_handle,
+	err = dpmac_get_counter(priv->mc_dev->mc_io, 0, priv->mc_dev->mc_handle,
 				DPMAC_CNT_EGR_UNDERSIZED, &storage->tx_dropped);
 	if (err)
 		goto error;
-	err = dpmac_get_counter(priv->mc_dev->mc_io, priv->mc_dev->mc_handle,
+	err = dpmac_get_counter(priv->mc_dev->mc_io, 0, priv->mc_dev->mc_handle,
 				DPMAC_CNT_EGR_BYTE, &storage->tx_bytes);
 	if (err)
 		goto error;
-	err = dpmac_get_counter(priv->mc_dev->mc_io, priv->mc_dev->mc_handle,
+	err = dpmac_get_counter(priv->mc_dev->mc_io, 0, priv->mc_dev->mc_handle,
 				DPMAC_CNT_EGR_ERR_FRAME, &storage->tx_errors);
 	if (err)
 		goto error;
 
-	err = dpmac_get_counter(priv->mc_dev->mc_io, priv->mc_dev->mc_handle,
+	err = dpmac_get_counter(priv->mc_dev->mc_io, 0, priv->mc_dev->mc_handle,
 				DPMAC_CNT_ING_ALL_FRAME, &storage->rx_packets);
 	if (err)
 		goto error;
-	err = dpmac_get_counter(priv->mc_dev->mc_io, priv->mc_dev->mc_handle,
+	err = dpmac_get_counter(priv->mc_dev->mc_io, 0, priv->mc_dev->mc_handle,
 				DPMAC_CNT_ING_MCAST_FRAME, &storage->multicast);
 	if (err)
 		goto error;
-	err = dpmac_get_counter(priv->mc_dev->mc_io, priv->mc_dev->mc_handle,
+	err = dpmac_get_counter(priv->mc_dev->mc_io, 0, priv->mc_dev->mc_handle,
 				DPMAC_CNT_ING_FRAME_DISCARD,
 				&storage->rx_dropped);
 	if (err)
 		goto error;
-	err = dpmac_get_counter(priv->mc_dev->mc_io, priv->mc_dev->mc_handle,
+	err = dpmac_get_counter(priv->mc_dev->mc_io, 0, priv->mc_dev->mc_handle,
 				DPMAC_CNT_ING_ALIGN_ERR, &storage->rx_errors);
 	if (err)
 		goto error;
-	err = dpmac_get_counter(priv->mc_dev->mc_io, priv->mc_dev->mc_handle,
+	err = dpmac_get_counter(priv->mc_dev->mc_io, 0, priv->mc_dev->mc_handle,
 				DPMAC_CNT_ING_OVERSIZED, &tmp);
 	if (err)
 		goto error;
 	storage->rx_errors += tmp;
-	err = dpmac_get_counter(priv->mc_dev->mc_io, priv->mc_dev->mc_handle,
+	err = dpmac_get_counter(priv->mc_dev->mc_io, 0, priv->mc_dev->mc_handle,
 				DPMAC_CNT_ING_BYTE, &storage->rx_bytes);
 	if (err)
 		goto error;
@@ -304,6 +304,7 @@ static void ppx_ethtool_get_stats(struct net_device *netdev,
 
 	for (i = 0; i < ARRAY_SIZE(ppx_ethtool_counters); i++) {
 		err = dpmac_get_counter(priv->mc_dev->mc_io,
+					0,
 					priv->mc_dev->mc_handle,
 					ppx_ethtool_counters[i].id, &data[i]);
 		if (err)
