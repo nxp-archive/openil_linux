@@ -677,8 +677,9 @@ static int mc_completion_wait(struct fsl_mc_io *mc_io, struct mc_command *cmd,
 	return 0;
 }
 
-static int mc_polling_wait(struct fsl_mc_io *mc_io, struct mc_command *cmd,
-			   enum mc_cmd_status *mc_status)
+static int mc_polling_wait_preemptible(struct fsl_mc_io *mc_io,
+				       struct mc_command *cmd,
+				       enum mc_cmd_status *mc_status)
 {
 	enum mc_cmd_status status;
 	unsigned long jiffies_until_timeout =
@@ -689,14 +690,43 @@ static int mc_polling_wait(struct fsl_mc_io *mc_io, struct mc_command *cmd,
 		if (status != MC_CMD_STATUS_READY)
 			break;
 
-		if (preemptible()) {
-			usleep_range(MC_CMD_COMPLETION_POLLING_MIN_SLEEP_USECS,
-				     MC_CMD_COMPLETION_POLLING_MAX_SLEEP_USECS);
-		} else {
-			udelay(MC_CMD_COMPLETION_POLLING_MAX_SLEEP_USECS);
-		}
+		usleep_range(MC_CMD_COMPLETION_POLLING_MIN_SLEEP_USECS,
+			     MC_CMD_COMPLETION_POLLING_MAX_SLEEP_USECS);
 
 		if (time_after_eq(jiffies, jiffies_until_timeout)) {
+			pr_debug("MC command timed out (portal: %#llx, obj handle: %#x, command: %#x)\n",
+				 mc_io->portal_phys_addr,
+				 (unsigned int)
+					MC_CMD_HDR_READ_TOKEN(cmd->header),
+				 (unsigned int)
+					MC_CMD_HDR_READ_CMDID(cmd->header));
+
+			return -ETIMEDOUT;
+		}
+	}
+
+	*mc_status = status;
+	return 0;
+}
+
+static int mc_polling_wait_atomic(struct fsl_mc_io *mc_io,
+				  struct mc_command *cmd,
+				  enum mc_cmd_status *mc_status)
+{
+	enum mc_cmd_status status;
+	unsigned long timeout_usecs = MC_CMD_COMPLETION_TIMEOUT_MS * 1000;
+
+	BUILD_BUG_ON((MC_CMD_COMPLETION_TIMEOUT_MS * 1000) %
+		     MC_CMD_COMPLETION_POLLING_MAX_SLEEP_USECS != 0);
+
+	for (;;) {
+		status = mc_read_response(mc_io->portal_virt_addr, cmd);
+		if (status != MC_CMD_STATUS_READY)
+			break;
+
+		udelay(MC_CMD_COMPLETION_POLLING_MAX_SLEEP_USECS);
+		timeout_usecs -= MC_CMD_COMPLETION_POLLING_MAX_SLEEP_USECS;
+		if (timeout_usecs == 0) {
 			pr_debug("MC command timed out (portal: %#llx, obj handle: %#x, command: %#x)\n",
 				 mc_io->portal_phys_addr,
 				 (unsigned int)
@@ -747,8 +777,10 @@ int mc_send_command(struct fsl_mc_io *mc_io, struct mc_command *cmd)
 	 */
 	if (mc_io->mc_command_done_irq_armed && !dpmcp_completion_intr_disabled)
 		error = mc_completion_wait(mc_io, cmd, &status);
+	else if (preemptible())
+		error = mc_polling_wait_preemptible(mc_io, cmd, &status);
 	else
-		error = mc_polling_wait(mc_io, cmd, &status);
+		error = mc_polling_wait_atomic(mc_io, cmd, &status);
 
 	if (error < 0)
 		goto common_exit;
