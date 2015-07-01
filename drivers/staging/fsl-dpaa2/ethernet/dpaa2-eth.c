@@ -1738,6 +1738,7 @@ static int ldpaa_dpni_bind(struct ldpaa_eth_priv *priv)
 
 	pools_params.num_dpbp = 1;
 	pools_params.pools[0].dpbp_id = priv->dpbp_dev->obj_desc.id;
+	pools_params.pools[0].backup_pool = 0;
 	pools_params.pools[0].buffer_size = LDPAA_ETH_RX_BUFFER_SIZE;
 	err = dpni_set_pools(priv->mc_io, 0, priv->mc_token, &pools_params);
 	if (unlikely(err)) {
