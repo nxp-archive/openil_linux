@@ -418,7 +418,7 @@ int dpio_get_stashing_destination(struct fsl_mc_io *mc_io,
 		return err;
 
 	/* retrieve response parameters */
-	DPIO_RSP_GET_STASHING_DEST(cmd, sdest);
+	DPIO_RSP_GET_STASHING_DEST(cmd, *sdest);
 
 	return 0;
 }
