@@ -28,6 +28,8 @@
 #include "vfio_fsl_mc_private.h"
 struct fsl_mc_io *vfio_mc_io = NULL;
 
+static DEFINE_MUTEX(driver_lock);
+
 /* Validate that requested address range falls in one of container's
  * device region.
  */
@@ -237,7 +239,9 @@ static void vfio_fsl_mc_release(void *device_data)
 {
 	struct vfio_fsl_mc_device *vdev = device_data;
 
-	atomic_dec(&vdev->refcnt);
+	mutex_lock(&driver_lock);
+	vdev->refcnt--;
+	mutex_unlock(&driver_lock);
 
 	module_put(THIS_MODULE);
 }
@@ -249,7 +253,9 @@ static int vfio_fsl_mc_open(void *device_data)
 	if (!try_module_get(THIS_MODULE))
 		return -ENODEV;
 
-	atomic_inc_return(&vdev->refcnt);
+	mutex_lock(&driver_lock);
+	vdev->refcnt++;
+	mutex_unlock(&driver_lock);
 
 	return 0;
 }
