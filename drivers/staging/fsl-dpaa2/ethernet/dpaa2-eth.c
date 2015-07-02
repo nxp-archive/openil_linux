@@ -387,7 +387,7 @@ static int ldpaa_eth_build_sg_fd(struct ldpaa_eth_priv *priv,
 	struct scatterlist *scl, *crt_scl;
 	int num_sg;
 	int num_dma_bufs;
-	struct ldpaa_eth_swa bps;
+	struct ldpaa_eth_swa *bps;
 
 	/* Create and map scatterlist.
 	 * We don't advertise NETIF_F_FRAGLIST, so skb_to_sgvec() will not have
@@ -446,11 +446,11 @@ static int ldpaa_eth_build_sg_fd(struct ldpaa_eth_priv *priv,
 	 * Fit the scatterlist and the number of buffers alongside the
 	 * skb backpointer in the SWA. We'll need all of them on Tx Conf.
 	 */
-	bps.skb = skb;
-	bps.scl = scl;
-	bps.num_sg = num_sg;
-	bps.num_dma_bufs = num_dma_bufs;
-	*(struct ldpaa_eth_swa *)sgt_buf = bps;
+	bps = (struct ldpaa_eth_swa *)sgt_buf;
+	bps->skb = skb;
+	bps->scl = scl;
+	bps->num_sg = num_sg;
+	bps->num_dma_bufs = num_dma_bufs;
 
 	/* Separately map the SGT buffer */
 	addr = dma_map_single(dev, sgt_buf, sgt_buf_size, DMA_TO_DEVICE);
@@ -622,7 +622,7 @@ static void ldpaa_eth_tx_conf(struct ldpaa_eth_priv *priv,
 	struct scatterlist *scl;
 	bool fd_single = (ldpaa_fd_get_format(fd) == dpaa_fd_single);
 	int num_sg, num_dma_bufs;
-	struct ldpaa_eth_swa bps;
+	struct ldpaa_eth_swa *bps;
 
 	/* Tracing point */
 	trace_ldpaa_tx_conf_fd(priv->net_dev, fd);
@@ -641,11 +641,11 @@ static void ldpaa_eth_tx_conf(struct ldpaa_eth_priv *priv,
 				 DMA_TO_DEVICE);
 	} else {
 		/* Unmap the scatterlist and the HW SGT buffer */
-		bps = *(struct ldpaa_eth_swa *)skbh;
-		skb = bps.skb;
-		scl = bps.scl;
-		num_sg = bps.num_sg;
-		num_dma_bufs = bps.num_dma_bufs;
+		bps = (struct ldpaa_eth_swa *)skbh;
+		skb = bps->skb;
+		scl = bps->scl;
+		num_sg = bps->num_sg;
+		num_dma_bufs = bps->num_dma_bufs;
 
 		dma_unmap_sg(dev, scl, num_sg, DMA_TO_DEVICE);
 		kfree(scl);
