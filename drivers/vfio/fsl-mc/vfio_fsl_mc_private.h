@@ -16,8 +16,6 @@
 
 struct vfio_fsl_mc_device {
 	struct fsl_mc_device	*mc_dev;
-	int			num_mc_portals;
-	struct resource		*mc_regions;
 	int			refcnt;
 };
 

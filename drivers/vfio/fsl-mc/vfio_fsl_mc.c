@@ -65,14 +65,6 @@ static bool vfio_validate_mmap_addr(struct vfio_fsl_mc_device *vdev,
 			return true;
 	}
 
-	/* Check for mc portal physical address */
-	for (idx = 0; idx < vdev->num_mc_portals; idx++) {
-		if (addr >= vdev->mc_regions[idx].start &&
-		    ((addr + size - 1) <= vdev->mc_regions[idx].end)) {
-			return true;
-		}
-	}
-
 	return false;
 }
 
@@ -85,12 +77,13 @@ static long vfio_fsl_mc_ioctl(void *device_data,
 	unsigned long minsz;
 	int ret;
 
+	if (WARN_ON(!mc_dev))
+		return -ENODEV;
+
 	switch (cmd) {
 	case VFIO_DEVICE_GET_INFO:
 	{
 		struct vfio_device_info info;
-
-		struct fsl_mc_device *mc_dev;
 
 		minsz = offsetofend(struct vfio_device_info, num_irqs);
 
@@ -99,10 +92,6 @@ static long vfio_fsl_mc_ioctl(void *device_data,
 
 		if (info.argsz < minsz)
 			return -EINVAL;
-
-		mc_dev = vdev->mc_dev;
-		if (!mc_dev)
-			return -ENODEV;
 
 		info.flags = VFIO_DEVICE_FLAGS_FSL_MC;
 		if (strcmp(mc_dev->obj_desc.type, "dprc") == 0)
@@ -115,7 +104,6 @@ static long vfio_fsl_mc_ioctl(void *device_data,
 	}
 	case VFIO_DEVICE_GET_REGION_INFO:
 	{
-		struct fsl_mc_device *mc_dev;
 		struct vfio_region_info info;
 
 		minsz = offsetofend(struct vfio_region_info, offset);
@@ -125,10 +113,6 @@ static long vfio_fsl_mc_ioctl(void *device_data,
 
 		if (info.argsz < minsz)
 			return -EINVAL;
-
-		mc_dev = vdev->mc_dev;
-		if (!mc_dev)
-			return -ENODEV;
 
 		info.offset = mc_dev->regions[info.index].start;
 		info.size = mc_dev->regions[info.index].end -
@@ -152,12 +136,6 @@ static long vfio_fsl_mc_ioctl(void *device_data,
 	}
 	case VFIO_DEVICE_RESET:
 	{
-		struct fsl_mc_device *mc_dev;
-
-		mc_dev = vdev->mc_dev;
-		if (!mc_dev)
-			return -ENODEV;
-
 		if (strcmp(mc_dev->obj_desc.type, "dprc") != 0)
 			return -EINVAL;
 
