@@ -102,7 +102,10 @@ static long vfio_fsl_mc_ioctl(void *device_data,
 		if (!mc_dev)
 			return -ENODEV;
 
-		info.flags = VFIO_DEVICE_FLAGS_FSL_MC | VFIO_DEVICE_FLAGS_RESET;
+		info.flags = VFIO_DEVICE_FLAGS_FSL_MC;
+		if (strcmp(mc_dev->obj_desc.type, "dprc") == 0)
+			info.flags |= VFIO_DEVICE_FLAGS_RESET;
+
 		info.num_regions = mc_dev->obj_desc.region_count;
 		info.num_irqs = mc_dev->obj_desc.irq_count;
 
@@ -147,8 +150,24 @@ static long vfio_fsl_mc_ioctl(void *device_data,
 	}
 	case VFIO_DEVICE_RESET:
 	{
-		dev_err(dev, "VFIO: VFIO_DEVICE_RESET not implemented\n");
-		ret = -EINVAL;
+		struct fsl_mc_device *mc_dev;
+
+		mc_dev = vdev->mc_dev;
+		if (!mc_dev)
+			return -ENODEV;
+
+		if (strcmp(mc_dev->obj_desc.type, "dprc") != 0)
+			return -EINVAL;
+
+		ret = dprc_reset_container(mc_dev->mc_io, 0,
+					   mc_dev->mc_handle,
+					   mc_dev->obj_desc.id);
+		if (ret) {
+			dev_err(dev, "Error in resetting container %d\n", ret);
+			return ret;
+		}
+
+		ret = 0;
 		break;
 	}
 	default:
