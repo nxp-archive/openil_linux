@@ -904,7 +904,8 @@ static int ldpaa_eth_init(struct net_device *net_dev)
 	/* Features */
 	net_dev->features = NETIF_F_RXCSUM |
 			    NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM |
-			    NETIF_F_SG | NETIF_F_HIGHDMA;
+			    NETIF_F_SG | NETIF_F_HIGHDMA |
+			    NETIF_F_LLTX;
 	net_dev->hw_features = net_dev->features;
 
 	return 0;
