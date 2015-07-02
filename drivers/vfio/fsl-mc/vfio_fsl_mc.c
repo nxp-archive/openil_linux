@@ -238,9 +238,18 @@ static int vfio_fsl_mc_mmap(void *device_data, struct vm_area_struct *vma)
 static void vfio_fsl_mc_release(void *device_data)
 {
 	struct vfio_fsl_mc_device *vdev = device_data;
+	struct fsl_mc_device *mc_dev = vdev->mc_dev;
+
+	if (WARN_ON(mc_dev == NULL))
+		return;
 
 	mutex_lock(&driver_lock);
 	vdev->refcnt--;
+
+	if (strcmp(mc_dev->obj_desc.type, "dprc") == 0)
+		dprc_reset_container(mc_dev->mc_io, 0, mc_dev->mc_handle,
+				     mc_dev->obj_desc.id);
+
 	mutex_unlock(&driver_lock);
 
 	module_put(THIS_MODULE);
