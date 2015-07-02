@@ -508,7 +508,7 @@ static int ldpaa_eth_build_single_fd(struct ldpaa_eth_priv *priv,
 
 	addr = dma_map_single(dev,
 			      buffer_start,
-			      skb_end_pointer(skb) - buffer_start,
+			      skb_tail_pointer(skb) - buffer_start,
 			      DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, addr)) {
 		dev_err(dev, "dma_map_single() failed\n");
@@ -637,7 +637,7 @@ static void ldpaa_eth_tx_conf(struct ldpaa_eth_priv *priv,
 		 * we didn't map the actual skb shell.
 		 */
 		dma_unmap_single(dev, fd_addr,
-				 skb_end_pointer(skb) - buffer_start,
+				 skb_tail_pointer(skb) - buffer_start,
 				 DMA_TO_DEVICE);
 	} else {
 		/* Unmap the scatterlist and the HW SGT buffer */
