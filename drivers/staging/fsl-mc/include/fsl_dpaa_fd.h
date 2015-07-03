@@ -241,6 +241,7 @@ uint32_t ldpaa_dq_byte_count(const struct ldpaa_dq *);
 uint32_t ldpaa_dq_frame_count(const struct ldpaa_dq *);
 uint32_t ldpaa_dq_fqd_ctx_hi(const struct ldpaa_dq *);
 uint32_t ldpaa_dq_fqd_ctx_lo(const struct ldpaa_dq *);
+uint64_t ldpaa_dq_fqd_ctx(const struct ldpaa_dq *dq);
 /* get the Frame Descriptor */
 const struct dpaa_fd *ldpaa_dq_fd(const struct ldpaa_dq *);
 
