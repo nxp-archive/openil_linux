@@ -53,6 +53,7 @@ struct dw_pcie_port {
 	u32			atu_num;
 	struct dw_host_ops	*dw_ops;
 	struct pci_ops		*pci_ops;
+	struct msi_controller	*msi_chip;
 };
 
 void dw_pcie_dbi_write(struct dw_pcie_port *pp, u32 value, u32 offset);

@@ -8,6 +8,7 @@
 
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/of.h>
 #include <linux/of_pci.h>
 #include <linux/pci.h>
 #include <linux/pci_regs.h>
@@ -237,6 +238,18 @@ static int dw_pcie_atu_init(struct dw_pcie_port *pp,
 	return 0;
 }
 
+static void dw_pcie_msi_init(struct dw_pcie_port *pp)
+{
+	struct device_node *msi_node;
+
+	if (pp->msi_chip)
+		return;
+
+	msi_node = of_parse_phandle(pp->dev->of_node, "msi-parent", 0);
+	if (msi_node)
+		pp->msi_chip = of_pci_find_msi_chip_by_node(msi_node);
+}
+
 int dw_pcie_port_init(struct dw_pcie_port *pp)
 {
 	struct device_node *dn = pp->dev->of_node;
@@ -257,6 +270,8 @@ int dw_pcie_port_init(struct dw_pcie_port *pp)
 	if (ret)
 		return ret;
 
+	dw_pcie_msi_init(pp);
+
 	if (!pp->pci_ops)
 		pp->pci_ops = &dw_pcie_ops;
 
@@ -269,6 +284,8 @@ int dw_pcie_port_init(struct dw_pcie_port *pp)
 				  pp, &res);
 	if (!bus)
 		return -ENOMEM;
+
+	bus->msi = pp->msi_chip;
 
 	pci_scan_child_bus(bus);
 	pci_assign_unassigned_bus_resources(bus);
