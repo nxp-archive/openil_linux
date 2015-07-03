@@ -1389,9 +1389,6 @@ static int arm_smmu_add_pci_device(struct pci_dev *pdev)
 	if (IS_ERR(group))
 		return PTR_ERR(group);
 
-	if (pci_is_bridge(pdev))
-		goto out_put_group;
-
 	cfg = iommu_group_get_iommudata(group);
 	if (!cfg) {
 		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
@@ -1430,6 +1427,9 @@ static int arm_smmu_add_pci_device(struct pci_dev *pdev)
 	}
 	cfg->streamids[0] = streamid;
 	cfg->mask = 0x7c00;
+
+	pdev->dev_flags |= PCI_DEV_FLAGS_DMA_ALIAS_DEVID;
+	pdev->dma_alias_devid = streamid;
 #endif
 
 	return 0;
