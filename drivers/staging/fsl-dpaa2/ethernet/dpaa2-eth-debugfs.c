@@ -49,7 +49,7 @@ static int ldpaa_dbg_stats_show(struct seq_file *file, void *offset)
 	int i;
 
 	seq_printf(file, "\nPer-CPU stats for %s\n", priv->net_dev->name);
-	seq_puts(file, "CPU\t\tRX\t\tTx\t\tTx conf\t\tTx SG\t\tRx SG\t\tTx busy\n");
+	seq_puts(file, "CPU\t\tRX\t\tTx\tTx conf\t\tTx SG\t\tRx SG\t\tTx busy\n");
 
 	for_each_online_cpu(i) {
 		stats = per_cpu_ptr(priv->percpu_stats, i);
@@ -94,7 +94,7 @@ static int ldpaa_dbg_fqs_show(struct seq_file *file, void *offset)
 	int i, err;
 
 	seq_printf(file, "\nFQ stats for %s:\n", priv->net_dev->name);
-	seq_puts(file, "VFQID\tType\t\tCPU\t\tDeq busy\tFQDANs\t\tFrames\t\tAvg frm/FQDAN\tPending frames\n");
+	seq_puts(file, "VFQID\tType\t\tCPU\tFrames\t\tPending frames\n");
 
 	for (i = 0; i <  priv->num_fqs; i++) {
 		fq = &priv->fq[i];
@@ -102,14 +102,11 @@ static int ldpaa_dbg_fqs_show(struct seq_file *file, void *offset)
 		if (unlikely(err))
 			fcnt = 0;
 
-		seq_printf(file, "%d\t%s\t\t%d%16llu%16llu%16llu%16llu%16u\n",
+		seq_printf(file, "%d\t%s\t\t%d%16llu%16u\n",
 			   fq->fqid,
 			   fq->type == LDPAA_RX_FQ ? "Rx" : "Tx conf",
-			   fq->nctx.desired_cpu,
-			   fq->stats.dequeue_portal_busy,
-			   fq->stats.fqdan,
+			   fq->target_cpu,
 			   fq->stats.frames,
-			   fq->stats.frames / fq->stats.fqdan,
 			   fcnt);
 	}
 
@@ -135,6 +132,48 @@ static const struct file_operations ldpaa_dbg_fq_ops = {
 	.release = single_release,
 };
 
+static int ldpaa_dbg_ch_show(struct seq_file *file, void *offset)
+{
+	struct ldpaa_eth_priv *priv = (struct ldpaa_eth_priv *)file->private;
+	struct ldpaa_eth_channel *ch;
+	int i;
+
+	seq_printf(file, "\nChannel stats for %s:\n", priv->net_dev->name);
+	seq_puts(file, "CHID\tCPU\tDeq busy\tFrames\t\tCDANs\t\tAvg frm/CDAN\n");
+
+	for_each_cpu(i, &priv->dpio_cpumask) {
+		ch = priv->channel[i];
+		seq_printf(file, "%d\t%d%16llu%16llu%16llu%16llu\n",
+			   ch->ch_id,
+			   i,
+			   ch->stats.dequeue_portal_busy,
+			   ch->stats.frames,
+			   ch->stats.cdan,
+			   ch->stats.frames / ch->stats.cdan);
+	}
+
+	return 0;
+}
+
+static int ldpaa_dbg_ch_open(struct inode *inode, struct file *file)
+{
+	int err;
+	struct ldpaa_eth_priv *priv = (struct ldpaa_eth_priv *)inode->i_private;
+
+	err = single_open(file, ldpaa_dbg_ch_show, priv);
+	if (unlikely(err < 0))
+		netdev_err(priv->net_dev, "single_open() failed\n");
+
+	return err;
+}
+
+static const struct file_operations ldpaa_dbg_ch_ops = {
+	.open = ldpaa_dbg_ch_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
 static ssize_t ldpaa_dbg_reset_write(struct file *file, const char __user *buf,
 				     size_t count, loff_t *offset)
 {
@@ -142,6 +181,7 @@ static ssize_t ldpaa_dbg_reset_write(struct file *file, const char __user *buf,
 	struct rtnl_link_stats64 *percpu_stats;
 	struct ldpaa_eth_stats *percpu_extras;
 	struct ldpaa_eth_fq *fq;
+	struct ldpaa_eth_channel *ch;
 	int i;
 
 	for_each_online_cpu(i) {
@@ -155,6 +195,11 @@ static ssize_t ldpaa_dbg_reset_write(struct file *file, const char __user *buf,
 	for (i = 0; i < priv->num_fqs; i++) {
 		fq = &priv->fq[i];
 		memset(&fq->stats, 0, sizeof(fq->stats));
+	}
+
+	for_each_cpu(i, &priv->dpio_cpumask) {
+		ch = priv->channel[i];
+		memset(&ch->stats, 0, sizeof(ch->stats));
 	}
 
 	return count;
@@ -196,6 +241,15 @@ void ldpaa_dbg_add(struct ldpaa_eth_priv *priv)
 		goto err_fq_stats;
 	}
 
+	/* per-fq stats file */
+	priv->dbg.ch_stats = debugfs_create_file("ch_stats", S_IRUGO,
+						 priv->dbg.dir, priv,
+						 &ldpaa_dbg_ch_ops);
+	if (unlikely(!priv->dbg.fq_stats)) {
+		netdev_err(priv->net_dev, "debugfs_create_file() failed\n");
+		goto err_ch_stats;
+	}
+
 	/* reset stats */
 	priv->dbg.reset_stats = debugfs_create_file("reset_stats", S_IWUSR,
 						    priv->dbg.dir, priv,
@@ -208,6 +262,8 @@ void ldpaa_dbg_add(struct ldpaa_eth_priv *priv)
 	return;
 
 err_reset_stats:
+	debugfs_remove(priv->dbg.ch_stats);
+err_ch_stats:
 	debugfs_remove(priv->dbg.fq_stats);
 err_fq_stats:
 	debugfs_remove(priv->dbg.cpu_stats);
@@ -219,6 +275,7 @@ void ldpaa_dbg_remove(struct ldpaa_eth_priv *priv)
 {
 	debugfs_remove(priv->dbg.reset_stats);
 	debugfs_remove(priv->dbg.fq_stats);
+	debugfs_remove(priv->dbg.ch_stats);
 	debugfs_remove(priv->dbg.cpu_stats);
 	debugfs_remove(priv->dbg.dir);
 }

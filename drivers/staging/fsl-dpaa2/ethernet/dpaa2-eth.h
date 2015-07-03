@@ -37,6 +37,7 @@
 #include "../../fsl-mc/include/fsl_dpaa_io.h"
 #include "../../fsl-mc/include/fsl_dpaa_fd.h"
 #include "../../fsl-mc/include/dpbp.h"
+#include "../../fsl-mc/include/dpcon.h"
 #include "dpni.h"
 #include "dpni-cmd.h"
 
@@ -49,9 +50,8 @@
 /* TODO : how many queues here? NR_CPUS? */
 #define LDPAA_ETH_TX_QUEUES		8	/* FIXME */
 #define LDPAA_ETH_STORE_SIZE		16
-/* NAPI weights *must* be a multiple of 16, i.e. the store size. */
-#define LDPAA_ETH_RX_NAPI_WEIGHT	64
-#define LDPAA_ETH_TX_CONF_NAPI_WEIGHT   64
+/* NAPI weight *must* be a multiple of 16, i.e. the store size. */
+#define LDPAA_ETH_NAPI_WEIGHT		64
 
 /* TODO: Sort of arbitrary values for bpools, but we'll need to tune.
  * Supply enough buffers to reassembly several fragmented datagrams. Making it a
@@ -190,16 +190,18 @@ struct ldpaa_eth_stats {
 };
 /* Per-FQ statistics */
 struct ldpaa_eth_fq_stats {
-	/* Volatile dequeues retried due to portal busy */
-	__u64	dequeue_portal_busy;
-	/* Number of FQDANs from queues; useful to estimate avg NAPI len */
-	__u64	fqdan;
 	/* Number of frames received on this queue */
 	__u64 frames;
 };
 
-struct ldpaa_eth_ring {
-	struct dpaa_io_store *store;
+/* Per-channel statistics */
+struct ldpaa_eth_ch_stats {
+	/* Volatile dequeues retried due to portal busy */
+	__u64 dequeue_portal_busy;
+	/* Number of CDANs; useful to estimate avg NAPI len */
+	__u64 cdan;
+	/* Number of frames received on queues from this channel */
+	__u64 frames;
 };
 
 /* Maximum number of Rx queues associated with a DPNI */
@@ -210,6 +212,9 @@ struct ldpaa_eth_ring {
 #define LDPAA_ETH_MAX_QUEUES	(LDPAA_ETH_MAX_RX_QUEUES + \
 				LDPAA_ETH_MAX_TX_QUEUES + \
 				LDPAA_ETH_MAX_RX_ERR_QUEUES)
+
+/* FIXME */
+#define LDPAA_ETH_MAX_DPCONS		8
 
 enum ldpaa_eth_fq_type {
 	LDPAA_RX_FQ = 0,
@@ -222,18 +227,25 @@ struct ldpaa_eth_priv;
 struct ldpaa_eth_fq {
 	uint32_t fqid;
 	uint16_t flowid;
-	struct dpaa_io_notification_ctx nctx;
-	/* FQs are the current source of interrupts (notifications), so it
-	 * makes sense to have napi per FQ.
-	 */
-	struct napi_struct napi;
-	bool has_frames;
-	struct ldpaa_eth_ring ring;
+	int target_cpu;
+	struct ldpaa_eth_channel *channel;
 	enum ldpaa_eth_fq_type type;
-	/* Empty line to appease checkpatch */
+
 	void (*consume)(struct ldpaa_eth_priv *, const struct dpaa_fd *);
 	struct ldpaa_eth_priv *netdev_priv;	/* backpointer */
 	struct ldpaa_eth_fq_stats stats;
+};
+
+struct ldpaa_eth_channel {
+	struct dpaa_io_notification_ctx nctx;
+	struct fsl_mc_device *dpcon;
+	int dpcon_id;
+	int ch_id;
+	int dpio_id;
+	struct napi_struct napi;
+	struct dpaa_io_store *store;
+	struct ldpaa_eth_priv *priv;
+	struct ldpaa_eth_ch_stats stats;
 };
 
 struct ldpaa_cls_rule {
@@ -247,6 +259,8 @@ struct ldpaa_eth_priv {
 	uint8_t num_fqs;
 	/* First queue is tx conf, the rest are rx */
 	struct ldpaa_eth_fq fq[LDPAA_ETH_MAX_QUEUES];
+
+	struct ldpaa_eth_channel *channel[LDPAA_ETH_MAX_DPCONS];
 
 	int dpni_id;
 	struct dpni_attr dpni_attrs;
@@ -267,6 +281,12 @@ struct ldpaa_eth_priv {
 	struct dentry *debugfs_file;
 	/* SysFS-controlled affinity mask for TxConf FQs */
 	struct cpumask txconf_cpumask;
+	/* Cores which have an affine DPIO/DPCON.
+	 * This is the cpu set on which Rx frames are processed;
+	 * Tx confirmation frames are processed on a subset of this,
+	 * depending on user settings.
+	 */
+	struct cpumask dpio_cpumask;
 
 	/* Standard statistics */
 	struct rtnl_link_stats64 __percpu *percpu_stats;

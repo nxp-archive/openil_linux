@@ -339,21 +339,22 @@ static void ldpaa_eth_rx_err(struct ldpaa_eth_priv *priv,
  *
  * Observance of NAPI budget is not our concern, leaving that to the caller.
  */
-static int ldpaa_eth_store_consume(struct ldpaa_eth_fq *fq)
+static int ldpaa_eth_store_consume(struct ldpaa_eth_channel *ch)
 {
-	struct ldpaa_eth_priv *priv = fq->netdev_priv;
+	struct ldpaa_eth_priv *priv = ch->priv;
+	struct ldpaa_eth_fq *fq;
 	struct ldpaa_dq *dq;
 	const struct dpaa_fd *fd;
 	int cleaned = 0;
 	int is_last;
 
 	do {
-		dq = dpaa_io_store_next(fq->ring.store, &is_last);
+		dq = dpaa_io_store_next(ch->store, &is_last);
 		if (unlikely(!dq)) {
 			if (unlikely(!is_last)) {
 				netdev_dbg(priv->net_dev,
-					   "FQID %d returned no valid frames\n",
-					   fq->fqid);
+					   "Channel %d reqturned no valid frames\n",
+					   ch->ch_id);
 				/* MUST retry until we get some sort of
 				 * valid response token (be it "empty dequeue"
 				 * or a valid frame).
@@ -366,6 +367,8 @@ static int ldpaa_eth_store_consume(struct ldpaa_eth_fq *fq)
 
 		/* Obtain FD and process it */
 		fd = ldpaa_dq_fd(dq);
+		fq = (struct ldpaa_eth_fq *)ldpaa_dq_fqd_ctx(dq);
+		fq->stats.frames++;
 		fq->consume(priv, fd);
 		cleaned++;
 	} while (!is_last);
@@ -739,85 +742,86 @@ static int ldpaa_eth_set_tx_csum(struct ldpaa_eth_priv *priv, bool enable)
 	return 0;
 }
 
-static inline int __ldpaa_eth_pull_fq(struct ldpaa_eth_fq *fq)
+static inline int __ldpaa_eth_pull_channel(struct ldpaa_eth_channel *ch)
 {
 	int err;
 	int dequeues = -1;
-	struct ldpaa_eth_priv *priv = fq->netdev_priv;
+	struct ldpaa_eth_priv *priv = ch->priv;
 
 	/* Retry while portal is busy */
 	do {
-		err = dpaa_io_service_pull_fq(NULL, fq->fqid, fq->ring.store);
+		err = dpaa_io_service_pull_channel(NULL, ch->ch_id, ch->store);
 		dequeues++;
 	} while (err == -EBUSY);
 	if (unlikely(err))
 		netdev_err(priv->net_dev, "dpaa_io_service_pull err %d", err);
 
-	fq->stats.dequeue_portal_busy += dequeues;
+	ch->stats.dequeue_portal_busy += dequeues;
 	return err;
 }
 
 static int ldpaa_eth_poll(struct napi_struct *napi, int budget)
 {
-	struct ldpaa_eth_fq *fq;
+	struct ldpaa_eth_channel *ch;
 	int cleaned = 0, store_cleaned;
 	struct ldpaa_eth_priv *priv;
 	int err;
 
-	fq = container_of(napi, struct ldpaa_eth_fq, napi);
-	priv = fq->netdev_priv;
-	/* TODO Must prioritize TxConf over Rx NAPIs */
-	__ldpaa_eth_pull_fq(fq);
+	ch = container_of(napi, struct ldpaa_eth_channel, napi);
+	priv = ch->priv;
+
+	__ldpaa_eth_pull_channel(ch);
 
 	do {
 		/* Refill pool if appropriate */
 		ldpaa_dpbp_refill(priv, priv->dpbp_attrs.bpid);
 
-		store_cleaned = ldpaa_eth_store_consume(fq);
+		store_cleaned = ldpaa_eth_store_consume(ch);
 		cleaned += store_cleaned;
 
-		if (store_cleaned < LDPAA_ETH_STORE_SIZE ||
+		if (store_cleaned == 0 ||
 		    cleaned > budget - LDPAA_ETH_STORE_SIZE)
 			break;
 
 		/* Try to dequeue some more */
-		err = __ldpaa_eth_pull_fq(fq);
+		err = __ldpaa_eth_pull_channel(ch);
 		if (unlikely(err))
 			break;
 	} while (1);
 
 	if (cleaned < budget) {
 		napi_complete(napi);
-		err = dpaa_io_service_rearm(NULL, &fq->nctx);
+		err = dpaa_io_service_rearm(NULL, &ch->nctx);
 		if (unlikely(err))
-			netdev_err(fq->netdev_priv->net_dev,
-				   "Notif rearm failed for FQ %d\n", fq->fqid);
+			netdev_err(priv->net_dev,
+				   "Notif rearm failed for channel %d\n",
+				   ch->ch_id);
 	}
 
-	fq->stats.frames += cleaned;
+	ch->stats.frames += cleaned;
 
 	return cleaned;
 }
 
 static void ldpaa_eth_napi_enable(struct ldpaa_eth_priv *priv)
 {
-	struct ldpaa_eth_fq *fq;
+	struct ldpaa_eth_channel *ch;
 	int i;
 
-	for (i = 0; i < priv->num_fqs; i++) {
-		fq = &priv->fq[i];
-		napi_enable(&fq->napi);
+	for_each_cpu(i, &priv->dpio_cpumask) {
+		ch = priv->channel[i];
+		napi_enable(&ch->napi);
 	}
 }
 
 static void ldpaa_eth_napi_disable(struct ldpaa_eth_priv *priv)
 {
-	struct ldpaa_eth_fq *fq;
+	struct ldpaa_eth_channel *ch;
 	int i;
 
-	for (i = 0; i < priv->num_fqs; i++) {
-		fq = &priv->fq[i];
-		napi_disable(&fq->napi);
+	for_each_cpu(i, &priv->dpio_cpumask) {
+		ch = priv->channel[i];
+		napi_disable(&ch->napi);
 	}
 }
 
@@ -1168,14 +1172,16 @@ static const struct net_device_ops ldpaa_eth_ops = {
 	.ndo_select_queue = ldpaa_eth_select_queue,
 };
 
-static void ldpaa_eth_fqdan_cb(struct dpaa_io_notification_ctx *ctx)
+static void ldpaa_eth_cdan_cb(struct dpaa_io_notification_ctx *ctx)
 {
-	struct ldpaa_eth_fq *fq = container_of(ctx, struct ldpaa_eth_fq, nctx);
+	struct ldpaa_eth_channel *ch;
+
+	ch = container_of(ctx, struct ldpaa_eth_channel, nctx);
 
 	/* Update NAPI statistics */
-	fq->stats.fqdan++;
+	ch->stats.cdan++;
 
-	napi_schedule(&fq->napi);
+	napi_schedule(&ch->napi);
 }
 
 static void ldpaa_eth_setup_fqs(struct ldpaa_eth_priv *priv)
@@ -1188,7 +1194,8 @@ static void ldpaa_eth_setup_fqs(struct ldpaa_eth_priv *priv)
 	for_each_online_cpu(i) {
 		priv->fq[priv->num_fqs].netdev_priv = priv;
 		priv->fq[priv->num_fqs].type = LDPAA_TX_CONF_FQ;
-		priv->fq[priv->num_fqs++].consume = ldpaa_eth_tx_conf;
+		priv->fq[priv->num_fqs].consume = ldpaa_eth_tx_conf;
+		priv->fq[priv->num_fqs++].flowid = DPNI_NEW_FLOW_ID;
 	}
 
 	/* The number of Rx queues (Rx distribution width) may be different from
@@ -1212,115 +1219,199 @@ static void ldpaa_eth_setup_fqs(struct ldpaa_eth_priv *priv)
 #endif
 }
 
-static int __cold __ldpaa_dpio_setup(struct ldpaa_eth_priv *priv,
-				     bool setup_rx_fqs,
-				     bool setup_txconf_fqs)
+static struct fsl_mc_device *ldpaa_dpcon_setup(struct ldpaa_eth_priv *priv)
 {
-	struct dpaa_io_notification_ctx *nctx;
-	int err, i, j;
-	int rx_cpu, txconf_cpu;
+	struct fsl_mc_device *dpcon;
+	struct device *dev = priv->net_dev->dev.parent;
+	int err;
 
-	/* For each FQ, pick one CPU to deliver FQDANs to.
-	 * This may well change at runtime, either through irqbalance or
-	 * through direct user intervention.
-	 */
-	rx_cpu = cpumask_first(cpu_online_mask);
-	txconf_cpu = cpumask_first(&priv->txconf_cpumask);
-	for (i = 0; i < priv->num_fqs; i++) {
-		nctx = &priv->fq[i].nctx;
-		nctx->is_cdan = 0;
-		nctx->cb = ldpaa_eth_fqdan_cb;
-
-		switch (priv->fq[i].type) {
-		case LDPAA_RX_FQ:
-		case LDPAA_RX_ERR_FQ:
-			if (!setup_rx_fqs)
-				/* Skip dpaa_io_service_register() */
-				continue;
-			nctx->desired_cpu = rx_cpu;
-			cpumask_rr(rx_cpu, cpu_online_mask);
-			break;
-		case LDPAA_TX_CONF_FQ:
-			if (!setup_txconf_fqs)
-				/* Skip dpaa_io_service_register() */
-				continue;
-			nctx->desired_cpu = txconf_cpu;
-			cpumask_rr(txconf_cpu, &priv->txconf_cpumask);
-			break;
-		default:
-			netdev_err(priv->net_dev, "Unknown FQ type: %d\n",
-				   priv->fq[i].type);
-			return -EINVAL;
-		}
-
-		/* Register the new context */
-		err = dpaa_io_service_register(NULL, nctx);
-		if (unlikely(err)) {
-			dev_info_once(priv->net_dev->dev.parent,
-				     "Could not get (some) affine DPIO(s), probably there are not enough of them in the DPL\n");
-			/* Try to get *any* portal, not necessarily affine to
-			 * the requested cpu. This might be the case if there
-			 * are fewer DPIO objects in the container than CPUs.
-			 */
-			nctx->desired_cpu = -1;
-			err = dpaa_io_service_register(NULL, nctx);
-			if (unlikely(err)) {
-				dev_err(priv->net_dev->dev.parent,
-					"Could not get any DPIO!\n");
-				nctx->cb = NULL;
-				goto err_service_reg;
-			}
-		}
+	err = fsl_mc_object_allocate(to_fsl_mc_device(dev),
+				     FSL_MC_POOL_DPCON, &dpcon);
+	if (unlikely(err)) {
+		dev_err(dev, "DPCON allocation failed\n");
+		return NULL;
 	}
 
-	return 0;
-
-err_service_reg:
-	for (j = 0; j < i; j++) {
-		switch (priv->fq[j].type) {
-		case LDPAA_RX_FQ:
-		case LDPAA_RX_ERR_FQ:
-			if (!setup_rx_fqs)
-				continue;
-			break;
-		case LDPAA_TX_CONF_FQ:
-			if (!setup_txconf_fqs)
-				continue;
-			break;
-		}
-		nctx = &priv->fq[j].nctx;
-		dpaa_io_service_deregister(NULL, nctx);
+	err = dpcon_open(priv->mc_io, 0, dpcon->obj_desc.id, &dpcon->mc_handle);
+	if (unlikely(err)) {
+		dev_err(dev, "dpcon_open() failed\n");
+		goto err_open;
 	}
 
-	return err;
+	err = dpcon_enable(priv->mc_io, 0, dpcon->mc_handle);
+	if (unlikely(err)) {
+		dev_err(dev, "dpcon_enable() failed\n");
+		goto err_enable;
+	}
+
+	return dpcon;
+
+err_enable:
+	dpcon_close(priv->mc_io, 0, dpcon->mc_handle);
+err_open:
+	fsl_mc_object_free(dpcon);
+
+	return NULL;
+}
+
+static void __cold ldpaa_dpcon_free(struct ldpaa_eth_priv *priv,
+				    struct fsl_mc_device *dpcon)
+{
+	dpcon_disable(priv->mc_io, 0, dpcon->mc_handle);
+	dpcon_close(priv->mc_io, 0, dpcon->mc_handle);
+	fsl_mc_object_free(dpcon);
+}
+
+static struct ldpaa_eth_channel *
+ldpaa_alloc_channel(struct ldpaa_eth_priv *priv, int cpu)
+{
+	struct ldpaa_eth_channel *channel;
+	struct dpcon_attr attr;
+	struct device *dev = priv->net_dev->dev.parent;
+	int err;
+
+	channel = kzalloc(sizeof(struct ldpaa_eth_channel), GFP_ATOMIC);
+	if (unlikely(!channel)) {
+		dev_err(dev, "Memory allocation failed\n");
+		return NULL;
+	}
+
+	channel->dpcon = ldpaa_dpcon_setup(priv);
+	if (unlikely(!channel->dpcon))
+		goto err_setup;
+
+	err = dpcon_get_attributes(priv->mc_io, 0, channel->dpcon->mc_handle,
+				   &attr);
+	if (unlikely(err)) {
+		dev_err(dev, "dpcon_get_attributes() failed\n");
+		goto err_get_attr;
+	}
+
+	channel->dpcon_id = attr.id;
+	channel->ch_id = attr.qbman_ch_id;
+	channel->priv = priv;
+
+	return channel;
+
+err_get_attr:
+	ldpaa_dpcon_free(priv, channel->dpcon);
+err_setup:
+	kfree(channel);
+	return NULL;
+}
+
+static void ldpaa_free_channel(struct ldpaa_eth_priv *priv,
+			       struct ldpaa_eth_channel *channel)
+{
+	ldpaa_dpcon_free(priv, channel->dpcon);
+	kfree(channel);
 }
 
 static int __cold ldpaa_dpio_setup(struct ldpaa_eth_priv *priv)
 {
-	return __ldpaa_dpio_setup(priv, true, true);
-}
+	struct dpaa_io_notification_ctx *nctx;
+	struct ldpaa_eth_channel *channel;
+	struct dpcon_notification_cfg dpcon_notif_cfg;
+	struct device *dev = priv->net_dev->dev.parent;
+	int err, i;
 
+	cpumask_clear(&priv->dpio_cpumask);
 
-static void __cold __ldpaa_dpio_free(struct ldpaa_eth_priv *priv,
-				     bool free_rx_fqs,
-				     bool free_txconf_fqs)
-{
-	int i;
-	struct ldpaa_eth_fq *fq;
+	for_each_online_cpu(i) {
+		/* Allocate a channel for each core */
+		channel = ldpaa_alloc_channel(priv, i);
+		if (unlikely(!channel))
+			goto err_alloc_ch;
 
-	/* deregister FQDAN notifications */
-	for (i = 0; i < priv->num_fqs; i++) {
-		fq = &priv->fq[i];
-		if ((free_rx_fqs &&
-		    (fq->type == LDPAA_RX_FQ || fq->type == LDPAA_RX_ERR_FQ)) ||
-		    (free_txconf_fqs && fq->type == LDPAA_TX_CONF_FQ))
-			dpaa_io_service_deregister(NULL, &fq->nctx);
+		priv->channel[i] = channel;
+
+		nctx = &channel->nctx;
+		nctx->is_cdan = 1;
+		nctx->cb = ldpaa_eth_cdan_cb;
+		nctx->id = channel->ch_id;
+		nctx->desired_cpu = i;
+
+		/* Register the new context */
+		err = dpaa_io_service_register(NULL, nctx);
+		if (unlikely(err)) {
+			dev_err(dev, "Could not get affine DPIO\n");
+			goto err_service_reg;
+		}
+
+		/* Register DPCON notification with MC */
+		dpcon_notif_cfg.dpio_id = nctx->dpio_id;
+		dpcon_notif_cfg.priority = 0;
+		dpcon_notif_cfg.user_ctx = nctx->qman64;
+		err = dpcon_set_notification(priv->mc_io, 0,
+					     channel->dpcon->mc_handle,
+					     &dpcon_notif_cfg);
+		if (unlikely(err)) {
+			dev_err(dev, "dpcon_set_notification failed()\n");
+			goto err_set_cdan;
+		}
+
+		cpumask_set_cpu(i, &priv->dpio_cpumask);
 	}
+
+	return 0;
+
+err_set_cdan:
+	dpaa_io_service_deregister(NULL, nctx);
+err_service_reg:
+	ldpaa_free_channel(priv, channel);
+err_alloc_ch:
+	if (unlikely(cpumask_empty(&priv->dpio_cpumask))) {
+		dev_err(dev, "No cpu with an affine DPIO/DPCON\n");
+		return -ENODEV;
+	}
+
+	return 0;
 }
 
 static void __cold ldpaa_dpio_free(struct ldpaa_eth_priv *priv)
 {
-	__ldpaa_dpio_free(priv, true, true);
+	int i;
+	struct ldpaa_eth_channel *ch;
+
+	/* deregister CDAN notifications and free channels */
+	for_each_cpu(i, &priv->dpio_cpumask) {
+		ch = priv->channel[i];
+		dpaa_io_service_deregister(NULL, &ch->nctx);
+		ldpaa_free_channel(priv, ch);
+	}
+}
+
+static void ldpaa_set_fq_affinity(struct ldpaa_eth_priv *priv)
+{
+	struct ldpaa_eth_fq *fq;
+	int rx_cpu, txconf_cpu;
+	int i;
+
+	/* For each FQ, pick one channel/CPU to deliver frames to.
+	 * This may well change at runtime, either through irqbalance or
+	 * through direct user intervention.
+	 */
+	rx_cpu = cpumask_first(&priv->dpio_cpumask);
+	txconf_cpu = cpumask_first(&priv->txconf_cpumask);
+
+	for (i = 0; i < priv->num_fqs; i++) {
+		fq = &priv->fq[i];
+		switch (fq->type) {
+		case LDPAA_RX_FQ:
+		case LDPAA_RX_ERR_FQ:
+			fq->target_cpu = rx_cpu;
+			cpumask_rr(rx_cpu, &priv->dpio_cpumask);
+			break;
+		case LDPAA_TX_CONF_FQ:
+			fq->target_cpu = txconf_cpu;
+			cpumask_rr(txconf_cpu, &priv->txconf_cpumask);
+			break;
+		default:
+			netdev_err(priv->net_dev, "Unknown FQ type: %d\n",
+				   fq->type);
+		}
+		fq->channel = priv->channel[fq->target_cpu];
+	}
 }
 
 static void ldpaa_dpbp_drain_cnt(struct ldpaa_eth_priv *priv, int count)
@@ -1633,10 +1724,10 @@ static int ldpaa_rx_flow_setup(struct ldpaa_eth_priv *priv,
 
 	memset(&queue_cfg, 0, sizeof(queue_cfg));
 	queue_cfg.options = DPNI_QUEUE_OPT_USER_CTX | DPNI_QUEUE_OPT_DEST;
-	queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPIO;
-	queue_cfg.dest_cfg.priority = 3;
-	queue_cfg.user_ctx = fq->nctx.qman64;
-	queue_cfg.dest_cfg.dest_id = fq->nctx.dpio_id;
+	queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPCON;
+	queue_cfg.dest_cfg.priority = 1;
+	queue_cfg.user_ctx = (uint64_t)fq;
+	queue_cfg.dest_cfg.dest_id = fq->channel->dpcon_id;
 	err = dpni_set_rx_flow(priv->mc_io, 0, priv->mc_token, 0, fq->flowid,
 			       &queue_cfg);
 	if (unlikely(err)) {
@@ -1652,7 +1743,6 @@ static int ldpaa_rx_flow_setup(struct ldpaa_eth_priv *priv,
 		return err;
 	}
 	fq->fqid = rx_queue_attr.fqid;
-	fq->nctx.id = fq->fqid;
 
 	return 0;
 }
@@ -1665,15 +1755,13 @@ static int ldpaa_tx_flow_setup(struct ldpaa_eth_priv *priv,
 	struct dpni_tx_flow_attr tx_flow_attr;
 	int err;
 
-	fq->flowid = DPNI_NEW_FLOW_ID;
 	memset(&tx_flow_cfg, 0, sizeof(tx_flow_cfg));
 	tx_flow_cfg.options = DPNI_TX_FLOW_OPT_QUEUE;
-	queue_cfg.options = DPNI_QUEUE_OPT_USER_CTX |
-			    DPNI_QUEUE_OPT_DEST;
-	queue_cfg.user_ctx = fq->nctx.qman64;
-	queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPIO;
-	queue_cfg.dest_cfg.dest_id = fq->nctx.dpio_id;
-	queue_cfg.dest_cfg.priority = 3;
+	queue_cfg.options = DPNI_QUEUE_OPT_USER_CTX | DPNI_QUEUE_OPT_DEST;
+	queue_cfg.user_ctx = (uint64_t)fq;
+	queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPCON;
+	queue_cfg.dest_cfg.dest_id = fq->channel->dpcon_id;
+	queue_cfg.dest_cfg.priority = 0;
 	tx_flow_cfg.conf_err_cfg.queue_cfg = queue_cfg;
 	err = dpni_set_tx_flow(priv->mc_io, 0, priv->mc_token,
 			       &fq->flowid, &tx_flow_cfg);
@@ -1689,7 +1777,6 @@ static int ldpaa_tx_flow_setup(struct ldpaa_eth_priv *priv,
 		return err;
 	}
 	fq->fqid = tx_flow_attr.conf_err_attr.queue_attr.fqid;
-	fq->nctx.id = fq->fqid;
 
 	return 0;
 }
@@ -1702,13 +1789,13 @@ static int ldpaa_rx_err_setup(struct ldpaa_eth_priv *priv,
 	struct dpni_queue_cfg queue_cfg;
 	int err;
 
-	/* Configure the Rx error queue to generate FQDANs,
+	/* Configure the Rx error queue to generate CDANs,
 	 * just like the Rx queues */
 	queue_cfg.options = DPNI_QUEUE_OPT_USER_CTX | DPNI_QUEUE_OPT_DEST;
-	queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPIO;
-	queue_cfg.dest_cfg.priority = 4;	/* FIXME */
-	queue_cfg.user_ctx = fq->nctx.qman64;
-	queue_cfg.dest_cfg.dest_id = fq->nctx.dpio_id;
+	queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPCON;
+	queue_cfg.dest_cfg.priority = 1;
+	queue_cfg.user_ctx = (uint64_t)fq;
+	queue_cfg.dest_cfg.dest_id = fq->channel->dpcon_id;
 	err = dpni_set_rx_err_queue(priv->mc_io, priv->mc_token, &queue_cfg);
 	if (unlikely(err)) {
 		netdev_err(priv->net_dev, "dpni_set_rx_err_queue() failed\n");
@@ -1722,7 +1809,6 @@ static int ldpaa_rx_err_setup(struct ldpaa_eth_priv *priv,
 		return err;
 	}
 	fq->fqid = queue_attr.fqid;
-	fq->nctx.id = fq->fqid;
 
 	return 0;
 }
@@ -1773,7 +1859,7 @@ static int ldpaa_dpni_bind(struct ldpaa_eth_priv *priv)
 		return err;
 	}
 
-	/* Configure Rx and Tx conf queues to generate FQDANs */
+	/* Configure Rx and Tx conf queues to generate CDANs */
 	for (i = 0; i < priv->num_fqs; i++) {
 		switch (priv->fq[i].type) {
 		case LDPAA_RX_FQ:
@@ -1809,12 +1895,12 @@ static int ldpaa_eth_alloc_rings(struct ldpaa_eth_priv *priv)
 {
 	struct net_device *net_dev = priv->net_dev;
 	struct device *dev = net_dev->dev.parent;
-	int i, j;
+	int i;
 
-	for (i = 0; i < priv->num_fqs; i++) {
-		priv->fq[i].ring.store =
+	for_each_cpu(i, &priv->dpio_cpumask) {
+		priv->channel[i]->store =
 			dpaa_io_store_create(LDPAA_ETH_STORE_SIZE, dev);
-		if (unlikely(!priv->fq[i].ring.store)) {
+		if (unlikely(!priv->channel[i]->store)) {
 			netdev_err(net_dev, "dpaa_io_store_create() failed\n");
 			goto err_ring;
 		}
@@ -1823,8 +1909,11 @@ static int ldpaa_eth_alloc_rings(struct ldpaa_eth_priv *priv)
 	return 0;
 
 err_ring:
-	for (j = 0; j < i; j++)
-		dpaa_io_store_destroy(priv->fq[j].ring.store);
+	for_each_cpu(i, &priv->dpio_cpumask) {
+		if (!priv->channel[i]->store)
+			break;
+		dpaa_io_store_destroy(priv->channel[i]->store);
+	}
 
 	return -ENOMEM;
 }
@@ -1833,8 +1922,8 @@ static void ldpaa_eth_free_rings(struct ldpaa_eth_priv *priv)
 {
 	int i;
 
-	for (i = 0; i < priv->num_fqs; i++)
-		dpaa_io_store_destroy(priv->fq[i].ring.store);
+	for_each_cpu(i, &priv->dpio_cpumask)
+		dpaa_io_store_destroy(priv->channel[i]->store);
 }
 
 static int ldpaa_eth_netdev_init(struct net_device *net_dev)
@@ -2027,37 +2116,28 @@ static int ldpaa_eth_setup_irqs(struct fsl_mc_device *ls_dev)
 
 static void ldpaa_eth_napi_add(struct ldpaa_eth_priv *priv)
 {
-	int i, w;
-	struct ldpaa_eth_fq *fq;
+	int i;
+	struct ldpaa_eth_channel *ch;
 
-	for (i = 0; i < priv->num_fqs; i++) {
-		fq = &priv->fq[i];
-		/* TxConf must have precedence over Rx; this is one way of
-		 * doing so.
-		 * TODO this needs more testing & fine-tuning
-		 */
-		if (fq->type == LDPAA_TX_CONF_FQ)
-			w = LDPAA_ETH_TX_CONF_NAPI_WEIGHT;
-		else
-			w = LDPAA_ETH_RX_NAPI_WEIGHT;
-
-		netif_napi_add(priv->net_dev, &fq->napi, ldpaa_eth_poll, w);
+	for_each_cpu(i, &priv->dpio_cpumask) {
+		ch = priv->channel[i];
+		netif_napi_add(priv->net_dev, &ch->napi, ldpaa_eth_poll,
+			       LDPAA_ETH_NAPI_WEIGHT);
 	}
 }
 
 static void ldpaa_eth_napi_del(struct ldpaa_eth_priv *priv)
 {
 	int i;
-	struct ldpaa_eth_fq *fq;
+	struct ldpaa_eth_channel *ch;
 
-	for (i = 0; i < priv->num_fqs; i++) {
-		fq = &priv->fq[i];
-		netif_napi_del(&fq->napi);
+	for_each_cpu(i, &priv->dpio_cpumask) {
+		ch = priv->channel[i];
+		netif_napi_del(&ch->napi);
 	}
 }
 
 /* SysFS support */
-
 static ssize_t ldpaa_eth_show_txconf_cpumask(struct device *dev,
 					     struct device_attribute *attr,
 					     char *buf)
@@ -2072,27 +2152,35 @@ static ssize_t ldpaa_eth_write_txconf_cpumask(struct device *dev,
 					      const char *buf,
 					      size_t count)
 {
-	int i, err;
-	struct dpni_queue_cfg queue_cfg;
-	struct dpni_tx_flow_cfg tx_flow_cfg;
-	struct dpni_tx_flow_attr tx_flow_attr;
 	struct ldpaa_eth_priv *priv = netdev_priv(to_net_dev(dev));
+	struct ldpaa_eth_fq *fq;
+	bool running = netif_running(priv->net_dev);
+	int i, err;
 
 	err = cpulist_parse(buf, &priv->txconf_cpumask);
 	if (unlikely(err))
 		return err;
 
+	/* Only accept CPUs that have an affine DPIO */
+	if (!cpumask_subset(&priv->txconf_cpumask, &priv->dpio_cpumask)) {
+		netdev_info(priv->net_dev,
+			    "cpumask must be a subset of 0x%lx\n",
+			    *cpumask_bits(&priv->dpio_cpumask));
+		cpumask_and(&priv->txconf_cpumask, &priv->dpio_cpumask,
+			    &priv->txconf_cpumask);
+	}
+
 	/* Rewiring the TxConf FQs requires interface shutdown.
 	 * FIXME hold device lock
 	 */
-	err = ldpaa_eth_stop(priv->net_dev);
-	if (unlikely(err))
-		/* FIXME skip this is ni is already down */
-		return -ENODEV;
+	if (running) {
+		err = ldpaa_eth_stop(priv->net_dev);
+		if (unlikely(err))
+			return -ENODEV;
+	}
 
-	/* Get a new DPIO for the TxConf FQs */
-	__ldpaa_dpio_free(priv, false, true);
-	__ldpaa_dpio_setup(priv, false, true);
+	/* Set the new TxConf FQ affinities */
+	ldpaa_set_fq_affinity(priv);
 
 #ifdef CONFIG_FSL_DPAA2_ETH_LINK_POLL
 	/* ldpaa_eth_open() below will *stop* the Tx queues until an explicit
@@ -2104,39 +2192,17 @@ static ssize_t ldpaa_eth_write_txconf_cpumask(struct device *dev,
 #endif
 
 	for (i = 0; i < priv->num_fqs; i++) {
-		if (priv->fq[i].type != LDPAA_TX_CONF_FQ)
+		fq = &priv->fq[i];
+		if (fq->type != LDPAA_TX_CONF_FQ)
 			continue;
-
-		memset(&tx_flow_cfg, 0, sizeof(tx_flow_cfg));
-		tx_flow_cfg.options = DPNI_TX_FLOW_OPT_QUEUE;
-		queue_cfg.options = DPNI_QUEUE_OPT_DEST;
-		queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPIO;
-		queue_cfg.dest_cfg.dest_id = priv->fq[i].nctx.dpio_id;
-		queue_cfg.dest_cfg.priority = 2;
-		tx_flow_cfg.conf_err_cfg.queue_cfg = queue_cfg;
-		err = dpni_set_tx_flow(priv->mc_io, 0, priv->mc_token,
-				       &priv->fq[i].flowid, &tx_flow_cfg);
-		if (unlikely(err)) {
-			netdev_err(priv->net_dev,
-				   "dpni_set_tx_flow() failed\n");
-			return -EPERM;
-		}
-
-		err = dpni_get_tx_flow(priv->mc_io, 0, priv->mc_token,
-				       priv->fq[i].flowid, &tx_flow_attr);
-		if (unlikely(err)) {
-			netdev_err(priv->net_dev,
-				   "dpni_get_tx_flow() failed\n");
-			return -EPERM;
-		}
-		priv->fq[i].fqid = tx_flow_attr.conf_err_attr.queue_attr.fqid;
-		/* TODO factor out priv->fq[i] */
-		priv->fq[i].nctx.id = priv->fq[i].fqid;
+		ldpaa_tx_flow_setup(priv, fq);
 	}
 
-	err = ldpaa_eth_open(priv->net_dev);
-	if (unlikely(err))
-		return -ENODEV;
+	if (running) {
+		err = ldpaa_eth_open(priv->net_dev);
+		if (unlikely(err))
+			return -ENODEV;
+	}
 
 	return count;
 }
@@ -2220,15 +2286,15 @@ ldpaa_eth_probe(struct fsl_mc_device *dpni_dev)
 	if (err < 0)
 		goto err_dpni_setup;
 
-	/* FQs and NAPI */
-	cpumask_copy(&priv->txconf_cpumask, cpu_online_mask);
-	ldpaa_eth_setup_fqs(priv);
-	ldpaa_eth_napi_add(priv);
-
 	/* DPIO */
 	err = ldpaa_dpio_setup(priv);
 	if (err)
 		goto err_dpio_setup;
+
+	/* FQs and NAPI */
+	cpumask_copy(&priv->txconf_cpumask, &priv->dpio_cpumask);
+	ldpaa_eth_setup_fqs(priv);
+	ldpaa_set_fq_affinity(priv);
 
 	/* DPBP */
 	priv->buf_count = alloc_percpu(*priv->buf_count);
@@ -2245,6 +2311,8 @@ ldpaa_eth_probe(struct fsl_mc_device *dpni_dev)
 	err = ldpaa_dpni_bind(priv);
 	if (err)
 		goto err_bind;
+
+	ldpaa_eth_napi_add(priv);
 
 	/* Percpu statistics */
 	priv->percpu_stats = alloc_percpu(*priv->percpu_stats);

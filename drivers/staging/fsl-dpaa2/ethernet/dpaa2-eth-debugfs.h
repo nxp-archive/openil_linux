@@ -40,6 +40,7 @@ extern struct ldpaa_eth_priv *priv;
 struct ldpaa_debugfs {
 	struct dentry *dir;
 	struct dentry *fq_stats;
+	struct dentry *ch_stats;
 	struct dentry *cpu_stats;
 	struct dentry *reset_stats;
 };
