@@ -2138,6 +2138,49 @@ static void ldpaa_eth_napi_del(struct ldpaa_eth_priv *priv)
 }
 
 /* SysFS support */
+
+static ssize_t ldpaa_eth_show_tx_shaping(struct device *dev,
+					 struct device_attribute *attr,
+					 char *buf)
+{
+	struct ldpaa_eth_priv *priv = netdev_priv(to_net_dev(dev));
+	/* No MC API for getting the shaping config. We're stateful. */
+	struct dpni_tx_shaping_cfg *scfg = &priv->shaping_cfg;
+
+	return sprintf(buf, "%u %hu\n", scfg->rate_limit, scfg->max_burst_size);
+}
+
+static ssize_t ldpaa_eth_write_tx_shaping(struct device *dev,
+					  struct device_attribute *attr,
+					  const char *buf,
+					  size_t count)
+{
+	int err, items;
+	struct ldpaa_eth_priv *priv = netdev_priv(to_net_dev(dev));
+	struct dpni_tx_shaping_cfg scfg;
+
+	items = sscanf(buf, "%u %hu", &scfg.rate_limit, &scfg.max_burst_size);
+	if (items != 2) {
+		pr_err("Expected format: \"rate_limit(Mbps) max_burst_size(bytes)\"\n");
+		return -EINVAL;
+	}
+	/* Size restriction as per MC API documentation */
+	if (scfg.max_burst_size > 64000) {
+		pr_err("max_burst_size must be <= 64000, thanks.\n");
+		return -EINVAL;
+	}
+
+	err = dpni_set_tx_shaping(priv->mc_io, 0, priv->mc_token, &scfg);
+	if (unlikely(err)) {
+		dev_err(dev, "dpni_set_tx_shaping() failed\n");
+		return -EPERM;
+	}
+	/* If successful, save the current configuration for future inquiries */
+	priv->shaping_cfg = scfg;
+
+	return count;
+}
+
 static ssize_t ldpaa_eth_show_txconf_cpumask(struct device *dev,
 					     struct device_attribute *attr,
 					     char *buf)
@@ -2212,6 +2255,11 @@ static struct device_attribute ldpaa_eth_attrs[] = {
 	       S_IRUSR | S_IWUSR,
 	       ldpaa_eth_show_txconf_cpumask,
 	       ldpaa_eth_write_txconf_cpumask),
+
+	__ATTR(tx_shaping,
+	       S_IRUSR | S_IWUSR,
+	       ldpaa_eth_show_tx_shaping,
+	       ldpaa_eth_write_tx_shaping),
 };
 
 void ldpaa_eth_sysfs_init(struct device *dev)

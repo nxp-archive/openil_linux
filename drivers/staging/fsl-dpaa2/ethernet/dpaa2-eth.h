@@ -308,6 +308,8 @@ struct ldpaa_eth_priv {
 
 	/* array of classification rules */
 	struct ldpaa_cls_rule *cls_rule;
+
+	struct dpni_tx_shaping_cfg shaping_cfg;
 };
 
 /* default Rx hash options, set during probing */
