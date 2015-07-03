@@ -1286,7 +1286,8 @@ static int its_msi_prepare(struct irq_domain *domain, struct device *dev,
 
 	dev_dbg(dev, "ITT %d entries, %d bits\n", nvec, ilog2(nvec));
 	dev_id = PCI_DEVID(pdev->bus->number, pdev->devfn);
-	return __its_msi_prepare(domain->parent, dev_alias.dev_id, dev, dev_alias.count, info);
+	return __its_msi_prepare(domain, dev_alias.dev_id,
+				 dev, dev_alias.count, info);
 }
 
 static struct msi_domain_ops its_pci_msi_ops = {
