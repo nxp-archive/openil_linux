@@ -205,6 +205,18 @@ static int gen_pci_parse_map_cfg_windows(struct gen_pci *pci)
 	return 0;
 }
 
+static void gen_pci_enable_msi(struct gen_pci *pci, struct pci_bus *bus)
+{
+	struct device_node *msi_node;
+	struct device *dev = pci->host.dev.parent;
+	struct device_node *np = dev->of_node;
+
+	/*setup MSIs */
+	msi_node = of_parse_phandle(np, "msi-parent", 0);
+	if (msi_node)
+		bus->msi = of_pci_find_msi_chip_by_node(msi_node);
+}
+
 static int gen_pci_probe(struct platform_device *pdev)
 {
 	int err;
@@ -261,6 +273,8 @@ static int gen_pci_probe(struct platform_device *pdev)
 		dev_err(dev, "Scanning rootbus failed");
 		return -ENODEV;
 	}
+
+	gen_pci_enable_msi(pci, bus);
 
 	pci_fixup_irqs(pci_common_swizzle, of_irq_parse_and_map_pci);
 
