@@ -1537,6 +1537,8 @@ void dpa_release_sgt(struct qm_sg_entry *sgt)
 	struct bm_buffer bmb[DPA_BUFF_RELEASE_MAX];
 	uint8_t i = 0, j;
 
+	memset(bmb, 0, DPA_BUFF_RELEASE_MAX * sizeof(struct bm_buffer));
+
 	do {
 		dpa_bp = dpa_bpid2pool(sgt[i].bpid);
 		DPA_BUG_ON(!dpa_bp);
@@ -1547,6 +1549,7 @@ void dpa_release_sgt(struct qm_sg_entry *sgt)
 
 			bmb[j].hi       = sgt[i].addr_hi;
 			bmb[j].lo       = be32_to_cpu(sgt[i].addr_lo);
+
 
 			j++; i++;
 		} while (j < ARRAY_SIZE(bmb) &&
@@ -1562,22 +1565,36 @@ EXPORT_SYMBOL(dpa_release_sgt);
 void __attribute__((nonnull))
 dpa_fd_release(const struct net_device *net_dev, const struct qm_fd *fd)
 {
-	struct qm_sg_entry		*sgt;
-	struct dpa_bp			*_dpa_bp;
-	struct bm_buffer		 _bmb;
+	struct qm_sg_entry	*sgt;
+	struct dpa_bp		*dpa_bp;
+	struct bm_buffer	bmb;
+	dma_addr_t		addr;
+	void			*vaddr;
 
-	_bmb.hi	= fd->addr_hi;
-	_bmb.lo	= fd->addr_lo;
+	memset(&bmb, 0, sizeof(struct bm_buffer));
+	bm_buffer_set64(&bmb, fd->addr);
 
-	_dpa_bp = dpa_bpid2pool(fd->bpid);
-	DPA_BUG_ON(!_dpa_bp);
+	dpa_bp = dpa_bpid2pool(fd->bpid);
+	DPA_BUG_ON(!dpa_bp);
 
 	if (fd->format == qm_fd_sg) {
-		sgt = (phys_to_virt(bm_buf_addr(&_bmb)) + dpa_fd_offset(fd));
+		vaddr = phys_to_virt(fd->addr);
+		sgt = vaddr + dpa_fd_offset(fd);
+
+		dma_unmap_single(dpa_bp->dev, qm_fd_addr(fd), dpa_bp->size,
+				 DMA_BIDIRECTIONAL);
+
 		dpa_release_sgt(sgt);
+		addr = dma_map_single(dpa_bp->dev, vaddr, dpa_bp->size,
+				      DMA_BIDIRECTIONAL);
+		if (unlikely(dma_mapping_error(dpa_bp->dev, addr))) {
+			dev_err(dpa_bp->dev, "DMA mapping failed");
+			return;
+		}
+		bm_buffer_set64(&bmb, addr);
 	}
 
-	while (bman_release(_dpa_bp->pool, &_bmb, 1, 0))
+	while (bman_release(dpa_bp->pool, &bmb, 1, 0))
 		cpu_relax();
 }
 EXPORT_SYMBOL(dpa_fd_release);
