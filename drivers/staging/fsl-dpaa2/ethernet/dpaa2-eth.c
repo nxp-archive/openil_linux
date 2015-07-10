@@ -530,6 +530,76 @@ static int ldpaa_eth_build_single_fd(struct ldpaa_eth_priv *priv,
 	return 0;
 }
 
+/* DMA-unmap and free FD and possibly SGT buffer allocated on Tx. The skb
+ * back-pointed to is also freed.
+ * This can be called either from ldpaa_eth_tx_conf() or on the error path of
+ * ldpaa_eth_tx().
+ * Optionally, return the frame annotation status word (FAS), which needs
+ * to be checked if we're on the confirmation path.
+ */
+static void ldpaa_eth_free_fd(const struct ldpaa_eth_priv *priv,
+			       const struct dpaa_fd *fd,
+			       uint32_t *status)
+{
+	struct device *dev = priv->net_dev->dev.parent;
+	dma_addr_t fd_addr;
+	struct sk_buff **skbh, *skb;
+	unsigned char *buffer_start;
+	int nr_frags, unmap_size;
+	struct scatterlist *scl;
+	int num_sg, num_dma_bufs;
+	struct ldpaa_eth_swa *bps;
+	bool fd_single;
+	struct ldpaa_fas *fas;
+
+	fd_addr = ldpaa_fd_get_addr(fd);
+	skbh = phys_to_virt(fd_addr);
+	fd_single = (ldpaa_fd_get_format(fd) == dpaa_fd_single);
+
+	if (fd_single) {
+		skb = *skbh;
+		buffer_start = (unsigned char *)skbh;
+		/* Accessing the skb buffer is safe before dma unmap, because
+		 * we didn't map the actual skb shell.
+		 */
+		dma_unmap_single(dev, fd_addr,
+				 skb_tail_pointer(skb) - buffer_start,
+				 DMA_TO_DEVICE);
+	} else {
+		bps = (struct ldpaa_eth_swa *)skbh;
+		skb = bps->skb;
+		scl = bps->scl;
+		num_sg = bps->num_sg;
+		num_dma_bufs = bps->num_dma_bufs;
+
+		/* Unmap the scatterlist */
+		dma_unmap_sg(dev, scl, num_sg, DMA_TO_DEVICE);
+		kfree(scl);
+
+		/* Unmap the SGT buffer */
+		nr_frags = skb_shinfo(skb)->nr_frags;
+		unmap_size = priv->tx_data_offset +
+		       sizeof(struct dpaa_sg_entry) * (1 + num_dma_bufs);
+		dma_unmap_single(dev, fd_addr, unmap_size, DMA_TO_DEVICE);
+	}
+
+	/* Check the status from the Frame Annotation after we unmap the first
+	 * buffer but before we free it.
+	 */
+	if (status && (fd->simple.frc & LDPAA_FD_FRC_FASV)) {
+		fas = (struct ldpaa_fas *)
+			((void *)skbh + priv->buf_layout.private_data_size);
+		*status = le32_to_cpu(fas->status);
+	}
+
+	/* Free SGT buffer kmalloc'ed on tx */
+	if (!fd_single)
+		kfree(skbh);
+
+	/* Move on with skb release */
+	dev_kfree_skb(skb);
+}
+
 static int ldpaa_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 {
 	struct ldpaa_eth_priv *priv = netdev_priv(net_dev);
@@ -595,14 +665,15 @@ static int ldpaa_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	if (unlikely(err < 0)) {
 		netdev_dbg(net_dev, "error enqueueing Tx frame\n");
 		percpu_stats->tx_errors++;
-		goto err_enqueue;
+		/* Clean up everything, including freeing the skb */
+		ldpaa_eth_free_fd(priv, &fd, NULL);
+	} else {
+		percpu_stats->tx_packets++;
+		percpu_stats->tx_bytes += skb->len;
 	}
-	percpu_stats->tx_packets++;
-	percpu_stats->tx_bytes += skb->len;
 
 	return NETDEV_TX_OK;
 
-err_enqueue:
 err_build_fd:
 err_alloc_headroom:
 	dev_kfree_skb(skb);
@@ -613,80 +684,26 @@ err_alloc_headroom:
 static void ldpaa_eth_tx_conf(struct ldpaa_eth_priv *priv,
 			      const struct dpaa_fd *fd)
 {
-	struct device *dev = priv->net_dev->dev.parent;
-	dma_addr_t fd_addr;
-	struct sk_buff **skbh, *skb;
-	struct ldpaa_fas *fas;
-	uint32_t status;
 	struct rtnl_link_stats64 *percpu_stats;
 	struct ldpaa_eth_stats *percpu_extras;
-	unsigned char *buffer_start;
-	int nr_frags, unmap_size;
-	struct scatterlist *scl;
-	bool fd_single = (ldpaa_fd_get_format(fd) == dpaa_fd_single);
-	int num_sg, num_dma_bufs;
-	struct ldpaa_eth_swa *bps;
+	uint32_t status = 0;
 
 	/* Tracing point */
 	trace_ldpaa_tx_conf_fd(priv->net_dev, fd);
 
-	fd_addr = ldpaa_fd_get_addr(fd);
-
-	skbh = phys_to_virt(fd_addr);
-	if (fd_single) {
-		skb = *skbh;
-		buffer_start = (unsigned char *)skbh;
-		/* Accessing the skb buffer is safe before dma unmap, because
-		 * we didn't map the actual skb shell.
-		 */
-		dma_unmap_single(dev, fd_addr,
-				 skb_tail_pointer(skb) - buffer_start,
-				 DMA_TO_DEVICE);
-	} else {
-		/* Unmap the scatterlist and the HW SGT buffer */
-		bps = (struct ldpaa_eth_swa *)skbh;
-		skb = bps->skb;
-		scl = bps->scl;
-		num_sg = bps->num_sg;
-		num_dma_bufs = bps->num_dma_bufs;
-
-		dma_unmap_sg(dev, scl, num_sg, DMA_TO_DEVICE);
-		kfree(scl);
-
-		/* Unmap the SGT buffer. We'll free it after we check the FAS */
-		nr_frags = skb_shinfo(skb)->nr_frags;
-		unmap_size = priv->tx_data_offset +
-		       sizeof(struct dpaa_sg_entry) * (1 + num_dma_bufs);
-		dma_unmap_single(dev, fd_addr, unmap_size, DMA_TO_DEVICE);
-	}
-
 	percpu_extras = this_cpu_ptr(priv->percpu_extras);
 	percpu_extras->tx_conf_frames++;
-	percpu_extras->tx_conf_bytes += skb->len;
+	percpu_extras->tx_conf_bytes += ldpaa_fd_get_len(fd);
 
-	/* Check the status from the Frame Annotation after we unmap the first
-	 * buffer but before we free it.
-	 */
-	if (fd->simple.frc & LDPAA_FD_FRC_FASV) {
-		fas = (struct ldpaa_fas *)
-			((void *)skbh + priv->buf_layout.private_data_size);
-		status = le32_to_cpu(fas->status);
-		if (status & LDPAA_ETH_TXCONF_ERR_MASK) {
-			dev_err(dev, "TxConf frame error(s): 0x%08x\n",
-				status & LDPAA_ETH_TXCONF_ERR_MASK);
-			percpu_stats = this_cpu_ptr(priv->percpu_stats);
-			/* Tx-conf logically pertains to the egress path.
-			 * TODO add some specific counters for tx-conf also.
-			 */
-			percpu_stats->tx_errors++;
-		}
+	ldpaa_eth_free_fd(priv, fd, &status);
+
+	if (unlikely(status & LDPAA_ETH_TXCONF_ERR_MASK)) {
+		netdev_err(priv->net_dev, "TxConf frame error(s): 0x%08x\n",
+			   status & LDPAA_ETH_TXCONF_ERR_MASK);
+		percpu_stats = this_cpu_ptr(priv->percpu_stats);
+		/* Tx-conf logically pertains to the egress path. */
+		percpu_stats->tx_errors++;
 	}
-	/* Free SGT buffer kmalloc'ed on tx */
-	if (!fd_single)
-		kfree(skbh);
-
-	/* Move on with skb release */
-	dev_kfree_skb(skb);
 }
 
 static int ldpaa_eth_set_rx_csum(struct ldpaa_eth_priv *priv, bool enable)
