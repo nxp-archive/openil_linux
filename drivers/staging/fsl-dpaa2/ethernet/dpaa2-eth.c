@@ -591,12 +591,12 @@ static int ldpaa_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 		if (err != -EBUSY)
 			break;
 	}
+	percpu_extras->tx_portal_busy += i;
 	if (unlikely(err < 0)) {
 		netdev_dbg(net_dev, "error enqueueing Tx frame\n");
 		percpu_stats->tx_errors++;
 		goto err_enqueue;
 	}
-	percpu_extras->tx_portal_busy += i;
 	percpu_stats->tx_packets++;
 	percpu_stats->tx_bytes += skb->len;
 
