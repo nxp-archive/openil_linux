@@ -558,11 +558,6 @@ dpa_mac_probe(struct platform_device *_of_dev)
 	struct dpa_priv_s	*priv = NULL;
 	struct device_node	*timer_node;
 #endif
-#ifdef CONFIG_PTP_1588_CLOCK_DPAA
-	int			lenp_ptp;
-	const phandle		*phandle_ptp;
-#endif
-
 	dpa_dev = &_of_dev->dev;
 
 	mac_node = of_parse_phandle(_of_dev->dev.of_node, "fsl,fman-mac", 0);
@@ -607,11 +602,10 @@ dpa_mac_probe(struct platform_device *_of_dev)
 #endif
 
 #ifdef CONFIG_PTP_1588_CLOCK_DPAA
-	phandle_ptp = of_get_property(mac_node, "ptimer-handle", &lenp_ptp);
-	if (phandle_ptp && ((mac_dev->phy_if != PHY_INTERFACE_MODE_SGMII) ||
-			((mac_dev->phy_if == PHY_INTERFACE_MODE_SGMII) &&
-			 (mac_dev->speed == SPEED_1000)))) {
-		ptp_priv.node = of_find_node_by_phandle(*phandle_ptp);
+	if ((mac_dev->phy_if != PHY_INTERFACE_MODE_SGMII) ||
+	    ((mac_dev->phy_if == PHY_INTERFACE_MODE_SGMII) &&
+			 (mac_dev->speed == SPEED_1000))) {
+		ptp_priv.node = of_parse_phandle(mac_node, "ptimer-handle", 0);
 		if (ptp_priv.node) {
 			ptp_priv.of_dev = of_find_device_by_node(ptp_priv.node);
 			if (unlikely(ptp_priv.of_dev == NULL)) {
