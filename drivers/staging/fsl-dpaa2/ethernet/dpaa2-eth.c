@@ -234,7 +234,8 @@ static struct sk_buff *ldpaa_eth_build_frag_skb(struct ldpaa_eth_priv *priv,
 }
 
 static void ldpaa_eth_rx(struct ldpaa_eth_priv *priv,
-			 const struct dpaa_fd *fd)
+			 const struct dpaa_fd *fd,
+			 struct napi_struct *napi)
 {
 	dma_addr_t addr = ldpaa_fd_get_addr(fd);
 	uint8_t fd_format = ldpaa_fd_get_format(fd);
@@ -293,7 +294,11 @@ static void ldpaa_eth_rx(struct ldpaa_eth_priv *priv,
 	percpu_stats->rx_packets++;
 	percpu_stats->rx_bytes += skb->len;
 
-	netif_receive_skb(skb);
+	if (priv->net_dev->features & NETIF_F_GRO)
+		napi_gro_receive(napi, skb);
+	else
+		netif_receive_skb(skb);
+
 	return;
 
 err_build_skb:
@@ -303,7 +308,8 @@ err_build_skb:
 
 #ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
 static void ldpaa_eth_rx_err(struct ldpaa_eth_priv *priv,
-			     const struct dpaa_fd *fd)
+			     const struct dpaa_fd *fd,
+			     struct napi_struct *napi __always_unused)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	dma_addr_t addr = ldpaa_fd_get_addr(fd);
@@ -369,7 +375,7 @@ static int ldpaa_eth_store_consume(struct ldpaa_eth_channel *ch)
 		fd = ldpaa_dq_fd(dq);
 		fq = (struct ldpaa_eth_fq *)ldpaa_dq_fqd_ctx(dq);
 		fq->stats.frames++;
-		fq->consume(priv, fd);
+		fq->consume(priv, fd, &ch->napi);
 		cleaned++;
 	} while (!is_last);
 
@@ -682,7 +688,8 @@ err_alloc_headroom:
 }
 
 static void ldpaa_eth_tx_conf(struct ldpaa_eth_priv *priv,
-			      const struct dpaa_fd *fd)
+			      const struct dpaa_fd *fd,
+			      struct napi_struct *napi __always_unused)
 {
 	struct rtnl_link_stats64 *percpu_stats;
 	struct ldpaa_eth_stats *percpu_extras;

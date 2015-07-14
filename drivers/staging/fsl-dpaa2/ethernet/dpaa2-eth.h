@@ -231,7 +231,9 @@ struct ldpaa_eth_fq {
 	struct ldpaa_eth_channel *channel;
 	enum ldpaa_eth_fq_type type;
 
-	void (*consume)(struct ldpaa_eth_priv *, const struct dpaa_fd *);
+	void (*consume)(struct ldpaa_eth_priv *,
+			const struct dpaa_fd *,
+			struct napi_struct *);
 	struct ldpaa_eth_priv *netdev_priv;	/* backpointer */
 	struct ldpaa_eth_fq_stats stats;
 };
