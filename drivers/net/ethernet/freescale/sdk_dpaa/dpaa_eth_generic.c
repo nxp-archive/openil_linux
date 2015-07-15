@@ -1548,7 +1548,7 @@ static int __init __cold dpa_generic_load(void)
 {
 	int	 _errno;
 
-	pr_info(KBUILD_MODNAME ": " DPA_GENERIC_DESCRIPTION " (" VERSION ")\n");
+	pr_info(KBUILD_MODNAME ": " DPA_GENERIC_DESCRIPTION "\n");
 
 #ifdef CONFIG_FSL_DPAA_ETH_DEBUGFS
 	dpa_generic_debugfs_module_init();

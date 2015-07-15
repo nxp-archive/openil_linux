@@ -1131,7 +1131,7 @@ static int __init __cold dpa_load(void)
 {
 	int	 _errno;
 
-	pr_info(DPA_DESCRIPTION " (" VERSION ")\n");
+	pr_info(DPA_DESCRIPTION "\n");
 
 #ifdef CONFIG_FSL_DPAA_ETH_DEBUGFS
 	dpa_debugfs_module_init();

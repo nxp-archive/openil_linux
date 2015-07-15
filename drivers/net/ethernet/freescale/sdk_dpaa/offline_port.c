@@ -820,7 +820,7 @@ static int __init __cold oh_port_load(void)
 {
 	int _errno;
 
-	pr_info(OH_MOD_DESCRIPTION " (" VERSION ")\n");
+	pr_info(OH_MOD_DESCRIPTION "\n");
 
 	_errno = platform_driver_register(&oh_port_driver);
 	if (_errno < 0) {

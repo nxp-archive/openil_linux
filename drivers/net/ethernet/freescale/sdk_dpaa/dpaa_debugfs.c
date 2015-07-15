@@ -366,7 +366,7 @@ int __init dpa_debugfs_module_init(void)
 {
 	int	 _errno = 0;
 
-	pr_info(KBUILD_MODNAME ": " DPA_DEBUGFS_DESCRIPTION " (" VERSION ")\n");
+	pr_info(KBUILD_MODNAME ": " DPA_DEBUGFS_DESCRIPTION "\n");
 
 	dpa_debugfs_root = debugfs_create_dir(DPA_ETH_DEBUGFS_ROOT, NULL);
 

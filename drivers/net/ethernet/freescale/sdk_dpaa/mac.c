@@ -436,8 +436,7 @@ static int __init __cold mac_load(void)
 	pr_debug(KBUILD_MODNAME ": -> %s:%s()\n",
 		KBUILD_BASENAME".c", __func__);
 
-	pr_info(KBUILD_MODNAME ": %s (" VERSION ")\n",
-		mac_driver_description);
+	pr_info(KBUILD_MODNAME ": %s\n", mac_driver_description);
 
 	_errno = platform_driver_register(&mac_driver);
 	if (unlikely(_errno < 0)) {
