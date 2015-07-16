@@ -210,8 +210,7 @@ struct ldpaa_eth_ch_stats {
 				LDPAA_ETH_MAX_TX_QUEUES + \
 				LDPAA_ETH_MAX_RX_ERR_QUEUES)
 
-/* FIXME */
-#define LDPAA_ETH_MAX_DPCONS		8
+#define LDPAA_ETH_MAX_DPCONS		NR_CPUS
 
 enum ldpaa_eth_fq_type {
 	LDPAA_RX_FQ = 0,
@@ -259,6 +258,7 @@ struct ldpaa_eth_priv {
 	/* First queue is tx conf, the rest are rx */
 	struct ldpaa_eth_fq fq[LDPAA_ETH_MAX_QUEUES];
 
+	uint8_t num_channels;
 	struct ldpaa_eth_channel *channel[LDPAA_ETH_MAX_DPCONS];
 
 	int dpni_id;
@@ -337,6 +337,16 @@ static inline int ldpaa_queue_count(struct ldpaa_eth_priv *priv)
 	if (ldpaa_eth_hash_enabled(priv))
 		return priv->dpni_attrs.max_dist_per_tc[0] + 1;
 	return 1;
+}
+
+static inline int ldpaa_max_channels(struct ldpaa_eth_priv *priv)
+{
+	/* Ideally, we want a number of channels large enough
+	 * to accommodate both the Rx distribution size
+	 * and the max number of Tx confirmation queues
+	 */
+	return max_t(int, ldpaa_queue_count(priv),
+		     priv->dpni_attrs.max_senders);
 }
 
 void ldpaa_cls_check(struct net_device *);

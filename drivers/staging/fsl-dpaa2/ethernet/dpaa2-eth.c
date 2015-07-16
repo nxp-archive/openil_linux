@@ -832,7 +832,7 @@ static void ldpaa_eth_napi_enable(struct ldpaa_eth_priv *priv)
 	struct ldpaa_eth_channel *ch;
 	int i;
 
-	for_each_cpu(i, &priv->dpio_cpumask) {
+	for (i = 0; i < priv->num_channels; i++) {
 		ch = priv->channel[i];
 		napi_enable(&ch->napi);
 	}
@@ -843,7 +843,7 @@ static void ldpaa_eth_napi_disable(struct ldpaa_eth_priv *priv)
 	struct ldpaa_eth_channel *ch;
 	int i;
 
-	for_each_cpu(i, &priv->dpio_cpumask) {
+	for (i = 0; i < priv->num_channels; i++) {
 		ch = priv->channel[i];
 		napi_disable(&ch->napi);
 	}
@@ -1222,7 +1222,7 @@ static void ldpaa_eth_setup_fqs(struct ldpaa_eth_priv *priv)
 	/* We have one TxConf FQ per target CPU, although at the moment
 	 * we can't guarantee affinity.
 	 */
-	for_each_online_cpu(i) {
+	for_each_cpu(i, &priv->txconf_cpumask) {
 		priv->fq[priv->num_fqs].netdev_priv = priv;
 		priv->fq[priv->num_fqs].type = LDPAA_TX_CONF_FQ;
 		priv->fq[priv->num_fqs].consume = ldpaa_eth_tx_conf;
@@ -1344,17 +1344,22 @@ static int __cold ldpaa_dpio_setup(struct ldpaa_eth_priv *priv)
 	struct ldpaa_eth_channel *channel;
 	struct dpcon_notification_cfg dpcon_notif_cfg;
 	struct device *dev = priv->net_dev->dev.parent;
-	int err, i;
+	int i, err;
 
+	/* Don't allocate more channels than strictly necessary and assign
+	 * them to cores starting from the first one available in
+	 * cpu_online_mask.
+	 * If the number of channels is lower than the number of cores,
+	 * there will be no rx/tx conf processing on the last cores in the mask.
+	 */
 	cpumask_clear(&priv->dpio_cpumask);
-
 	for_each_online_cpu(i) {
-		/* Allocate a channel for each core */
+		/* Try to allocate a channel */
 		channel = ldpaa_alloc_channel(priv, i);
 		if (unlikely(!channel))
 			goto err_alloc_ch;
 
-		priv->channel[i] = channel;
+		priv->channel[priv->num_channels] = channel;
 
 		nctx = &channel->nctx;
 		nctx->is_cdan = 1;
@@ -1365,8 +1370,12 @@ static int __cold ldpaa_dpio_setup(struct ldpaa_eth_priv *priv)
 		/* Register the new context */
 		err = dpaa_io_service_register(NULL, nctx);
 		if (unlikely(err)) {
-			dev_err(dev, "Could not get affine DPIO\n");
-			goto err_service_reg;
+			dev_info(dev, "No affine DPIO for core %d\n", i);
+			/* This core doesn't have an affine DPIO, but there's
+			 * a chance another one does, so keep trying
+			 */
+			ldpaa_free_channel(priv, channel);
+			continue;
 		}
 
 		/* Register DPCON notification with MC */
@@ -1381,20 +1390,32 @@ static int __cold ldpaa_dpio_setup(struct ldpaa_eth_priv *priv)
 			goto err_set_cdan;
 		}
 
+		/* If we managed to allocate a channel and also found an affine
+		 * DPIO for this core, add it to the final mask
+		 */
 		cpumask_set_cpu(i, &priv->dpio_cpumask);
+		priv->num_channels++;
+
+		if (priv->num_channels == ldpaa_max_channels(priv))
+			break;
 	}
+
+	/* Tx confirmation queues can only be serviced by cpus
+	 * with an affine DPIO/channel
+	 */
+	cpumask_copy(&priv->txconf_cpumask, &priv->dpio_cpumask);
 
 	return 0;
 
 err_set_cdan:
 	dpaa_io_service_deregister(NULL, nctx);
-err_service_reg:
 	ldpaa_free_channel(priv, channel);
 err_alloc_ch:
 	if (unlikely(cpumask_empty(&priv->dpio_cpumask))) {
 		dev_err(dev, "No cpu with an affine DPIO/DPCON\n");
 		return -ENODEV;
 	}
+	cpumask_copy(&priv->txconf_cpumask, &priv->dpio_cpumask);
 
 	return 0;
 }
@@ -1405,11 +1426,29 @@ static void __cold ldpaa_dpio_free(struct ldpaa_eth_priv *priv)
 	struct ldpaa_eth_channel *ch;
 
 	/* deregister CDAN notifications and free channels */
-	for_each_cpu(i, &priv->dpio_cpumask) {
+	for (i = 0; i < priv->num_channels; i++) {
 		ch = priv->channel[i];
 		dpaa_io_service_deregister(NULL, &ch->nctx);
 		ldpaa_free_channel(priv, ch);
 	}
+}
+
+static struct ldpaa_eth_channel *
+ldpaa_get_channel_by_cpu(struct ldpaa_eth_priv *priv, int cpu)
+{
+	struct device *dev = priv->net_dev->dev.parent;
+	int i;
+
+	for (i = 0; i < priv->num_channels; i++)
+		if (priv->channel[i]->nctx.desired_cpu == cpu)
+			return priv->channel[i];
+
+	/* We should never get here. Issue a warning and return
+	 * the first channel, because it's still better than nothing
+	 */
+	dev_warn(dev, "No affine channel found for cpu %d\n", cpu);
+
+	return priv->channel[0];
 }
 
 static void ldpaa_set_fq_affinity(struct ldpaa_eth_priv *priv)
@@ -1441,7 +1480,7 @@ static void ldpaa_set_fq_affinity(struct ldpaa_eth_priv *priv)
 			netdev_err(priv->net_dev, "Unknown FQ type: %d\n",
 				   fq->type);
 		}
-		fq->channel = priv->channel[fq->target_cpu];
+		fq->channel = ldpaa_get_channel_by_cpu(priv, fq->target_cpu);
 	}
 }
 
@@ -1934,7 +1973,7 @@ static int ldpaa_eth_alloc_rings(struct ldpaa_eth_priv *priv)
 	struct device *dev = net_dev->dev.parent;
 	int i;
 
-	for_each_cpu(i, &priv->dpio_cpumask) {
+	for (i = 0; i < priv->num_channels; i++) {
 		priv->channel[i]->store =
 			dpaa_io_store_create(LDPAA_ETH_STORE_SIZE, dev);
 		if (unlikely(!priv->channel[i]->store)) {
@@ -1946,7 +1985,7 @@ static int ldpaa_eth_alloc_rings(struct ldpaa_eth_priv *priv)
 	return 0;
 
 err_ring:
-	for_each_cpu(i, &priv->dpio_cpumask) {
+	for (i = 0; i < priv->num_channels; i++) {
 		if (!priv->channel[i]->store)
 			break;
 		dpaa_io_store_destroy(priv->channel[i]->store);
@@ -1959,7 +1998,7 @@ static void ldpaa_eth_free_rings(struct ldpaa_eth_priv *priv)
 {
 	int i;
 
-	for_each_cpu(i, &priv->dpio_cpumask)
+	for (i = 0; i < priv->num_channels; i++)
 		dpaa_io_store_destroy(priv->channel[i]->store);
 }
 
@@ -2156,7 +2195,7 @@ static void ldpaa_eth_napi_add(struct ldpaa_eth_priv *priv)
 	int i;
 	struct ldpaa_eth_channel *ch;
 
-	for_each_cpu(i, &priv->dpio_cpumask) {
+	for (i = 0; i < priv->num_channels; i++) {
 		ch = priv->channel[i];
 		netif_napi_add(priv->net_dev, &ch->napi, ldpaa_eth_poll,
 			       LDPAA_ETH_NAPI_WEIGHT);
@@ -2168,7 +2207,7 @@ static void ldpaa_eth_napi_del(struct ldpaa_eth_priv *priv)
 	int i;
 	struct ldpaa_eth_channel *ch;
 
-	for_each_cpu(i, &priv->dpio_cpumask) {
+	for (i = 0; i < priv->num_channels; i++) {
 		ch = priv->channel[i];
 		netif_napi_del(&ch->napi);
 	}
@@ -2376,8 +2415,7 @@ ldpaa_eth_probe(struct fsl_mc_device *dpni_dev)
 	if (err)
 		goto err_dpio_setup;
 
-	/* FQs and NAPI */
-	cpumask_copy(&priv->txconf_cpumask, &priv->dpio_cpumask);
+	/* FQs */
 	ldpaa_eth_setup_fqs(priv);
 	ldpaa_set_fq_affinity(priv);
 

@@ -162,11 +162,11 @@ static int ldpaa_dbg_ch_show(struct seq_file *file, void *offset)
 		   "CHID", "CPU", "Deq busy", "Frames", "CDANs",
 		   "Avg frm/CDAN");
 
-	for_each_cpu(i, &priv->dpio_cpumask) {
+	for (i = 0; i < priv->num_channels; i++) {
 		ch = priv->channel[i];
 		seq_printf(file, "%4d%16d%16llu%16llu%16llu%16llu\n",
 			   ch->ch_id,
-			   i,
+			   ch->nctx.desired_cpu,
 			   ch->stats.dequeue_portal_busy,
 			   ch->stats.frames,
 			   ch->stats.cdan,
