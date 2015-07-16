@@ -1025,6 +1025,9 @@ static int dprc_remove(struct fsl_mc_device *mc_dev)
 	if (fsl_mc_interrupts_supported())
 		fsl_mc_cleanup_irq_pool(mc_bus);
 
+	if (&mc_dev->dev == fsl_mc_bus_type.dev_root)
+		fsl_mc_bus_type.dev_root = NULL;
+
 	dev_info(&mc_dev->dev, "DPRC device unbound from driver");
 	return 0;
 }
