@@ -1540,26 +1540,23 @@ void dpa_release_sgt(struct qm_sg_entry *sgt)
 	memset(bmb, 0, DPA_BUFF_RELEASE_MAX * sizeof(struct bm_buffer));
 
 	do {
-		dpa_bp = dpa_bpid2pool(sgt[i].bpid);
+		dpa_bp = dpa_bpid2pool(qm_sg_entry_get_bpid(&sgt[i]));
 		DPA_BUG_ON(!dpa_bp);
 
 		j = 0;
 		do {
-			be32_to_cpus(&sgt[i].sgt_efl);
-			DPA_BUG_ON(sgt[i].extension);
-
-			bmb[j].hi       = sgt[i].addr_hi;
-			bmb[j].lo       = be32_to_cpu(sgt[i].addr_lo);
-
+			DPA_BUG_ON(qm_sg_entry_get_ext(&sgt[i]));
+			bm_buffer_set64(&bmb[j], qm_sg_addr(&sgt[i]));
 
 			j++; i++;
 		} while (j < ARRAY_SIZE(bmb) &&
-				!sgt[i-1].final &&
-				sgt[i-1].bpid == sgt[i].bpid);
+			!qm_sg_entry_get_final(&sgt[i-1]) &&
+			qm_sg_entry_get_bpid(&sgt[i-1]) ==
+			qm_sg_entry_get_bpid(&sgt[i]));
 
 		while (bman_release(dpa_bp->pool, bmb, j, 0))
 			cpu_relax();
-	} while (!sgt[i-1].final);
+	} while (!qm_sg_entry_get_final(&sgt[i-1]));
 }
 EXPORT_SYMBOL(dpa_release_sgt);
 
