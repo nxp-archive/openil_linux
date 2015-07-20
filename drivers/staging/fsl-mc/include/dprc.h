@@ -933,8 +933,14 @@ struct dprc_connection_cfg {
  * @endpoint1:	Endpoint 1 configuration parameters
  * @endpoint2:	Endpoint 2 configuration parameters
  * @cfg: Connection configuration. The connection configuration is ignored for
- *	connections made to DPMAC objects, where rate is retrieved from the
+ *	connections made to DPMAC objects, where rate is set according to
  *	MAC configuration.
+ *	The committed rate is the guaranteed rate for the connection.
+ *	The maximum rate is an upper limit allowed for the connection; it is 
+ *	expected to be equal or higher than the committed rate.
+ *	When committed and maximum rates are both zero, the connection is set 
+ *	to "best effort" mode, having lower priority compared to connections 
+ *	with committed or maximum rates.
  *
  * Return:	'0' on Success; Error code otherwise.
  */
