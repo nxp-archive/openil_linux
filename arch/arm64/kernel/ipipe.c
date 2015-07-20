@@ -584,6 +584,7 @@ static struct __ipipe_tscinfo tsc_info;
 void __init __ipipe_tsc_register(struct __ipipe_tscinfo *info)
 {
 	tsc_info = *info;
+	__ipipe_hrclock_freq = info->freq;
 }
 void __ipipe_mach_get_tscinfo(struct __ipipe_tscinfo *info)
 {
