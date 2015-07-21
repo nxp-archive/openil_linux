@@ -346,6 +346,8 @@ u64 dpa_get_timestamp_ns(const struct dpa_priv_s *priv, enum port_type rx_tx,
 	if (!ts || *ts == 0)
 		return 0;
 
+	be64_to_cpus(ts);
+
 	/* multiple DPA_PTP_NOMINAL_FREQ_PERIOD_NS for case of non power of 2 */
 	ns = *ts << DPA_PTP_NOMINAL_FREQ_PERIOD_SHIFT;
 
