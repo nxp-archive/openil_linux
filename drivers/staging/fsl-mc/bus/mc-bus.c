@@ -598,12 +598,8 @@ void fsl_mc_device_remove(struct fsl_mc_device *mc_dev)
 
 		if (&mc_dev->dev == fsl_mc_bus_type.dev_root)
 			fsl_mc_bus_type.dev_root = NULL;
-	} else if (strcmp(mc_dev->obj_desc.type, "dpmcp") == 0) {
-		if (mc_dev->mc_io) {
-			fsl_destroy_mc_io(mc_dev->mc_io);
-			mc_dev->mc_io = NULL;
-		}
-	}
+	} else
+		WARN_ON(mc_dev->mc_io != NULL);
 
 	kfree(mc_dev->driver_override);
 	mc_dev->driver_override = NULL;
