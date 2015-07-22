@@ -41,6 +41,8 @@
 #include <linux/tracepoint.h>
 
 #define TR_FMT "[%s] fd: addr=0x%llx, len=%u, off=%u"
+/* trace_printk format for raw buffer event class */
+#define TR_BUF_FMT "[%s] vaddr=%p size=%zu dma_addr=%pad map_size=%zu bpid=%d"
 
 /* This is used to declare a class of events.
  * individual events of this type will be defined below.
@@ -114,6 +116,61 @@ DEFINE_EVENT(ldpaa_eth_fd, ldpaa_tx_conf_fd,
 		      const struct dpaa_fd *fd),
 
 	     TP_ARGS(netdev, fd)
+);
+
+/* Log data about raw buffers. Useful for tracing DPBP content. */
+TRACE_EVENT(ldpaa_eth_buf_seed,
+	    /* Trace function prototype */
+	    TP_PROTO(struct net_device *netdev,
+		     /* virtual address and size */
+		     void *vaddr,
+		     size_t size,
+		     /* dma map address and size */
+		     dma_addr_t dma_addr,
+		     size_t map_size,
+		     /* buffer pool id, if relevant */
+		     uint16_t bpid),
+
+	    /* Repeat argument list here */
+	    TP_ARGS(netdev, vaddr, size, dma_addr, map_size, bpid),
+
+	    /* A structure containing the relevant information we want
+	     * to record. Declare name and type for each normal element,
+	     * name, type and size for arrays. Use __string for variable
+	     * length strings.
+	     */
+	    TP_STRUCT__entry(
+			     __field(void *, vaddr)
+			     __field(size_t, size)
+			     __field(dma_addr_t, dma_addr)
+			     __field(size_t, map_size)
+			     __field(uint16_t, bpid)
+			     __string(name, netdev->name)
+	    ),
+
+	    /* The function that assigns values to the above declared
+	     * fields
+	     */
+	    TP_fast_assign(
+			   __entry->vaddr = vaddr;
+			   __entry->size = size;
+			   __entry->dma_addr = dma_addr;
+			   __entry->map_size = map_size;
+			   __entry->bpid = bpid;
+			   __assign_str(name, netdev->name);
+	    ),
+
+	    /* This is what gets printed when the trace event is
+	     * triggered.
+	     */
+	    /* TODO: print the status using __print_flags() */
+	    TP_printk(TR_BUF_FMT,
+		      __get_str(name),
+		      __entry->vaddr,
+		      __entry->size,
+		      &__entry->dma_addr,
+		      __entry->map_size,
+		      __entry->bpid)
 );
 
 /* If only one event of a certain type needs to be declared, use TRACE_EVENT().

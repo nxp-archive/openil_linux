@@ -1497,6 +1497,12 @@ static int ldpaa_bp_add_7(struct ldpaa_eth_priv *priv, uint16_t bpid)
 			goto err_map;
 		}
 		buf_array[i] = addr;
+
+		/* tracing point */
+		trace_ldpaa_eth_buf_seed(priv->net_dev,
+					 buf, LDPAA_ETH_BUF_RAW_SIZE,
+					 addr, LDPAA_ETH_RX_BUFFER_SIZE,
+					 bpid);
 	}
 
 release_bufs:
