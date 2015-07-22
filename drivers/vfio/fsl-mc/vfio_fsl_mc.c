@@ -27,6 +27,7 @@
 
 #include "vfio_fsl_mc_private.h"
 struct fsl_mc_io *vfio_mc_io = NULL;
+struct fsl_mc_io *vfio_atomic_mc_io = NULL;
 
 static DEFINE_MUTEX(driver_lock);
 
@@ -44,6 +45,10 @@ static bool vfio_validate_mmap_addr(struct vfio_fsl_mc_device *vdev,
 	/* Do not try to validate if address range wraps */
 	if ((addr + size) < addr)
 		return false;
+
+	/* Hack to allow mmap GITS_TRANSLATOR Register Page */
+	if (addr == 0x6030000)
+		return true;
 
 	for (idx = 0; idx < mc_dev->obj_desc.region_count; idx++) {
 		region_addr = mc_dev->regions[idx].start;
@@ -125,14 +130,84 @@ static long vfio_fsl_mc_ioctl(void *device_data,
 	}
 	case VFIO_DEVICE_GET_IRQ_INFO:
 	{
-		dev_err(dev, "VFIO: SET_IRQS not implemented\n");
-		return -EINVAL;
+		struct vfio_irq_info info;
+
+		minsz = offsetofend(struct vfio_irq_info, count);
+		if (copy_from_user(&info, (void __user *)arg, minsz))
+			return -EFAULT;
+
+		if (info.argsz < minsz)
+			return -EINVAL;
+
+		if (info.index >= mc_dev->obj_desc.irq_count)
+			return -EINVAL;
+
+		if (vdev->mc_irqs[info.index].irq_initialized) {
+			info.flags = vdev->mc_irqs[info.index].flags;
+			info.count = vdev->mc_irqs[info.index].count;
+		} else {
+			/*
+			 * If IRQs are not initialized then these can not
+			 * be configuted and used by user-space/
+			 */
+			info.flags = 0;
+			info.count = 0;
+		}
+
+		return copy_to_user((void __user *)arg, &info, minsz);
 	}
 	case VFIO_DEVICE_SET_IRQS:
 	{
-		dev_err(dev, "VFIO: SET_IRQS not implemented\n");
-		return -EINVAL;
+		struct vfio_irq_set hdr;
+		u8 *data = NULL;
+		int ret = 0;
 
+		minsz = offsetofend(struct vfio_irq_set, count);
+
+		if (copy_from_user(&hdr, (void __user *)arg, minsz))
+			return -EFAULT;
+
+		if (hdr.argsz < minsz)
+			return -EINVAL;
+
+		if (hdr.index >= mc_dev->obj_desc.irq_count)
+			return -EINVAL;
+
+		if (hdr.start != 0 || hdr.count > 1)
+			return -EINVAL;
+
+		if (hdr.count == 0 &&
+		    (!(hdr.flags & VFIO_IRQ_SET_DATA_NONE) ||
+		    !(hdr.flags & VFIO_IRQ_SET_ACTION_TRIGGER)))
+			return -EINVAL;
+
+		if (hdr.flags & ~(VFIO_IRQ_SET_DATA_TYPE_MASK |
+				  VFIO_IRQ_SET_ACTION_TYPE_MASK))
+			return -EINVAL;
+
+		if (!(hdr.flags & VFIO_IRQ_SET_DATA_NONE)) {
+			size_t size;
+
+			if (hdr.flags & VFIO_IRQ_SET_DATA_BOOL)
+				size = sizeof(uint8_t);
+			else if (hdr.flags & VFIO_IRQ_SET_DATA_EVENTFD)
+				size = sizeof(int32_t);
+			else
+				return -EINVAL;
+
+			if (hdr.argsz - minsz < hdr.count * size)
+				return -EINVAL;
+
+			data = memdup_user((void __user *)(arg + minsz),
+					   hdr.count * size);
+			if (IS_ERR(data))
+				return PTR_ERR(data);
+		}
+
+		ret = vfio_fsl_mc_set_irqs_ioctl(vdev, hdr.flags,
+						 hdr.index, hdr.start,
+						 hdr.count, data);
+		return ret;
 	}
 	case VFIO_DEVICE_RESET:
 	{
@@ -227,6 +302,8 @@ static void vfio_fsl_mc_release(void *device_data)
 	if (strcmp(mc_dev->obj_desc.type, "dprc") == 0)
 		dprc_reset_container(mc_dev->mc_io, 0, mc_dev->mc_handle,
 				     mc_dev->obj_desc.id);
+	else
+		vfio_fsl_mc_unconfigure_irqs(vdev);
 
 	mutex_unlock(&driver_lock);
 
@@ -259,8 +336,14 @@ static const struct vfio_device_ops vfio_fsl_mc_ops = {
 
 static int vfio_fsl_mc_device_remove(struct device *dev, void *data)
 {
+	struct fsl_mc_device *mc_dev;
 	WARN_ON(dev == NULL);
-	fsl_mc_device_remove(to_fsl_mc_device(dev));
+
+	mc_dev = to_fsl_mc_device(dev);
+	WARN_ON(mc_dev == NULL);
+		return -ENODEV;
+
+	fsl_mc_device_remove(mc_dev);
 	return 0;
 }
 
@@ -271,7 +354,7 @@ static int vfio_fsl_mc_probe(struct fsl_mc_device *mc_dev)
 	struct device *dev = &mc_dev->dev;
 	struct fsl_mc_bus *mc_bus;
 	unsigned int irq_count;
-	int ret;
+	int ret, i;
 
 	dev_info(dev, "Binding with vfio-fsl_mc driver\n");
 
@@ -303,56 +386,118 @@ static int vfio_fsl_mc_probe(struct fsl_mc_device *mc_dev)
 				&mc_dev->mc_handle);
 		if (ret) {
 			dev_err(dev, "dprc_open() failed: error = %d\n", ret);
-			goto err;
+			goto free_vfio_device;
 		}
+
+		/* Initialize resource pool */
+		dprc_init_all_resource_pools(mc_dev);
 
 		mc_bus = to_fsl_mc_bus(mc_dev);
 		mutex_init(&mc_bus->scan_mutex);
+
+		mc_bus->atomic_mc_io = vfio_atomic_mc_io;
+		ret = dprc_open(mc_bus->atomic_mc_io, 0, mc_dev->obj_desc.id,
+				&mc_bus->atomic_dprc_handle);
+		if (ret < 0) {
+			dev_err(dev, "fail to open dprc with atomic io (%d)\n", ret);
+			goto clean_resource_pool;
+		}
+
+		if (fsl_mc_interrupts_supported() && !mc_bus->irq_resources) {
+			irq_count = FSL_MC_IRQ_POOL_MAX_EXTRA_IRQS;
+			ret = fsl_mc_populate_irq_pool(mc_bus, irq_count);
+			if (ret < 0) {
+				dev_err(dev, "%s: Failed to init irq-pool\n",
+				__func__);
+				goto free_open_dprc;
+			}
+		}
+
 		mutex_lock(&mc_bus->scan_mutex);
 		ret = dprc_scan_objects(mc_dev, mc_dev->driver_override,
 					&irq_count);
 		mutex_unlock(&mc_bus->scan_mutex);
 		if (ret) {
 			dev_err(dev, "dprc_scan_objects() fails (%d)\n", ret);
-			dprc_close(mc_dev->mc_io,
-				   0,
-				   mc_dev->mc_handle);
-			goto err;
+			goto clean_irq_pool;
 		}
 
 		ret = vfio_add_group_dev(dev, &vfio_fsl_mc_ops, vdev);
 		if (ret) {
 			dev_err(dev, "%s: Failed to add to vfio group\n",
 				__func__);
-			device_for_each_child(&mc_dev->dev, NULL,
-					      vfio_fsl_mc_device_remove);
-			dprc_close(mc_dev->mc_io,
-				   0,
-				   mc_dev->mc_handle);
-			goto err;
+			goto dprc_clean_scan_objects;
+		}
+
+		ret = vfio_fsl_mc_init_irqs(vdev);
+		if (ret) {
+			dev_err(dev, "%s: Failed to setup irqs\n",
+				__func__);
+			vfio_del_group_dev(dev);
+			goto dprc_clean_scan_objects;
+		}
+
+		for (i = 0; i < mc_dev->obj_desc.irq_count; i++) {
+			ret = vfio_fsl_mc_configure_irq(vdev, i);
+			if (ret) {
+				dev_err(dev, "Fails (%d) to config irq\n", ret);
+				vfio_del_group_dev(dev);
+				goto dprc_clean_irqs;
+			}
 		}
 	} else {
 		vdev->mc_dev = mc_dev;
 
+		/* Use New Allocated MC Portal (DPMCP object) */
+		mc_dev->mc_io = vfio_mc_io;
+
 		ret = vfio_add_group_dev(dev, &vfio_fsl_mc_ops, vdev);
 		if (ret) {
 			dev_err(dev, "%s: Failed to add to vfio group\n",
 				__func__);
-			goto err;
+			goto free_vfio_device;
+		}
+
+		if (mc_dev->obj_desc.irq_count) {
+			ret = vfio_fsl_mc_init_irqs(vdev);
+			if (ret) {
+				dev_err(dev, "%s: Failed to setup irqs\n",
+					__func__);
+				vfio_del_group_dev(dev);
+				goto free_vfio_device;
+			}
 		}
 	}
 
 	return 0;
 
-err:
-	iommu_group_put(group);
+dprc_clean_irqs:
+	vfio_fsl_mc_free_irqs(vdev);
+
+dprc_clean_scan_objects:
+	fsl_mc_cleanup_irq_pool(mc_bus);
+	device_for_each_child(&mc_dev->dev, NULL, vfio_fsl_mc_device_remove);
+
+clean_irq_pool:
+	fsl_mc_cleanup_irq_pool(mc_bus);
+
+free_open_dprc:
+	dprc_close(vfio_atomic_mc_io, 0, mc_dev->mc_handle);
+
+clean_resource_pool:
+	dprc_cleanup_all_resource_pools(mc_dev);
+	dprc_close(mc_dev->mc_io, 0, mc_dev->mc_handle);
+
+free_vfio_device:
 	kfree(vdev);
+	iommu_group_put(group);
 	return ret;
 }
 
 static int vfio_fsl_mc_remove(struct fsl_mc_device *mc_dev)
 {
 	struct vfio_fsl_mc_device *vdev;
+	struct fsl_mc_bus *mc_bus;
 	int ret;
 
 	dev_info(&mc_dev->dev, "Un-binding with vfio-fsl-mc driver\n");
@@ -366,6 +511,13 @@ static int vfio_fsl_mc_remove(struct fsl_mc_device *mc_dev)
 		device_for_each_child(&mc_dev->dev, NULL,
 				      vfio_fsl_mc_device_remove);
 
+		vfio_fsl_mc_free_irqs(vdev);
+		dprc_cleanup_all_resource_pools(mc_dev);
+		mc_bus = to_fsl_mc_bus(mc_dev);
+
+		if (fsl_mc_interrupts_supported())
+			fsl_mc_cleanup_irq_pool(mc_bus);
+
 		ret = dprc_close(mc_dev->mc_io,
 				 0,
 				 mc_dev->mc_handle);
@@ -373,7 +525,8 @@ static int vfio_fsl_mc_remove(struct fsl_mc_device *mc_dev)
 			dev_err(&mc_dev->dev, "dprc_close() fails: error %d\n",
 				ret);
 		}
-	}
+	} else
+		vfio_fsl_mc_free_irqs(vdev);
 
 	iommu_group_put(mc_dev->dev.iommu_group);
 	kfree(vdev);
@@ -418,6 +571,13 @@ static int __init vfio_fsl_mc_driver_init(void)
 	if (err < 0)
 		return err;
 
+	/* Allocate a new MC portal (DPMCP object) */
+	err = fsl_mc_portal_allocate(root_mc_dev,
+				     FSL_MC_IO_ATOMIC_CONTEXT_PORTAL,
+				     &vfio_atomic_mc_io);
+	if (err < 0)
+		goto err;
+
 	err = fsl_mc_driver_register(&vfio_fsl_mc_driver);
 	if (err < 0)
 		goto err;
@@ -427,12 +587,18 @@ err:
 	if (vfio_mc_io)
 		fsl_mc_portal_free(vfio_mc_io);
 
+	if (vfio_atomic_mc_io)
+		fsl_mc_portal_free(vfio_atomic_mc_io);
+
+	vfio_atomic_mc_io = NULL;
+	vfio_mc_io = NULL;
 	return err;
 }
 
 static void __exit vfio_fsl_mc_driver_exit(void)
 {
 	fsl_mc_portal_free(vfio_mc_io);
+	fsl_mc_portal_free(vfio_atomic_mc_io);
 	fsl_mc_driver_unregister(&vfio_fsl_mc_driver);
 }
 
