@@ -699,6 +699,14 @@ static void program_msi_at_mc(struct fsl_mc_device *mc_bus_dev,
 		irq_cfg.val = irq->msi_value;
 		irq_cfg.user_irq_id = irq->irq_number;
 
+		/* FIXME: We have only one DPIO register, we should set
+		 * MSI address = 0 only when no DPIO uses MSI interrupt.
+		 * Below is just a workaround, where we never set 0
+		 * MSI address */
+		if (irq_cfg.paddr == 0x0 &&
+		    (strncmp("dpio", owner_mc_dev->obj_desc.type, 4) == 0))
+			return;
+
 		/*
 		 * TODO: Add the MC_CMD_FLAG_PRI flag below when
 		 * a fix for CR:ENGR00361583 becomes available
