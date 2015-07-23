@@ -544,12 +544,20 @@ asmlinkage void __exception do_sp_pc_abort(unsigned long addr,
 					   struct pt_regs *regs)
 {
 	struct siginfo info;
+	unsigned long irqflags;
+
+	irqflags = ipipe_fault_entry();
+
+	if (__ipipe_report_trap(IPIPE_TRAP_ALIGNMENT, regs))
+		goto out;
 
 	info.si_signo = SIGBUS;
 	info.si_errno = 0;
 	info.si_code  = BUS_ADRALN;
 	info.si_addr  = (void __user *)addr;
 	arm64_notify_die("", regs, &info, esr);
+out:
+	ipipe_fault_exit(irqflags);
 }
 
 static struct fault_info debug_fault_info[] = {
