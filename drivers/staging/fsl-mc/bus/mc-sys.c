@@ -648,9 +648,6 @@ static int mc_completion_wait(struct fsl_mc_io *mc_io, struct mc_command *cmd,
 	if (WARN_ON(mc_io->flags & FSL_MC_IO_ATOMIC_CONTEXT_PORTAL))
 		return -EINVAL;
 
-	if (WARN_ON(!preemptible()))
-		return -EINVAL;
-
 	for (;;) {
 		status = mc_read_response(mc_io->portal_virt_addr, cmd);
 		if (status != MC_CMD_STATUS_READY)
@@ -768,7 +765,7 @@ int mc_send_command(struct fsl_mc_io *mc_io, struct mc_command *cmd)
 	 */
 	if (mc_io->mc_command_done_irq_armed && !dpmcp_completion_intr_disabled)
 		error = mc_completion_wait(mc_io, cmd, &status);
-	else if (preemptible())
+	else if (!(mc_io->flags & FSL_MC_IO_ATOMIC_CONTEXT_PORTAL))
 		error = mc_polling_wait_preemptible(mc_io, cmd, &status);
 	else
 		error = mc_polling_wait_atomic(mc_io, cmd, &status);
