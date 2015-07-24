@@ -154,6 +154,9 @@ static int ppx_open(struct net_device *netdev)
 
 static int ppx_stop(struct net_device *netdev)
 {
+	if (!netdev->phydev)
+		goto done;
+
 	/* stop PHY state machine */
 	phy_stop(netdev->phydev);
 
@@ -161,6 +164,7 @@ static int ppx_stop(struct net_device *netdev)
 	netdev->phydev->link = 0;
 	ppx_link_changed(netdev);
 
+done:
 	return 0;
 }
 
@@ -343,6 +347,10 @@ static void ppx_link_changed(struct net_device *netdev)
 			state.options |= DPMAC_LINK_OPT_HALF_DUPLEX;
 		if (phydev->autoneg)
 			state.options |= DPMAC_LINK_OPT_AUTONEG;
+
+		netif_carrier_on(netdev);
+	} else {
+		netif_carrier_off(netdev);
 	}
 
 	if (priv->old_state.up == state.up &&
@@ -351,9 +359,8 @@ static void ppx_link_changed(struct net_device *netdev)
 		return;
 	}
 	priv->old_state = state;
-#ifdef PPX_DEBUG
+
 	phy_print_status(phydev);
-#endif
 
 	/* we intentionally ignore the error here as MC will return an error
 	 * if peer L2 interface (like a DPNI) is down at this time
@@ -487,23 +494,47 @@ static void ppx_teardown_irqs(struct fsl_mc_device *mc_dev)
 
 }
 
+static struct device_node *ppx_lookup_node(struct device *dev,
+					   int dpmac_id)
+{
+	struct device_node *dpmacs, *dpmac = NULL;
+	struct device_node *mc_node = dev->of_node;
+	const void *id;
+	int lenp;
+	int dpmac_id_be32 = cpu_to_be32(dpmac_id);
+
+	dpmacs = of_find_node_by_name(mc_node, "dpmacs");
+	if (!dpmacs) {
+		dev_err(dev, "No dpmacs subnode in device-tree\n");
+		return NULL;
+	}
+
+	while ((dpmac = of_get_next_child(dpmacs, dpmac))) {
+		id = of_get_property(dpmac, "reg", &lenp);
+		if (!id || lenp != sizeof(int)) {
+			dev_warn(dev, "Unsuitable reg property in dpmac node\n");
+			continue;
+		}
+		if (*(int *)id == dpmac_id_be32)
+			return dpmac;
+	}
+
+	return NULL;
+}
+
 static int __cold
 ppx_probe(struct fsl_mc_device *mc_dev)
 {
 	struct device		*dev;
 	struct ppx_priv		*priv = NULL;
-	struct device_node	*phy_node;
+	struct device_node	*phy_node, *dpmac_node;
 	struct net_device	*netdev;
-	/*phy_interface_t		if_mode;*/
+	phy_interface_t		if_mode;
 	int			err = 0;
-	/* HACK */
-	static char phy_name[255];
-	static int phy_cnt;
 
 	/* just being completely paranoid */
 	if (!mc_dev)
 		return -EFAULT;
-
 	dev = &mc_dev->dev;
 
 	/* prepare a net_dev structure to make the phy lib API happy */
@@ -553,6 +584,13 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 		goto err_close;
 	}
 
+	/* Look up the DPMAC node in the device-tree. */
+	dpmac_node = ppx_lookup_node(dev, priv->attr.id);
+	if (!dpmac_node) {
+		dev_err(dev, "No dpmac@%d subnode found.\n", priv->attr.id);
+		goto err_close;
+	}
+
 	err = ppx_setup_irqs(mc_dev);
 	if (err)
 		goto err_close;
@@ -572,54 +610,48 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 	}
 #endif /* CONFIG_FSL_DPAA2_MAC_NETDEVS */
 
-	/* try to connect to the PHY */
-	/* phy_node = of_find_node_by_phandle(priv->attr.phy_id); */
-	sprintf(phy_name, "mdio_phy%d", phy_cnt);
-	phy_node = of_find_node_by_name(NULL, phy_name);
-	if (!phy_node) {
-		dev_err(dev, "PHY node %s not found, trying another...\n",
-			phy_name);
+	/* probe the PHY as a fixed-link if the link type declared in DPC
+	 * explicitly mandates this
+	 */
+	if (priv->attr.link_type == DPMAC_LINK_TYPE_FIXED)
+		goto probe_fixed_link;
 
-		sprintf(phy_name, "ethernet-phy@%d", phy_cnt);
-		phy_node = of_find_node_by_name(NULL, phy_name);
+	if (priv->attr.eth_if < ARRAY_SIZE(ppx_eth_iface_mode)) {
+		if_mode = ppx_eth_iface_mode[priv->attr.eth_if];
+		dev_dbg(dev, "\tusing if mode %s for eth_if %d\n",
+			phy_modes(if_mode), priv->attr.eth_if);
+	} else {
+		dev_warn(dev, "Unexpected interface mode %d, will probe as fixed link\n",
+			 priv->attr.eth_if);
+		goto probe_fixed_link;
+	}
+
+	/* try to connect to the PHY */
+	phy_node = of_parse_phandle(dpmac_node, "phy-handle", 0);
+	if (!phy_node) {
 		if (!phy_node) {
-			dev_err(dev, "PHY node %s not found, looking for phandle 0x%0x\n",
-				phy_name,
-				priv->attr.phy_id);
-			err = -EFAULT;
+			dev_err(dev, "dpmac node has no phy-handle property\n");
 			goto err_no_phy;
 		}
 	}
-	phy_cnt++;
-/*
-	if (priv->attr.eth_if <
-	    sizeof(ppx_eth_iface_mode) / sizeof(ppx_eth_iface_mode[0])) {
-		if_mode = ppx_eth_iface_mode[priv->attr.eth_if];
-		dev_info(dev, "\tusing if mode %s for eth_if %d\n",
-			 phy_modes(if_mode), priv->attr.eth_if);
-	} else {
-		if_mode = PHY_INTERFACE_MODE_NA;
-		dev_warn(dev, "unexpected interface mode %d\n",
-			 priv->attr.eth_if);
-	}
 	netdev->phydev = of_phy_connect(netdev, phy_node, &ppx_link_changed,
 					0, if_mode);
-*/
-	netdev->phydev = of_phy_connect(netdev, phy_node, &ppx_link_changed,
-					0, PHY_INTERFACE_MODE_SGMII);
 	if (!netdev->phydev) {
-		dev_err(dev,
-			"ERROR: of_phy_connect returned NULL\n");
-		err = -EFAULT;
-		goto err_no_phy;
+		/* No need for dev_err(); the kernel's loud enough as it is. */
+		dev_dbg(dev, "Can't of_phy_connect() now.\n");
+		/* We might be waiting for the MDIO MUX to probe, so defer
+		 * our own probing.
+		 */
+		err = -EPROBE_DEFER;
+		goto err_defer;
 	}
+	dev_info(dev, "Connected to %s PHY.\n", phy_modes(if_mode));
 
-	dev_info(dev, "found a PHY!\n");
-
-err_no_phy:
+probe_fixed_link:
 	if (!netdev->phydev) {
 		struct fixed_phy_status status = {
 			.link = 1,
+			/* FIXME take value from MC */
 			.speed = 1000,
 			.duplex = 1,
 		};
@@ -627,12 +659,11 @@ err_no_phy:
 		/* try to register a fixed link phy */
 		netdev->phydev = fixed_phy_register(PHY_POLL, &status, NULL);
 		if (!netdev->phydev || IS_ERR(netdev->phydev)) {
-			dev_err(dev, "error trying to register fixed PHY!\n");
+			dev_err(dev, "error trying to register fixed PHY\n");
 			err = -EFAULT;
 			goto err_free_irq;
 		}
-		dev_info(dev, "Registered fixed PHY %d (%s) connected to DPMAC %d\n",
-			 phy_cnt, phy_name, priv->attr.id);
+		dev_info(dev, "Registered fixed PHY.\n");
 	}
 
 	/* start PHY state machine */
@@ -643,6 +674,11 @@ err_no_phy:
 #endif /* CONFIG_FSL_DPAA2_MAC_NETDEVS */
 	return 0;
 
+err_defer:
+err_no_phy:
+#ifdef CONFIG_FSL_DPAA2_MAC_NETDEVS
+	unregister_netdev(netdev);
+#endif
 err_free_irq:
 	ppx_teardown_irqs(mc_dev);
 err_close:
