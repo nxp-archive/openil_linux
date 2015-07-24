@@ -41,7 +41,7 @@ config FSL_DPAA2_ETH_USE_ERR_QUEUE
 	  purposes only.
 
 config FSL_DPAA2_ETH_DEBUGFS
-	depends on FSL_QBMAN_DEBUG
+	depends on DEBUG_FS && FSL_QBMAN_DEBUG
 	bool "Enable debugfs support"
 	default n
 	---help---
