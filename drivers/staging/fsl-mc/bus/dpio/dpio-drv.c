@@ -208,7 +208,9 @@ ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
 	desc.will_poll = 1;
 	desc.has_8prio = dpio_attrs.num_priorities == 8 ? 1 : 0;
 	desc.cpu = next_cpu;
-	desc.stash_affinity = next_cpu;
+	desc.stash_affinity = 1; /* TODO: Figure out how to determine
+				    this setting - will we ever have non-affine
+				    portals where we stash to a platform cache? */
 	next_cpu = (next_cpu + 1) % num_active_cpus();
 	desc.dpio_id = ls_dev->obj_desc.id;
 	desc.regs_cena = ioremap_cache_ns(ls_dev->regions[0].start,
@@ -264,6 +266,7 @@ ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
 			err = PTR_ERR(priv->thread);
 			goto err_dpaa_thread;
 		}
+		kthread_unpark(priv->thread);
 		wake_up_process(priv->thread);
 	}
 
