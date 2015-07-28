@@ -673,20 +673,16 @@ static void program_msi_at_mc(struct fsl_mc_device *mc_bus_dev,
 	if (WARN_ON(!owner_mc_dev))
 		return;
 
+	irq_cfg.paddr = irq->msi_paddr;
+	irq_cfg.val = irq->msi_value;
+	irq_cfg.user_irq_id = irq->irq_number;
+
 	if (owner_mc_dev == mc_bus_dev) {
 		/*
 		 * IRQ is for the mc_bus_dev's DPRC itself
 		 */
-		irq_cfg.paddr = irq->msi_paddr;
-		irq_cfg.val = irq->msi_value;
-		irq_cfg.user_irq_id = irq->irq_number;
-
-		/*
-		 * TODO: Add the MC_CMD_FLAG_PRI flag below when
-		 * a fix for CR:ENGR00361583 becomes available
-		 */
 		error = dprc_set_irq(mc_bus->atomic_mc_io,
-				     MC_CMD_FLAG_INTR_DIS,
+				     MC_CMD_FLAG_INTR_DIS | MC_CMD_FLAG_PRI,
 				     mc_bus->atomic_dprc_handle,
 				     irq->dev_irq_index,
 				     &irq_cfg);
@@ -695,10 +691,6 @@ static void program_msi_at_mc(struct fsl_mc_device *mc_bus_dev,
 				"dprc_set_irq() failed: %d\n", error);
 		}
 	} else {
-		irq_cfg.paddr = irq->msi_paddr;
-		irq_cfg.val = irq->msi_value;
-		irq_cfg.user_irq_id = irq->irq_number;
-
 		/* FIXME: We have only one DPIO register, we should set
 		 * MSI address = 0 only when no DPIO uses MSI interrupt.
 		 * Below is just a workaround, where we never set 0
@@ -707,12 +699,8 @@ static void program_msi_at_mc(struct fsl_mc_device *mc_bus_dev,
 		    (strncmp("dpio", owner_mc_dev->obj_desc.type, 4) == 0))
 			return;
 
-		/*
-		 * TODO: Add the MC_CMD_FLAG_PRI flag below when
-		 * a fix for CR:ENGR00361583 becomes available
-		 */
 		error = dprc_set_obj_irq(mc_bus->atomic_mc_io,
-					 MC_CMD_FLAG_INTR_DIS,
+					 MC_CMD_FLAG_INTR_DIS | MC_CMD_FLAG_PRI,
 					 mc_bus->atomic_dprc_handle,
 					 owner_mc_dev->obj_desc.type,
 					 owner_mc_dev->obj_desc.id,
