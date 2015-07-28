@@ -1820,14 +1820,14 @@ static int ldpaa_rx_err_setup(struct ldpaa_eth_priv *priv,
 	queue_cfg.dest_cfg.priority = 1;
 	queue_cfg.user_ctx = (uint64_t)fq;
 	queue_cfg.dest_cfg.dest_id = fq->channel->dpcon_id;
-	err = dpni_set_rx_err_queue(priv->mc_io, priv->mc_token, &queue_cfg);
+	err = dpni_set_rx_err_queue(priv->mc_io, 0, priv->mc_token, &queue_cfg);
 	if (unlikely(err)) {
 		netdev_err(priv->net_dev, "dpni_set_rx_err_queue() failed\n");
 		return err;
 	}
 
 	/* Get the FQID */
-	err = dpni_get_rx_err_queue(priv->mc_io, priv->mc_token, &queue_attr);
+	err = dpni_get_rx_err_queue(priv->mc_io, 0, priv->mc_token, &queue_attr);
 	if (unlikely(err)) {
 		netdev_err(priv->net_dev, "dpni_get_rx_err_queue() failed\n");
 		return err;
