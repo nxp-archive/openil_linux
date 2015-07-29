@@ -670,6 +670,18 @@ static void program_msi_at_mc(struct fsl_mc_device *mc_bus_dev,
 	struct fsl_mc_bus *mc_bus = to_fsl_mc_bus(mc_bus_dev);
 	struct dprc_irq_cfg irq_cfg;
 
+	/*
+	 * irq->msi_paddr is 0x0 when this function is invoked in the
+	 * free_irq() code path. In this case, for the MC, we don't
+	 * really need to "unprogram" the MSI, so we just return.
+	 * This helps avoid subtle ordering problems in the MC
+	 * bus IRQ teardown logic.
+	 * FIXME: evaluate whether there is a better way to address
+	 * the underlying issue (upstreamability concern)
+	 */
+	if (irq->msi_paddr == 0x0)
+		return;
+
 	if (WARN_ON(!owner_mc_dev))
 		return;
 
@@ -691,14 +703,6 @@ static void program_msi_at_mc(struct fsl_mc_device *mc_bus_dev,
 				"dprc_set_irq() failed: %d\n", error);
 		}
 	} else {
-		/* FIXME: We have only one DPIO register, we should set
-		 * MSI address = 0 only when no DPIO uses MSI interrupt.
-		 * Below is just a workaround, where we never set 0
-		 * MSI address */
-		if (irq_cfg.paddr == 0x0 &&
-		    (strncmp("dpio", owner_mc_dev->obj_desc.type, 4) == 0))
-			return;
-
 		error = dprc_set_obj_irq(mc_bus->atomic_mc_io,
 					 MC_CMD_FLAG_INTR_DIS | MC_CMD_FLAG_PRI,
 					 mc_bus->atomic_dprc_handle,
