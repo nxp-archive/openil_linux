@@ -297,6 +297,42 @@ static int dpa_set_wol(struct net_device *net_dev, struct ethtool_wolinfo *wol)
 }
 #endif
 
+static int dpa_get_eee(struct net_device *net_dev, struct ethtool_eee *et_eee)
+{
+	struct dpa_priv_s *priv;
+
+	priv = netdev_priv(net_dev);
+	if (priv->mac_dev == NULL) {
+		netdev_info(net_dev, "This is a MAC-less interface\n");
+		return -ENODEV;
+	}
+
+	if (unlikely(priv->mac_dev->phy_dev == NULL)) {
+		netdev_err(net_dev, "phy device not initialized\n");
+		return -ENODEV;
+	}
+
+	return phy_ethtool_get_eee(priv->mac_dev->phy_dev, et_eee);
+}
+
+static int dpa_set_eee(struct net_device *net_dev, struct ethtool_eee *et_eee)
+{
+	struct dpa_priv_s *priv;
+
+	priv = netdev_priv(net_dev);
+	if (priv->mac_dev == NULL) {
+		netdev_info(net_dev, "This is a MAC-less interface\n");
+		return -ENODEV;
+	}
+
+	if (unlikely(priv->mac_dev->phy_dev == NULL)) {
+		netdev_err(net_dev, "phy device not initialized\n");
+		return -ENODEV;
+	}
+
+	return phy_ethtool_set_eee(priv->mac_dev->phy_dev, et_eee);
+}
+
 const struct ethtool_ops dpa_ethtool_ops = {
 	.get_settings = dpa_get_settings,
 	.set_settings = dpa_set_settings,
@@ -309,6 +345,8 @@ const struct ethtool_ops dpa_ethtool_ops = {
 	.self_test = NULL, /* TODO invoke the cold-boot unit-test? */
 	.get_ethtool_stats = NULL, /* TODO other stats, currently in debugfs */
 	.get_link = ethtool_op_get_link,
+	.get_eee = dpa_get_eee,
+	.set_eee = dpa_set_eee,
 #ifdef CONFIG_PM
 	.get_wol = dpa_get_wol,
 	.set_wol = dpa_set_wol,
