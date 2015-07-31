@@ -35,7 +35,7 @@ struct fsl_pm_ops {
 	void (*cpu_exit_state)(int cpu, int state);
 	void (*cpu_up_prepare)(int cpu);
 	void (*cpu_die)(int cpu);
-	int (*plat_enter_sleep)(void);
+	int (*plat_enter_sleep)(int state);
 	void (*freeze_time_base)(bool freeze);
 
 	/* keep the power of IP blocks during sleep/deep sleep */

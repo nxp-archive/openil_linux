@@ -217,14 +217,15 @@ static void rcpm_v2_cpu_up_prepare(int cpu)
 	rcpm_v2_irq_unmask(cpu);
 }
 
-static int rcpm_v1_plat_enter_state(int state)
+static int rcpm_v1_plat_enter_sleep(int state)
 {
 	u32 *pmcsr_reg = &rcpm_v1_regs->powmgtcsr;
 	int ret = 0;
 	int result;
 
 	switch (state) {
-	case PLAT_PM_SLEEP:
+	case FSL_PM_SLEEP:
+		cur_cpu_spec->cpu_down_flush();
 		setbits32(pmcsr_reg, RCPM_POWMGTCSR_SLP);
 
 		/* Upon resume, wait for RCPM_POWMGTCSR_SLP bit to be clear. */
@@ -243,14 +244,15 @@ static int rcpm_v1_plat_enter_state(int state)
 	return ret;
 }
 
-static int rcpm_v2_plat_enter_state(int state)
+static int rcpm_v2_plat_enter_sleep(int state)
 {
 	u32 *pmcsr_reg = &rcpm_v2_regs->powmgtcsr;
 	int ret = 0;
 	int result;
 
 	switch (state) {
-	case PLAT_PM_LPM20:
+	case FSL_PM_SLEEP:
+		cur_cpu_spec->cpu_down_flush();
 		/* clear previous LPM20 status */
 		setbits32(pmcsr_reg, RCPM_POWMGTCSR_P_LPM20_ST);
 		/* enter LPM20 status */
@@ -272,16 +274,6 @@ static int rcpm_v2_plat_enter_state(int state)
 	}
 
 	return ret;
-}
-
-static int rcpm_v1_plat_enter_sleep(void)
-{
-	return rcpm_v1_plat_enter_state(PLAT_PM_SLEEP);
-}
-
-static int rcpm_v2_plat_enter_sleep(void)
-{
-	return rcpm_v2_plat_enter_state(PLAT_PM_LPM20);
 }
 
 static void rcpm_common_freeze_time_base(u32 *tben_reg, int freeze)

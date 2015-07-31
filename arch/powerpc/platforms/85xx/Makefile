@@ -3,6 +3,7 @@
 #
 obj-$(CONFIG_SMP) += smp.o
 obj-$(CONFIG_FSL_PMC)		  += mpc85xx_pm_ops.o
+obj-$(CONFIG_FSL_QORIQ_PM)	  += qoriq_pm.o
 
 obj-y += common.o
 
