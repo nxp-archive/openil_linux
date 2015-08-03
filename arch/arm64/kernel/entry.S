@@ -698,6 +698,16 @@ work_pending:
 	bl	do_notify_resume
 	b	ret_to_user
 work_resched:
+#ifdef CONFIG_IPIPE
+	/*
+	In armv7, ipipe inserts the following (in do_work_pending, NEED_RESCHED case):
+	local_irq_disable();
+	hard_cond_local_irq_enable();
+	*/
+	bl ipipe_stall_root //local_irq_disable() -> { ipipe_stall_root(); barrier(); }
+	dmb sy				//barrier(); -> __memory_barrier();
+	msr daifclr, #2 //hard_cond_local_irq_enable();
+#endif
 	bl	schedule
 
 /*
