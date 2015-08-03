@@ -18,12 +18,12 @@
 
 typedef struct {
 	unsigned int id;
-	raw_spinlock_t id_lock;
+	ipipe_spinlock_t id_lock;
 	void *vdso;
 } mm_context_t;
 
 #define INIT_MM_CONTEXT(name) \
-	.context.id_lock = __RAW_SPIN_LOCK_UNLOCKED(name.context.id_lock),
+	.context.id_lock = IPIPE_SPIN_LOCK_UNLOCKED,
 
 #define ASID(mm)	((mm)->context.id & 0xffff)
 
