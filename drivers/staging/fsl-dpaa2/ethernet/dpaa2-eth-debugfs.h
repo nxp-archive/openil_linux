@@ -45,6 +45,8 @@ struct ldpaa_debugfs {
 	struct dentry *reset_stats;
 };
 
+void ldpaa_eth_dbg_init(void);
+void ldpaa_eth_dbg_exit(void);
 void ldpaa_dbg_add(struct ldpaa_eth_priv *priv);
 void ldpaa_dbg_remove(struct ldpaa_eth_priv *priv);
 

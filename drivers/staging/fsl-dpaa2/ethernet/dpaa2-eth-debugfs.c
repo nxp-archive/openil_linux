@@ -301,24 +301,19 @@ void ldpaa_dbg_remove(struct ldpaa_eth_priv *priv)
 	debugfs_remove(priv->dbg.dir);
 }
 
-static int __init ldpaa_eth_dbg_init(void)
+void ldpaa_eth_dbg_init(void)
 {
 	ldpaa_dbg_root = debugfs_create_dir(LDPAA_ETH_DBG_ROOT, NULL);
 	if (unlikely(!ldpaa_dbg_root)) {
 		pr_err("DPAA2-ETH: debugfs create failed\n");
-		return -ENOMEM;
+		return;
 	}
 
 	pr_info("DPAA2-ETH: debugfs created\n");
-	return 0;
 }
 
-static void __exit ldpaa_eth_dbg_exit(void)
+void __exit ldpaa_eth_dbg_exit(void)
 {
 	debugfs_remove(ldpaa_dbg_root);
 }
-
-module_init(ldpaa_eth_dbg_init);
-module_exit(ldpaa_eth_dbg_exit);
-MODULE_LICENSE("Dual BSD/GPL");
 

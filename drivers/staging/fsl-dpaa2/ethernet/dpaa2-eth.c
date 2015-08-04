@@ -2574,4 +2574,32 @@ static struct fsl_mc_driver ldpaa_eth_driver = {
 	.match_id_table = ldpaa_eth_match_id_table
 };
 
-module_fsl_mc_driver(ldpaa_eth_driver);
+static int __init ldpaa_eth_driver_init(void)
+{
+	int err;
+
+#ifdef CONFIG_FSL_DPAA2_ETH_DEBUGFS
+	ldpaa_eth_dbg_init();
+#endif
+
+	err = fsl_mc_driver_register(&ldpaa_eth_driver);
+	if (err) {
+#ifdef CONFIG_FSL_DPAA2_ETH_DEBUGFS
+		ldpaa_eth_dbg_exit();
+#endif
+		return err;
+	}
+
+	return 0;
+}
+
+static void __exit ldpaa_eth_driver_exit(void)
+{
+	fsl_mc_driver_unregister(&ldpaa_eth_driver);
+#ifdef CONFIG_FSL_DPAA2_ETH_DEBUGFS
+	ldpaa_eth_dbg_exit();
+#endif
+}
+
+module_init(ldpaa_eth_driver_init);
+module_exit(ldpaa_eth_driver_exit);
