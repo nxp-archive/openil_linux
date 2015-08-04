@@ -757,6 +757,7 @@ int dpaa_io_query_fq_count(struct dpaa_io *d, uint32_t fqid,
 
 	return 0;
 }
+EXPORT_SYMBOL(dpaa_io_query_fq_count);
 
 int dpaa_io_query_bp_count(struct dpaa_io *d, uint32_t bpid,
 			   uint32_t *num)
@@ -779,6 +780,7 @@ int dpaa_io_query_bp_count(struct dpaa_io *d, uint32_t bpid,
 	*num = qbman_bp_info_num_free_bufs(&state);
 	return 0;
 }
+EXPORT_SYMBOL(dpaa_io_query_bp_count);
 
 #endif
 

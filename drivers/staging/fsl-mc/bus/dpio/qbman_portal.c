@@ -864,6 +864,7 @@ uint64_t ldpaa_dq_fqd_ctx(const struct ldpaa_dq *dq)
 
 	return qb_attr_code_decode_64(&code_dqrr_ctx_lo, p);
 }
+EXPORT_SYMBOL(ldpaa_dq_fqd_ctx);
 
 const struct dpaa_fd *ldpaa_dq_fd(const struct ldpaa_dq *dq)
 {
@@ -871,6 +872,7 @@ const struct dpaa_fd *ldpaa_dq_fd(const struct ldpaa_dq *dq)
 
 	return (const struct dpaa_fd *)&p[8];
 }
+EXPORT_SYMBOL(ldpaa_dq_fd);
 
 /**************************************/
 /* Parsing state-change notifications */
