@@ -1635,7 +1635,8 @@ struct qm_mc_result {
 static inline int QM_MCR_QUERYCONGESTION(struct __qm_mcr_querycongestion *p,
 					u8 cgr)
 {
-	return p->__state[__CGR_WORD(cgr)] & (0x80000000 >> __CGR_SHIFT(cgr));
+	return be32_to_cpu(p->__state[__CGR_WORD(cgr)]) &
+	       (0x80000000 >> __CGR_SHIFT(cgr));
 }
 
 
