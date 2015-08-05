@@ -4247,8 +4247,10 @@ static int __init caam_algapi_init(void)
 	struct device_node *dev_node;
 	struct platform_device *pdev;
 	struct device *ctrldev;
-	void *priv;
+	struct caam_drv_private *priv;
 	int i = 0, err = 0;
+	u32 cha_vid, cha_inst, des_inst, aes_inst, md_inst;
+	unsigned int md_limit = SHA512_DIGEST_SIZE;
 
 	dev_node = of_find_compatible_node(NULL, NULL, "fsl,sec-v4.0");
 	if (!dev_node) {
@@ -4277,16 +4279,60 @@ static int __init caam_algapi_init(void)
 
 	INIT_LIST_HEAD(&alg_list);
 
-	/* register crypto algorithms the device supports */
-	for (i = 0; i < ARRAY_SIZE(driver_algs); i++) {
-		/* TODO: check if h/w supports alg */
-		struct caam_crypto_alg *t_alg;
+	/*
+	 * Register crypto algorithms the device supports.
+	 * First, detect presence and attributes of DES, AES, and MD blocks.
+	 */
+	cha_vid = rd_reg32(&priv->ctrl->perfmon.cha_id_ls);
+	cha_inst = rd_reg32(&priv->ctrl->perfmon.cha_num_ls);
+	des_inst = (cha_inst & CHA_ID_LS_DES_MASK) >> CHA_ID_LS_DES_SHIFT;
+	aes_inst = (cha_inst & CHA_ID_LS_AES_MASK) >> CHA_ID_LS_AES_SHIFT;
+	md_inst = (cha_inst & CHA_ID_LS_MD_MASK) >> CHA_ID_LS_MD_SHIFT;
 
-		t_alg = caam_alg_alloc(&driver_algs[i]);
+	/* If MD is present, limit digest size based on LP256 */
+	if (md_inst && ((cha_vid & CHA_ID_LS_MD_MASK) == CHA_ID_LS_MD_LP256))
+		md_limit = SHA256_DIGEST_SIZE;
+
+	for (i = 0; i < ARRAY_SIZE(driver_algs); i++) {
+		struct caam_crypto_alg *t_alg;
+		struct caam_alg_template *alg = driver_algs + i;
+		u32 c1_alg_sel = alg->class1_alg_type & OP_ALG_ALGSEL_MASK;
+		u32 c2_alg_sel = alg->class2_alg_type & OP_ALG_ALGSEL_MASK;
+		u32 alg_aai = alg->class1_alg_type & OP_ALG_AAI_MASK;
+
+		/* Skip DES algorithms if not supported by device */
+		if (!des_inst &&
+		    ((c1_alg_sel == OP_ALG_ALGSEL_3DES) ||
+		     (c1_alg_sel == OP_ALG_ALGSEL_DES)))
+				continue;
+
+		/* Skip AES algorithms if not supported by device */
+		if (!aes_inst && (c1_alg_sel == OP_ALG_ALGSEL_AES))
+				continue;
+
+		if (alg->type == CRYPTO_ALG_TYPE_AEAD) {
+			/*
+			 * Check support for AES algorithms not available
+			 * on LP devices.
+			 */
+			if ((cha_vid & CHA_ID_LS_AES_MASK) == CHA_ID_LS_AES_LP)
+				if (alg_aai == OP_ALG_AAI_GCM)
+					continue;
+
+			/*
+			 * Skip algorithms requiring message digests
+			 * if MD or MD size is not supported by device.
+			 */
+			if (c2_alg_sel &&
+			    (!md_inst || (alg->template_aead.maxauthsize >
+					  md_limit)))
+				continue;
+		}
+
+		t_alg = caam_alg_alloc(alg);
 		if (IS_ERR(t_alg)) {
 			err = PTR_ERR(t_alg);
-			pr_warn("%s alg allocation failed\n",
-				driver_algs[i].driver_name);
+			pr_warn("%s alg allocation failed\n", alg->driver_name);
 			continue;
 		}
 
