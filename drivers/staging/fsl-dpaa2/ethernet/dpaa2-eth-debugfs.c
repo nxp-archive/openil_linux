@@ -90,6 +90,20 @@ static const struct file_operations ldpaa_dbg_cpu_ops = {
 	.release = single_release,
 };
 
+static char *fq_type_to_str(struct ldpaa_eth_fq *fq)
+{
+	switch (fq->type) {
+	case LDPAA_RX_FQ:
+		return "Rx";
+	case LDPAA_TX_CONF_FQ:
+		return "Tx conf";
+	case LDPAA_RX_ERR_FQ:
+		return "Rx err";
+	default:
+		return "N/A";
+	}
+}
+
 static int ldpaa_dbg_fqs_show(struct seq_file *file, void *offset)
 {
 	struct ldpaa_eth_priv *priv = (struct ldpaa_eth_priv *)file->private;
@@ -110,7 +124,7 @@ static int ldpaa_dbg_fqs_show(struct seq_file *file, void *offset)
 		seq_printf(file, "%5d%16d%16s%16llu%16u\n",
 			   fq->fqid,
 			   fq->target_cpu,
-			   fq->type == LDPAA_RX_FQ ? "Rx" : "Tx conf",
+			   fq_type_to_str(fq),
 			   fq->stats.frames,
 			   fcnt);
 	}
