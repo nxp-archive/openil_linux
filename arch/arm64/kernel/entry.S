@@ -821,3 +821,39 @@ ENTRY(sys_rt_sigreturn_wrapper)
 	mov	x0, sp
 	b	sys_rt_sigreturn
 ENDPROC(sys_rt_sigreturn_wrapper)
+
+/*
+ * I-pipe tracer helper functions
+ */
+#if defined(CONFIG_FRAME_POINTER) && (CONFIG_IPIPE_TRACE)
+	.text
+	.align 3
+	.type arm64_return_addr %function
+	.global arm64_return_addr
+
+arm64_return_addr:
+	mov	x16, x0
+	ldr	x0, [x29]
+3:
+	cmp	x0, #0
+	beq	1f				// frame list hit end, bail
+	cmp	x16, #0
+	beq	2f				// reached desired frame
+	ldr	x0, [x0]		// else continue, get next fp
+	sub	x16, x16, #1
+	b	3b
+2:
+	add	x0, x0, #8		// get target return address (LR)
+1:
+	ret
+ENDPROC(arm64_return_addr)
+#endif
+#ifdef CONFIG_IPIPE_TRACE_MCOUNT
+	.text
+	.align 3
+	.type mcount %function
+	.global mcount
+mcount:
+	ret		// just return
+ENDPROC(mcount)
+#endif
