@@ -871,6 +871,7 @@ static int __cold ldpaa_eth_open(struct net_device *net_dev)
 	 * FIXME beware of race conditions
 	 */
 	netif_tx_stop_all_queues(net_dev);
+	ldpaa_eth_napi_enable(priv);
 
 	err = dpni_enable(priv->mc_io, 0, priv->mc_token);
 	if (err < 0) {
@@ -878,11 +879,10 @@ static int __cold ldpaa_eth_open(struct net_device *net_dev)
 		goto enable_err;
 	}
 
-	ldpaa_eth_napi_enable(priv);
-
 	return 0;
 
 enable_err:
+	ldpaa_eth_napi_disable(priv);
 	__ldpaa_dpbp_free(priv);
 	return err;
 }
@@ -896,7 +896,7 @@ static int __cold ldpaa_eth_stop(struct net_device *net_dev)
 	dpni_disable(priv->mc_io, 0, priv->mc_token);
 
 	/* TODO: Make sure queues are drained before if down is complete! */
-	msleep(100);
+	msleep(500);
 
 	ldpaa_eth_napi_disable(priv);
 	msleep(100);
