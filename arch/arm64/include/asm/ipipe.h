@@ -31,9 +31,9 @@
 #undef __BUILTIN_RETURN_ADDRESS0
 #undef __BUILTIN_RETURN_ADDRESS1
 #ifdef CONFIG_FRAME_POINTER
-#define __BUILTIN_RETURN_ADDRESS0 arm_return_addr(0)
-#define __BUILTIN_RETURN_ADDRESS1 arm_return_addr(1)
-extern unsigned long arm_return_addr(int level);
+#define __BUILTIN_RETURN_ADDRESS0 arm64_return_addr(0)
+#define __BUILTIN_RETURN_ADDRESS1 arm64_return_addr(1)
+extern unsigned long arm64_return_addr(int level);
 #else
 #define __BUILTIN_RETURN_ADDRESS0 ((unsigned long)__builtin_return_address(0))
 #define __BUILTIN_RETURN_ADDRESS1 (0)
