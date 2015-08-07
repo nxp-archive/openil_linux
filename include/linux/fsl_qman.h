@@ -260,13 +260,24 @@ static inline dma_addr_t qm_fd_addr(const struct qm_fd *fd)
 struct qm_sg_entry {
 	union {
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u8 __reserved1[3];
 			u8 addr_hi;	/* high 8-bits of 40-bit address */
 			u32 addr_lo;	/* low 32-bits of 40-bit address */
+#else
+			u32 addr_lo;	/* low 32-bits of 40-bit address */
+			u8 addr_hi;	/* high 8-bits of 40-bit address */
+			u8 __reserved1[3];
+#endif
 		};
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u64 __notaddress:24;
 			u64 addr:40;
+#else
+			u64 addr:40;
+			u64 __notaddress:24;
+#endif
 		};
 		u64 opaque;
 	};
@@ -315,17 +326,11 @@ union qm_sg_efl {
 };
 static inline u64 qm_sg_entry_get64(const struct qm_sg_entry *sg)
 {
-	u64 addr = (u64)sg->addr_hi << 32;
-
-	addr |= be32_to_cpu(sg->addr_lo);
-	return addr;
+	return be64_to_cpu(sg->opaque);
 }
 static inline dma_addr_t qm_sg_addr(const struct qm_sg_entry *sg)
 {
-	u64 addr = (u64)sg->addr_hi << 32;
-
-	addr |= be32_to_cpu(sg->addr_lo);
-	return (dma_addr_t)addr;
+	return (dma_addr_t)be64_to_cpu(sg->opaque);
 }
 static inline u8 qm_sg_entry_get_ext(const struct qm_sg_entry *sg)
 {
@@ -363,8 +368,7 @@ static inline u16 qm_sg_entry_get_offset(const struct qm_sg_entry *sg)
 #define qm_sg_entry_set64(sg, v) \
 	do { \
 		struct qm_sg_entry *__sg931 = (sg); \
-		__sg931->addr_hi = (uint8_t)upper_32_bits(v); \
-		__sg931->addr_lo = cpu_to_be32(lower_32_bits(v)); \
+		__sg931->opaque = cpu_to_be64(v); \
 	} while (0)
 #define qm_sg_entry_set_ext(sg, v) \
 	do { \
