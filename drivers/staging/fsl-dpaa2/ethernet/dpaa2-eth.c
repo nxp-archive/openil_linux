@@ -872,6 +872,13 @@ static int __cold ldpaa_eth_open(struct net_device *net_dev)
 	 */
 	netif_tx_stop_all_queues(net_dev);
 	ldpaa_eth_napi_enable(priv);
+	/* Also, explicitly set carrier off, otherwise netif_carrier_ok() will
+	 * return true even if the link isn't actually __LINK_STATE_PRESENT
+	 * (while 'ifconfig up' sets __LINK_STATE_LINKWATCH_PENDING). This will
+	 * cause 'ip link show' to report the LOWER_UP flag, when in fact
+	 * the link notification wasn't even received at this point.
+	 */
+	netif_carrier_off(net_dev);
 
 	err = dpni_enable(priv->mc_io, 0, priv->mc_token);
 	if (err < 0) {
