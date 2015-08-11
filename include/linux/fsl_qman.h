@@ -1315,12 +1315,34 @@ struct qm_mcr_querycgr {
 	u16 __reserved1;
 	struct __qm_mc_cgr cgr; /* CGR fields */
 	u8 __reserved2[3];
-	u32 __reserved3:24;
-	u32 i_bcnt_hi:8;/* high 8-bits of 40-bit "Instant" */
-	u32 i_bcnt_lo;	/* low 32-bits of 40-bit */
-	u32 __reserved4:24;
-	u32 a_bcnt_hi:8;/* high 8-bits of 40-bit "Average" */
-	u32 a_bcnt_lo;	/* low 32-bits of 40-bit */
+	union {
+		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+			u32 __reserved3:24;
+			u32 i_bcnt_hi:8;/* high 8-bits of 40-bit "Instant" */
+			u32 i_bcnt_lo;	/* low 32-bits of 40-bit */
+#else
+			u32 i_bcnt_lo;	/* low 32-bits of 40-bit */
+			u32 i_bcnt_hi:8;/* high 8-bits of 40-bit "Instant" */
+			u32 __reserved3:24;
+#endif
+		};
+		u64 i_bcnt;
+	};
+	union {
+		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+			u32 __reserved4:24;
+			u32 a_bcnt_hi:8;/* high 8-bits of 40-bit "Average" */
+			u32 a_bcnt_lo;	/* low 32-bits of 40-bit */
+#else
+			u32 a_bcnt_lo;	/* low 32-bits of 40-bit */
+			u32 a_bcnt_hi:8;/* high 8-bits of 40-bit "Average" */
+			u32 __reserved4:24;
+#endif
+		};
+		u64 a_bcnt;
+	};
 	union {
 		u32 cscn_targ_swp[4];
 		u8 __reserved5[16];
@@ -1328,21 +1350,21 @@ struct qm_mcr_querycgr {
 } __packed;
 static inline u64 qm_mcr_querycgr_i_get64(const struct qm_mcr_querycgr *q)
 {
-	return ((u64)q->i_bcnt_hi << 32) | (u64)q->i_bcnt_lo;
+	return be64_to_cpu(q->i_bcnt);
 }
 static inline u64 qm_mcr_querycgr_a_get64(const struct qm_mcr_querycgr *q)
 {
-	return ((u64)q->a_bcnt_hi << 32) | (u64)q->a_bcnt_lo;
+	return be64_to_cpu(q->a_bcnt);
 }
 static inline u64 qm_mcr_cgrtestwrite_i_get64(
 					const struct qm_mcr_cgrtestwrite *q)
 {
-	return ((u64)q->i_bcnt_hi << 32) | (u64)q->i_bcnt_lo;
+	return be64_to_cpu(((u64)q->i_bcnt_hi << 32) | (u64)q->i_bcnt_lo);
 }
 static inline u64 qm_mcr_cgrtestwrite_a_get64(
 					const struct qm_mcr_cgrtestwrite *q)
 {
-	return ((u64)q->a_bcnt_hi << 32) | (u64)q->a_bcnt_lo;
+	return be64_to_cpu(((u64)q->a_bcnt_hi << 32) | (u64)q->a_bcnt_lo);
 }
 /* Macro, so we compile better if 'v' isn't always 64-bit */
 #define qm_mcr_querycgr_i_set64(q, v) \
