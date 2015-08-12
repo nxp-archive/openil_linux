@@ -139,7 +139,8 @@ static void smp_85xx_mach_cpu_die(void)
 
 	mtspr(SPRN_TCR, 0);
 
-	__flush_disable_L1();
+	cur_cpu_spec->cpu_down_flush();
+
 	tmp = (mfspr(SPRN_HID0) & ~(HID0_DOZE|HID0_SLEEP)) | HID0_NAP;
 	mtspr(SPRN_HID0, tmp);
 	isync();
