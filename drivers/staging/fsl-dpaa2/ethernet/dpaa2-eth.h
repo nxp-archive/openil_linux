@@ -41,11 +41,8 @@
 #include "dpni.h"
 #include "dpni-cmd.h"
 
-#ifdef CONFIG_FSL_DPAA2_ETH_DEBUGFS
-#include "dpaa2-eth-debugfs.h"
-#endif
-
 #include "dpaa2-eth-trace.h"
+#include "dpaa2-eth-debugfs.h"
 
 /* TODO : how many queues here? NR_CPUS? */
 #define LDPAA_ETH_TX_QUEUES		8	/* FIXME */
@@ -280,7 +277,6 @@ struct ldpaa_eth_priv {
 
 	uint16_t tx_qdid;
 	struct fsl_mc_io *mc_io;
-	struct dentry *debugfs_file;
 	/* SysFS-controlled affinity mask for TxConf FQs */
 	struct cpumask txconf_cpumask;
 	/* Cores which have an affine DPIO/DPCON.

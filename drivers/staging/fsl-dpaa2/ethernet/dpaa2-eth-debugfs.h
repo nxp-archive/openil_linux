@@ -45,10 +45,17 @@ struct ldpaa_debugfs {
 	struct dentry *reset_stats;
 };
 
+#ifdef CONFIG_FSL_DPAA2_ETH_DEBUGFS
 void ldpaa_eth_dbg_init(void);
 void ldpaa_eth_dbg_exit(void);
 void ldpaa_dbg_add(struct ldpaa_eth_priv *priv);
 void ldpaa_dbg_remove(struct ldpaa_eth_priv *priv);
+#else
+static inline void ldpaa_eth_dbg_init(void) {}
+static inline void ldpaa_eth_dbg_exit(void) {}
+static inline void ldpaa_dbg_add(struct ldpaa_eth_priv *priv) {}
+static inline void ldpaa_dbg_remove(struct ldpaa_eth_priv *priv) {}
+#endif /* CONFIG_FSL_DPAA2_ETH_DEBUGFS */
 
 #endif /* LDPAA_ETH_DEBUGFS_H */
 
