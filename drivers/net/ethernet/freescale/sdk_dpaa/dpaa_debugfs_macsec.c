@@ -31,7 +31,6 @@
 
 #include <linux/module.h>
 #include <linux/debugfs.h>
-#include <asm/debug.h>
 #include "dpaa_eth_macsec.h"
 #include "dpaa_eth.h"
 
@@ -148,8 +147,7 @@ int macsec_netdev_debugfs_create(struct net_device *net_dev)
 							net_dev,
 							&macsec_debugfs_fops);
 	if (unlikely(selected_macsec_priv->debugfs_file == NULL)) {
-		netdev_err(net_dev, "debugfs_create_file(%s/%s/%s)",
-				powerpc_debugfs_root->d_iname,
+		netdev_err(net_dev, "debugfs_create_file(%s/%s)",
 				dpa_debugfs_root->d_iname,
 				buf);
 
@@ -173,14 +171,14 @@ int __init macsec_debugfs_module_init(void)
 {
 	int	 _errno = 0;
 
-	dpa_debugfs_root = debugfs_create_dir(MACSEC_DEBUGFS_ROOT,
-					      powerpc_debugfs_root);
+	dpa_debugfs_root = debugfs_create_dir(MACSEC_DEBUGFS_ROOT, NULL);
+
 	if (unlikely(dpa_debugfs_root == NULL)) {
 		_errno = -ENOMEM;
 		pr_err(KBUILD_MODNAME ": %s:%hu:%s():\n",
 				   KBUILD_BASENAME".c", __LINE__, __func__);
 		pr_err("\tdebugfs_create_dir(%s/"KBUILD_MODNAME") = %d\n",
-			   powerpc_debugfs_root->d_iname, _errno);
+			   MACSEC_DEBUGFS_ROOT, _errno);
 	}
 
 	return _errno;
