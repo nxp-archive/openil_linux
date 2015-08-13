@@ -23,3 +23,7 @@ config LS_SOC_DRIVERS
 if LS1_SOC_DRIVERS
 	source "drivers/soc/fsl/ls1/Kconfig"
 endif
+
+if LS_SOC_DRIVERS
+	source "drivers/soc/fsl/ls2-console/Kconfig"
+endif
