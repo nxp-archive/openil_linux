@@ -814,7 +814,7 @@ static int ldpaa_eth_poll(struct napi_struct *napi, int budget)
 	} while (1);
 
 	if (cleaned < budget) {
-		napi_complete(napi);
+		napi_complete_done(napi, cleaned);
 		err = dpaa_io_service_rearm(NULL, &ch->nctx);
 		if (unlikely(err))
 			netdev_err(priv->net_dev,
