@@ -2484,6 +2484,7 @@ err_netdev_init:
 err_alloc_percpu_extras:
 	free_percpu(priv->percpu_stats);
 err_alloc_percpu_stats:
+	ldpaa_eth_napi_del(priv);
 err_bind:
 	ldpaa_dpbp_free(priv);
 err_dpbp_setup:
@@ -2491,7 +2492,6 @@ err_dpbp_setup:
 err_alloc_bp_count:
 	ldpaa_dpio_free(priv);
 err_dpio_setup:
-	ldpaa_eth_napi_del(priv);
 	kfree(priv->cls_rule);
 	dpni_close(priv->mc_io, 0, priv->mc_token);
 err_dpni_setup:
