@@ -422,8 +422,8 @@ asmlinkage int __ipipe_syscall_root(unsigned long scno, struct pt_regs *regs)
 	 * This is the end of the syscall path, so we may
 	 * safely assume a valid Linux task stack here.
 	 */
-	if (task->ipipe.flags & PF_MAYDAY) {
-		task->ipipe.flags &= ~PF_MAYDAY;
+	if (ipipe_test_thread_flag(TIP_MAYDAY)) {
+		ipipe_clear_thread_flag(TIP_MAYDAY);
 		__ipipe_notify_trap(IPIPE_TRAP_MAYDAY, regs);
 	}
 
@@ -442,15 +442,19 @@ out:
 
 void __ipipe_exit_irq(struct pt_regs *regs)
 {
+	/*
+	 * Testing for user_regs() eliminates foreign stack contexts,
+	 * including from legacy domains which did not set the foreign
+	 * stack bit (foreign stacks are always kernel-based).
+	 */
 	if (user_mode(regs) &&
-	    (current->ipipe.flags & PF_MAYDAY) != 0) {
+	    ipipe_test_thread_flag(TIP_MAYDAY)) {
 		/*
-		 * Testing for user_regs() eliminates foreign stack
-		 * contexts, including from careless domains which did
-		 * not set the foreign stack bit (foreign stacks are
-		 * always kernel-based).
+		 * MAYDAY is never raised under normal circumstances,
+		 * so prefer test then maybe clear over
+		 * test_and_clear.
 		 */
-		current->ipipe.flags &= ~PF_MAYDAY;
+		ipipe_clear_thread_flag(TIP_MAYDAY);
 		__ipipe_notify_trap(IPIPE_TRAP_MAYDAY, regs);
 	}
 }
