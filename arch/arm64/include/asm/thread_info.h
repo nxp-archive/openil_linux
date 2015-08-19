@@ -49,7 +49,9 @@ struct thread_info {
 	struct task_struct	*task;		/* main task structure */
 	int			preempt_count;	/* 0 => preemptable, <0 => bug */
 	int			cpu;		/* cpu */
-
+#ifdef CONFIG_IPIPE
+	unsigned long		ipipe_flags;
+#endif
 	struct ipipe_threadinfo ipipe_data;
 };
 
@@ -139,6 +141,15 @@ static inline struct thread_info *current_thread_info(void)
 #define _TIF_SYSCALL_WORK	(_TIF_SYSCALL_TRACE | _TIF_SYSCALL_AUDIT | \
 				 _TIF_SYSCALL_TRACEPOINT | _TIF_SECCOMP | \
 				 _TIF_NOHZ)
+
+/* ti->ipipe_flags */
+#define TIP_MAYDAY	0	/* MAYDAY call is pending */
+#define TIP_NOTIFY	1	/* Notify head domain about kernel events */
+#define TIP_HEAD	2	/* Runs in head domain */
+
+#define _TIP_MAYDAY	(1 << TIP_MAYDAY)
+#define _TIP_NOTIFY	(1 << TIP_NOTIFY)
+#define _TIP_HEAD	(1 << TIP_HEAD)
 
 #endif /* __KERNEL__ */
 #endif /* __ASM_THREAD_INFO_H */

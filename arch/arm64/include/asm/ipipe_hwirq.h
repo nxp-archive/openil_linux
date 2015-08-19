@@ -200,9 +200,9 @@ static inline void hard_local_irq_restore(unsigned long x)
 		ipipe_unstall_root();			\
 	} while (0)
 
-#define local_fiq_enable() ipipe_unstall_root()
+#define local_fiq_enable() hard_local_fiq_enable_notrace()
 
-#define local_fiq_disable() ipipe_stall_root()
+#define local_fiq_disable() hard_local_fiq_disable_notrace()
 
 #define arch_local_irq_restore(flags)			\
 	do {						\
