@@ -267,7 +267,7 @@ static inline unsigned long __ipipe_ffnz(unsigned long ul)
 
 static inline void ipipe_handle_multi_irq(int irq, struct pt_regs *regs)
 {
-	handle_IRQ(irq, regs);
+	__handle_domain_irq(NULL, irq, false, regs);
 }
 
 #ifdef CONFIG_SMP

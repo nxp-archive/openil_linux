@@ -207,6 +207,7 @@ __do_switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	       struct task_struct *tsk, bool may_defer)
 {
 	const unsigned int cpu = ipipe_processor_id();
+	int ret = 0;
 
 	/*
 	 * init_mm.pgd does not contain any user mappings and it is always
@@ -218,17 +219,13 @@ __do_switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	}
 
 	if (!cpumask_test_and_set_cpu(cpu, mm_cpumask(next)) || prev != next) {
-		int rc = check_and_switch_context(next, tsk, may_defer);
+		ret = check_and_switch_context(next, tsk, may_defer);
 #ifdef CONFIG_IPIPE
-		if (rc < 0) {
+		if (ret < 0)
 			cpumask_clear_cpu(cpu, mm_cpumask(next));
-			return rc;
-		}
-#else /* !CONFIG_IPIPE */
-		(void)rc;
 #endif /* CONFIG_IPIPE */
 	}
-	return 0;
+	return ret;
 }
 
 #if defined(CONFIG_IPIPE) && defined(CONFIG_MMU)

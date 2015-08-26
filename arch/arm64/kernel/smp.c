@@ -559,7 +559,8 @@ EXPORT_SYMBOL_GPL(__ipipe_first_ipi);
 static void  __ipipe_do_IPI(unsigned virq, void *cookie)
 {
 	enum ipi_msg_type msg = virq - IPIPE_IPI_BASE;
-	handle_IPI(msg, __this_cpu_ptr(&ipipe_percpu.tick_regs));
+	struct pt_regs *p = this_cpu_ptr(&ipipe_percpu.tick_regs);
+	handle_IPI(msg, p);
 }
 
 void __ipipe_ipis_alloc(void)

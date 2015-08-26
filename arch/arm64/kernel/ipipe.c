@@ -233,21 +233,6 @@ static int ipipe_disable_smp(void)
 arch_initcall(ipipe_disable_smp);
 #endif /* SMP_ON_UP */
 
-/*
- * ipipe_raise_irq() -- Push the interrupt at front of the pipeline
- * just like if it has been actually received from a hw source. Also
- * works for virtual interrupts.
- */
-void ipipe_raise_irq(unsigned irq)
-{
-	unsigned long flags;
-
-	flags = hard_local_irq_save();
-	__ipipe_dispatch_irq(irq, IPIPE_IRQF_NOACK);
-	hard_local_irq_restore(flags);
-}
-EXPORT_SYMBOL_GPL(ipipe_raise_irq);
-
 int ipipe_get_sysinfo(struct ipipe_sysinfo *info)
 {
 	info->sys_nr_cpus = num_online_cpus();
@@ -328,6 +313,12 @@ asmlinkage int __ipipe_check_root(void)
 asmlinkage int __ipipe_check_root_interruptible(void)
 {
 	return __ipipe_root_p && !irqs_disabled();
+}
+
+
+asmlinkage void __ipipe_stall_root(void)
+{
+	ipipe_stall_root();
 }
 
 __kprobes int
@@ -440,7 +431,7 @@ void __ipipe_exit_irq(struct pt_regs *regs)
 /* hw irqs off */
 asmlinkage void __exception __ipipe_grab_irq(int irq, struct pt_regs *regs)
 {
-	struct ipipe_percpu_data *p = __ipipe_this_cpu_ptr(&ipipe_percpu);
+	struct ipipe_percpu_data *p = __ipipe_raw_cpu_ptr(&ipipe_percpu);
 
 	ipipe_trace_irq_entry(irq);
 
@@ -476,7 +467,8 @@ asmlinkage void __exception __ipipe_grab_irq(int irq, struct pt_regs *regs)
 
 static void __ipipe_do_IRQ(unsigned irq, void *cookie)
 {
-	handle_IRQ(irq, __this_cpu_ptr(&ipipe_percpu.tick_regs));
+	struct pt_regs *regs = this_cpu_ptr(&ipipe_percpu.tick_regs);
+	__handle_domain_irq(NULL, irq, false, regs);
 }
 
 #ifdef CONFIG_MMU
@@ -485,7 +477,7 @@ void __switch_mm_inner(struct mm_struct *prev, struct mm_struct *next,
 {
 #ifdef CONFIG_IPIPE_WANT_ACTIVE_MM
 	struct mm_struct ** const active_mm =
-		__this_cpu_ptr(&ipipe_percpu.active_mm);
+		this_cpu_ptr(&ipipe_percpu.active_mm);
 #endif /* CONFIG_IPIPE_WANT_ACTIVE_MM */
 #ifdef CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH
 	struct thread_info *const tip = current_thread_info();
@@ -542,7 +534,7 @@ void deferred_switch_mm(struct mm_struct *next)
 {
 #ifdef CONFIG_IPIPE_WANT_ACTIVE_MM
 	struct mm_struct ** const active_mm =
-		__this_cpu_ptr(&ipipe_percpu.active_mm);
+		this_cpu_ptr(&ipipe_percpu.active_mm);
 	struct mm_struct *prev = *active_mm;
 #endif /* CONFIG_IPIPE_WANT_ACTIVE_MM */
 #ifdef CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH
