@@ -48,7 +48,7 @@ static const char dpa_stats_percpu[][ETH_GSTRING_LEN] = {
 	"interrupts",
 	"rx packets",
 	"tx packets",
-	"tx returned",
+	"tx recycled",
 	"tx confirm",
 	"tx S/G",
 	"tx error",
