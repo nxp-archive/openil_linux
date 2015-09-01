@@ -110,7 +110,7 @@ static int __cold dpaa2_get_settings(struct net_device *net_dev,
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
 
 	err = dpni_get_link_state(priv->mc_io, 0, priv->mc_token, &state);
-	if (unlikely(err)) {
+	if (err) {
 		netdev_err(net_dev, "ERROR %d getting link state", err);
 		goto out;
 	}
@@ -159,7 +159,7 @@ static int __cold dpaa2_set_settings(struct net_device *net_dev,
 		cfg.options &= ~DPNI_LINK_OPT_HALF_DUPLEX;
 
 	err = dpni_set_link_cfg(priv->mc_io, 0, priv->mc_token, &cfg);
-	if (unlikely(err))
+	if (err)
 		/* ethtool will be loud enough if we return an error; no point
 		 * in putting our own error message on the console by default
 		 */
@@ -254,7 +254,7 @@ static void dpaa2_get_ethtool_stats(struct net_device *net_dev,
 		/* Print FQ instantaneous counts */
 		err = dpaa2_io_query_fq_count(NULL, priv->fq[j].fqid,
 					     &fcnt, &bcnt);
-		if (unlikely(err)) {
+		if (err) {
 			netdev_warn(net_dev, "FQ query error %d", err);
 			return;
 		}
@@ -273,7 +273,7 @@ static void dpaa2_get_ethtool_stats(struct net_device *net_dev,
 	*(data + i++) = bcnt_tx_total;
 
 	err = dpaa2_io_query_bp_count(NULL, priv->dpbp_attrs.bpid, &buf_cnt);
-	if (unlikely(err)) {
+	if (err) {
 		netdev_warn(net_dev, "Buffer count query error %d\n", err);
 		return;
 	}
@@ -443,7 +443,7 @@ int dpaa2_set_hash(struct net_device *net_dev, u64 flags)
 	dma_mem =  kzalloc(DPAA2_CLASSIFIER_DMA_SIZE, GFP_DMA | GFP_KERNEL);
 
 	err = dpni_prepare_key_cfg(&cls_cfg, dma_mem);
-	if (unlikely(err)) {
+	if (err) {
 		dev_err(net_dev->dev.parent,
 			"dpni_prepare_key_cfg error %d", err);
 		return err;
@@ -455,8 +455,7 @@ int dpaa2_set_hash(struct net_device *net_dev, u64 flags)
 	dist_cfg.key_cfg_iova = dma_map_single(net_dev->dev.parent, dma_mem,
 					       DPAA2_CLASSIFIER_DMA_SIZE,
 					       DMA_TO_DEVICE);
-	if (unlikely(dma_mapping_error(net_dev->dev.parent,
-				       dist_cfg.key_cfg_iova))) {
+	if (dma_mapping_error(net_dev->dev.parent, dist_cfg.key_cfg_iova)) {
 		netdev_err(net_dev, "DMA mapping failed\n");
 		return -ENOMEM;
 	}
@@ -473,7 +472,7 @@ int dpaa2_set_hash(struct net_device *net_dev, u64 flags)
 	dma_unmap_single(net_dev->dev.parent, dist_cfg.key_cfg_iova,
 			 DPAA2_CLASSIFIER_DMA_SIZE, DMA_TO_DEVICE);
 	kfree(dma_mem);
-	if (unlikely(err)) {
+	if (err) {
 		netdev_err(net_dev, "dpni_set_rx_tc_dist() error %d\n", err);
 		return err;
 	}

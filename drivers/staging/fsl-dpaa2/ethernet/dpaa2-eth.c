@@ -755,7 +755,7 @@ static int dpaa2_eth_set_rx_csum(struct dpaa2_eth_priv *priv, bool enable)
 
 	err = dpni_set_l3_chksum_validation(priv->mc_io, 0, priv->mc_token,
 					    enable);
-	if (unlikely(err)) {
+	if (err) {
 		netdev_err(priv->net_dev,
 			   "dpni_set_l3_chksum_validation() failed\n");
 		return err;
@@ -763,7 +763,7 @@ static int dpaa2_eth_set_rx_csum(struct dpaa2_eth_priv *priv, bool enable)
 
 	err = dpni_set_l4_chksum_validation(priv->mc_io, 0, priv->mc_token,
 					    enable);
-	if (unlikely(err)) {
+	if (err) {
 		netdev_err(priv->net_dev,
 			   "dpni_set_l4_chksum_validation failed\n");
 		return err;
@@ -793,7 +793,7 @@ static int dpaa2_eth_set_tx_csum(struct dpaa2_eth_priv *priv, bool enable)
 		/* The Tx flowid is kept in the corresponding TxConf FQ. */
 		err = dpni_set_tx_flow(priv->mc_io, 0, priv->mc_token,
 				       &fq->flowid, &tx_flow_cfg);
-		if (unlikely(err)) {
+		if (err) {
 			netdev_err(priv->net_dev, "dpni_set_tx_flow failed\n");
 			return err;
 		}
@@ -1094,7 +1094,7 @@ static int dpaa2_eth_change_mtu(struct net_device *net_dev, int mtu)
 /* Convenience macro to make code littered with error checking more readable */
 #define DPAA2_ETH_WARN_IF_ERR(err, netdevp, format, ...) \
 do { \
-	if (unlikely(err)) \
+	if (err) \
 		netdev_warn(netdevp, format, ##__VA_ARGS__); \
 } while (0)
 
@@ -1238,7 +1238,7 @@ static int dpaa2_eth_set_features(struct net_device *net_dev,
 		bool enable = !!(features & NETIF_F_RXCSUM);
 
 		err = dpaa2_eth_set_rx_csum(priv, enable);
-		if (unlikely(err))
+		if (err)
 			return err;
 	}
 
@@ -1246,7 +1246,7 @@ static int dpaa2_eth_set_features(struct net_device *net_dev,
 		bool enable = !!(features &
 				 (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM));
 		err = dpaa2_eth_set_tx_csum(priv, enable);
-		if (unlikely(err))
+		if (err)
 			return err;
 	}
 
@@ -1398,13 +1398,13 @@ static struct fsl_mc_device *dpaa2_dpcon_setup(struct dpaa2_eth_priv *priv)
 
 	err = fsl_mc_object_allocate(to_fsl_mc_device(dev),
 				     FSL_MC_POOL_DPCON, &dpcon);
-	if (unlikely(err)) {
+	if (err) {
 		dev_err(dev, "DPCON allocation failed\n");
 		return NULL;
 	}
 
 	err = dpcon_open(priv->mc_io, 0, dpcon->obj_desc.id, &dpcon->mc_handle);
-	if (unlikely(err)) {
+	if (err) {
 		dev_err(dev, "dpcon_open() failed\n");
 		goto err_open;
 	}
@@ -1420,7 +1420,7 @@ static struct fsl_mc_device *dpaa2_dpcon_setup(struct dpaa2_eth_priv *priv)
 		goto err_dpcon_ver;
 
 	err = dpcon_enable(priv->mc_io, 0, dpcon->mc_handle);
-	if (unlikely(err)) {
+	if (err) {
 		dev_err(dev, "dpcon_enable() failed\n");
 		goto err_enable;
 	}
@@ -1454,18 +1454,18 @@ dpaa2_alloc_channel(struct dpaa2_eth_priv *priv, int cpu)
 	int err;
 
 	channel = kzalloc(sizeof(struct dpaa2_eth_channel), GFP_ATOMIC);
-	if (unlikely(!channel)) {
+	if (!channel) {
 		dev_err(dev, "Memory allocation failed\n");
 		return NULL;
 	}
 
 	channel->dpcon = dpaa2_dpcon_setup(priv);
-	if (unlikely(!channel->dpcon))
+	if (!channel->dpcon)
 		goto err_setup;
 
 	err = dpcon_get_attributes(priv->mc_io, 0, channel->dpcon->mc_handle,
 				   &attr);
-	if (unlikely(err)) {
+	if (err) {
 		dev_err(dev, "dpcon_get_attributes() failed\n");
 		goto err_get_attr;
 	}
@@ -1508,7 +1508,7 @@ static int __cold dpaa2_dpio_setup(struct dpaa2_eth_priv *priv)
 	for_each_online_cpu(i) {
 		/* Try to allocate a channel */
 		channel = dpaa2_alloc_channel(priv, i);
-		if (unlikely(!channel))
+		if (!channel)
 			goto err_alloc_ch;
 
 		priv->channel[priv->num_channels] = channel;
@@ -1521,7 +1521,7 @@ static int __cold dpaa2_dpio_setup(struct dpaa2_eth_priv *priv)
 
 		/* Register the new context */
 		err = dpaa2_io_service_register(NULL, nctx);
-		if (unlikely(err)) {
+		if (err) {
 			dev_info(dev, "No affine DPIO for core %d\n", i);
 			/* This core doesn't have an affine DPIO, but there's
 			 * a chance another one does, so keep trying
@@ -1537,7 +1537,7 @@ static int __cold dpaa2_dpio_setup(struct dpaa2_eth_priv *priv)
 		err = dpcon_set_notification(priv->mc_io, 0,
 					     channel->dpcon->mc_handle,
 					     &dpcon_notif_cfg);
-		if (unlikely(err)) {
+		if (err) {
 			dev_err(dev, "dpcon_set_notification failed()\n");
 			goto err_set_cdan;
 		}
@@ -1563,7 +1563,7 @@ err_set_cdan:
 	dpaa2_io_service_deregister(NULL, nctx);
 	dpaa2_free_channel(priv, channel);
 err_alloc_ch:
-	if (unlikely(cpumask_empty(&priv->dpio_cpumask))) {
+	if (cpumask_empty(&priv->dpio_cpumask)) {
 		dev_err(dev, "No cpu with an affine DPIO/DPCON\n");
 		return -ENODEV;
 	}
@@ -1745,7 +1745,7 @@ static int dpaa2_dpbp_seed(struct dpaa2_eth_priv *priv, uint16_t bpid)
 			count = per_cpu_ptr(priv->buf_count, j);
 			*count += new_count;
 
-			if (unlikely(new_count < 7)) {
+			if (new_count < 7) {
 				preempt_enable();
 				goto out_of_memory;
 			}
@@ -2001,7 +2001,7 @@ static void dpaa2_dpni_free(struct dpaa2_eth_priv *priv)
 	int err;
 
 	err = dpni_reset(priv->mc_io, 0, priv->mc_token);
-	if (unlikely(err))
+	if (err)
 		netdev_warn(priv->net_dev, "dpni_reset() failed (err %d)\n",
 			    err);
 
@@ -2025,7 +2025,7 @@ static int dpaa2_rx_flow_setup(struct dpaa2_eth_priv *priv,
 	queue_cfg.tail_drop_threshold = DPAA2_ETH_TAILDROP_THRESH;
 	err = dpni_set_rx_flow(priv->mc_io, 0, priv->mc_token, 0, fq->flowid,
 			       &queue_cfg);
-	if (unlikely(err)) {
+	if (err) {
 		netdev_err(priv->net_dev, "dpni_set_rx_flow() failed\n");
 		return err;
 	}
@@ -2033,7 +2033,7 @@ static int dpaa2_rx_flow_setup(struct dpaa2_eth_priv *priv,
 	/* Get the actual FQID that was assigned by MC */
 	err = dpni_get_rx_flow(priv->mc_io, 0, priv->mc_token, 0, fq->flowid,
 			       &rx_queue_attr);
-	if (unlikely(err)) {
+	if (err) {
 		netdev_err(priv->net_dev, "dpni_get_rx_flow() failed\n");
 		return err;
 	}
@@ -2056,7 +2056,7 @@ static int dpaa2_tx_flow_setup(struct dpaa2_eth_priv *priv,
 	tx_flow_cfg.use_common_tx_conf_queue = 0;
 	err = dpni_set_tx_flow(priv->mc_io, 0, priv->mc_token,
 			       &fq->flowid, &tx_flow_cfg);
-	if (unlikely(err)) {
+	if (err) {
 		netdev_err(priv->net_dev, "dpni_set_tx_flow() failed\n");
 		return err;
 	}
@@ -2104,14 +2104,14 @@ static int dpaa2_rx_err_setup(struct dpaa2_eth_priv *priv,
 	queue_cfg.user_ctx = (uint64_t)fq;
 	queue_cfg.dest_cfg.dest_id = fq->channel->dpcon_id;
 	err = dpni_set_rx_err_queue(priv->mc_io, 0, priv->mc_token, &queue_cfg);
-	if (unlikely(err)) {
+	if (err) {
 		netdev_err(priv->net_dev, "dpni_set_rx_err_queue() failed\n");
 		return err;
 	}
 
 	/* Get the FQID */
 	err = dpni_get_rx_err_queue(priv->mc_io, 0, priv->mc_token, &queue_attr);
-	if (unlikely(err)) {
+	if (err) {
 		netdev_err(priv->net_dev, "dpni_get_rx_err_queue() failed\n");
 		return err;
 	}
@@ -2135,7 +2135,7 @@ static int dpaa2_dpni_bind(struct dpaa2_eth_priv *priv)
 	pools_params.pools[0].backup_pool = 0;
 	pools_params.pools[0].buffer_size = DPAA2_ETH_RX_BUFFER_SIZE;
 	err = dpni_set_pools(priv->mc_io, 0, priv->mc_token, &pools_params);
-	if (unlikely(err)) {
+	if (err) {
 		dev_err(dev, "dpni_set_pools() failed\n");
 		return err;
 	}
@@ -2147,7 +2147,7 @@ static int dpaa2_dpni_bind(struct dpaa2_eth_priv *priv)
 	 */
 	if (dpaa2_eth_hash_enabled(priv)) {
 		err = dpaa2_set_hash(net_dev, DPAA2_RXH_SUPPORTED);
-		if (unlikely(err))
+		if (err)
 			return err;
 	}
 
@@ -2161,7 +2161,7 @@ static int dpaa2_dpni_bind(struct dpaa2_eth_priv *priv)
 #endif
 	err = dpni_set_errors_behavior(priv->mc_io, 0, priv->mc_token,
 				       &err_cfg);
-	if (unlikely(err)) {
+	if (err) {
 		netdev_err(priv->net_dev, "dpni_set_errors_behavior failed\n");
 		return err;
 	}
@@ -2185,12 +2185,12 @@ static int dpaa2_dpni_bind(struct dpaa2_eth_priv *priv)
 				   priv->fq[i].type);
 			return -EINVAL;
 		}
-		if (unlikely(err))
+		if (err)
 			return err;
 	}
 
 	err = dpni_get_qdid(priv->mc_io, 0, priv->mc_token, &priv->tx_qdid);
-	if (unlikely(err)) {
+	if (err) {
 		netdev_err(net_dev, "dpni_get_qdid() failed\n");
 		return err;
 	}
@@ -2207,7 +2207,7 @@ static int dpaa2_eth_alloc_rings(struct dpaa2_eth_priv *priv)
 	for (i = 0; i < priv->num_channels; i++) {
 		priv->channel[i]->store =
 			dpaa2_io_store_create(DPAA2_ETH_STORE_SIZE, dev);
-		if (unlikely(!priv->channel[i]->store)) {
+		if (!priv->channel[i]->store) {
 			netdev_err(net_dev, "dpaa2_io_store_create() failed\n");
 			goto err_ring;
 		}
@@ -2245,7 +2245,7 @@ static int dpaa2_eth_netdev_init(struct net_device *net_dev)
 	/* If the DPL contains all-0 mac_addr, set a random hardware address */
 	err = dpni_get_primary_mac_addr(priv->mc_io, 0, priv->mc_token,
 					mac_addr);
-	if (unlikely(err)) {
+	if (err) {
 		netdev_err(net_dev, "dpni_get_primary_mac_addr() failed (%d)",
 			   err);
 		return err;
@@ -2259,7 +2259,7 @@ static int dpaa2_eth_netdev_init(struct net_device *net_dev)
 		pr_info_once(KBUILD_MODNAME " device(s) have all-zero hwaddr, replaced with random");
 		err = dpni_set_primary_mac_addr(priv->mc_io, 0, priv->mc_token,
 						net_dev->dev_addr);
-		if (unlikely(err)) {
+		if (err) {
 			netdev_err(net_dev,
 				   "dpni_set_primary_mac_addr() failed (%d)\n",
 				   err);
@@ -2448,7 +2448,7 @@ static ssize_t dpaa2_eth_write_tx_shaping(struct device *dev,
 	}
 
 	err = dpni_set_tx_shaping(priv->mc_io, 0, priv->mc_token, &scfg);
-	if (unlikely(err)) {
+	if (err) {
 		dev_err(dev, "dpni_set_tx_shaping() failed\n");
 		return -EPERM;
 	}
@@ -2478,7 +2478,7 @@ static ssize_t dpaa2_eth_write_txconf_cpumask(struct device *dev,
 	int i, err;
 
 	err = cpulist_parse(buf, &priv->txconf_cpumask);
-	if (unlikely(err))
+	if (err)
 		return err;
 
 	/* Only accept CPUs that have an affine DPIO */
@@ -2495,7 +2495,7 @@ static ssize_t dpaa2_eth_write_txconf_cpumask(struct device *dev,
 	 */
 	if (running) {
 		err = dpaa2_eth_stop(priv->net_dev);
-		if (unlikely(err))
+		if (err)
 			return -ENODEV;
 	}
 
@@ -2520,7 +2520,7 @@ static ssize_t dpaa2_eth_write_txconf_cpumask(struct device *dev,
 
 	if (running) {
 		err = dpaa2_eth_open(priv->net_dev);
-		if (unlikely(err))
+		if (err)
 			return -ENODEV;
 	}
 
@@ -2545,7 +2545,7 @@ void dpaa2_eth_sysfs_init(struct device *dev)
 
 	for (i = 0; i < ARRAY_SIZE(dpaa2_eth_attrs); i++) {
 		err = device_create_file(dev, &dpaa2_eth_attrs[i]);
-		if (unlikely(err)) {
+		if (err) {
 			dev_err(dev, "ERROR creating sysfs file\n");
 			goto undo;
 		}
@@ -2679,17 +2679,17 @@ dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 	/* Configure checksum offload based on current interface flags */
 	err = dpaa2_eth_set_rx_csum(priv,
 				    !!(net_dev->features & NETIF_F_RXCSUM));
-	if (unlikely(err))
+	if (err)
 		goto err_csum;
 
 	err = dpaa2_eth_set_tx_csum(priv,
 				    !!(net_dev->features &
 				    (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM)));
-	if (unlikely(err))
+	if (err)
 		goto err_csum;
 
 	err = dpaa2_eth_alloc_rings(priv);
-	if (unlikely(err))
+	if (err)
 		goto err_alloc_rings;
 
 	net_dev->ethtool_ops = &dpaa2_ethtool_ops;
@@ -2699,7 +2699,7 @@ dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 					"%s_poll_link", net_dev->name);
 #else
 	err = dpaa2_eth_setup_irqs(dpni_dev);
-	if (unlikely(err)) {
+	if (err) {
 		netdev_err(net_dev, "ERROR %d setting up interrupts", err);
 		goto err_setup_irqs;
 	}

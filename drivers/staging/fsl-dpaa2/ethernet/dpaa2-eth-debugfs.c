@@ -77,7 +77,7 @@ static int dpaa2_dbg_cpu_open(struct inode *inode, struct file *file)
 	struct dpaa2_eth_priv *priv = (struct dpaa2_eth_priv *)inode->i_private;
 
 	err = single_open(file, dpaa2_dbg_cpu_show, priv);
-	if (unlikely(err < 0))
+	if (err < 0)
 		netdev_err(priv->net_dev, "single_open() failed\n");
 
 	return err;
@@ -118,7 +118,7 @@ static int dpaa2_dbg_fqs_show(struct seq_file *file, void *offset)
 	for (i = 0; i <  priv->num_fqs; i++) {
 		fq = &priv->fq[i];
 		err = dpaa2_io_query_fq_count(NULL, fq->fqid, &fcnt, &bcnt);
-		if (unlikely(err))
+		if (err)
 			fcnt = 0;
 
 		seq_printf(file, "%5d%16d%16s%16llu%16u\n",
@@ -138,7 +138,7 @@ static int dpaa2_dbg_fqs_open(struct inode *inode, struct file *file)
 	struct dpaa2_eth_priv *priv = (struct dpaa2_eth_priv *)inode->i_private;
 
 	err = single_open(file, dpaa2_dbg_fqs_show, priv);
-	if (unlikely(err < 0))
+	if (err < 0)
 		netdev_err(priv->net_dev, "single_open() failed\n");
 
 	return err;
@@ -182,7 +182,7 @@ static int dpaa2_dbg_ch_open(struct inode *inode, struct file *file)
 	struct dpaa2_eth_priv *priv = (struct dpaa2_eth_priv *)inode->i_private;
 
 	err = single_open(file, dpaa2_dbg_ch_show, priv);
-	if (unlikely(err < 0))
+	if (err < 0)
 		netdev_err(priv->net_dev, "single_open() failed\n");
 
 	return err;
@@ -233,13 +233,13 @@ static const struct file_operations dpaa2_dbg_reset_ops = {
 
 void dpaa2_dbg_add(struct dpaa2_eth_priv *priv)
 {
-	if (unlikely(!dpaa2_dbg_root))
+	if (!dpaa2_dbg_root)
 		return;
 
 	/* Create a directory for the interface */
 	priv->dbg.dir = debugfs_create_dir(priv->net_dev->name,
 					   dpaa2_dbg_root);
-	if (unlikely(!priv->dbg.dir)) {
+	if (!priv->dbg.dir) {
 		netdev_err(priv->net_dev, "debugfs_create_dir() failed\n");
 		return;
 	}
@@ -248,7 +248,7 @@ void dpaa2_dbg_add(struct dpaa2_eth_priv *priv)
 	priv->dbg.cpu_stats = debugfs_create_file("cpu_stats", S_IRUGO,
 						  priv->dbg.dir, priv,
 						  &dpaa2_dbg_cpu_ops);
-	if (unlikely(!priv->dbg.cpu_stats)) {
+	if (!priv->dbg.cpu_stats) {
 		netdev_err(priv->net_dev, "debugfs_create_file() failed\n");
 		goto err_cpu_stats;
 	}
@@ -257,7 +257,7 @@ void dpaa2_dbg_add(struct dpaa2_eth_priv *priv)
 	priv->dbg.fq_stats = debugfs_create_file("fq_stats", S_IRUGO,
 						 priv->dbg.dir, priv,
 						 &dpaa2_dbg_fq_ops);
-	if (unlikely(!priv->dbg.fq_stats)) {
+	if (!priv->dbg.fq_stats) {
 		netdev_err(priv->net_dev, "debugfs_create_file() failed\n");
 		goto err_fq_stats;
 	}
@@ -266,7 +266,7 @@ void dpaa2_dbg_add(struct dpaa2_eth_priv *priv)
 	priv->dbg.ch_stats = debugfs_create_file("ch_stats", S_IRUGO,
 						 priv->dbg.dir, priv,
 						 &dpaa2_dbg_ch_ops);
-	if (unlikely(!priv->dbg.fq_stats)) {
+	if (!priv->dbg.fq_stats) {
 		netdev_err(priv->net_dev, "debugfs_create_file() failed\n");
 		goto err_ch_stats;
 	}
@@ -275,7 +275,7 @@ void dpaa2_dbg_add(struct dpaa2_eth_priv *priv)
 	priv->dbg.reset_stats = debugfs_create_file("reset_stats", S_IWUSR,
 						    priv->dbg.dir, priv,
 						    &dpaa2_dbg_reset_ops);
-	if (unlikely(!priv->dbg.reset_stats)) {
+	if (!priv->dbg.reset_stats) {
 		netdev_err(priv->net_dev, "debugfs_create_file() failed\n");
 		goto err_reset_stats;
 	}
@@ -304,7 +304,7 @@ void dpaa2_dbg_remove(struct dpaa2_eth_priv *priv)
 void dpaa2_eth_dbg_init(void)
 {
 	dpaa2_dbg_root = debugfs_create_dir(DPAA2_ETH_DBG_ROOT, NULL);
-	if (unlikely(!dpaa2_dbg_root)) {
+	if (!dpaa2_dbg_root) {
 		pr_err("DPAA2-ETH: debugfs create failed\n");
 		return;
 	}
