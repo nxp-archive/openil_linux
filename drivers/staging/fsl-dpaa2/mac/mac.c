@@ -567,8 +567,7 @@ static struct device_node *ppx_lookup_node(struct device *dev,
 	return NULL;
 }
 
-static int __cold
-ppx_probe(struct fsl_mc_device *mc_dev)
+static int ppx_probe(struct fsl_mc_device *mc_dev)
 {
 	struct device		*dev;
 	struct ppx_priv		*priv = NULL;
@@ -734,8 +733,7 @@ err_exit:
 	return err;
 }
 
-static int __cold
-ppx_remove(struct fsl_mc_device *devppx)
+static int ppx_remove(struct fsl_mc_device *devppx)
 {
 	struct device		*dev = &devppx->dev;
 	struct ppx_priv		*priv = dev_get_drvdata(dev);
