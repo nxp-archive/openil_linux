@@ -80,8 +80,8 @@ char dpaa2_ethtool_extras[][ETH_GSTRING_LEN] = {
 };
 #define DPAA2_ETH_NUM_EXTRA_STATS	ARRAY_SIZE(dpaa2_ethtool_extras)
 
-static void __cold dpaa2_get_drvinfo(struct net_device *net_dev,
-				     struct ethtool_drvinfo *drvinfo)
+static void dpaa2_get_drvinfo(struct net_device *net_dev,
+			      struct ethtool_drvinfo *drvinfo)
 {
 	strlcpy(drvinfo->driver, KBUILD_MODNAME, sizeof(drvinfo->driver));
 	strlcpy(drvinfo->version, VERSION, sizeof(drvinfo->version));
@@ -90,20 +90,20 @@ static void __cold dpaa2_get_drvinfo(struct net_device *net_dev,
 		sizeof(drvinfo->bus_info));
 }
 
-static uint32_t __cold dpaa2_get_msglevel(struct net_device *net_dev)
+static uint32_t dpaa2_get_msglevel(struct net_device *net_dev)
 {
 	return ((struct dpaa2_eth_priv *)netdev_priv(net_dev))->msg_enable;
 }
 
-static void __cold dpaa2_set_msglevel(struct net_device *net_dev,
-				      uint32_t msg_enable)
+static void dpaa2_set_msglevel(struct net_device *net_dev,
+			       uint32_t msg_enable)
 {
 	((struct dpaa2_eth_priv *)netdev_priv(net_dev))->msg_enable =
 					msg_enable;
 }
 
-static int __cold dpaa2_get_settings(struct net_device *net_dev,
-				     struct ethtool_cmd *cmd)
+static int dpaa2_get_settings(struct net_device *net_dev,
+			      struct ethtool_cmd *cmd)
 {
 	struct dpni_link_state state = {0};
 	int err = 0;
@@ -130,8 +130,8 @@ out:
 	return err;
 }
 
-static int __cold dpaa2_set_settings(struct net_device *net_dev,
-				     struct ethtool_cmd *cmd)
+static int dpaa2_set_settings(struct net_device *net_dev,
+			      struct ethtool_cmd *cmd)
 {
 	struct dpni_link_cfg cfg = {0};
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);

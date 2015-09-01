@@ -73,7 +73,7 @@ do { \
 
 static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv, uint16_t bpid);
 static int dpaa2_dpbp_seed(struct dpaa2_eth_priv *priv, uint16_t bpid);
-static void __cold __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv);
+static void __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv);
 
 /* TODO Assert it is smaller than DPAA2_ETH_SWA_SIZE */
 struct dpaa2_eth_swa {
@@ -916,7 +916,7 @@ static int dpaa2_link_state_update(struct dpaa2_eth_priv *priv)
 	return 0;
 }
 
-static int __cold dpaa2_eth_open(struct net_device *net_dev)
+static int dpaa2_eth_open(struct net_device *net_dev)
 {
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
 	int err;
@@ -967,7 +967,7 @@ enable_err:
 	return err;
 }
 
-static int __cold dpaa2_eth_stop(struct net_device *net_dev)
+static int dpaa2_eth_stop(struct net_device *net_dev)
 {
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
 
@@ -1437,8 +1437,8 @@ err_open:
 	return NULL;
 }
 
-static void __cold dpaa2_dpcon_free(struct dpaa2_eth_priv *priv,
-				    struct fsl_mc_device *dpcon)
+static void dpaa2_dpcon_free(struct dpaa2_eth_priv *priv,
+			     struct fsl_mc_device *dpcon)
 {
 	dpcon_disable(priv->mc_io, 0, dpcon->mc_handle);
 	dpcon_close(priv->mc_io, 0, dpcon->mc_handle);
@@ -1490,7 +1490,7 @@ static void dpaa2_free_channel(struct dpaa2_eth_priv *priv,
 	kfree(channel);
 }
 
-static int __cold dpaa2_dpio_setup(struct dpaa2_eth_priv *priv)
+static int dpaa2_dpio_setup(struct dpaa2_eth_priv *priv)
 {
 	struct dpaa2_io_notification_ctx *nctx;
 	struct dpaa2_eth_channel *channel;
@@ -1572,7 +1572,7 @@ err_alloc_ch:
 	return 0;
 }
 
-static void __cold dpaa2_dpio_free(struct dpaa2_eth_priv *priv)
+static void dpaa2_dpio_free(struct dpaa2_eth_priv *priv)
 {
 	int i;
 	struct dpaa2_eth_channel *ch;
@@ -1787,7 +1787,7 @@ static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv, uint16_t bpid)
 	return err;
 }
 
-static int __cold dpaa2_dpbp_setup(struct dpaa2_eth_priv *priv)
+static int dpaa2_dpbp_setup(struct dpaa2_eth_priv *priv)
 {
 	int err;
 	struct fsl_mc_device *dpbp_dev;
@@ -1840,7 +1840,7 @@ err_open:
 }
 
 
-static void __cold __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
+static void __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
 {
 	int cpu, *count;
 
@@ -1852,7 +1852,7 @@ static void __cold __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
 	}
 }
 
-static void __cold dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
+static void dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
 {
 	__dpaa2_dpbp_free(priv);
 	dpbp_disable(priv->mc_io, 0, priv->dpbp_dev->mc_handle);
@@ -1860,7 +1860,7 @@ static void __cold dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
 	fsl_mc_object_free(priv->dpbp_dev);
 }
 
-static int __cold dpaa2_dpni_setup(struct fsl_mc_device *ls_dev)
+static int dpaa2_dpni_setup(struct fsl_mc_device *ls_dev)
 {
 	struct device *dev = &ls_dev->dev;
 	struct dpaa2_eth_priv *priv;
@@ -2565,8 +2565,7 @@ void dpaa2_eth_sysfs_remove(struct device *dev)
 		device_remove_file(dev, &dpaa2_eth_attrs[i]);
 }
 
-static int __cold
-dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
+static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 {
 	struct device			*dev;
 	struct net_device		*net_dev = NULL;
@@ -2746,8 +2745,7 @@ err_portal_alloc:
 	return err;
 }
 
-static int __cold
-dpaa2_eth_remove(struct fsl_mc_device *ls_dev)
+static int dpaa2_eth_remove(struct fsl_mc_device *ls_dev)
 {
 	struct device		*dev;
 	struct net_device	*net_dev;
