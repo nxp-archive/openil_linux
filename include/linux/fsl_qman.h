@@ -528,8 +528,8 @@ struct qm_mr_entry {
  * representation. */
 struct qm_fqd_stashing {
 	/* See QM_STASHING_EXCL_<...> */
-	u8 exclusive;
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	u8 exclusive;
 	u8 __reserved1:2;
 	/* Numbers of cachelines */
 	u8 annotation_cl:2;
@@ -540,6 +540,7 @@ struct qm_fqd_stashing {
 	u8 data_cl:2;
 	u8 annotation_cl:2;
 	u8 __reserved1:2;
+	u8 exclusive;
 #endif
 } __packed;
 struct qm_fqd_taildrop {
