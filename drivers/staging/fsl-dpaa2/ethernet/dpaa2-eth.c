@@ -1605,6 +1605,7 @@ dpaa2_get_channel_by_cpu(struct dpaa2_eth_priv *priv, int cpu)
 
 static void dpaa2_set_fq_affinity(struct dpaa2_eth_priv *priv)
 {
+	struct device *dev = priv->net_dev->dev.parent;
 	struct dpaa2_eth_fq *fq;
 	int rx_cpu, txconf_cpu;
 	int i;
@@ -1629,8 +1630,7 @@ static void dpaa2_set_fq_affinity(struct dpaa2_eth_priv *priv)
 			cpumask_rr(txconf_cpu, &priv->txconf_cpumask);
 			break;
 		default:
-			netdev_err(priv->net_dev, "Unknown FQ type: %d\n",
-				   fq->type);
+			dev_err(dev, "Unknown FQ type: %d\n", fq->type);
 		}
 		fq->channel = dpaa2_get_channel_by_cpu(priv, fq->target_cpu);
 	}
@@ -2011,6 +2011,7 @@ static void dpaa2_dpni_free(struct dpaa2_eth_priv *priv)
 static int dpaa2_rx_flow_setup(struct dpaa2_eth_priv *priv,
 			       struct dpaa2_eth_fq *fq)
 {
+	struct device *dev = priv->net_dev->dev.parent;
 	struct dpni_queue_attr rx_queue_attr;
 	struct dpni_queue_cfg queue_cfg;
 	int err;
@@ -2026,7 +2027,7 @@ static int dpaa2_rx_flow_setup(struct dpaa2_eth_priv *priv,
 	err = dpni_set_rx_flow(priv->mc_io, 0, priv->mc_token, 0, fq->flowid,
 			       &queue_cfg);
 	if (err) {
-		netdev_err(priv->net_dev, "dpni_set_rx_flow() failed\n");
+		dev_err(dev, "dpni_set_rx_flow() failed\n");
 		return err;
 	}
 
@@ -2034,7 +2035,7 @@ static int dpaa2_rx_flow_setup(struct dpaa2_eth_priv *priv,
 	err = dpni_get_rx_flow(priv->mc_io, 0, priv->mc_token, 0, fq->flowid,
 			       &rx_queue_attr);
 	if (err) {
-		netdev_err(priv->net_dev, "dpni_get_rx_flow() failed\n");
+		dev_err(dev, "dpni_get_rx_flow() failed\n");
 		return err;
 	}
 	fq->fqid = rx_queue_attr.fqid;
@@ -2045,7 +2046,7 @@ static int dpaa2_rx_flow_setup(struct dpaa2_eth_priv *priv,
 static int dpaa2_tx_flow_setup(struct dpaa2_eth_priv *priv,
 			       struct dpaa2_eth_fq *fq)
 {
-
+	struct device *dev = priv->net_dev->dev.parent;
 	struct dpni_tx_flow_cfg tx_flow_cfg;
 	struct dpni_tx_conf_cfg tx_conf_cfg;
 	struct dpni_tx_conf_attr tx_conf_attr;
@@ -2057,7 +2058,7 @@ static int dpaa2_tx_flow_setup(struct dpaa2_eth_priv *priv,
 	err = dpni_set_tx_flow(priv->mc_io, 0, priv->mc_token,
 			       &fq->flowid, &tx_flow_cfg);
 	if (err) {
-		netdev_err(priv->net_dev, "dpni_set_tx_flow() failed\n");
+		dev_err(dev, "dpni_set_tx_flow() failed\n");
 		return err;
 	}
 
@@ -2072,14 +2073,14 @@ static int dpaa2_tx_flow_setup(struct dpaa2_eth_priv *priv,
 	err = dpni_set_tx_conf(priv->mc_io, 0, priv->mc_token, fq->flowid,
 			       &tx_conf_cfg);
 	if (err) {
-		netdev_err(priv->net_dev, "dpni_set_tx_conf() failed\n");
+		dev_err(dev, "dpni_set_tx_conf() failed\n");
 		return err;
 	}
 
 	err = dpni_get_tx_conf(priv->mc_io, 0, priv->mc_token, fq->flowid,
 			       &tx_conf_attr);
 	if (err) {
-		netdev_err(priv->net_dev, "dpni_get_tx_conf() failed\n");
+		dev_err(dev, "dpni_get_tx_conf() failed\n");
 		return err;
 	}
 
@@ -2162,7 +2163,7 @@ static int dpaa2_dpni_bind(struct dpaa2_eth_priv *priv)
 	err = dpni_set_errors_behavior(priv->mc_io, 0, priv->mc_token,
 				       &err_cfg);
 	if (err) {
-		netdev_err(priv->net_dev, "dpni_set_errors_behavior failed\n");
+		dev_err(dev, "dpni_set_errors_behavior failed\n");
 		return err;
 	}
 
@@ -2181,8 +2182,7 @@ static int dpaa2_dpni_bind(struct dpaa2_eth_priv *priv)
 			break;
 #endif
 		default:
-			netdev_err(net_dev, "Invalid FQ type %d\n",
-				   priv->fq[i].type);
+			dev_err(dev, "Invalid FQ type %d\n", priv->fq[i].type);
 			return -EINVAL;
 		}
 		if (err)
@@ -2191,7 +2191,7 @@ static int dpaa2_dpni_bind(struct dpaa2_eth_priv *priv)
 
 	err = dpni_get_qdid(priv->mc_io, 0, priv->mc_token, &priv->tx_qdid);
 	if (err) {
-		netdev_err(net_dev, "dpni_get_qdid() failed\n");
+		dev_err(dev, "dpni_get_qdid() failed\n");
 		return err;
 	}
 
@@ -2246,8 +2246,7 @@ static int dpaa2_eth_netdev_init(struct net_device *net_dev)
 	err = dpni_get_primary_mac_addr(priv->mc_io, 0, priv->mc_token,
 					mac_addr);
 	if (err) {
-		netdev_err(net_dev, "dpni_get_primary_mac_addr() failed (%d)",
-			   err);
+		dev_err(dev, "dpni_get_primary_mac_addr() failed (%d)", err);
 		return err;
 	}
 	if (is_zero_ether_addr(mac_addr)) {
@@ -2260,9 +2259,7 @@ static int dpaa2_eth_netdev_init(struct net_device *net_dev)
 		err = dpni_set_primary_mac_addr(priv->mc_io, 0, priv->mc_token,
 						net_dev->dev_addr);
 		if (err) {
-			netdev_err(net_dev,
-				   "dpni_set_primary_mac_addr() failed (%d)\n",
-				   err);
+			dev_err(dev, "dpni_set_primary_mac_addr(): %d\n", err);
 			return err;
 		}
 		/* Override NET_ADDR_RANDOM set by eth_hw_addr_random(); for all

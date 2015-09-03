@@ -394,6 +394,7 @@ void dpaa2_cls_check(struct net_device *net_dev)
 
 int dpaa2_set_hash(struct net_device *net_dev, u64 flags)
 {
+	struct device *dev = net_dev->dev.parent;
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
 	struct dpkg_profile_cfg cls_cfg;
 	struct dpni_rx_tc_dist_cfg dist_cfg;
@@ -403,14 +404,13 @@ int dpaa2_set_hash(struct net_device *net_dev, u64 flags)
 	int err = 0;
 
 	if (!dpaa2_eth_hash_enabled(priv)) {
-		netdev_err(net_dev, "Hashing support is not enabled\n");
+		dev_err(dev, "Hashing support is not enabled\n");
 		return -EOPNOTSUPP;
 	}
 
 	if (flags & ~DPAA2_RXH_SUPPORTED) {
 		/* RXH_DISCARD is not supported */
-		netdev_err(net_dev,
-			   "unsupported option selected, supported options are: mvtsdfn\n");
+		dev_err(dev, "unsupported option selected, supported options are: mvtsdfn\n");
 		return -EOPNOTSUPP;
 	}
 
@@ -424,8 +424,7 @@ int dpaa2_set_hash(struct net_device *net_dev, u64 flags)
 			continue;
 
 		if (cls_cfg.num_extracts >= DPKG_MAX_NUM_OF_EXTRACTS) {
-			netdev_err(net_dev,
-				"error adding key extraction rule, too many rules?\n");
+			dev_err(dev, "error adding key extraction rule, too many rules?\n");
 			return -E2BIG;
 		}
 
@@ -440,12 +439,11 @@ int dpaa2_set_hash(struct net_device *net_dev, u64 flags)
 		enabled_flags |= dpaa2_hash_fields[i].rxnfc_field;
 	}
 
-	dma_mem =  kzalloc(DPAA2_CLASSIFIER_DMA_SIZE, GFP_DMA | GFP_KERNEL);
+	dma_mem = kzalloc(DPAA2_CLASSIFIER_DMA_SIZE, GFP_DMA | GFP_KERNEL);
 
 	err = dpni_prepare_key_cfg(&cls_cfg, dma_mem);
 	if (err) {
-		dev_err(net_dev->dev.parent,
-			"dpni_prepare_key_cfg error %d", err);
+		dev_err(dev, "dpni_prepare_key_cfg error %d", err);
 		return err;
 	}
 
@@ -456,7 +454,7 @@ int dpaa2_set_hash(struct net_device *net_dev, u64 flags)
 					       DPAA2_CLASSIFIER_DMA_SIZE,
 					       DMA_TO_DEVICE);
 	if (dma_mapping_error(net_dev->dev.parent, dist_cfg.key_cfg_iova)) {
-		netdev_err(net_dev, "DMA mapping failed\n");
+		dev_err(dev, "DMA mapping failed\n");
 		return -ENOMEM;
 	}
 
@@ -473,7 +471,7 @@ int dpaa2_set_hash(struct net_device *net_dev, u64 flags)
 			 DPAA2_CLASSIFIER_DMA_SIZE, DMA_TO_DEVICE);
 	kfree(dma_mem);
 	if (err) {
-		netdev_err(net_dev, "dpni_set_rx_tc_dist() error %d\n", err);
+		dev_err(dev, "dpni_set_rx_tc_dist() error %d\n", err);
 		return err;
 	}
 
