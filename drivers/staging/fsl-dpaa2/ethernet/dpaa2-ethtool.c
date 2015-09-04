@@ -700,7 +700,7 @@ static int dpaa2_do_cls(struct net_device *net_dev,
 	}
 
 	priv->cls_rule[fs->location].fs = *fs;
-	priv->cls_rule[fs->location].in_use = 1;
+	priv->cls_rule[fs->location].in_use = true;
 
 err_free_mem:
 	kfree(dma_mem);
