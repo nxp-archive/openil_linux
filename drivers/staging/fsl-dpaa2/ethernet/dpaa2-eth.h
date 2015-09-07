@@ -95,7 +95,7 @@
 /* PTP nominal frequency 1MHz */
 #define DPAA2_PTP_NOMINAL_FREQ_PERIOD_NS 1000
 
-/* We are accomodating a skb backpointer and potentially other data (see
+/* We are accommodating a skb backpointer and potentially other data (see
  * struct backpointers) in the frame's software annotation. The hardware
  * options are either 0 or 64, so we choose the latter.
  */
