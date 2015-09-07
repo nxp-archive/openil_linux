@@ -16,13 +16,6 @@ menuconfig FSL_DPAA2_ETH
 	  driver, using the Freescale MC bus driver.
 
 if FSL_DPAA2_ETH
-config FSL_DPAA2_ETH_GCOV
-	bool "Gcov support in the FSL DPAA2 Ethernet driver"
-	default n
-	depends on GCOV_KERNEL
-	---help---
-	  Compile the driver source with GCOV_PROFILE := y
-
 config FSL_DPAA2_ETH_LINK_POLL
 	bool "Use polling mode for link state"
 	default n
