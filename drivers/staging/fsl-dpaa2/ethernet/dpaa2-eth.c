@@ -539,7 +539,7 @@ static int dpaa2_eth_build_single_fd(struct dpaa2_eth_priv *priv,
 			      buffer_start,
 			      skb_tail_pointer(skb) - buffer_start,
 			      DMA_TO_DEVICE);
-	if (dma_mapping_error(dev, addr)) {
+	if (unlikely(dma_mapping_error(dev, addr))) {
 		dev_err(dev, "dma_map_single() failed\n");
 		return -EINVAL;
 	}
@@ -1690,7 +1690,7 @@ static int dpaa2_bp_add_7(struct dpaa2_eth_priv *priv, uint16_t bpid)
 
 		addr = dma_map_single(dev, buf, DPAA2_ETH_RX_BUFFER_SIZE,
 				      DMA_FROM_DEVICE);
-		if (dma_mapping_error(dev, addr)) {
+		if (unlikely(dma_mapping_error(dev, addr))) {
 			dev_err(dev, "dma_map_single() failed\n");
 			goto err_map;
 		}
