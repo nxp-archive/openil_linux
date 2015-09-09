@@ -239,7 +239,7 @@ static int dpa_fq_probe_macless(struct device *dev, struct list_head *list,
 				enum port_type ptype)
 {
 	struct device_node *np = dev->of_node;
-	const struct fqid_cell *fqids;
+	struct fqid_cell *fqids;
 	int num_ranges;
 	int i, lenp;
 
@@ -253,6 +253,10 @@ static int dpa_fq_probe_macless(struct device *dev, struct list_head *list,
 
 	/* All ranges defined in the device tree are used as Rx/Tx queues */
 	for (i = 0; i < num_ranges; i++) {
+		/* convert to CPU endianess */
+		fqids[i].start = be32_to_cpup(&fqids[i].start);
+		fqids[i].count = be32_to_cpup(&fqids[i].count);
+
 		if (!dpa_fq_alloc(dev, &fqids[i], list, ptype == RX ?
 				  FQ_TYPE_RX_PCD : FQ_TYPE_TX)) {
 			dev_err(dev, "_dpa_fq_alloc() failed\n");
