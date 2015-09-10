@@ -52,16 +52,31 @@ struct fsl_mc {
 };
 
 /**
+ * enum mc_region_types - Types of MC MMIO regions
+ */
+enum fsl_mc_region_types {
+	FSL_MC_PORTAL = 0x0,
+	FSL_QBMAN_PORTAL,
+
+	/*
+	 * New offset types must be added above this entry
+	 */
+	FSL_NUM_MC_OFFSET_TYPES
+};
+
+/**
  * struct fsl_mc_addr_translation_range - bus to system address translation
  * range
- * @start_mc_addr: Start MC address of the range being translated
- * @end_mc_addr: MC address of the first byte after the range (last MC
- * address of the range is end_mc_addr - 1)
+ * @mc_region_type: Type of MC region for the range being translated
+ * @start_mc_offset: Start MC offset of the range being translated
+ * @end_mc_offset: MC offset of the first byte after the range (last MC
+ * offset of the range is end_mc_offset - 1)
  * @start_phys_addr: system physical address corresponding to start_mc_addr
  */
 struct fsl_mc_addr_translation_range {
-	uint64_t start_mc_addr;
-	uint64_t end_mc_addr;
+	enum fsl_mc_region_types mc_region_type;
+	uint64_t start_mc_offset;
+	uint64_t end_mc_offset;
 	phys_addr_t start_phys_addr;
 };
 
