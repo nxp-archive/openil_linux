@@ -113,8 +113,6 @@ static int register_dpio_irq_handlers(struct fsl_mc_device *ls_dev, int cpu)
 		return -EINVAL;
 
 	for (i = 0; i < irq_count; i++) {
-		struct dpio_irq_cfg irq_cfg;
-
 		irq = ls_dev->irqs[i];
 		error = devm_request_irq(&ls_dev->dev,
 					 irq->irq_number,
@@ -124,7 +122,7 @@ static int register_dpio_irq_handlers(struct fsl_mc_device *ls_dev, int cpu)
 					 &ls_dev->dev);
 		if (error < 0) {
 			dev_err(&ls_dev->dev,
-				"devm_request_threaded_irq() failed: %d\n",
+				"devm_request_irq() failed: %d\n",
 				error);
 			goto error_unregister_irq_handlers;
 		}
@@ -135,25 +133,6 @@ static int register_dpio_irq_handlers(struct fsl_mc_device *ls_dev, int cpu)
 		if (irq_set_affinity(irq->irq_number, &mask))
 			pr_err("irq_set_affinity failed irq %d cpu %d\n",
 			       irq->irq_number, cpu);
-
-		/*
-		 * Program the MSI (paddr, value) pair in the device:
-		 *
-		 * TODO: This needs to be moved to mc_bus_msi_domain_write_msg()
-		 * when the MC object-independent dprc_set_irq() flib API
-		 * becomes available
-		 */
-		irq_cfg.addr = irq->msi_paddr;
-		irq_cfg.val = irq->msi_value;
-		irq_cfg.user_irq_id = irq->irq_number;
-		error = dpio_set_irq(ls_dev->mc_io, 0, ls_dev->mc_handle,
-				     i,
-				     &irq_cfg);
-		if (error < 0) {
-			dev_err(&ls_dev->dev,
-				"mc_set_irq() failed: %d\n", error);
-			goto error_unregister_irq_handlers;
-		}
 
 		num_irq_handlers_registered++;
 	}
