@@ -41,6 +41,7 @@ struct fsl_mc_io;
 /**
  * dpio_open() - Open a control session for the specified object
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @dpio_id:	DPIO unique ID
  * @token:	Returned token; use in subsequent API calls
  *
@@ -54,16 +55,22 @@ struct fsl_mc_io;
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpio_open(struct fsl_mc_io *mc_io, int dpio_id, uint16_t *token);
+int dpio_open(struct fsl_mc_io	*mc_io,
+	      uint32_t		cmd_flags,
+	      int		dpio_id,
+	      uint16_t		*token);
 
 /**
  * dpio_close() - Close the control session of the object
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpio_close(struct fsl_mc_io *mc_io, uint16_t token);
+int dpio_close(struct fsl_mc_io	*mc_io,
+	       uint32_t		cmd_flags,
+	       uint16_t		token);
 
 /**
  * enum dpio_channel_mode - DPIO notification channel mode
@@ -84,13 +91,14 @@ enum dpio_channel_mode {
  *			relevant only if 'channel_mode = DPIO_LOCAL_CHANNEL'
  */
 struct dpio_cfg {
-	enum dpio_channel_mode channel_mode;
-	uint8_t num_priorities;
+	enum dpio_channel_mode	channel_mode;
+	uint8_t		num_priorities;
 };
 
 /**
  * dpio_create() - Create the DPIO object.
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @cfg:	Configuration structure
  * @token:	Returned token; use in subsequent API calls
  *
@@ -110,131 +118,187 @@ struct dpio_cfg {
  * Return:	'0' on Success; Error code otherwise.
  */
 int dpio_create(struct fsl_mc_io	*mc_io,
+		uint32_t		cmd_flags,
 		const struct dpio_cfg	*cfg,
 		uint16_t		*token);
 
 /**
  * dpio_destroy() - Destroy the DPIO object and release all its resources.
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  *
  * Return:	'0' on Success; Error code otherwise
  */
-int dpio_destroy(struct fsl_mc_io *mc_io, uint16_t token);
+int dpio_destroy(struct fsl_mc_io	*mc_io,
+		 uint32_t		cmd_flags,
+		 uint16_t		token);
 
 /**
  * dpio_enable() - Enable the DPIO, allow I/O portal operations.
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  *
  * Return:	'0' on Success; Error code otherwise
  */
-int dpio_enable(struct fsl_mc_io *mc_io, uint16_t token);
+int dpio_enable(struct fsl_mc_io	*mc_io,
+		uint32_t		cmd_flags,
+		uint16_t		token);
 
 /**
  * dpio_disable() - Disable the DPIO, stop any I/O portal operation.
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  *
  * Return:	'0' on Success; Error code otherwise
  */
-int dpio_disable(struct fsl_mc_io *mc_io, uint16_t token);
+int dpio_disable(struct fsl_mc_io	*mc_io,
+		 uint32_t		cmd_flags,
+		 uint16_t		token);
 
 /**
  * dpio_is_enabled() - Check if the DPIO is enabled.
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  * @en:	Returns '1' if object is enabled; '0' otherwise
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpio_is_enabled(struct fsl_mc_io *mc_io, uint16_t token, int *en);
+int dpio_is_enabled(struct fsl_mc_io	*mc_io,
+		    uint32_t		cmd_flags,
+		    uint16_t		token,
+		    int		*en);
 
 /**
  * dpio_reset() - Reset the DPIO, returns the object to initial state.
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpio_reset(struct fsl_mc_io *mc_io, uint16_t token);
+int dpio_reset(struct fsl_mc_io	*mc_io,
+	       uint32_t			cmd_flags,
+	       uint16_t		token);
 
 /**
  * dpio_set_stashing_destination() - Set the stashing destination.
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  * @sdest:	stashing destination value
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpio_set_stashing_destination(struct fsl_mc_io *mc_io,
-				  uint16_t token,
-				  uint8_t sdest);
+int dpio_set_stashing_destination(struct fsl_mc_io	*mc_io,
+				  uint32_t		cmd_flags,
+				  uint16_t		token,
+				  uint8_t		sdest);
 
 /**
  * dpio_get_stashing_destination() - Get the stashing destination..
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  * @sdest:	Returns the stashing destination value
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpio_get_stashing_destination(struct fsl_mc_io *mc_io,
-				  uint16_t token,
-				  uint8_t *sdest);
+int dpio_get_stashing_destination(struct fsl_mc_io	*mc_io,
+				  uint32_t		cmd_flags,
+				  uint16_t		token,
+				  uint8_t		*sdest);
 
-/*!
- * @name DPIO IRQ Index and Events
+/**
+ * dpio_add_static_dequeue_channel() - Add a static dequeue channel.
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPIO object
+ * @dpcon_id:	DPCON object ID
+ * @channel_index: Returned channel index to be used in qbman API
+ *
+ * Return:	'0' on Success; Error code otherwise.
  */
+int dpio_add_static_dequeue_channel(struct fsl_mc_io	*mc_io,
+				    uint32_t		cmd_flags,
+				    uint16_t		token,
+				    int		dpcon_id,
+				    uint8_t		*channel_index);
+
+/**
+ * dpio_remove_static_dequeue_channel() - Remove a static dequeue channel.
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPIO object
+ * @dpcon_id:	DPCON object ID
+ *
+ * Return:	'0' on Success; Error code otherwise.
+ */
+int dpio_remove_static_dequeue_channel(struct fsl_mc_io	*mc_io,
+				       uint32_t		cmd_flags,
+				       uint16_t		token,
+				       int			dpcon_id);
+
+/* DPIO IRQ Index and Events */
+
+/* Irq software-portal index */
 #define DPIO_IRQ_SWP_INDEX				0
-/*!< Irq software-portal index */
-/* @} */
+
+/**
+ * struct dpio_irq_cfg - IRQ configuration
+ * @addr:	Address that must be written to signal a message-based interrupt
+ * @val:	Value to write into irq_addr address
+ * @user_irq_id: A user defined number associated with this IRQ
+ */
+struct dpio_irq_cfg {
+	     uint64_t		addr;
+	     uint32_t		val;
+	     int		user_irq_id;
+};
 
 /**
  * dpio_set_irq() - Set IRQ information for the DPIO to trigger an interrupt.
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  * @irq_index:	Identifies the interrupt index to configure
- * @irq_addr:	Address that must be written to
- *		signal a message-based interrupt
- * @irq_val:	Value to write into irq_addr address
- * @user_irq_id: A user defined number associated with this IRQ
+ * @irq_cfg:	IRQ configuration
  *
  * Return:	'0' on Success; Error code otherwise.
  */
 int dpio_set_irq(struct fsl_mc_io	*mc_io,
+		 uint32_t		cmd_flags,
 		 uint16_t		token,
-		uint8_t			irq_index,
-		uint64_t		irq_addr,
-		uint32_t		irq_val,
-		int			user_irq_id);
+		 uint8_t		irq_index,
+		 struct dpio_irq_cfg	*irq_cfg);
 
 /**
  * dpio_get_irq() - Get IRQ information from the DPIO.
  *
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  * @irq_index:	The interrupt index to configure
- * @type:	Returned interrupt type: 0 represents message interrupt
- *				type (both irq_addr and irq_val are valid)
- * @irq_addr:	Returned address that must be written to
- *				signal the message-based interrupt
- * @irq_val:	Value to write into irq_addr address
- * @user_irq_id: A user defined number associated with this IRQ
+ * @type:	Interrupt type: 0 represents message interrupt
+ *		type (both irq_addr and irq_val are valid)
+ * @irq_cfg:	IRQ attributes
  *
  * Return:	'0' on Success; Error code otherwise.
  */
 int dpio_get_irq(struct fsl_mc_io	*mc_io,
+		 uint32_t		cmd_flags,
 		 uint16_t		token,
 		 uint8_t		irq_index,
 		 int			*type,
-		 uint64_t		*irq_addr,
-		 uint32_t		*irq_val,
-		 int			*user_irq_id);
+		 struct dpio_irq_cfg	*irq_cfg);
 
 /**
  * dpio_set_irq_enable() - Set overall interrupt state.
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  * @irq_index:	The interrupt index to configure
  * @en:		Interrupt state - enable = 1, disable = 0
@@ -247,6 +311,7 @@ int dpio_get_irq(struct fsl_mc_io	*mc_io,
  * Return:	'0' on Success; Error code otherwise.
  */
 int dpio_set_irq_enable(struct fsl_mc_io	*mc_io,
+			uint32_t		cmd_flags,
 			uint16_t		token,
 			uint8_t			irq_index,
 			uint8_t			en);
@@ -254,6 +319,7 @@ int dpio_set_irq_enable(struct fsl_mc_io	*mc_io,
 /**
  * dpio_get_irq_enable() - Get overall interrupt state
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  * @irq_index:	The interrupt index to configure
  * @en:		Returned interrupt state - enable = 1, disable = 0
@@ -261,6 +327,7 @@ int dpio_set_irq_enable(struct fsl_mc_io	*mc_io,
  * Return:	'0' on Success; Error code otherwise.
  */
 int dpio_get_irq_enable(struct fsl_mc_io	*mc_io,
+			uint32_t		cmd_flags,
 			uint16_t		token,
 			uint8_t			irq_index,
 			uint8_t			*en);
@@ -268,6 +335,7 @@ int dpio_get_irq_enable(struct fsl_mc_io	*mc_io,
 /**
  * dpio_set_irq_mask() - Set interrupt mask.
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  * @irq_index:	The interrupt index to configure
  * @mask:	event mask to trigger interrupt;
@@ -281,6 +349,7 @@ int dpio_get_irq_enable(struct fsl_mc_io	*mc_io,
  * Return:	'0' on Success; Error code otherwise.
  */
 int dpio_set_irq_mask(struct fsl_mc_io	*mc_io,
+		      uint32_t		cmd_flags,
 		      uint16_t		token,
 		      uint8_t		irq_index,
 		      uint32_t		mask);
@@ -288,6 +357,7 @@ int dpio_set_irq_mask(struct fsl_mc_io	*mc_io,
 /**
  * dpio_get_irq_mask() - Get interrupt mask.
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  * @irq_index:	The interrupt index to configure
  * @mask:	Returned event mask to trigger interrupt
@@ -298,6 +368,7 @@ int dpio_set_irq_mask(struct fsl_mc_io	*mc_io,
  * Return:	'0' on Success; Error code otherwise.
  */
 int dpio_get_irq_mask(struct fsl_mc_io	*mc_io,
+		      uint32_t		cmd_flags,
 		      uint16_t		token,
 		      uint8_t		irq_index,
 		      uint32_t		*mask);
@@ -305,6 +376,7 @@ int dpio_get_irq_mask(struct fsl_mc_io	*mc_io,
 /**
  * dpio_get_irq_status() - Get the current status of any pending interrupts.
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  * @irq_index:	The interrupt index to configure
  * @status:	Returned interrupts status - one bit per cause:
@@ -314,6 +386,7 @@ int dpio_get_irq_mask(struct fsl_mc_io	*mc_io,
  * Return:	'0' on Success; Error code otherwise.
  */
 int dpio_get_irq_status(struct fsl_mc_io	*mc_io,
+			uint32_t		cmd_flags,
 			uint16_t		token,
 			uint8_t			irq_index,
 			uint32_t		*status);
@@ -321,6 +394,7 @@ int dpio_get_irq_status(struct fsl_mc_io	*mc_io,
 /**
  * dpio_clear_irq_status() - Clear a pending interrupt's status
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  * @irq_index:	The interrupt index to configure
  * @status:	bits to clear (W1C) - one bit per cause:
@@ -330,6 +404,7 @@ int dpio_get_irq_status(struct fsl_mc_io	*mc_io,
  * Return:	'0' on Success; Error code otherwise.
  */
 int dpio_clear_irq_status(struct fsl_mc_io	*mc_io,
+			  uint32_t		cmd_flags,
 			  uint16_t		token,
 			  uint8_t		irq_index,
 			  uint32_t		status);
@@ -346,7 +421,7 @@ int dpio_clear_irq_status(struct fsl_mc_io	*mc_io,
  *			relevant only if 'channel_mode = DPIO_LOCAL_CHANNEL'
  */
 struct dpio_attr {
-	int id;
+	int			id;
 	/**
 	 * struct version - DPIO version
 	 * @major: DPIO major version
@@ -356,22 +431,24 @@ struct dpio_attr {
 		uint16_t major;
 		uint16_t minor;
 	} version;
-	uint64_t qbman_portal_ce_offset;
-	uint64_t qbman_portal_ci_offset;
-	uint16_t qbman_portal_id;
-	enum dpio_channel_mode channel_mode;
-	uint8_t num_priorities;
+	uint64_t		qbman_portal_ce_offset;
+	uint64_t		qbman_portal_ci_offset;
+	uint16_t		qbman_portal_id;
+	enum dpio_channel_mode	channel_mode;
+	uint8_t		num_priorities;
 };
 
 /**
  * dpio_get_attributes() - Retrieve DPIO attributes
  * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPIO object
  * @attr:	Returned object's attributes
  *
  * Return:	'0' on Success; Error code otherwise
  */
 int dpio_get_attributes(struct fsl_mc_io	*mc_io,
+			uint32_t		cmd_flags,
 			uint16_t		token,
 			struct dpio_attr	*attr);
 #endif /* __FSL_DPIO_H */

@@ -34,7 +34,7 @@
 
 /* DPIO Version */
 #define DPIO_VER_MAJOR				3
-#define DPIO_VER_MINOR				0
+#define DPIO_VER_MINOR				1
 
 /* Command IDs */
 #define DPIO_CMDID_CLOSE				0x800
@@ -59,6 +59,8 @@
 
 #define DPIO_CMDID_SET_STASHING_DEST		0x120
 #define DPIO_CMDID_GET_STASHING_DEST		0x121
+#define DPIO_CMDID_ADD_STATIC_DEQUEUE_CHANNEL		0x122
+#define DPIO_CMDID_REMOVE_STATIC_DEQUEUE_CHANNEL	0x123
 
 /*                cmd, param, offset, width, type, arg_name */
 #define DPIO_CMD_OPEN(cmd, dpio_id) \
@@ -77,12 +79,12 @@ do { \
 	MC_RSP_OP(cmd, 0, 0,  1,  int,	    en)
 
 /*                cmd, param, offset, width, type, arg_name */
-#define DPIO_CMD_SET_IRQ(cmd, irq_index, irq_addr, irq_val, user_irq_id) \
+#define DPIO_CMD_SET_IRQ(cmd, irq_index, irq_cfg) \
 do { \
 	MC_CMD_OP(cmd, 0, 0,  8,  uint8_t,  irq_index);\
-	MC_CMD_OP(cmd, 0, 32, 32, uint32_t, irq_val);\
-	MC_CMD_OP(cmd, 1, 0,  64, uint64_t, irq_addr);\
-	MC_CMD_OP(cmd, 2, 0,  32, int,	    user_irq_id); \
+	MC_CMD_OP(cmd, 0, 32, 32, uint32_t, irq_cfg->val);\
+	MC_CMD_OP(cmd, 1, 0,  64, uint64_t, irq_cfg->addr);\
+	MC_CMD_OP(cmd, 2, 0,  32, int,	    irq_cfg->user_irq_id); \
 } while (0)
 
 /*                cmd, param, offset, width, type, arg_name */
@@ -90,11 +92,11 @@ do { \
 	MC_CMD_OP(cmd, 0, 32, 8,  uint8_t,  irq_index)
 
 /*                cmd, param, offset, width, type, arg_name */
-#define DPIO_RSP_GET_IRQ(cmd, type, irq_addr, irq_val, user_irq_id) \
+#define DPIO_RSP_GET_IRQ(cmd, type, irq_cfg) \
 do { \
-	MC_RSP_OP(cmd, 0, 0,  32, uint32_t, irq_val); \
-	MC_RSP_OP(cmd, 1, 0,  64, uint64_t, irq_addr); \
-	MC_RSP_OP(cmd, 2, 0,  32, int,	    user_irq_id); \
+	MC_RSP_OP(cmd, 0, 0,  32, uint32_t, irq_cfg->val); \
+	MC_RSP_OP(cmd, 1, 0,  64, uint64_t, irq_cfg->addr); \
+	MC_RSP_OP(cmd, 2, 0,  32, int,	    irq_cfg->user_irq_id); \
 	MC_RSP_OP(cmd, 2, 32, 32, int,	    type); \
 } while (0)
 
@@ -164,4 +166,15 @@ do { \
 #define DPIO_RSP_GET_STASHING_DEST(cmd, sdest) \
 	MC_RSP_OP(cmd, 0, 0,  8,  uint8_t,  sdest)
 
+/*                cmd, param, offset, width, type, arg_name */
+#define DPIO_CMD_ADD_STATIC_DEQUEUE_CHANNEL(cmd, dpcon_id) \
+	MC_CMD_OP(cmd, 0, 0,  32, int,      dpcon_id)
+
+/*                cmd, param, offset, width, type, arg_name */
+#define DPIO_RSP_ADD_STATIC_DEQUEUE_CHANNEL(cmd, channel_index) \
+	MC_RSP_OP(cmd, 0, 0,  8,  uint8_t,  channel_index)
+
+/*                cmd, param, offset, width, type, arg_name */
+#define DPIO_CMD_REMOVE_STATIC_DEQUEUE_CHANNEL(cmd, dpcon_id) \
+	MC_CMD_OP(cmd, 0, 0,  32, int,      dpcon_id)
 #endif /* _FSL_DPIO_CMD_H */

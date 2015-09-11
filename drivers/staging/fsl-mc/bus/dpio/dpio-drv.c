@@ -113,6 +113,8 @@ static int register_dpio_irq_handlers(struct fsl_mc_device *ls_dev, int cpu)
 		return -EINVAL;
 
 	for (i = 0; i < irq_count; i++) {
+		struct dpio_irq_cfg irq_cfg;
+
 		irq = ls_dev->irqs[i];
 		error = devm_request_irq(&ls_dev->dev,
 					 irq->irq_number,
@@ -141,10 +143,12 @@ static int register_dpio_irq_handlers(struct fsl_mc_device *ls_dev, int cpu)
 		 * when the MC object-independent dprc_set_irq() flib API
 		 * becomes available
 		 */
-		error = dpio_set_irq(ls_dev->mc_io, ls_dev->mc_handle,
-				     i, irq->msi_paddr,
-				     irq->msi_value,
-				     irq->irq_number);
+		irq_cfg.addr = irq->msi_paddr;
+		irq_cfg.val = irq->msi_value;
+		irq_cfg.user_irq_id = irq->irq_number;
+		error = dpio_set_irq(ls_dev->mc_io, 0, ls_dev->mc_handle,
+				     i,
+				     &irq_cfg);
 		if (error < 0) {
 			dev_err(&ls_dev->dev,
 				"mc_set_irq() failed: %d\n", error);
@@ -191,19 +195,20 @@ ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
 		goto err_mcportal;
 	}
 
-	err = dpio_open(ls_dev->mc_io, ls_dev->obj_desc.id, &ls_dev->mc_handle);
+	err = dpio_open(ls_dev->mc_io, 0, ls_dev->obj_desc.id,
+			&ls_dev->mc_handle);
 	if (err) {
 		dev_err(dev, "dpio_open() failed\n");
 		goto err_open;
 	}
 
-	err = dpio_get_attributes(ls_dev->mc_io, ls_dev->mc_handle,
-				&dpio_attrs);
+	err = dpio_get_attributes(ls_dev->mc_io, 0, ls_dev->mc_handle,
+				  &dpio_attrs);
 	if (err) {
 		dev_err(dev, "dpio_get_attributes() failed %d\n", err);
 		goto err_get_attr;
 	}
-	err = dpio_enable(ls_dev->mc_io, ls_dev->mc_handle);
+	err = dpio_enable(ls_dev->mc_io, 0, ls_dev->mc_handle);
 	if (err) {
 		dev_err(dev, "dpio_enable() failed %d\n", err);
 		goto err_get_attr;
@@ -295,7 +300,7 @@ ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
 	dev_info(dev, "   receives_notifications = %d\n",
 			desc.receives_notifications);
 	dev_info(dev, "   has_irq = %d\n", desc.has_irq);
-	dpio_close(ls_dev->mc_io, ls_dev->mc_handle);
+	dpio_close(ls_dev->mc_io, 0, ls_dev->mc_handle);
 	fsl_mc_portal_free(ls_dev->mc_io);
 	return 0;
 
@@ -307,9 +312,9 @@ err_dpaa_io_add:
 */
 err_dpaa_thread:
 err_dpaa_io_create:
-	dpio_disable(ls_dev->mc_io, ls_dev->mc_handle);
+	dpio_disable(ls_dev->mc_io, 0, ls_dev->mc_handle);
 err_get_attr:
-	dpio_close(ls_dev->mc_io, ls_dev->mc_handle);
+	dpio_close(ls_dev->mc_io, 0, ls_dev->mc_handle);
 err_open:
 	fsl_mc_portal_free(ls_dev->mc_io);
 err_mcportal:
@@ -355,7 +360,8 @@ ldpaa_dpio_remove(struct fsl_mc_device *ls_dev)
 		goto err_mcportal;
 	}
 
-	err = dpio_open(ls_dev->mc_io, ls_dev->obj_desc.id, &ls_dev->mc_handle);
+	err = dpio_open(ls_dev->mc_io, 0, ls_dev->obj_desc.id,
+			&ls_dev->mc_handle);
 	if (err) {
 		dev_err(dev, "dpio_open() failed\n");
 		goto err_open;
@@ -366,8 +372,8 @@ ldpaa_dpio_remove(struct fsl_mc_device *ls_dev)
 
 	err = 0;
 
-	dpio_disable(ls_dev->mc_io, ls_dev->mc_handle);
-	dpio_close(ls_dev->mc_io, ls_dev->mc_handle);
+	dpio_disable(ls_dev->mc_io, 0, ls_dev->mc_handle);
+	dpio_close(ls_dev->mc_io, 0, ls_dev->mc_handle);
 err_open:
 	fsl_mc_portal_free(ls_dev->mc_io);
 err_mcportal:

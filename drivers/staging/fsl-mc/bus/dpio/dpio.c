@@ -34,14 +34,18 @@
 #include "fsl_dpio.h"
 #include "fsl_dpio_cmd.h"
 
-int dpio_open(struct fsl_mc_io *mc_io, int dpio_id, uint16_t *token)
+int dpio_open(struct fsl_mc_io *mc_io,
+	      uint32_t cmd_flags,
+	      int dpio_id,
+	      uint16_t *token)
 {
 	struct mc_command cmd = { 0 };
 	int err;
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_OPEN,
-					  MC_CMD_PRI_LOW, 0);
+					  cmd_flags,
+					  0);
 	DPIO_CMD_OPEN(cmd, dpio_id);
 
 	/* send command to mc*/
@@ -55,19 +59,23 @@ int dpio_open(struct fsl_mc_io *mc_io, int dpio_id, uint16_t *token)
 	return 0;
 }
 
-int dpio_close(struct fsl_mc_io *mc_io, uint16_t token)
+int dpio_close(struct fsl_mc_io *mc_io,
+	       uint32_t cmd_flags,
+	       uint16_t token)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_CLOSE,
-					  MC_CMD_PRI_HIGH, token);
+					  cmd_flags,
+					  token);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
 int dpio_create(struct fsl_mc_io *mc_io,
+		uint32_t cmd_flags,
 		const struct dpio_cfg *cfg,
 		uint16_t *token)
 {
@@ -76,7 +84,8 @@ int dpio_create(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_CREATE,
-					  MC_CMD_PRI_LOW, 0);
+					  cmd_flags,
+					  0);
 	DPIO_CMD_CREATE(cmd, cfg);
 
 	/* send command to mc*/
@@ -90,50 +99,60 @@ int dpio_create(struct fsl_mc_io *mc_io,
 	return 0;
 }
 
-int dpio_destroy(struct fsl_mc_io *mc_io, uint16_t token)
+int dpio_destroy(struct fsl_mc_io *mc_io,
+		 uint32_t cmd_flags,
+		 uint16_t token)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_DESTROY,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpio_enable(struct fsl_mc_io *mc_io, uint16_t token)
+int dpio_enable(struct fsl_mc_io *mc_io,
+		uint32_t cmd_flags,
+		uint16_t token)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_ENABLE,
-					  MC_CMD_PRI_LOW, token);
-
-	/* send command to mc*/
-	return mc_send_command(mc_io, &cmd);
-}
-
-int dpio_disable(struct fsl_mc_io *mc_io, uint16_t token)
-{
-	struct mc_command cmd = { 0 };
-
-	/* prepare command */
-	cmd.header = mc_encode_cmd_header(DPIO_CMDID_DISABLE,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpio_is_enabled(struct fsl_mc_io *mc_io, uint16_t token, int *en)
+int dpio_disable(struct fsl_mc_io *mc_io,
+		 uint32_t cmd_flags,
+		 uint16_t token)
+{
+	struct mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPIO_CMDID_DISABLE,
+					  cmd_flags,
+					  token);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
+
+int dpio_is_enabled(struct fsl_mc_io *mc_io,
+		    uint32_t cmd_flags,
+		    uint16_t token,
+		    int *en)
 {
 	struct mc_command cmd = { 0 };
 	int err;
 	/* prepare command */
-	cmd.header = mc_encode_cmd_header(DPIO_CMDID_IS_ENABLED, MC_CMD_PRI_LOW,
+	cmd.header = mc_encode_cmd_header(DPIO_CMDID_IS_ENABLED, cmd_flags,
 					  token);
 
 	/* send command to mc*/
@@ -147,51 +166,52 @@ int dpio_is_enabled(struct fsl_mc_io *mc_io, uint16_t token, int *en)
 	return 0;
 }
 
-int dpio_reset(struct fsl_mc_io *mc_io, uint16_t token)
+int dpio_reset(struct fsl_mc_io *mc_io,
+	       uint32_t cmd_flags,
+	       uint16_t token)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_RESET,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpio_set_irq(struct fsl_mc_io *mc_io,
-		 uint16_t token,
-		 uint8_t irq_index,
-		 uint64_t irq_addr,
-		 uint32_t irq_val,
-		 int user_irq_id)
+int dpio_set_irq(struct fsl_mc_io	*mc_io,
+		 uint32_t		cmd_flags,
+		 uint16_t		token,
+		 uint8_t		irq_index,
+		 struct dpio_irq_cfg	*irq_cfg)
 {
 	struct mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_SET_IRQ,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
-	DPIO_CMD_SET_IRQ(cmd, irq_index, irq_addr, irq_val, user_irq_id);
+	DPIO_CMD_SET_IRQ(cmd, irq_index, irq_cfg);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpio_get_irq(struct fsl_mc_io *mc_io,
-		 uint16_t token,
-		 uint8_t irq_index,
-		 int *type,
-		 uint64_t *irq_addr,
-		 uint32_t *irq_val,
-		 int *user_irq_id)
+int dpio_get_irq(struct fsl_mc_io	*mc_io,
+		 uint32_t		cmd_flags,
+		 uint16_t		token,
+		 uint8_t		irq_index,
+		 int			*type,
+		 struct dpio_irq_cfg	*irq_cfg)
 {
 	struct mc_command cmd = { 0 };
 	int err;
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_GET_IRQ,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 	DPIO_CMD_GET_IRQ(cmd, irq_index);
 
@@ -201,12 +221,13 @@ int dpio_get_irq(struct fsl_mc_io *mc_io,
 		return err;
 
 	/* retrieve response parameters */
-	DPIO_RSP_GET_IRQ(cmd, *type, *irq_addr, *irq_val, *user_irq_id);
+	DPIO_RSP_GET_IRQ(cmd, *type, irq_cfg);
 
 	return 0;
 }
 
 int dpio_set_irq_enable(struct fsl_mc_io *mc_io,
+			uint32_t cmd_flags,
 			uint16_t token,
 			uint8_t irq_index,
 			uint8_t en)
@@ -215,7 +236,8 @@ int dpio_set_irq_enable(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_SET_IRQ_ENABLE,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPIO_CMD_SET_IRQ_ENABLE(cmd, irq_index, en);
 
 	/* send command to mc*/
@@ -223,6 +245,7 @@ int dpio_set_irq_enable(struct fsl_mc_io *mc_io,
 }
 
 int dpio_get_irq_enable(struct fsl_mc_io *mc_io,
+			uint32_t cmd_flags,
 			uint16_t token,
 			uint8_t irq_index,
 			uint8_t *en)
@@ -232,7 +255,8 @@ int dpio_get_irq_enable(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_GET_IRQ_ENABLE,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPIO_CMD_GET_IRQ_ENABLE(cmd, irq_index);
 
 	/* send command to mc*/
@@ -247,6 +271,7 @@ int dpio_get_irq_enable(struct fsl_mc_io *mc_io,
 }
 
 int dpio_set_irq_mask(struct fsl_mc_io *mc_io,
+		      uint32_t cmd_flags,
 		      uint16_t token,
 		      uint8_t irq_index,
 		      uint32_t mask)
@@ -255,7 +280,8 @@ int dpio_set_irq_mask(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_SET_IRQ_MASK,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPIO_CMD_SET_IRQ_MASK(cmd, irq_index, mask);
 
 	/* send command to mc*/
@@ -263,6 +289,7 @@ int dpio_set_irq_mask(struct fsl_mc_io *mc_io,
 }
 
 int dpio_get_irq_mask(struct fsl_mc_io *mc_io,
+		      uint32_t cmd_flags,
 		      uint16_t token,
 		      uint8_t irq_index,
 		      uint32_t *mask)
@@ -272,7 +299,8 @@ int dpio_get_irq_mask(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_GET_IRQ_MASK,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPIO_CMD_GET_IRQ_MASK(cmd, irq_index);
 
 	/* send command to mc*/
@@ -287,6 +315,7 @@ int dpio_get_irq_mask(struct fsl_mc_io *mc_io,
 }
 
 int dpio_get_irq_status(struct fsl_mc_io *mc_io,
+			uint32_t cmd_flags,
 			uint16_t token,
 			uint8_t irq_index,
 			uint32_t *status)
@@ -296,7 +325,8 @@ int dpio_get_irq_status(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_GET_IRQ_STATUS,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPIO_CMD_GET_IRQ_STATUS(cmd, irq_index);
 
 	/* send command to mc*/
@@ -311,6 +341,7 @@ int dpio_get_irq_status(struct fsl_mc_io *mc_io,
 }
 
 int dpio_clear_irq_status(struct fsl_mc_io *mc_io,
+			  uint32_t cmd_flags,
 			  uint16_t token,
 			  uint8_t irq_index,
 			  uint32_t status)
@@ -319,7 +350,8 @@ int dpio_clear_irq_status(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_CLEAR_IRQ_STATUS,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPIO_CMD_CLEAR_IRQ_STATUS(cmd, irq_index, status);
 
 	/* send command to mc*/
@@ -327,6 +359,7 @@ int dpio_clear_irq_status(struct fsl_mc_io *mc_io,
 }
 
 int dpio_get_attributes(struct fsl_mc_io *mc_io,
+			uint32_t cmd_flags,
 			uint16_t token,
 			struct dpio_attr *attr)
 {
@@ -335,7 +368,7 @@ int dpio_get_attributes(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_GET_ATTR,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 
 	/* send command to mc*/
@@ -350,6 +383,7 @@ int dpio_get_attributes(struct fsl_mc_io *mc_io,
 }
 
 int dpio_set_stashing_destination(struct fsl_mc_io *mc_io,
+				  uint32_t cmd_flags,
 				  uint16_t token,
 				  uint8_t sdest)
 {
@@ -357,7 +391,8 @@ int dpio_set_stashing_destination(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_SET_STASHING_DEST,
-					  MC_CMD_PRI_LOW, token);
+					  cmd_flags,
+					  token);
 	DPIO_CMD_SET_STASHING_DEST(cmd, sdest);
 
 	/* send command to mc*/
@@ -365,6 +400,7 @@ int dpio_set_stashing_destination(struct fsl_mc_io *mc_io,
 }
 
 int dpio_get_stashing_destination(struct fsl_mc_io *mc_io,
+				  uint32_t cmd_flags,
 				  uint16_t token,
 				  uint8_t *sdest)
 {
@@ -373,7 +409,7 @@ int dpio_get_stashing_destination(struct fsl_mc_io *mc_io,
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_GET_STASHING_DEST,
-					  MC_CMD_PRI_LOW,
+					  cmd_flags,
 					  token);
 
 	/* send command to mc*/
@@ -382,7 +418,51 @@ int dpio_get_stashing_destination(struct fsl_mc_io *mc_io,
 		return err;
 
 	/* retrieve response parameters */
-	DPIO_RSP_GET_STASHING_DEST(cmd, *sdest);
+	DPIO_RSP_GET_STASHING_DEST(cmd, sdest);
 
 	return 0;
+}
+
+int dpio_add_static_dequeue_channel(struct fsl_mc_io *mc_io,
+				    uint32_t cmd_flags,
+				    uint16_t token,
+				    int dpcon_id,
+				    uint8_t *channel_index)
+{
+	struct mc_command cmd = { 0 };
+	int err;
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPIO_CMDID_ADD_STATIC_DEQUEUE_CHANNEL,
+					  cmd_flags,
+					  token);
+	DPIO_CMD_ADD_STATIC_DEQUEUE_CHANNEL(cmd, dpcon_id);
+
+	/* send command to mc*/
+	err = mc_send_command(mc_io, &cmd);
+	if (err)
+		return err;
+
+	/* retrieve response parameters */
+	DPIO_RSP_ADD_STATIC_DEQUEUE_CHANNEL(cmd, *channel_index);
+
+	return 0;
+}
+
+int dpio_remove_static_dequeue_channel(struct fsl_mc_io *mc_io,
+				       uint32_t cmd_flags,
+				       uint16_t token,
+				       int dpcon_id)
+{
+	struct mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(
+				DPIO_CMDID_REMOVE_STATIC_DEQUEUE_CHANNEL,
+				cmd_flags,
+				token);
+	DPIO_CMD_REMOVE_STATIC_DEQUEUE_CHANNEL(cmd, dpcon_id);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
 }
