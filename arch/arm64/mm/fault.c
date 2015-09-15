@@ -118,10 +118,16 @@ void show_pte(struct mm_struct *mm, unsigned long addr)
 static void __do_kernel_fault(struct mm_struct *mm, unsigned long addr,
 			      unsigned int esr, struct pt_regs *regs)
 {
+	unsigned long flags;
+	int ret;
+
 	/*
 	 * Are we prepared to handle this kernel fault?
 	 */
-	if (fixup_exception(regs))
+	flags = hard_cond_local_irq_save();
+	ret = fixup_exception(regs);
+	hard_cond_local_irq_restore(flags);
+	if (ret)
 		return;
 
 	/*
@@ -400,8 +406,6 @@ static int __kprobes do_translation_fault(unsigned long addr,
 {
 	unsigned long irqflags;
 
-	IPIPE_BUG_ON(!hard_irqs_disabled());
-
 	if (addr < TASK_SIZE)
 		return do_page_fault(addr, esr, regs);
 
@@ -516,8 +520,6 @@ asmlinkage void __exception do_mem_abort(unsigned long addr, unsigned int esr,
 	unsigned long irqflags;
 	struct siginfo info;
 
-	IPIPE_BUG_ON(!hard_irqs_disabled());
-
 	if (!inf->fn(addr, esr, regs))
 		return;
 
@@ -596,10 +598,10 @@ asmlinkage int __exception do_debug_exception(unsigned long addr,
 	if (!inf->fn(addr, esr, regs))
 		return 1;
 
-	irqflags = ipipe_fault_entry();
-
 	if (__ipipe_report_trap(IPIPE_TRAP_UNKNOWN, regs))
-		goto out;
+		return 0;
+
+	irqflags = ipipe_fault_entry();
 
 	pr_alert("Unhandled debug exception: %s (0x%08x) at 0x%016lx\n",
 		 inf->name, esr, addr);
@@ -609,7 +611,7 @@ asmlinkage int __exception do_debug_exception(unsigned long addr,
 	info.si_code  = inf->code;
 	info.si_addr  = (void __user *)addr;
 	arm64_notify_die("", regs, &info, 0);
-out:
+
 	ipipe_fault_exit(irqflags);
 
 	return 0;
