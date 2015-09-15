@@ -35,7 +35,8 @@
 
 #include "qbman_private.h"
 #include "fsl_qbman_portal.h"
-#include <linux/fsl_dpaa_fd.h>
+#include "qbman_debug.h"
+#include "../../include/fsl_dpaa2_fd.h"
 
 #define QBMAN_SWP_CENA_BASE 0x818000000
 #define QBMAN_SWP_CINH_BASE 0x81c000000
@@ -59,7 +60,7 @@ static struct qbman_eq_desc eqdesc;
 static struct qbman_pull_desc pulldesc;
 static struct qbman_release_desc releasedesc;
 static struct qbman_eq_response eq_storage[1];
-static struct ldpaa_dq dq_storage[NUM_DQ_IN_MEM] __aligned(64);
+static struct dpaa2_dq dq_storage[NUM_DQ_IN_MEM] __aligned(64);
 static dma_addr_t eq_storage_phys;
 static dma_addr_t dq_storage_phys;
 
@@ -99,8 +100,8 @@ struct qbman_fd fd_eq[NUM_EQ_FRAME];
 struct qbman_fd fd_dq[NUM_DQ_FRAME];
 
 /* "Buffers" to be released (and storage for buffers to be acquired) */
-static uint64_t rbufs[] = { 0xf00dabba01234567ull, 0x9988776655443322ull };
-static uint64_t abufs[2];
+static uint64_t rbufs[320];
+static uint64_t abufs[320];
 
 static void do_enqueue(struct qbman_swp *swp)
 {
@@ -147,7 +148,7 @@ static void do_enqueue(struct qbman_swp *swp)
 static void do_push_dequeue(struct qbman_swp *swp)
 {
 	int i, j;
-	const struct ldpaa_dq *dq_storage1;
+	const struct dpaa2_dq *dq_storage1;
 	const struct qbman_fd *__fd;
 	int loopvar;
 
@@ -160,7 +161,7 @@ static void do_push_dequeue(struct qbman_swp *swp)
 		} while (!dq_storage1);
 		if (dq_storage1) {
 			__fd = (const struct qbman_fd *)
-					ldpaa_dq_fd(dq_storage1);
+					dpaa2_dq_fd(dq_storage1);
 			for (j = 0; j < 8; j++)
 				fd_dq[i].words[j] = __fd->words[j];
 			if (fd_cmp(&fd_eq[i], &fd_dq[i])) {
@@ -179,7 +180,7 @@ static void do_push_dequeue(struct qbman_swp *swp)
 static void do_pull_dequeue(struct qbman_swp *swp)
 {
 	int i, j, ret;
-	const struct ldpaa_dq *dq_storage1;
+	const struct dpaa2_dq *dq_storage1;
 	const struct qbman_fd *__fd;
 	int loopvar;
 
@@ -201,7 +202,7 @@ static void do_pull_dequeue(struct qbman_swp *swp)
 
 		if (dq_storage1) {
 			__fd = (const struct qbman_fd *)
-					ldpaa_dq_fd(dq_storage1);
+					dpaa2_dq_fd(dq_storage1);
 			for (j = 0; j < 8; j++)
 				fd_dq[i].words[j] = __fd->words[j];
 			if (fd_cmp(&fd_eq[i], &fd_dq[i])) {
@@ -253,29 +254,100 @@ static void do_pull_dequeue(struct qbman_swp *swp)
 	}
 }
 
-static void release_buffer(struct qbman_swp *swp)
+static void release_buffer(struct qbman_swp *swp, unsigned int num)
 {
 	int ret;
+	unsigned int i, j;
 
 	qbman_release_desc_clear(&releasedesc);
 	qbman_release_desc_set_bpid(&releasedesc, QBMAN_TEST_BPID);
-	pr_info("*****QBMan_test: Release buffer to BP %d\n",
-					QBMAN_TEST_BPID);
-	ret = qbman_swp_release(swp, &releasedesc, &rbufs[0],
-					ARRAY_SIZE(rbufs));
-	BUG_ON(ret);
+	pr_info("*****QBMan_test: Release %d buffers to BP %d\n",
+					num, QBMAN_TEST_BPID);
+	for (i = 0; i < (num / 7 + 1); i++) {
+		j = ((num - i * 7) > 7) ? 7 : (num - i * 7);
+		ret = qbman_swp_release(swp, &releasedesc, &rbufs[i * 7], j);
+		BUG_ON(ret);
+	}
 }
 
-static void acquire_buffer(struct qbman_swp *swp)
+static void acquire_buffer(struct qbman_swp *swp, unsigned int num)
 {
 	int ret;
+	unsigned int i, j;
 
-	pr_info("*****QBMan_test: Acquire buffer from BP %d\n",
-					QBMAN_TEST_BPID);
-	ret = qbman_swp_acquire(swp, QBMAN_TEST_BPID, &abufs[0], 2);
-	BUG_ON(ret != 2);
+	pr_info("*****QBMan_test: Acquire %d buffers from BP %d\n",
+					num, QBMAN_TEST_BPID);
+
+	for (i = 0; i < (num / 7 + 1); i++) {
+		j = ((num - i * 7) > 7) ? 7 : (num - i * 7);
+		ret = qbman_swp_acquire(swp, QBMAN_TEST_BPID, &abufs[i * 7], j);
+		BUG_ON(ret != j);
+	}
 }
 
+static void buffer_pool_test(struct qbman_swp *swp)
+{
+	struct qbman_attr info;
+	struct dpaa2_dq *bpscn_message;
+	dma_addr_t bpscn_phys;
+	uint64_t bpscn_ctx;
+	uint64_t ctx = 0xbbccddaadeadbeefull;
+	int i, ret;
+	uint32_t hw_targ;
+
+	pr_info("*****QBMan_test: test buffer pool management\n");
+	ret = qbman_bp_query(swp, QBMAN_TEST_BPID, &info);
+	qbman_bp_attr_get_bpscn_addr(&info, &bpscn_phys);
+	pr_info("The bpscn is %llx, info_phys is %llx\n", bpscn_phys,
+			virt_to_phys(&info));
+	bpscn_message = phys_to_virt(bpscn_phys);
+
+	for (i = 0; i < 320; i++)
+		rbufs[i] = 0xf00dabba01234567ull + i * 0x40;
+
+	release_buffer(swp, 320);
+
+	pr_info("QBMan_test: query the buffer pool\n");
+	qbman_bp_query(swp, QBMAN_TEST_BPID, &info);
+	hexdump(&info, 64);
+	qbman_bp_attr_get_hw_targ(&info, &hw_targ);
+	pr_info("hw_targ is %d\n", hw_targ);
+
+	/* Acquire buffers to trigger BPSCN */
+	acquire_buffer(swp, 300);
+	/* BPSCN should be written to the memory */
+	qbman_bp_query(swp, QBMAN_TEST_BPID, &info);
+	hexdump(&info, 64);
+	hexdump(bpscn_message, 64);
+	BUG_ON(!qbman_result_is_BPSCN(bpscn_message));
+	/* There should be free buffers in the pool */
+	BUG_ON(!(qbman_result_bpscn_has_free_bufs(bpscn_message)));
+	/* Buffer pool is depleted */
+	BUG_ON(!qbman_result_bpscn_is_depleted(bpscn_message));
+	/* The ctx should match */
+	bpscn_ctx = qbman_result_bpscn_ctx(bpscn_message);
+	pr_info("BPSCN test: ctx %llx, bpscn_ctx %llx\n", ctx, bpscn_ctx);
+	BUG_ON(ctx != bpscn_ctx);
+	memset(bpscn_message, 0, sizeof(struct dpaa2_dq));
+
+	/* Re-seed the buffer pool to trigger BPSCN */
+	release_buffer(swp, 240);
+	/* BPSCN should be written to the memory */
+	BUG_ON(!qbman_result_is_BPSCN(bpscn_message));
+	/* There should be free buffers in the pool */
+	BUG_ON(!(qbman_result_bpscn_has_free_bufs(bpscn_message)));
+	/* Buffer pool is not depleted */
+	BUG_ON(qbman_result_bpscn_is_depleted(bpscn_message));
+	memset(bpscn_message, 0, sizeof(struct dpaa2_dq));
+
+	acquire_buffer(swp, 260);
+	/* BPSCN should be written to the memory */
+	BUG_ON(!qbman_result_is_BPSCN(bpscn_message));
+	/* There should be free buffers in the pool while BPSCN generated */
+	BUG_ON(!(qbman_result_bpscn_has_free_bufs(bpscn_message)));
+	/* Buffer pool is depletion */
+	BUG_ON(!qbman_result_bpscn_is_depleted(bpscn_message));
+}
 
 static void ceetm_test(struct qbman_swp *swp)
 {
@@ -307,7 +379,7 @@ int qbman_test(void)
 				QBMAN_PORTAL_IDX * 0x10000, 0x10000);
 
 	/* Detect whether the mc image is the test image with GPP setup */
-	reg = __raw_readl(pd.cena_bar + 0x4);
+	reg = readl_relaxed(pd.cena_bar + 0x4);
 	if (reg != 0xdeadbeef) {
 		pr_err("The MC image doesn't have GPP test setup, stop!\n");
 		iounmap(pd.cena_bar);
@@ -345,15 +417,10 @@ int qbman_test(void)
 	/*******************/
 	do_push_dequeue(swp);
 
-	/*****************/
-	/* Try a release */
-	/*****************/
-	release_buffer(swp);
-
-	/******************/
-	/* Try an acquire */
-	/******************/
-	acquire_buffer(swp);
+	/**************************/
+	/* Test buffer pool funcs */
+	/**************************/
+	buffer_pool_test(swp);
 
 	/******************/
 	/* CEETM test     */
@@ -415,11 +482,12 @@ static int qbman_test_open(struct inode *inode, struct file *filp)
 	struct qbman_test_priv *priv;
 
 	priv = kmalloc(sizeof(struct qbman_test_priv), GFP_KERNEL);
+	if (!priv)
+		return -EIO;
 	filp->private_data = priv;
 	priv->has_swp_map = 0;
 	priv->has_dma_map = 0;
 	priv->pgoff = 0;
-	filp->f_mapping->backing_dev_info = &directly_mappable_cdev_bdi;
 	return 0;
 }
 
@@ -433,9 +501,9 @@ static int qbman_test_mmap(struct file *filp, struct vm_area_struct *vma)
 	if (vma->vm_pgoff == TEST_PORTAL1_CINH_PGOFF)
 		vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 	else if (vma->vm_pgoff == TEST_PORTAL1_CENA_PGOFF)
-		vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
+		vma->vm_page_prot = pgprot_cached_ns(vma->vm_page_prot);
 	else if (vma->vm_pgoff == priv->pgoff)
-		vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
+		vma->vm_page_prot = pgprot_cached(vma->vm_page_prot);
 	else {
 		pr_err("Damn, unrecognised pg_off!!\n");
 		return -EINVAL;
@@ -514,7 +582,7 @@ out:
 			return -EINVAL;
 		vaddr = (void *)get_zeroed_page(GFP_KERNEL);
 		params.phys_addr = virt_to_phys(vaddr);
-		priv->pgoff = params.phys_addr >> PAGE_SHIFT;
+		priv->pgoff = (unsigned long)params.phys_addr >> PAGE_SHIFT;
 		down_write(&current->mm->mmap_sem);
 		longret = do_mmap_pgoff(fp, PAGE_SIZE, PAGE_SIZE,
 				PROT_READ | PROT_WRITE, MAP_SHARED,
