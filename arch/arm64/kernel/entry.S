@@ -712,6 +712,7 @@ ENDPROC(ret_to_user)
  * This is how we return from a fork.
  */
 ENTRY(ret_from_fork)
+	enable_irq_cond
 	bl	schedule_tail
 	cbz	x19, 1f				// not a kernel thread
 	mov	x0, x20
