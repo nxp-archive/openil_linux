@@ -31,10 +31,6 @@
 #include <asm/thread_info.h>
 #include <asm/unistd.h>
 
-#ifndef CONFIG_IPIPE
-#ifdef ret_from_exception ret_to_user
-#endif
-	 
 /*
  * Context tracking subsystem.  Used to instrument transitions
  * between user and kernel mode.
@@ -60,6 +56,13 @@
 	bl	context_tracking_user_enter
 #endif
 	.endm
+
+#ifdef CONFIG_IPIPE
+#define PREEMPT_SCHEDULE_IRQ	__ipipe_preempt_schedule_irq
+#else /* !CONFIG_IPIPE */
+#ifdef ret_from_exception	ret_to_user
+#define PREEMPT_SCHEDULE_IRQ	preempt_schedule_irq
+#endif /* CONFIG_IPIPE */
 
 /*
  * Bad Abort numbers
@@ -355,13 +358,13 @@ el1_undef:
 	/*
 	 * Undefined instruction
 	 */
-	#ifdef CONFIG_IPIPE
+#ifdef CONFIG_IPIPE
 	mov	x0, #7				//@ x0 = IPIPE_TRAP_UNDEFINSTR
 	mov	x1, sp				//@ x1 = &regs
 	bl	__ipipe_notify_trap		//@ branch to trap handler
 	cmp	x0, #0
 	bne	__ipipe_fast_svc_irq_exit
-	#endif /* CONFIG_IPIPE */
+#endif /* CONFIG_IPIPE */
 	enable_dbg
 	mov	x0, sp
 	b	do_undefinstr
@@ -419,11 +422,7 @@ ENDPROC(el1_irq)
 #ifdef CONFIG_PREEMPT
 el1_preempt:
 	mov	x24, lr
-#ifndef CONFIG_IPIPE
-1:	bl	preempt_schedule_irq		// irq en/disable is done inside
-#else /* CONFIG_IPIPE */
-1:	bl	__ipipe_preempt_schedule_irq	// irq en/disable is done inside
-#endif /* CONFIG_IPIPE */
+1:	bl	PREEMPT_SCHEDULE_IRQ
 	ldr	x0, [tsk, #TI_FLAGS]		// get new tasks TI_FLAGS
 	tbnz	x0, #TIF_NEED_RESCHED, 1b	// needs rescheduling?
 	ret	x24
