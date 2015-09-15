@@ -1184,10 +1184,15 @@ static inline u16 ldpaa_eth_select_queue(struct net_device *dev,
 					 void *accel_priv,
 					 select_queue_fallback_t fallback)
 {
-	if (likely(!preemptible()))
-		return smp_processor_id();
+	struct ldpaa_eth_priv *priv = netdev_priv(dev);
 
-	return skb_get_hash(skb) % dev->real_num_tx_queues;
+	/* Choose the transmit queue id based on current cpu
+	 * and total number of hardware queues
+	 */
+	if (likely(!preemptible()))
+		return smp_processor_id() % priv->dpni_attrs.max_senders;
+
+	return skb_get_hash(skb) % priv->dpni_attrs.max_senders;
 }
 
 static const struct net_device_ops ldpaa_eth_ops = {
@@ -1219,10 +1224,8 @@ static void ldpaa_eth_setup_fqs(struct ldpaa_eth_priv *priv)
 {
 	int i;
 
-	/* We have one TxConf FQ per target CPU, although at the moment
-	 * we can't guarantee affinity.
-	 */
-	for_each_cpu(i, &priv->txconf_cpumask) {
+	/* We have one TxConf FQ per Tx flow */
+	for (i = 0; i < priv->dpni_attrs.max_senders; i++) {
 		priv->fq[priv->num_fqs].netdev_priv = priv;
 		priv->fq[priv->num_fqs].type = LDPAA_TX_CONF_FQ;
 		priv->fq[priv->num_fqs].consume = ldpaa_eth_tx_conf;
