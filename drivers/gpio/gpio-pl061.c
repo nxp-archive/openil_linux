@@ -48,7 +48,7 @@ struct pl061_context_save_regs {
 #endif
 
 struct pl061_gpio {
-	spinlock_t		lock;
+	ipipe_spinlock_t	lock;
 
 	void __iomem		*base;
 	struct gpio_chip	gc;
@@ -201,14 +201,30 @@ static void pl061_irq_handler(unsigned irq, struct irq_desc *desc)
 	writeb(pending, chip->base + GPIOIC);
 	if (pending) {
 		for_each_set_bit(offset, &pending, PL061_GPIO_NR)
-			generic_handle_irq(irq_find_mapping(gc->irqdomain,
-							    offset));
+			ipipe_handle_demuxed_irq(irq_find_mapping(gc->irqdomain,
+								  offset));
 	}
 
 	chained_irq_exit(irqchip, desc);
 }
 
 static void pl061_irq_mask(struct irq_data *d)
+{
+	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
+	struct pl061_gpio *chip = container_of(gc, struct pl061_gpio, gc);
+	u8 mask = BIT(irqd_to_hwirq(d) % PL061_GPIO_NR);
+	unsigned long flags;
+	u8 gpioie;
+
+	spin_lock_irqsave_cond(&chip->lock, flags);
+	gpioie = readb(chip->base + GPIOIE) & ~mask;
+	writeb(gpioie, chip->base + GPIOIE);
+	ipipe_lock_irq(d->irq);
+	spin_unlock_irqrestore_cond(&chip->lock, flags);
+}
+
+#ifdef CONFIG_IPIPE
+static void pl061_irq_mask_ack(struct irq_data *d)
 {
 	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
 	struct pl061_gpio *chip = container_of(gc, struct pl061_gpio, gc);
@@ -220,18 +236,21 @@ static void pl061_irq_mask(struct irq_data *d)
 	writeb(gpioie, chip->base + GPIOIE);
 	spin_unlock(&chip->lock);
 }
+#endif
 
 static void pl061_irq_unmask(struct irq_data *d)
 {
 	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
 	struct pl061_gpio *chip = container_of(gc, struct pl061_gpio, gc);
+	unsigned long flags;
 	u8 mask = BIT(irqd_to_hwirq(d) % PL061_GPIO_NR);
 	u8 gpioie;
 
-	spin_lock(&chip->lock);
+	spin_lock_irqsave_cond(&chip->lock, flags);
 	gpioie = readb(chip->base + GPIOIE) | mask;
 	writeb(gpioie, chip->base + GPIOIE);
-	spin_unlock(&chip->lock);
+	ipipe_unlock_irq(d->irq);
+	spin_unlock_irqrestore_cond(&chip->lock, flags);
 }
 
 static struct irq_chip pl061_irqchip = {
@@ -239,6 +258,9 @@ static struct irq_chip pl061_irqchip = {
 	.irq_mask	= pl061_irq_mask,
 	.irq_unmask	= pl061_irq_unmask,
 	.irq_set_type	= pl061_irq_type,
+#ifdef CONFIG_IPIPE
+	.irq_mask_ack	= pl061_irq_mask_ack,
+#endif
 };
 
 static int pl061_probe(struct amba_device *adev, const struct amba_id *id)
