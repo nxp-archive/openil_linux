@@ -144,8 +144,38 @@ static ssize_t driver_override_show(struct device *dev,
 
 static DEVICE_ATTR_RW(driver_override);
 
+static ssize_t rescan_store(struct device *dev,
+			    struct device_attribute *attr,
+			    const char *buf, size_t count)
+{
+	unsigned long val;
+	unsigned int irq_count;
+	struct fsl_mc_device *root_mc_dev;
+	struct fsl_mc_bus *root_mc_bus;
+
+	if (!is_root_dprc(dev))
+		return -EINVAL;
+
+	root_mc_dev = to_fsl_mc_device(dev);
+	root_mc_bus = to_fsl_mc_bus(root_mc_dev);
+
+	if (kstrtoul(buf, 0, &val) < 0)
+		return -EINVAL;
+
+	if (val) {
+		mutex_lock(&root_mc_bus->scan_mutex);
+		dprc_scan_objects(root_mc_dev, NULL, &irq_count);
+		mutex_unlock(&root_mc_bus->scan_mutex);
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR_WO(rescan);
+
 static struct attribute *fsl_mc_dev_attrs[] = {
 	&dev_attr_driver_override.attr,
+	&dev_attr_rescan.attr,
 	NULL,
 };
 
