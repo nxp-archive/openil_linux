@@ -623,17 +623,6 @@ el0_irq_naked:
 	b	ret_to_user
 ENDPROC(el0_irq)
 
-#ifdef CONFIG_IPIPE
-ret_from_exception:
-	disable_irq
-	bl	__ipipe_check_root
-	cmp     x0, #1
-	bne	__ipipe_ret_to_user_irqs_disabled  //Fast exit path over non-root domains
-	ct_user_exit
-	b	ret_to_user
-ENDPROC(ret_from_exception)
-#endif
-
 /*
  * Register switch for AArch64. The callee-saved registers need to be saved
  * and restored. On entry:
@@ -677,13 +666,15 @@ ret_fast_syscall:
 	kernel_exit 0, ret = 1
 
 #ifdef CONFIG_IPIPE
+ret_from_exception:
+	ldr	x0, [tsk, #TI_IPIPE]
+	tst	x0, #_TIP_HEAD
+	b.eq	ret_to_user
 __ipipe_ret_to_user:
-	disable_irq				// disable interrupts
-ENTRY(__ipipe_ret_to_user_irqs_disabled)
+	disable_irq
+__ipipe_ret_to_user_irqs_disabled:
 	kernel_exit 0, ret = 0
-ENDPROC(__ipipe_ret_to_user_irqs_disabled)
 #endif /* CONFIG_IPIPE */
-
 
 /*
  * Ok, we need to do extra processing, enter the slow path.
