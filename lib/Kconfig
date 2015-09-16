@@ -70,6 +70,21 @@ config CRC_CCITT
 	  the kernel tree does. Such modules that use library CRC-CCITT
 	  functions require M here.
 
+config CRC64
+	tristate "CRC64 functions"
+	help
+	  This option is provided for the case where no in-kernel-tree
+	  modules require CRC64 functions, but a module built outside
+	  the kernel tree does. Such modules that use library CRC64
+	  functions require M here.
+
+config CRC64_ECMA
+        tristate "CRC64 ECMA function"
+        help
+          This option provides CRC64 ECMA function. Drivers may select this
+          when they need to do cyclic redundancy check according to the CRC64
+          ECMA algorithm.
+
 config CRC16
 	tristate "CRC16 functions"
 	help
