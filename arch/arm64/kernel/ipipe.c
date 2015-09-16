@@ -305,11 +305,6 @@ unsigned asmlinkage __ipipe_bugon_irqs_enabled(unsigned x)
 }
 #endif
 
-asmlinkage int __ipipe_check_root(void)
-{
-	return __ipipe_root_p;
-}
-
 asmlinkage int __ipipe_check_root_interruptible(void)
 {
 	return __ipipe_root_p && !irqs_disabled();
