@@ -45,4 +45,4 @@ ccflags-y += \
 obj-$(CONFIG_FSL_DPA_OFFLOAD) += dpa_offload.o
 
 dpa_offload-objs := dpa_classifier.o dpa_ipsec.o dpa_ipsec_desc.o cq.o \
-		wrp_dpa_classifier.o dpa_offload_module.o
+		dpa_stats.o wrp_dpa_classifier.o dpa_offload_module.o
