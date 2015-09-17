@@ -38,6 +38,7 @@
 #include "dpa_offload_module.h"
 #include "wrp_dpa_classifier.h"
 #include "wrp_dpa_ipsec.h"
+#include "wrp_dpa_stats.h"
 
 static int __init dpa_offload_drv_init(void)
 {
@@ -61,6 +62,15 @@ static int __init dpa_offload_drv_init(void)
 		return err;
 	}
 
+	/* Initialize DPA Stats wrapper to listen to [ioctl] calls */
+	err = wrp_dpa_stats_init();
+	if (err == 0)
+		printk(KERN_INFO"DPA Stats Driver initialized.\n");
+	else {
+		printk(KERN_ERR"DPA Stats Driver failed to initialize.\n");
+		return err;
+	}
+
 	return err;
 }
 module_init(dpa_offload_drv_init);
@@ -78,6 +88,12 @@ static void __exit dpa_offload_drv_exit(void)
 		printk(KERN_ERR"DPA IPSec Driver failed to unload.\n");
 	else
 		printk(KERN_INFO"INFO: DPA IPSec Driver unloaded.\n");
+
+	/* Shut down DPA Stats wrapper */
+	if (wrp_dpa_stats_exit() < 0)
+		printk(KERN_ERR"DPA Stats Driver failed to unload.\n");
+	else
+		printk(KERN_INFO"INFO: DPA Stats Driver unloaded.\n");
 }
 module_exit(dpa_offload_drv_exit);
 
