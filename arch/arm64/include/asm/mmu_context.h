@@ -170,6 +170,7 @@ static inline void deferred_switch_mm(struct mm_struct *next)
 	finish_arch_post_lock_switch
 static inline void finish_arch_post_lock_switch(void)
 {
+	preempt_disable();
 	if (test_and_clear_thread_flag(TIF_SWITCH_MM)) {
 		struct mm_struct *mm = current->mm;
 		unsigned long flags;
@@ -180,6 +181,7 @@ static inline void finish_arch_post_lock_switch(void)
 		deferred_switch_mm(mm);
 		ipipe_mm_switch_unprotect(flags);
 	}
+	preempt_enable();
 }
 
 /*
