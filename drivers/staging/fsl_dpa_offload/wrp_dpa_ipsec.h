@@ -1,3 +1,4 @@
+
 /* Copyright 2008-2012 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,59 +30,31 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*
- * DPA Offloading driver implementation
- */
+#ifndef WRP_DPA_IPSEC_H_
+#define WRP_DPA_IPSEC_H_
 
-#include <linux/module.h>
+#include <linux/fs.h>
 
-#include "dpa_offload_module.h"
-#include "wrp_dpa_classifier.h"
-#include "wrp_dpa_ipsec.h"
 
-static int __init dpa_offload_drv_init(void)
-{
-	int err;
+#define DPA_IPSEC_CDEV					"dpa_ipsec"
 
-	/* Initialize DPA Classifier wrapper to listen to [ioctl] calls */
-	err = wrp_dpa_classif_init();
-	if (err == 0)
-		printk(KERN_INFO"DPA Classifier Driver initialized.\n");
-	else {
-		printk(KERN_ERR"DPA Classifier Driver failed to initialize.\n");
-		return err;
-	}
 
-	/* Initialize DPA IPSec wrapper to listen to [ioctl] calls */
-	err = wrp_dpa_ipsec_init();
-	if (err == 0)
-		printk(KERN_INFO"DPA IPSec Driver initialized.\n");
-	else {
-		printk(KERN_ERR"DPA IPSec Driver failed to initialize.\n");
-		return err;
-	}
+int wrp_dpa_ipsec_init(void);
 
-	return err;
-}
-module_init(dpa_offload_drv_init);
+int wrp_dpa_ipsec_exit(void);
 
-static void __exit dpa_offload_drv_exit(void)
-{
-	/* Shut down DPA Classifier wrapper */
-	if (wrp_dpa_classif_exit() < 0)
-		printk(KERN_ERR"DPA Classifier Driver failed to unload.\n");
-	else
-		printk(KERN_INFO"DPA Classifier Driver unloaded.\n");
+int wrp_dpa_ipsec_open(struct inode *inode, struct file *filp);
 
-	/* Shut down DPA IPSec wrapper */
-	if (wrp_dpa_ipsec_exit() < 0)
-		printk(KERN_ERR"DPA IPSec Driver failed to unload.\n");
-	else
-		printk(KERN_INFO"INFO: DPA IPSec Driver unloaded.\n");
-}
-module_exit(dpa_offload_drv_exit);
+int wrp_dpa_ipsec_release(struct inode *inode, struct file *filp);
 
-MODULE_AUTHOR("Freescale, <freescale.com>");
-MODULE_DESCRIPTION("DPA Offloading Driver");
-MODULE_LICENSE("GPL");
-MODULE_VERSION(DRV_VERSION);
+long wrp_dpa_ipsec_ioctl(struct file *filp, unsigned int cmd,
+			 unsigned long args);
+
+#ifdef CONFIG_COMPAT
+long wrp_dpa_ipsec_ioctl_compat(struct file *filp, unsigned int cmd,
+				unsigned long args);
+#endif
+
+int default_rekey_event_cb(int dpa_ipsec_id, int sa_id, int error);
+
+#endif	/* WRP_DPA_IPSEC_H_ */
