@@ -315,12 +315,6 @@ asmlinkage int __ipipe_check_root_interruptible(void)
 	return __ipipe_root_p && !irqs_disabled();
 }
 
-
-asmlinkage void __ipipe_stall_root(void)
-{
-	ipipe_stall_root();
-}
-
 __kprobes int
 __ipipe_switch_to_notifier_call_chain(struct atomic_notifier_head *nh,
 				      unsigned long val, void *v)
@@ -467,7 +461,7 @@ asmlinkage void __exception __ipipe_grab_irq(int irq, struct pt_regs *regs)
 
 static void __ipipe_do_IRQ(unsigned irq, void *cookie)
 {
-	struct pt_regs *regs = this_cpu_ptr(&ipipe_percpu.tick_regs);
+	struct pt_regs *regs = raw_cpu_ptr(&ipipe_percpu.tick_regs);
 	__handle_domain_irq(NULL, irq, false, regs);
 }
 
@@ -477,7 +471,7 @@ void __switch_mm_inner(struct mm_struct *prev, struct mm_struct *next,
 {
 #ifdef CONFIG_IPIPE_WANT_ACTIVE_MM
 	struct mm_struct ** const active_mm =
-		this_cpu_ptr(&ipipe_percpu.active_mm);
+		raw_cpu_ptr(&ipipe_percpu.active_mm);
 #endif /* CONFIG_IPIPE_WANT_ACTIVE_MM */
 #ifdef CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH
 	struct thread_info *const tip = current_thread_info();
@@ -534,7 +528,7 @@ void deferred_switch_mm(struct mm_struct *next)
 {
 #ifdef CONFIG_IPIPE_WANT_ACTIVE_MM
 	struct mm_struct ** const active_mm =
-		this_cpu_ptr(&ipipe_percpu.active_mm);
+		raw_cpu_ptr(&ipipe_percpu.active_mm);
 	struct mm_struct *prev = *active_mm;
 #endif /* CONFIG_IPIPE_WANT_ACTIVE_MM */
 #ifdef CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH
