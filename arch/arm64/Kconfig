@@ -86,6 +86,10 @@ config ARM64
 	help
 	  ARM 64-bit (AArch64) Linux support.
 
+config IPIPE_WANT_PREEMPTIBLE_SWITCH
+       depends on IPIPE
+       def_bool SMP
+
 config 64BIT
 	def_bool y
 
