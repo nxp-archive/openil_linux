@@ -86,11 +86,6 @@ config ARM64
 	help
 	  ARM 64-bit (AArch64) Linux support.
 
-if IPIPE
-config IPIPE_WANT_ACTIVE_MM
-       def_bool y
-endif
-
 config 64BIT
 	def_bool y
 
