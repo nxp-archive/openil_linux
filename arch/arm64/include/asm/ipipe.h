@@ -112,23 +112,25 @@ extern void (*__ipipe_mach_hrtimer_debug)(unsigned irq);
 
 #ifdef CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH
 
-#define ipipe_mm_switch_protect(flags)		\
+#define ipipe_mm_switch_protect(__flags)	\
 	do {					\
-		(void)(flags);			\
+		(void)(__flags);		\
 	} while(0)
 
-#define ipipe_mm_switch_unprotect(flags)	\
+#define ipipe_mm_switch_unprotect(__flags)	\
 	do {					\
-		(void)(flags);			\
+		(void)(__flags);		\
 	} while(0)
 
 #else /* !CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH */
 
-#define ipipe_mm_switch_protect(flags) \
-	flags = hard_cond_local_irq_save()
+#define ipipe_mm_switch_protect(__flags)		\
+	do {						\
+		(__flags) = hard_cond_local_irq_save();	\
+	} while (0)
 
-#define ipipe_mm_switch_unprotect(flags) \
-	hard_cond_local_irq_restore(flags)
+#define ipipe_mm_switch_unprotect(__flags)	\
+	hard_cond_local_irq_restore(__flags)
 
 #endif /* !CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH */
 
