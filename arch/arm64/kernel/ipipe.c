@@ -563,38 +563,6 @@ unsigned long long __ipipe_mach_get_tsc(void) {
 }
 #endif
 
-#if defined(CONFIG_IPIPE_DEBUG) && defined(CONFIG_DEBUG_LL)
-void printascii(const char *s);
-
-static IPIPE_DEFINE_SPINLOCK(serial_debug_lock);
-
-void __ipipe_serial_debug(const char *fmt, ...)
-{
-	unsigned long flags;
-	char buf[128];
-	va_list ap;
-	int n;
-
-	va_start(ap, fmt);
-	n = vsnprintf(buf, sizeof(buf) - 2, fmt, ap);
-	va_end(ap);
-
-	if (n > 0 && buf[n - 1] == '\n') {
-		buf[n] = '\r';
-		buf[n+1] = '\0';
-	}
-
-	spin_lock_irqsave(&serial_debug_lock, flags);
-	printascii(buf);
-	spin_unlock_irqrestore(&serial_debug_lock, flags);
-}
-
-#ifndef CONFIG_SERIAL_8250_CONSOLE
-EXPORT_SYMBOL_GPL(__ipipe_serial_debug);
-#endif
-
-#endif
-
 EXPORT_SYMBOL_GPL(do_munmap);
 EXPORT_SYMBOL_GPL(show_stack);
 EXPORT_SYMBOL_GPL(init_mm);
