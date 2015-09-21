@@ -199,6 +199,7 @@ struct dpaa2_eth_stats {
 	/* Enqueues retried due to portal busy */
 	__u64	tx_portal_busy;
 };
+
 /* Per-FQ statistics */
 struct dpaa2_eth_fq_stats {
 	/* Number of frames received on this queue */

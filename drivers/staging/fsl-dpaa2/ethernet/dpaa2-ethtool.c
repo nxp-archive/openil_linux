@@ -49,7 +49,9 @@ char dpaa2_ethtool_stats[][ETH_GSTRING_LEN] = {
 	"tx bytes",
 	"tx err frames",
 };
+
 #define DPAA2_ETH_NUM_STATS	ARRAY_SIZE(dpaa2_ethtool_stats)
+
 /* To be kept in sync with 'struct dpaa2_eth_stats' */
 char dpaa2_ethtool_extras[][ETH_GSTRING_LEN] = {
 	/* per-cpu stats */
@@ -78,6 +80,7 @@ char dpaa2_ethtool_extras[][ETH_GSTRING_LEN] = {
 	"buffer count"
 #endif
 };
+
 #define DPAA2_ETH_NUM_EXTRA_STATS	ARRAY_SIZE(dpaa2_ethtool_extras)
 
 static void dpaa2_get_drvinfo(struct net_device *net_dev,
@@ -353,9 +356,9 @@ static int dpaa2_cls_key_off(struct net_device *net_dev, u64 flag)
 	return -1;
 }
 
-static int dpaa2_cls_key_size(struct net_device *net_dev)
+static u8 dpaa2_cls_key_size(struct net_device *net_dev)
 {
-	int i, size = 0;
+	u8 i, size = 0;
 
 	for (i = 0; i < ARRAY_SIZE(dpaa2_hash_fields); i++) {
 		if (!dpaa2_cls_is_enabled(net_dev,
@@ -367,9 +370,9 @@ static int dpaa2_cls_key_size(struct net_device *net_dev)
 	return size;
 }
 
-static int dpaa2_cls_max_key_size(struct net_device *net_dev)
+static u8 dpaa2_cls_max_key_size(struct net_device *net_dev)
 {
-	int i, size = 0;
+	u8 i, size = 0;
 
 	for (i = 0; i < ARRAY_SIZE(dpaa2_hash_fields); i++)
 		size += dpaa2_hash_fields[i].size;
@@ -379,7 +382,7 @@ static int dpaa2_cls_max_key_size(struct net_device *net_dev)
 
 void dpaa2_cls_check(struct net_device *net_dev)
 {
-	int key_size = dpaa2_cls_max_key_size(net_dev);
+	u8 key_size = dpaa2_cls_max_key_size(net_dev);
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
 
 	if (priv->dpni_attrs.options & DPNI_OPT_DIST_FS &&
@@ -440,6 +443,8 @@ int dpaa2_set_hash(struct net_device *net_dev, u64 flags)
 	}
 
 	dma_mem = kzalloc(DPAA2_CLASSIFIER_DMA_SIZE, GFP_DMA | GFP_KERNEL);
+	if (!dma_mem)
+		return -ENOMEM;
 
 	err = dpni_prepare_key_cfg(&cls_cfg, dma_mem);
 	if (err) {
@@ -455,6 +460,7 @@ int dpaa2_set_hash(struct net_device *net_dev, u64 flags)
 					       DMA_TO_DEVICE);
 	if (dma_mapping_error(net_dev->dev.parent, dist_cfg.key_cfg_iova)) {
 		dev_err(dev, "DMA mapping failed\n");
+		kfree(dma_mem);
 		return -ENOMEM;
 	}
 
@@ -487,11 +493,10 @@ static int dpaa2_cls_prep_rule(struct net_device *net_dev,
 	struct ethtool_tcpip4_spec *l4ip4_h, *l4ip4_m;
 	struct ethhdr *eth_h, *eth_m;
 	struct ethtool_flow_ext *ext_h, *ext_m;
-	const int key_size = dpaa2_cls_key_size(net_dev);
+	const u8 key_size = dpaa2_cls_key_size(net_dev);
 	void *msk = key + key_size;
 
 	memset(key, 0, key_size * 2);
-
 
 	/* This code is a major mess, it has to be cleaned up after the
 	 * classification mask issue is fixed and key format will be made static
@@ -646,9 +651,9 @@ static int dpaa2_do_cls(struct net_device *net_dev,
 		return -EOPNOTSUPP;
 	}
 
-	if ((fs->ring_cookie != RX_CLS_FLOW_DISC
-	    && fs->ring_cookie >= dpaa2_queue_count(priv))
-	    || fs->location >= rule_cnt)
+	if ((fs->ring_cookie != RX_CLS_FLOW_DISC &&
+	     fs->ring_cookie >= dpaa2_queue_count(priv)) ||
+	     fs->location >= rule_cnt)
 		return -EINVAL;
 
 	memset(&rule_cfg, 0, sizeof(rule_cfg));
@@ -706,7 +711,6 @@ err_free_mem:
 	kfree(dma_mem);
 
 	return err;
-
 }
 
 static int dpaa2_add_cls(struct net_device *net_dev,

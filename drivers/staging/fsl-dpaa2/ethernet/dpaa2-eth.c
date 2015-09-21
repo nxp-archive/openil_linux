@@ -467,7 +467,7 @@ static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
 		dpaa2_sg_set_addr(&sgt[i], sg_dma_address(crt_scl));
 		dpaa2_sg_set_len(&sgt[i], sg_dma_len(crt_scl));
 	}
-	dpaa2_sg_set_final(&sgt[i-1], true);
+	dpaa2_sg_set_final(&sgt[i - 1], true);
 
 	/* Store the skb backpointer in the SGT buffer.
 	 * Fit the scatterlist and the number of buffers alongside the
@@ -563,14 +563,14 @@ static int dpaa2_eth_build_single_fd(struct dpaa2_eth_priv *priv,
  * to be checked if we're on the confirmation path.
  */
 static void dpaa2_eth_free_fd(const struct dpaa2_eth_priv *priv,
-			       const struct dpaa2_fd *fd,
-			       uint32_t *status)
+			      const struct dpaa2_fd *fd,
+			      uint32_t *status)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	dma_addr_t fd_addr;
 	struct sk_buff **skbh, *skb;
 	unsigned char *buffer_start;
-	int nr_frags, unmap_size;
+	int unmap_size;
 	struct scatterlist *scl;
 	int num_sg, num_dma_bufs;
 	struct dpaa2_eth_swa *bps;
@@ -602,7 +602,6 @@ static void dpaa2_eth_free_fd(const struct dpaa2_eth_priv *priv,
 		kfree(scl);
 
 		/* Unmap the SGT buffer */
-		nr_frags = skb_shinfo(skb)->nr_frags;
 		unmap_size = priv->tx_data_offset +
 		       sizeof(struct dpaa2_sg_entry) * (1 + num_dma_bufs);
 		dma_unmap_single(dev, fd_addr, unmap_size, DMA_TO_DEVICE);
@@ -649,7 +648,7 @@ static int dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	/* TxConf FQ selection primarily based on cpu affinity; this is
 	 * non-migratable context, so it's safe to call smp_processor_id().
 	 */
-	int queue_mapping = smp_processor_id() % priv->dpni_attrs.max_senders;
+	u16 queue_mapping = smp_processor_id() % priv->dpni_attrs.max_senders;
 
 	percpu_stats = this_cpu_ptr(priv->percpu_stats);
 	percpu_extras = this_cpu_ptr(priv->percpu_extras);
@@ -686,8 +685,10 @@ static int dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 		err = dpaa2_eth_build_sg_fd(priv, skb, &fd);
 		percpu_extras->tx_sg_frames++;
 		percpu_extras->tx_sg_bytes += skb->len;
-	} else
+	} else {
 		err = dpaa2_eth_build_single_fd(priv, skb, &fd);
+	}
+
 	if (unlikely(err)) {
 		percpu_stats->tx_dropped++;
 		goto err_build_fd;
@@ -1453,7 +1454,7 @@ dpaa2_alloc_channel(struct dpaa2_eth_priv *priv, int cpu)
 	struct device *dev = priv->net_dev->dev.parent;
 	int err;
 
-	channel = kzalloc(sizeof(struct dpaa2_eth_channel), GFP_ATOMIC);
+	channel = kzalloc(sizeof(*channel), GFP_ATOMIC);
 	if (!channel) {
 		dev_err(dev, "Memory allocation failed\n");
 		return NULL;
@@ -1839,7 +1840,6 @@ err_open:
 	return err;
 }
 
-
 static void __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
 {
 	int cpu, *count;
@@ -1973,8 +1973,8 @@ static int dpaa2_dpni_setup(struct fsl_mc_device *ls_dev)
 	priv->tx_data_offset += DPAA2_ETH_SWA_SIZE;
 
 	/* allocate classification rule space */
-	priv->cls_rule = kzalloc(sizeof(struct dpaa2_cls_rule)
-				 * DPAA2_CLASSIFIER_ENTRY_COUNT, GFP_KERNEL);
+	priv->cls_rule = kzalloc(sizeof(*priv->cls_rule) *
+				 DPAA2_CLASSIFIER_ENTRY_COUNT, GFP_KERNEL);
 	if (!priv->cls_rule)
 		goto err_cls_rule;
 
