@@ -162,7 +162,6 @@ static struct sk_buff *dpaa2_eth_build_linear_skb(struct dpaa2_eth_priv *priv,
 	return skb;
 }
 
-
 /* Build a non linear (fragmented) skb based on a S/G table */
 static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
 						struct dpaa2_sg_entry *sgt)
@@ -184,7 +183,11 @@ static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
 		dpaa2_sg_le_to_cpu(sge);
 
 		/* We don't support anything else yet! */
-		BUG_ON(dpaa2_sg_get_format(sge) != dpaa2_sg_single);
+		if (unlikely(dpaa2_sg_get_format(sge) != dpaa2_sg_single)) {
+			dev_warn_once(dev, "Unsupported S/G entry format: %d\n",
+				      dpaa2_sg_get_format(sge));
+			return NULL;
+		}
 
 		/* Get the address, offset and length from the S/G entry */
 		sg_addr = dpaa2_sg_get_addr(sge);
@@ -278,11 +281,11 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 	} else {
 		/* We don't support any other format */
 		netdev_err(priv->net_dev, "Received invalid frame format\n");
-		BUG();
+		goto err_frame_format;
 	}
 
 	if (unlikely(!skb)) {
-		netdev_err(priv->net_dev, "error building skb\n");
+		dev_err_once(dev, "error building skb\n");
 		goto err_build_skb;
 	}
 
@@ -318,7 +321,7 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 		netif_receive_skb(skb);
 
 	return;
-
+err_frame_format:
 err_build_skb:
 	dpaa2_eth_free_rx_fd(priv, fd, vaddr);
 	percpu_stats->rx_dropped++;
@@ -1637,14 +1640,16 @@ static void dpaa2_set_fq_affinity(struct dpaa2_eth_priv *priv)
 	}
 }
 
+/**
+ * Drain the specified number of buffers from the DPNI's private buffer pool.
+ * @count must not exceeed 7
+ */
 static void dpaa2_dpbp_drain_cnt(struct dpaa2_eth_priv *priv, int count)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	uint64_t buf_array[7];
 	void *vaddr;
 	int ret, i;
-
-	BUG_ON(count > 7);
 
 	do {
 		ret = dpaa2_io_service_acquire(NULL, priv->dpbp_attrs.bpid,
