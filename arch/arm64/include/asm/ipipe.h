@@ -280,8 +280,7 @@ static inline void ipipe_handle_multi_ipi(int irq, struct pt_regs *regs)
 #endif /* CONFIG_SMP */
 #endif /* CONFIG_IPIPE */
 
-#if defined (CONFIG_IPIPE_DEBUG) &&		\
-	(defined(CONFIG_DEBUG_LL) || defined(CONFIG_SERIAL_8250_CONSOLE))
+#ifdef CONFIG_IPIPE_DEBUG
 void __ipipe_serial_debug(const char *fmt, ...);
 #else
 #define __ipipe_serial_debug(fmt, args...)	do { } while (0)

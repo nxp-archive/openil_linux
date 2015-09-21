@@ -2169,6 +2169,8 @@ static int __init pl011_early_console_setup(struct earlycon_device *device,
 EARLYCON_DECLARE(pl011, pl011_early_console_setup);
 OF_EARLYCON_DECLARE(pl011, "arm,pl011", pl011_early_console_setup);
 
+#ifdef CONFIG_IPIPE_DEBUG
+
 static IPIPE_DEFINE_SPINLOCK(ipipe_amba_lock);
 
 #include <linux/nmi.h>
@@ -2219,6 +2221,8 @@ void __ipipe_serial_debug(const char *fmt, ...)
 
         spin_unlock_irqrestore(&ipipe_amba_lock, flags);
 }
+
+#endif /* CONFIG_IPIPE_DEBUG */
 
 #else
 #define AMBA_CONSOLE	NULL
