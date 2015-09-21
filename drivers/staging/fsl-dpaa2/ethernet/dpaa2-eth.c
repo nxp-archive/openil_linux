@@ -803,7 +803,7 @@ static int dpaa2_eth_set_tx_csum(struct dpaa2_eth_priv *priv, bool enable)
 	return 0;
 }
 
-static inline int __dpaa2_eth_pull_channel(struct dpaa2_eth_channel *ch)
+static int __dpaa2_eth_pull_channel(struct dpaa2_eth_channel *ch)
 {
 	int err;
 	int dequeues = -1;
@@ -1102,8 +1102,8 @@ do { \
 /* Copy mac unicast addresses from @net_dev to @priv.
  * Its sole purpose is to make dpaa2_eth_set_rx_mode() more readable.
  */
-static inline void _dpaa2_eth_hw_add_uc_addr(const struct net_device *net_dev,
-					     struct dpaa2_eth_priv *priv)
+static void _dpaa2_eth_hw_add_uc_addr(const struct net_device *net_dev,
+				      struct dpaa2_eth_priv *priv)
 {
 	struct netdev_hw_addr *ha;
 	int err;
@@ -1120,8 +1120,8 @@ static inline void _dpaa2_eth_hw_add_uc_addr(const struct net_device *net_dev,
 /* Copy mac multicast addresses from @net_dev to @priv
  * Its sole purpose is to make dpaa2_eth_set_rx_mode() more readable.
  */
-static inline void _dpaa2_eth_hw_add_mc_addr(const struct net_device *net_dev,
-					     struct dpaa2_eth_priv *priv)
+static void _dpaa2_eth_hw_add_mc_addr(const struct net_device *net_dev,
+				      struct dpaa2_eth_priv *priv)
 {
 	struct netdev_hw_addr *ha;
 	int err;

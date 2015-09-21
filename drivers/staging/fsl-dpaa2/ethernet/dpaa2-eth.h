@@ -353,7 +353,7 @@ extern const struct ethtool_ops dpaa2_ethtool_ops;
  */
 int dpaa2_set_hash(struct net_device *net_dev, u64 flags);
 
-static inline int dpaa2_queue_count(struct dpaa2_eth_priv *priv)
+static int dpaa2_queue_count(struct dpaa2_eth_priv *priv)
 {
 	if (!dpaa2_eth_hash_enabled(priv))
 		return 1;
