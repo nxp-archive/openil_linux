@@ -363,7 +363,7 @@ el1_undef:
 	mov	x1, sp				//@ x1 = &regs
 	bl	__ipipe_notify_trap		//@ branch to trap handler
 	cmp	x0, #0
-	bne	__ipipe_fast_svc_irq_exit
+	bne	ipipe_fast_svc_irq_exit
 #endif /* CONFIG_IPIPE */
 	enable_dbg
 	mov	x0, sp
@@ -399,7 +399,7 @@ el1_irq:
 	irq_handler
 
 #ifdef CONFIG_IPIPE
-	bne	__ipipe_fast_svc_irq_exit
+	bne	ipipe_fast_svc_irq_exit
 #endif
 #ifdef CONFIG_PREEMPT
 	get_thread_info tsk
@@ -411,7 +411,7 @@ el1_irq:
 1:
 #endif
 #ifdef CONFIG_IPIPE
-__ipipe_fast_svc_irq_exit:
+ipipe_fast_svc_irq_exit:
 #endif
 #ifdef CONFIG_TRACE_IRQFLAGS
 	bl	trace_hardirqs_on
@@ -613,9 +613,11 @@ el0_irq_naked:
 
 	ct_user_exit
 	irq_handler
-
 #ifdef CONFIG_IPIPE
-	bne	__ipipe_ret_to_user_irqs_disabled
+	b.eq	normal_irq_ret
+	/* Fast IRQ exit, root domain stalled or not current. */
+	kernel_exit 0, ret = 0
+normal_irq_ret:
 #endif	/* CONFIG_IPIPE */
 #ifdef CONFIG_TRACE_IRQFLAGS
 	bl	trace_hardirqs_on
@@ -653,6 +655,23 @@ ENTRY(cpu_switch_to)
 	ret
 ENDPROC(cpu_switch_to)
 
+#ifdef CONFIG_IPIPE
+ret_from_exception:
+	ldr	x0, [tsk, #TI_IPIPE]
+	tst	x0, #_TIP_HEAD
+	b.eq	ret_to_user
+	disable_irq
+	kernel_exit 0, ret = 0
+ipipe_fast_sysret:
+	ldr	x0, [sp, #S_X0]
+	disable_irq
+	ldr	x1, [tsk, #TI_FLAGS]
+	enable_step_tsk x1, x2
+	kernel_exit 0, ret = 1
+ipipe_slow_sysret:
+	ldr	x0, [sp, #S_X0]
+	/* Falldown wanted. */
+#endif /* CONFIG_IPIPE */
 /*
  * This is the fast syscall return path.  We do as little as possible here,
  * and this includes saving x0 back into the kernel stack.
@@ -664,17 +683,6 @@ ret_fast_syscall:
 	cbnz	x2, fast_work_pending
 	enable_step_tsk x1, x2
 	kernel_exit 0, ret = 1
-
-#ifdef CONFIG_IPIPE
-ret_from_exception:
-	ldr	x0, [tsk, #TI_IPIPE]
-	tst	x0, #_TIP_HEAD
-	b.eq	ret_to_user
-__ipipe_ret_to_user:
-	disable_irq
-__ipipe_ret_to_user_irqs_disabled:
-	kernel_exit 0, ret = 0
-#endif /* CONFIG_IPIPE */
 
 /*
  * Ok, we need to do extra processing, enter the slow path.
@@ -737,10 +745,10 @@ el0_svc_naked:					// compat entry point
 	mov	x1, sp
 	mov	x0, scno
 	bl	__ipipe_syscall_root
-	cmp	x0, #0
-	blt	__ipipe_ret_to_user
 	get_thread_info tsk
-	bgt	ret_to_user
+	cmp	x0, #0
+	blt	ipipe_fast_sysret
+	bgt	ipipe_slow_sysret
 	/*
 	 * Save/restore needed during syscalls.  Restore syscall arguments from
 	 * the values already saved on stack during kernel_entry.
