@@ -421,7 +421,8 @@ static void kvmppc_e500_setup_stlbe(
 	BUG_ON(!(ref->flags & E500_TLB_VALID));
 
 	/* Force IPROT=0 for all guest mappings. */
-	stlbe->mas1 = MAS1_TSIZE(tsize) | get_tlb_sts(gtlbe) | MAS1_VALID;
+	stlbe->mas1 = MAS1_TSIZE(tsize) | get_tlb_sts(gtlbe) | MAS1_VALID |
+		      (get_tlb_ind(vcpu, gtlbe) << MAS1_IND_SHIFT);
 	stlbe->mas2 = (gvaddr & MAS2_EPN) | (ref->flags & E500_TLB_MAS2_ATTR);
 	stlbe->mas7_3 = ((u64)pfn << PAGE_SHIFT) |
 			e500_shadow_mas3_attrib(gtlbe->mas7_3, pr);
@@ -444,6 +445,7 @@ static inline int kvmppc_e500_shadow_map(struct kvmppc_vcpu_e500 *vcpu_e500,
 	pte_t *ptep;
 	unsigned int wimg = 0;
 	pgd_t *pgdir;
+	int ind;
 	unsigned long flags;
 
 	/* used to check for invalidations in progress */
@@ -460,6 +462,15 @@ static inline int kvmppc_e500_shadow_map(struct kvmppc_vcpu_e500 *vcpu_e500,
 	 */
 	slot = gfn_to_memslot(vcpu_e500->vcpu.kvm, gfn);
 	hva = gfn_to_hva_memslot(slot, gfn);
+
+	/*
+	 * An IND entry points to a Page Table which has a different size
+	 * compared to the translation size that it covers:
+	 *	page size bytes = (tsize bytes / 4KB) * 8 bytes
+	 * this gives:
+	 *	psize = tsize - BOOK3E_PAGESZ_4K - 7;
+	 */
+	ind = get_tlb_ind(&vcpu_e500->vcpu, gtlbe);
 
 	if (tlbsel == 1) {
 		struct vm_area_struct *vma;
@@ -497,6 +508,8 @@ static inline int kvmppc_e500_shadow_map(struct kvmppc_vcpu_e500 *vcpu_e500,
 
 			tsize = (gtlbe->mas1 & MAS1_TSIZE_MASK) >>
 				MAS1_TSIZE_SHIFT;
+			if (ind)
+				tsize -= BOOK3E_PAGESZ_4K + 7;
 
 			/*
 			 * Calculate TSIZE increment. MMUv2 supports
@@ -512,7 +525,14 @@ static inline int kvmppc_e500_shadow_map(struct kvmppc_vcpu_e500 *vcpu_e500,
 			 * are supported so strip the LSB on MMUv1.
 			 */
 			tsize &= ~(tsize_inc - 1);
-			tsize = max(BOOK3E_PAGESZ_4K, tsize);
+			/*
+			 * On MMUv2 IND case, the TSIZE just calculated above
+			 * (size of the actual page table, not the translation
+			 * size) may end up smaller than 4K, so don't
+			 * touch it in this case.
+			 */
+			if (!ind)
+				tsize = max(BOOK3E_PAGESZ_4K, tsize);
 
 			/*
 			 * Now find the largest tsize (up to what the guest
@@ -547,6 +567,8 @@ static inline int kvmppc_e500_shadow_map(struct kvmppc_vcpu_e500 *vcpu_e500,
 
 			tsize = (gtlbe->mas1 & MAS1_TSIZE_MASK) >>
 				MAS1_TSIZE_SHIFT;
+			if (ind)
+				tsize -= BOOK3E_PAGESZ_4K + 7;
 
 			/*
 			 * Take the largest page size that satisfies both host
@@ -614,6 +636,10 @@ static inline int kvmppc_e500_shadow_map(struct kvmppc_vcpu_e500 *vcpu_e500,
 		}
 	}
 	kvmppc_e500_ref_setup(ref, gtlbe, pfn, wimg);
+
+	/* Restore translation size for indirect entries */
+	if (ind)
+		tsize += BOOK3E_PAGESZ_4K + 7;
 
 	kvmppc_e500_setup_stlbe(&vcpu_e500->vcpu, gtlbe, tsize,
 				ref, gvaddr, stlbe);

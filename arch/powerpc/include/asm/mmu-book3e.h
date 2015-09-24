@@ -61,6 +61,7 @@
 #define MAS1_IPROT		0x40000000
 #define MAS1_TID(x)		(((x) << 16) & 0x3FFF0000)
 #define MAS1_IND		0x00002000
+#define MAS1_IND_SHIFT		13
 #define MAS1_TS			0x00001000
 #define MAS1_TSIZE_MASK		0x00000f80
 #define MAS1_TSIZE_SHIFT	7
@@ -97,6 +98,7 @@
 #define MAS4_TLBSEL_MASK	MAS0_TLBSEL_MASK
 #define MAS4_TLBSELD(x) 	MAS0_TLBSEL(x)
 #define MAS4_INDD		0x00008000	/* Default IND */
+#define MAS4_INDD_SHIFT		15
 #define MAS4_TSIZED(x)		MAS1_TSIZE(x)
 #define MAS4_X0D		0x00000040
 #define MAS4_X1D		0x00000020
