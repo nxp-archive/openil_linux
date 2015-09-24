@@ -96,6 +96,112 @@ static inline void __write_host_tlbe(struct kvm_book3e_206_tlb_entry *stlbe,
 	                              stlbe->mas2, stlbe->mas7_3);
 }
 
+#if defined(CONFIG_64BIT) && defined(CONFIG_KVM_BOOKE_HV)
+static int lrat_next(void)
+{
+	int next, this;
+	struct tlb_core_data *tcd = get_paca()->tcd_ptr;
+
+	this = tcd->lrat_next;
+	next = this + 1;
+	if (unlikely(next >= tcd->lrat_max))
+		next = 0;
+	tcd->lrat_next = next;
+
+	return this;
+}
+
+static void write_host_lrate(int tsize, gfn_t gfn, unsigned long pfn,
+			     uint32_t lpid, bool valid)
+{
+	struct kvm_book3e_206_tlb_entry stlbe;
+	unsigned long flags;
+
+	stlbe.mas1 = (valid ? MAS1_VALID : 0) | MAS1_TSIZE(tsize);
+	stlbe.mas2 = ((u64)gfn << PAGE_SHIFT);
+	stlbe.mas7_3 = ((u64)pfn << PAGE_SHIFT);
+	stlbe.mas8 = MAS8_TGS | lpid;
+
+	local_irq_save(flags);
+
+	__write_host_tlbe(&stlbe, MAS0_ATSEL | MAS0_ESEL(lrat_next()), lpid);
+
+	local_irq_restore(flags);
+}
+
+void kvmppc_lrat_map(struct kvm_vcpu *vcpu, gfn_t gfn)
+{
+	struct kvm_memory_slot *slot;
+	unsigned long pfn;
+	unsigned long hva;
+	struct vm_area_struct *vma;
+	unsigned long psize;
+	int tsize;
+	unsigned long tsize_pages;
+
+	slot = gfn_to_memslot(vcpu->kvm, gfn);
+	if (!slot) {
+		pr_err_ratelimited("%s: couldn't find memslot for gfn %lx!\n",
+				   __func__, (long)gfn);
+		return;
+	}
+
+	hva = slot->userspace_addr;
+
+	down_read(&current->mm->mmap_sem);
+	vma = find_vma(current->mm, hva);
+	if (vma && (hva >= vma->vm_start)) {
+		psize = vma_kernel_pagesize(vma);
+	} else {
+		pr_err_ratelimited("%s: couldn't find virtual memory address for gfn %lx!\n",
+				   __func__, (long)gfn);
+		up_read(&current->mm->mmap_sem);
+		return;
+	}
+	up_read(&current->mm->mmap_sem);
+
+	pfn = gfn_to_pfn_memslot(slot, gfn);
+	if (is_error_noslot_pfn(pfn)) {
+		pr_err_ratelimited("%s: couldn't get real page for gfn %lx!\n",
+				   __func__, (long)gfn);
+		return;
+	}
+
+	tsize = __ilog2(psize) - 10;
+	tsize_pages = 1 << (tsize + 10 - PAGE_SHIFT);
+	gfn &= ~(tsize_pages - 1);
+	pfn &= ~(tsize_pages - 1);
+
+	write_host_lrate(tsize, gfn, pfn, vcpu->kvm->arch.lpid, true);
+
+	kvm_release_pfn_clean(pfn);
+}
+
+void kvmppc_lrat_invalidate(struct kvm_vcpu *vcpu)
+{
+	uint32_t mas0, mas1 = 0;
+	int esel;
+	unsigned long flags;
+
+	local_irq_save(flags);
+
+	/* LRAT does not have a dedicated instruction for invalidation */
+	for (esel = 0; esel < get_paca()->tcd_ptr->lrat_max; esel++) {
+		mas0 = MAS0_ATSEL | MAS0_ESEL(esel);
+		mtspr(SPRN_MAS0, mas0);
+		asm volatile("isync; tlbre" : : : "memory");
+		mas1 = mfspr(SPRN_MAS1) & ~MAS1_VALID;
+		mtspr(SPRN_MAS1, mas1);
+		asm volatile("isync; tlbwe" : : : "memory");
+	}
+	/* Must clear mas8 for other host tlbwe's */
+	mtspr(SPRN_MAS8, 0);
+	isync();
+
+	local_irq_restore(flags);
+}
+#endif /* CONFIG_64BIT && CONFIG_KVM_BOOKE_HV */
+
 /*
  * Acquire a mas0 with victim hint, as if we just took a TLB miss.
  *

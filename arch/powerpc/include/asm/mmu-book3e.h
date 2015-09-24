@@ -40,6 +40,8 @@
 
 /* MAS registers bit definitions */
 
+#define MAS0_ATSEL		0x80000000
+#define MAS0_ATSEL_SHIFT	31
 #define MAS0_TLBSEL_MASK	0x30000000
 #define MAS0_TLBSEL_SHIFT	28
 #define MAS0_TLBSEL(x)		(((x) << MAS0_TLBSEL_SHIFT) & MAS0_TLBSEL_MASK)
@@ -55,6 +57,7 @@
 #define MAS0_WQ_CLR_RSRV       	0x00002000
 
 #define MAS1_VALID		0x80000000
+#define MAS1_VALID_SHIFT	31
 #define MAS1_IPROT		0x40000000
 #define MAS1_TID(x)		(((x) << 16) & 0x3FFF0000)
 #define MAS1_IND		0x00002000
@@ -220,6 +223,12 @@
 #define TLBILX_T_CLASS2			6
 #define TLBILX_T_CLASS3			7
 
+/* LRATCFG bits */
+#define LRATCFG_ASSOC		0xFF000000
+#define LRATCFG_LASIZE		0x00FE0000
+#define LRATCFG_LPID		0x00002000
+#define LRATCFG_NENTRY		0x00000FFF
+
 #ifndef __ASSEMBLY__
 #include <asm/bug.h>
 
@@ -297,6 +306,9 @@ struct tlb_core_data {
 
 	/* For software way selection, as on Freescale TLB1 */
 	u8 esel_next, esel_max, esel_first;
+#ifdef CONFIG_KVM_BOOKE_HV
+	u8 lrat_next, lrat_max;
+#endif
 };
 
 #ifdef CONFIG_PPC64

@@ -99,6 +99,10 @@ void kvmppc_e500_tlbil_all(struct kvmppc_vcpu_e500 *vcpu_e500)
 	asm volatile("tlbilxlpid");
 	mtspr(SPRN_MAS5, 0);
 	local_irq_restore(flags);
+
+#ifdef PPC64
+	kvmppc_lrat_invalidate(&vcpu_e500->vcpu);
+#endif
 }
 
 void kvmppc_set_pid(struct kvm_vcpu *vcpu, u32 pid)
