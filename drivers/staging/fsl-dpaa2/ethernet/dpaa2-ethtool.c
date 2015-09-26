@@ -49,6 +49,7 @@ char ldpaa_ethtool_stats[][ETH_GSTRING_LEN] = {
 	"tx bytes",
 	"tx err frames",
 };
+#define LDPAA_ETH_NUM_STATS	ARRAY_SIZE(ldpaa_ethtool_stats)
 /* To be kept in sync with 'struct ldpaa_eth_stats' */
 char ldpaa_ethtool_extras[][ETH_GSTRING_LEN] = {
 	/* per-cpu stats */
@@ -158,7 +159,7 @@ static void ldpaa_get_strings(struct net_device *netdev, u32 stringset,
 
 	switch (stringset) {
 	case ETH_SS_STATS:
-		for (i = 0; i < DPNI_CNT_NUM_STATS; i++) {
+		for (i = 0; i < LDPAA_ETH_NUM_STATS; i++) {
 			strlcpy(p, ldpaa_ethtool_stats[i], ETH_GSTRING_LEN);
 			p += ETH_GSTRING_LEN;
 		}
@@ -174,7 +175,7 @@ static int ldpaa_get_sset_count(struct net_device *net_dev, int sset)
 {
 	switch (sset) {
 	case ETH_SS_STATS: /* ethtool_get_stats(), ethtool_get_drvinfo() */
-		return DPNI_CNT_NUM_STATS + LDPAA_ETH_NUM_EXTRA_STATS;
+		return LDPAA_ETH_NUM_STATS + LDPAA_ETH_NUM_EXTRA_STATS;
 	default:
 		return -EOPNOTSUPP;
 	}
@@ -202,10 +203,10 @@ static void ldpaa_get_ethtool_stats(struct net_device *net_dev,
 	struct ldpaa_eth_ch_stats *ch_stats;
 
 	memset(data, 0,
-	       sizeof(u64) * (DPNI_CNT_NUM_STATS + LDPAA_ETH_NUM_EXTRA_STATS));
+	       sizeof(u64) * (LDPAA_ETH_NUM_STATS + LDPAA_ETH_NUM_EXTRA_STATS));
 
 	/* Print standard counters, from DPNI statistics */
-	for (i = 0; i < DPNI_CNT_NUM_STATS; i++) {
+	for (i = 0; i < LDPAA_ETH_NUM_STATS; i++) {
 		err = dpni_get_counter(priv->mc_io, 0, priv->mc_token, i,
 				       data + i);
 		if (err != 0)

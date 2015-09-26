@@ -902,8 +902,7 @@ enum dpni_counter {
 	DPNI_CNT_ING_BCAST_BYTES = 0x7,
 	DPNI_CNT_EGR_FRAME = 0x8,
 	DPNI_CNT_EGR_BYTE = 0x9,
-	DPNI_CNT_EGR_FRAME_DISCARD = 0xa,
-	DPNI_CNT_NUM_STATS = 0xb                /* Must stay last in enum */
+	DPNI_CNT_EGR_FRAME_DISCARD = 0xa
 };
 
 /**
