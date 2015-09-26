@@ -100,8 +100,8 @@ unsigned __ipipe_processor_id(void);
 #define IPIPE_TRAP_DABT		 2	/* Generic data abort */
 #define IPIPE_TRAP_UNKNOWN	 3	/* Unknown exception */
 #define IPIPE_TRAP_BREAK	 4	/* Instruction breakpoint */
-#define IPIPE_TRAP_FPU		 5	/* Floating point exception */
-#define IPIPE_TRAP_VFP		 6	/* VFP floating point exception */
+#define IPIPE_TRAP_FPU_ACC	 5	/* Floating point access */
+#define IPIPE_TRAP_FPU_EXC	 6	/* Floating point exception */
 #define IPIPE_TRAP_UNDEFINSTR	 7	/* Undefined instruction */
 #define IPIPE_TRAP_ALIGNMENT	 8	/* Unaligned access exception */
 #define IPIPE_TRAP_MAYDAY        9	/* Internal recovery trap */
@@ -162,10 +162,6 @@ static inline unsigned ipipe_test_and_stall_root(void)
 #ifdef CONFIG_IPIPE_LEGACY
 #define __IPIPE_FEATURE_PREEMPTIBLE_SWITCH	1
 #define __IPIPE_FEATURE_SYSINFO_V2		1
-
-#ifdef CONFIG_VFP
-#define __IPIPE_FEATURE_VFP_SAFE		1
-#endif
 
 #ifdef CONFIG_IPIPE_ARM_KUSER_TSC
 #define __IPIPE_FEATURE_KUSER_TSC		1
