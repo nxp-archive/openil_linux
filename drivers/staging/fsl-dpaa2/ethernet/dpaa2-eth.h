@@ -333,10 +333,11 @@ int ldpaa_set_hash(struct net_device *net_dev, u64 flags);
 
 static inline int ldpaa_queue_count(struct ldpaa_eth_priv *priv)
 {
+	if (!ldpaa_eth_hash_enabled(priv))
+		return 1;
+
 	/* TODO: fix for multiple TCs */
-	if (ldpaa_eth_hash_enabled(priv))
-		return priv->dpni_attrs.max_dist_per_tc[0] + 1;
-	return 1;
+	return priv->dpni_attrs.max_dist_per_tc[0];
 }
 
 static inline int ldpaa_max_channels(struct ldpaa_eth_priv *priv)
