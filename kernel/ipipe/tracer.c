@@ -745,6 +745,9 @@ static long __ipipe_signed_tsc2us(long long tsc)
 	unsigned long long abs_tsc;
 	long us;
 
+	if (!__ipipe_hrclock_ok())
+		return 0;
+
 	/* ipipe_tsc2us works on unsigned => handle sign separately */
 	abs_tsc = (tsc >= 0) ? tsc : -tsc;
 	us = ipipe_tsc2us(abs_tsc);
@@ -947,6 +950,11 @@ static void *__ipipe_max_prtrace_start(struct seq_file *m, loff_t *pos)
 
 		__ipipe_global_path_unlock(flags);
 
+		if (!__ipipe_hrclock_ok()) {
+			seq_printf(m, "No hrclock available, dumping traces disabled\n");
+			return NULL;
+		}
+
 		/* does this path actually contain data? */
 		if (print_path->end == print_path->begin)
 			return NULL;
@@ -1116,6 +1124,11 @@ static void *__ipipe_frozen_prtrace_start(struct seq_file *m, loff_t *pos)
 
 		if (!print_path)
 			return NULL;
+
+		if (!__ipipe_hrclock_ok()) {
+			seq_printf(m, "No hrclock available, dumping traces disabled\n");
+			return NULL;
+		}
 
 		/* back- and post-tracing length, post-trace length was frozen
 		   in __ipipe_trace, back-trace may have to be reduced due to
@@ -1366,17 +1379,37 @@ static const struct file_operations __ipipe_rw_enable_ops = {
 
 extern struct proc_dir_entry *ipipe_proc_root;
 
+void __init __ipipe_tracer_hrclock_initialized(void)
+{
+	unsigned long long start, end, min = ULLONG_MAX;
+	int i;
+
+#ifdef CONFIG_IPIPE_TRACE_VMALLOC
+	if (!per_cpu(trace_path, 0))
+		return;
+#endif
+	/* Calculate minimum overhead of __ipipe_trace() */
+	hard_local_irq_disable();
+	for (i = 0; i < 100; i++) {
+		ipipe_read_tsc(start);
+		__ipipe_trace(IPIPE_TRACE_FUNC, __BUILTIN_RETURN_ADDRESS0,
+			      __BUILTIN_RETURN_ADDRESS1, 0);
+		ipipe_read_tsc(end);
+
+		end -= start;
+		if (end < min)
+			min = end;
+	}
+	hard_local_irq_enable();
+	trace_overhead = ipipe_tsc2ns(min);
+}
+
 void __init __ipipe_init_tracer(void)
 {
 	struct proc_dir_entry *trace_dir;
-	unsigned long long start, end, min = ULLONG_MAX;
-	int i;
 #ifdef CONFIG_IPIPE_TRACE_VMALLOC
 	int cpu, path;
 #endif /* CONFIG_IPIPE_TRACE_VMALLOC */
-
-	if (!__ipipe_hrclock_ok())
-		return;
 
 #ifdef CONFIG_IPIPE_TRACE_VMALLOC
 	for_each_possible_cpu(cpu) {
@@ -1399,20 +1432,8 @@ void __init __ipipe_init_tracer(void)
 	}
 #endif /* CONFIG_IPIPE_TRACE_VMALLOC */
 
-	/* Calculate minimum overhead of __ipipe_trace() */
-	hard_local_irq_disable();
-	for (i = 0; i < 100; i++) {
-		ipipe_read_tsc(start);
-		__ipipe_trace(IPIPE_TRACE_FUNC, __BUILTIN_RETURN_ADDRESS0,
-			      __BUILTIN_RETURN_ADDRESS1, 0);
-		ipipe_read_tsc(end);
-
-		end -= start;
-		if (end < min)
-			min = end;
-	}
-	hard_local_irq_enable();
-	trace_overhead = ipipe_tsc2ns(min);
+	if (__ipipe_hrclock_ok() && !trace_overhead)
+		__ipipe_tracer_hrclock_initialized();
 
 #ifdef CONFIG_IPIPE_TRACE_ENABLE
 	ipipe_trace_enable = 1;

@@ -414,6 +414,12 @@ extern void __ipipe_uaccess_might_fault(void);
 #define __ipipe_uaccess_might_fault() might_fault()
 #endif
 
+#ifdef CONFIG_IPIPE_TRACE
+void __ipipe_tracer_hrclock_initialized(void);
+#else /* !CONFIG_IPIPE_TRACE */
+#define __ipipe_tracer_hrclock_initialized()	do { } while(0)
+#endif /* !CONFIG_IPIPE_TRACE */
+
 #include <linux/ipipe_compat.h>
 
 #else	/* !CONFIG_IPIPE */
