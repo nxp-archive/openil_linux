@@ -371,6 +371,7 @@ static inline int kvmppc_e500_shadow_map(struct kvmppc_vcpu_e500 *vcpu_e500,
 
 			unsigned long start, end;
 			unsigned long slot_start, slot_end;
+			int tsize_inc;
 
 			pfnmap = 1;
 
@@ -392,10 +393,20 @@ static inline int kvmppc_e500_shadow_map(struct kvmppc_vcpu_e500 *vcpu_e500,
 				MAS1_TSIZE_SHIFT;
 
 			/*
-			 * e500 doesn't implement the lowest tsize bit,
-			 * or 1K pages.
+			 * Calculate TSIZE increment. MMUv2 supports
+			 * power of 2K translations while MMUv1 is limited
+			 * to power of 4K sizes.
 			 */
-			tsize = max(BOOK3E_PAGESZ_4K, tsize & ~1);
+			tsize_inc = has_feature(&vcpu_e500->vcpu,
+						VCPU_FTR_MMU_V2) ? 1 : 2;
+
+			/*
+			 * MMUv1 doesn't implement the lowest tsize bit,
+			 * meaning that only power of 4K translation sizes
+			 * are supported so strip the LSB on MMUv1.
+			 */
+			tsize &= ~(tsize_inc - 1);
+			tsize = max(BOOK3E_PAGESZ_4K, tsize);
 
 			/*
 			 * Now find the largest tsize (up to what the guest
@@ -404,7 +415,8 @@ static inline int kvmppc_e500_shadow_map(struct kvmppc_vcpu_e500 *vcpu_e500,
 			 * aligned.
 			 */
 
-			for (; tsize > BOOK3E_PAGESZ_4K; tsize -= 2) {
+			for (; tsize > BOOK3E_PAGESZ_4K;
+			     tsize -= tsize_inc) {
 				unsigned long gfn_start, gfn_end;
 				tsize_pages = 1UL << (tsize - 2);
 
@@ -437,10 +449,13 @@ static inline int kvmppc_e500_shadow_map(struct kvmppc_vcpu_e500 *vcpu_e500,
 			tsize = min(__ilog2(psize) - 10, tsize);
 
 			/*
-			 * e500 doesn't implement the lowest tsize bit,
-			 * or 1K pages.
+			 * MMUv1 doesn't implement the lowest tsize bit,
+			 * meaning that only power of 4K translation sizes
+			 * are supported.
 			 */
-			tsize = max(BOOK3E_PAGESZ_4K, tsize & ~1);
+			if (!has_feature(&vcpu_e500->vcpu, VCPU_FTR_MMU_V2))
+				tsize &= ~1;
+			tsize = max(BOOK3E_PAGESZ_4K, tsize);
 		}
 
 		up_read(&current->mm->mmap_sem);
