@@ -100,15 +100,12 @@ static void ldpaa_eth_rx_csum(struct ldpaa_eth_priv *priv,
  * Not to be used for Tx conf FDs or on any other paths.
  */
 static void ldpaa_eth_free_rx_fd(struct ldpaa_eth_priv *priv,
-				 const struct dpaa_fd *fd)
+				 const struct dpaa_fd *fd,
+				 void *vaddr)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	dma_addr_t addr = ldpaa_fd_get_addr(fd);
-	void *vaddr;
 	uint8_t fd_format = ldpaa_fd_get_format(fd);
-
-	dma_unmap_single(dev, addr, LDPAA_ETH_RX_BUFFER_SIZE, DMA_FROM_DEVICE);
-	vaddr = phys_to_virt(addr);
 
 	if (fd_format == dpaa_fd_sg) {
 		struct dpaa_sg_entry *sgt = vaddr + ldpaa_fd_get_offset(fd);
@@ -302,7 +299,7 @@ static void ldpaa_eth_rx(struct ldpaa_eth_priv *priv,
 	return;
 
 err_build_skb:
-	ldpaa_eth_free_rx_fd(priv, fd);
+	ldpaa_eth_free_rx_fd(priv, fd, vaddr);
 	percpu_stats->rx_dropped++;
 }
 
@@ -332,7 +329,7 @@ static void ldpaa_eth_rx_err(struct ldpaa_eth_priv *priv,
 		netdev_dbg(priv->net_dev, "Rx frame error: 0x%08x\n",
 			   status & LDPAA_ETH_RX_ERR_MASK);
 	}
-	ldpaa_eth_free_rx_fd(priv, fd);
+	ldpaa_eth_free_rx_fd(priv, fd, vaddr);
 
 	percpu_stats = this_cpu_ptr(priv->percpu_stats);
 	percpu_stats->rx_errors++;
