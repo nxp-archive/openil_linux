@@ -49,8 +49,6 @@
 /* TODO : how many queues here? NR_CPUS? */
 #define DPAA2_ETH_TX_QUEUES		8	/* FIXME */
 #define DPAA2_ETH_STORE_SIZE		16
-/* NAPI weight *must* be a multiple of 16, i.e. the store size. */
-#define DPAA2_ETH_NAPI_WEIGHT		64
 
 /* Maximum receive frame size is 64K */
 #define DPAA2_ETH_MAX_SG_ENTRIES	((64 * 1024) / DPAA2_ETH_RX_BUFFER_SIZE)
