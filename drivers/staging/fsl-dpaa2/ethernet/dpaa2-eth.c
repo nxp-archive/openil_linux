@@ -1214,7 +1214,7 @@ static void ldpaa_eth_cdan_cb(struct dpaa_io_notification_ctx *ctx)
 	/* Update NAPI statistics */
 	ch->stats.cdan++;
 
-	napi_schedule(&ch->napi);
+	napi_schedule_irqoff(&ch->napi);
 }
 
 static void ldpaa_eth_setup_fqs(struct ldpaa_eth_priv *priv)
