@@ -548,6 +548,9 @@ static struct ablkcipher_edesc *ablkcipher_edesc_alloc(struct ablkcipher_request
 		dpaa2_fl_set_addr(out_fle, sg_dma_address(req->dst));
 	}
 
+	dma_sync_single_for_device(dev, edesc->qm_sg_dma, qm_sg_bytes,
+				   DMA_TO_DEVICE);
+
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "ablkcipher qm_sg@"__stringify(__LINE__)": ",
 		       DUMP_PREFIX_ADDRESS, 16, 4, sg_table, qm_sg_bytes, 1);
@@ -657,6 +660,9 @@ static struct ablkcipher_edesc *ablkcipher_giv_edesc_alloc(
 		dpaa2_fl_set_format(out_fle, dpaa_fl_single);
 		dpaa2_fl_set_addr(out_fle, sg_dma_address(req->dst));
 	}
+
+	dma_sync_single_for_device(dev, edesc->qm_sg_dma, qm_sg_bytes,
+				   DMA_TO_DEVICE);
 
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "ablkcipher qm_sg@"__stringify(__LINE__)": ",
