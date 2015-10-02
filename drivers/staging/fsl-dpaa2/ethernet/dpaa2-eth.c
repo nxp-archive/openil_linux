@@ -846,6 +846,37 @@ static void ldpaa_eth_napi_disable(struct ldpaa_eth_priv *priv)
 	}
 }
 
+static int ldpaa_link_state_update(struct ldpaa_eth_priv *priv)
+{
+	struct dpni_link_state state;
+	int err;
+
+	err = dpni_get_link_state(priv->mc_io, 0, priv->mc_token, &state);
+	if (unlikely(err)) {
+		netdev_err(priv->net_dev,
+			   "dpni_get_link_state() failed\n");
+		return err;
+	}
+
+	/* TODO: Speed / duplex changes are not treated yet */
+	if (priv->link_state.up == state.up)
+		return 0;
+
+	priv->link_state = state;
+	if (state.up) {
+		netif_carrier_on(priv->net_dev);
+		netif_tx_start_all_queues(priv->net_dev);
+	} else {
+		netif_tx_stop_all_queues(priv->net_dev);
+		netif_carrier_off(priv->net_dev);
+	}
+
+	netdev_info(priv->net_dev, "Link Event: state: %d", state.up);
+	WARN_ONCE(state.up > 1, "Garbage read into link_state");
+
+	return 0;
+}
+
 static int __cold ldpaa_eth_open(struct net_device *net_dev)
 {
 	struct ldpaa_eth_priv *priv = netdev_priv(net_dev);
@@ -864,16 +895,12 @@ static int __cold ldpaa_eth_open(struct net_device *net_dev)
 	/* We'll only start the txqs when the link is actually ready; make sure
 	 * we don't race against the link up notification, which may come
 	 * immediately after dpni_enable();
-	 *
-	 * FIXME beware of race conditions
 	 */
 	netif_tx_stop_all_queues(net_dev);
 	ldpaa_eth_napi_enable(priv);
 	/* Also, explicitly set carrier off, otherwise netif_carrier_ok() will
-	 * return true even if the link isn't actually __LINK_STATE_PRESENT
-	 * (while 'ifconfig up' sets __LINK_STATE_LINKWATCH_PENDING). This will
-	 * cause 'ip link show' to report the LOWER_UP flag, when in fact
-	 * the link notification wasn't even received at this point.
+	 * return true and cause 'ip link show' to report the LOWER_UP flag,
+	 * even though the link notification wasn't even received.
 	 */
 	netif_carrier_off(net_dev);
 
@@ -883,8 +910,18 @@ static int __cold ldpaa_eth_open(struct net_device *net_dev)
 		goto enable_err;
 	}
 
+	/* If the DPMAC object has already processed the link up interrupt,
+	 * we have to learn the link state ourselves.
+	 */
+	err = ldpaa_link_state_update(priv);
+	if (err < 0) {
+		dev_err(net_dev->dev.parent, "Can't update link state\n");
+		goto link_state_err;
+	}
+
 	return 0;
 
+link_state_err:
 enable_err:
 	ldpaa_eth_napi_disable(priv);
 	__ldpaa_dpbp_free(priv);
@@ -2075,37 +2112,6 @@ static int ldpaa_eth_netdev_init(struct net_device *net_dev)
 		dev_err(dev, "register_netdev() = %d\n", err);
 		return err;
 	}
-
-	return 0;
-}
-
-static int ldpaa_link_state_update(struct ldpaa_eth_priv *priv)
-{
-	struct dpni_link_state state;
-	int err;
-
-	err = dpni_get_link_state(priv->mc_io, 0, priv->mc_token, &state);
-	if (unlikely(err)) {
-		netdev_err(priv->net_dev,
-			   "dpni_get_link_state() failed\n");
-		return err;
-	}
-
-	/* TODO: Speed / duplex changes are not treated yet */
-	if (priv->link_state.up == state.up)
-		return 0;
-
-	priv->link_state = state;
-	if (state.up) {
-		netif_carrier_on(priv->net_dev);
-		netif_tx_start_all_queues(priv->net_dev);
-	} else {
-		netif_tx_stop_all_queues(priv->net_dev);
-		netif_carrier_off(priv->net_dev);
-	}
-
-	netdev_info(priv->net_dev, "Link Event: state: %d", state.up);
-	WARN_ONCE(state.up > 1, "Garbage read into link_state");
 
 	return 0;
 }
