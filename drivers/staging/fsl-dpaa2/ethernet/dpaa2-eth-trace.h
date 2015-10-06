@@ -82,7 +82,6 @@ DECLARE_EVENT_CLASS(dpaa2_eth_fd,
 		    /* This is what gets printed when the trace event is
 		     * triggered.
 		     */
-		    /* TODO: print the status using __print_flags() */
 		    TP_printk(TR_FMT,
 			      __get_str(name),
 			      __entry->fd_addr,
@@ -163,7 +162,6 @@ TRACE_EVENT(dpaa2_eth_buf_seed,
 	    /* This is what gets printed when the trace event is
 	     * triggered.
 	     */
-	    /* TODO: print the status using __print_flags() */
 	    TP_printk(TR_BUF_FMT,
 		      __get_str(name),
 		      __entry->vaddr,

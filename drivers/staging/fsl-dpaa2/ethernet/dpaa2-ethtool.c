@@ -708,7 +708,7 @@ static int dpaa2_do_cls(struct net_device *net_dev,
 		rule_cfg.mask_iova = 0;
 	}
 
-	/* TODO: no way to control rule order in firmware! */
+	/* No way to control rule order in firmware */
 	if (add)
 		err = dpni_add_fs_entry(priv->mc_io, 0, priv->mc_token, 0,
 					&rule_cfg, (u16)fs->ring_cookie);

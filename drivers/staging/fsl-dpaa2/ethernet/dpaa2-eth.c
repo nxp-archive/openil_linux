@@ -380,7 +380,6 @@ static int dpaa2_eth_store_consume(struct dpaa2_eth_channel *ch)
 				 */
 				continue;
 			}
-			/* TODO add a ethtool counter for empty dequeues */
 			break;
 		}
 
@@ -415,8 +414,7 @@ static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
 	/* Create and map scatterlist.
 	 * We don't advertise NETIF_F_FRAGLIST, so skb_to_sgvec() will not have
 	 * to go beyond nr_frags+1.
-	 * TODO We don't support chained scatterlists; we could just fallback
-	 * to the old implementation.
+	 * Note: We don't support chained scatterlists
 	 */
 	WARN_ON(PAGE_SIZE / sizeof(struct scatterlist) < nr_frags + 1);
 	scl = kcalloc(nr_frags + 1, sizeof(struct scatterlist), GFP_ATOMIC);
@@ -895,7 +893,7 @@ static int dpaa2_link_state_update(struct dpaa2_eth_priv *priv)
 		return err;
 	}
 
-	/* TODO: Speed / duplex changes are not treated yet */
+	/* Chech link state; speed / duplex changes are not treated yet */
 	if (priv->link_state.up == state.up)
 		return 0;
 
@@ -974,7 +972,6 @@ static int dpaa2_eth_stop(struct net_device *net_dev)
 	netif_carrier_off(net_dev);
 	dpni_disable(priv->mc_io, 0, priv->mc_token);
 
-	/* TODO: Make sure queues are drained before if down is complete! */
 	msleep(500);
 
 	dpaa2_eth_napi_disable(priv);
@@ -1329,9 +1326,7 @@ static void dpaa2_eth_setup_fqs(struct dpaa2_eth_priv *priv)
 
 	/* The number of Rx queues (Rx distribution width) may be different from
 	 * the number of cores.
-	 *
-	 * TODO: We still only have one traffic class for now,
-	 * but for multiple TCs may need an array of dist sizes.
+	 * We only support one traffic class for now.
 	 */
 	for (i = 0; i < dpaa2_queue_count(priv); i++) {
 		priv->fq[priv->num_fqs].netdev_priv = priv;
@@ -1876,7 +1871,6 @@ static int dpaa2_dpni_setup(struct fsl_mc_device *ls_dev)
 		goto err_open;
 	}
 
-	/* FIXME Alex's moral compass says this must be done */
 	ls_dev->mc_io = priv->mc_io;
 	ls_dev->mc_handle = priv->mc_token;
 
@@ -2329,10 +2323,9 @@ static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 	int err;
 
 	netdev_dbg(net_dev, "IRQ %d received\n", irq_num);
-	/* Sanity check; TODO a bit of cleanup here */
-	if (WARN_ON(!dpni_dev || !dpni_dev->irqs || !dpni_dev->irqs[irq_index]))
+	if (!dpni_dev || !dpni_dev->irqs || !dpni_dev->irqs[irq_index])
 		goto out;
-	if (WARN_ON(dpni_dev->irqs[irq_index]->irq_number != irq_num))
+	if (dpni_dev->irqs[irq_index]->irq_number != irq_num)
 		goto out;
 
 	err = dpni_get_irq_status(dpni_dev->mc_io, 0, dpni_dev->mc_handle,
@@ -2496,7 +2489,6 @@ static ssize_t dpaa2_eth_write_txconf_cpumask(struct device *dev,
 	}
 
 	/* Rewiring the TxConf FQs requires interface shutdown.
-	 * FIXME hold device lock
 	 */
 	if (running) {
 		err = dpaa2_eth_stop(priv->net_dev);

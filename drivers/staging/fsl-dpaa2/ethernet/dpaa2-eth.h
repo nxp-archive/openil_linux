@@ -47,8 +47,7 @@
 #include "dpaa2-eth-trace.h"
 #include "dpaa2-eth-debugfs.h"
 
-/* TODO : how many queues here? NR_CPUS? */
-#define DPAA2_ETH_TX_QUEUES		8	/* FIXME */
+#define DPAA2_ETH_TX_QUEUES		8
 #define DPAA2_ETH_STORE_SIZE		16
 
 /* Maximum receive frame size is 64K */
@@ -121,9 +120,6 @@ struct dpaa2_eth_swa {
 #define DPAA2_FD_CTRL_PTA		0x00800000
 #define DPAA2_FD_CTRL_PTV1		0x00400000
 
-/* TODO: we may want to move this and other WRIOP related defines
- * to a separate header
- */
 /* Frame annotation status */
 struct dpaa2_fas {
 	u8 reserved;
@@ -178,7 +174,7 @@ struct dpaa2_fas {
 					 DPAA2_ETH_FAS_L4CE)
 /* Unsupported features in the ingress */
 #define DPAA2_ETH_RX_UNSUPP_MASK	DPAA2_ETH_FAS_MS
-/* TODO trim down the bitmask; not all of them apply to Tx-confirm */
+/* Tx errors */
 #define DPAA2_ETH_TXCONF_ERR_MASK	(DPAA2_ETH_FAS_KSE	| \
 					 DPAA2_ETH_FAS_EOFHE	| \
 					 DPAA2_ETH_FAS_MNLE	| \
@@ -186,12 +182,6 @@ struct dpaa2_fas {
 
 /* Time in milliseconds between link state updates */
 #define DPAA2_ETH_LINK_STATE_REFRESH	1000
-
-/* TODO Temporarily, until dpni_clear_mac_table() is implemented */
-struct dpaa2_eth_mac_list {
-	u8 addr[ETH_ALEN];
-	struct list_head list;
-};
 
 /* Driver statistics, other than those in struct rtnl_link_stats64.
  * These are usually collected per-CPU and aggregated by ethtool.
@@ -224,7 +214,6 @@ struct dpaa2_eth_ch_stats {
 };
 
 /* Maximum number of Rx queues associated with a DPNI */
-/* TODO: Use dynamic allocation based on max dist size reported by MC */
 #define DPAA2_ETH_MAX_RX_QUEUES		16
 #define DPAA2_ETH_MAX_TX_QUEUES		NR_CPUS
 #define DPAA2_ETH_MAX_RX_ERR_QUEUES	1
@@ -294,7 +283,6 @@ struct dpaa2_eth_priv {
 	struct dpni_buffer_layout buf_layout;
 	u16 tx_data_offset;
 
-	/* TODO: Support multiple BPs */
 	struct fsl_mc_device *dpbp_dev;
 	struct dpbp_attr dpbp_attrs;
 
@@ -347,7 +335,6 @@ struct dpaa2_eth_priv {
 #define dpaa2_eth_fs_enabled(priv)	\
 	((priv)->dpni_attrs.options & DPNI_OPT_DIST_FS)
 
-/*TODO: this should be taken from DPNI attributes */
 #define DPAA2_CLASSIFIER_ENTRY_COUNT 16
 
 /* Required by struct dpni_attr::ext_cfg_iova */
@@ -365,7 +352,6 @@ static int dpaa2_queue_count(struct dpaa2_eth_priv *priv)
 	if (!dpaa2_eth_hash_enabled(priv))
 		return 1;
 
-	/* TODO: fix for multiple TCs */
 	return priv->dpni_ext_cfg.tc_cfg[0].max_dist;
 }
 
