@@ -124,7 +124,6 @@ static void ppx_ethtool_get_stats(struct net_device *, struct ethtool_stats *,
 
 static const struct net_device_ops ppx_ndo = {
 	.ndo_start_xmit		= &ppx_dropframe,
-	/* TODO: temporary to force fixed links up and down */
 	.ndo_open		= &ppx_open,
 	.ndo_stop		= &ppx_stop,
 	.ndo_get_stats64	= &ppx_get_stats,
@@ -338,7 +337,6 @@ static void ppx_link_changed(struct net_device *netdev)
 	int			err;
 
 	/* the PHY just notified us of link state change */
-	/* TODO: maybe check that link state actually changed */
 	phydev = netdev->phydev;
 
 	state.up = !!phydev->link;
@@ -723,7 +721,7 @@ probe_fixed_link:
 	if (!netdev->phydev) {
 		struct fixed_phy_status status = {
 			.link = 1,
-			/* FIXME take value from MC */
+			/* fixed-phys don't support 10Gbps speed for now */
 			.speed = 1000,
 			.duplex = 1,
 		};
