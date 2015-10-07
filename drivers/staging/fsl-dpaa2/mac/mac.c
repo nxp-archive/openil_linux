@@ -107,6 +107,10 @@ static phy_interface_t ppx_eth_iface_mode[] __maybe_unused =  {
 
 static void ppx_link_changed(struct net_device *netdev);
 
+/* IRQ bits that we handle */
+static const uint32_t dpmac_irq_mask =  DPMAC_IRQ_EVENT_LINK_CFG_REQ |
+					DPMAC_IRQ_EVENT_LINK_CHANGED;
+
 #ifdef CONFIG_FSL_DPAA2_MAC_NETDEVS
 static netdev_tx_t ppx_dropframe(struct sk_buff *skb, struct net_device *dev);
 static int ppx_open(struct net_device *netdev);
@@ -353,17 +357,18 @@ static void ppx_link_changed(struct net_device *netdev)
 		netif_carrier_off(netdev);
 	}
 
-	if (priv->old_state.up == state.up &&
-	    priv->old_state.rate == state.rate &&
-	    priv->old_state.options == state.options) {
-		return;
+	if (priv->old_state.up != state.up ||
+	    priv->old_state.rate != state.rate ||
+	    priv->old_state.options != state.options) {
+		priv->old_state = state;
+		phy_print_status(phydev);
 	}
-	priv->old_state = state;
 
-	phy_print_status(phydev);
-
-	/* we intentionally ignore the error here as MC will return an error
-	 * if peer L2 interface (like a DPNI) is down at this time
+	/* We must call into the MC firmware at all times, because we don't know
+	 * when and whether a potential DPNI may have read the link state.
+	 *
+	 * We intentionally ignore the error here as MC will return an error
+	 * if peer L2 interface (like a DPNI) is down at this time.
 	 */
 	err = dpmac_set_link_state(priv->mc_dev->mc_io, 0,
 				   priv->mc_dev->mc_handle, &state);
@@ -376,8 +381,6 @@ static int ppx_configure_link(struct ppx_priv *priv, struct dpmac_link_cfg *cfg)
 {
 	struct phy_device *phydev = priv->netdev->phydev;
 
-	/* TODO: sanity checks? */
-	/* like null PHY :) ignore that error for now */
 	if (!phydev) {
 		ppx_warn(priv->netdev,
 			 "asked to change PHY settings but PHY ref is NULL, ignoring\n");
@@ -406,32 +409,60 @@ static irqreturn_t ppx_irq_handler(int irq_num, void *arg)
 	struct fsl_mc_device *mc_dev = to_fsl_mc_device(dev);
 	struct ppx_priv *priv = dev_get_drvdata(dev);
 	struct dpmac_link_cfg link_cfg;
+	uint8_t irq_index = DPMAC_IRQ_INDEX;
+	uint32_t status, clear = 0;
 	int err;
 
-	dev_dbg(dev, "DPMAC IRQ %d\n", irq_num);
 	if (mc_dev->irqs[0]->irq_number != irq_num) {
 		dev_err(dev, "received unexpected interrupt %d!\n", irq_num);
 		goto err;
 	}
 
-	err = dpmac_get_link_cfg(mc_dev->mc_io, 0,
-				 priv->mc_dev->mc_handle, &link_cfg);
+	err = dpmac_get_irq_status(mc_dev->mc_io, 0, mc_dev->mc_handle,
+				   irq_index, &status);
 	if (err) {
-		dev_err(dev, "dpmac_get_link_cfg err %d\n", err);
-		goto err;
+		dev_err(dev, "dpmac_get_irq_status err %d\n", err);
+		clear = ~0x0u;
+		goto out;
 	}
 
-	err = ppx_configure_link(priv, &link_cfg);
-	if (err)
-		goto err;
+	/* DPNI-initiated link configuration; 'ifconfig up' also calls this */
+	if (status & DPMAC_IRQ_EVENT_LINK_CFG_REQ) {
+		dev_dbg(dev, "DPMAC IRQ %d - LINK_CFG_REQ\n", irq_num);
+		clear |= DPMAC_IRQ_EVENT_LINK_CFG_REQ;
 
-	err = dpmac_clear_irq_status(mc_dev->mc_io, 0,
-				     priv->mc_dev->mc_handle,
-				     0, DPMAC_IRQ_EVENT_LINK_CFG_REQ);
-	if (err < 0) {
-		dev_err(&mc_dev->dev,
-			"dpmac_clear_irq_status() err %d\n", err);
+		err = dpmac_get_link_cfg(mc_dev->mc_io, 0, mc_dev->mc_handle,
+					 &link_cfg);
+		if (err) {
+			dev_err(dev, "dpmac_get_link_cfg err %d\n", err);
+			goto out;
+		}
+
+		err = ppx_configure_link(priv, &link_cfg);
+		if (err) {
+			dev_err(dev, "cannot configure link\n");
+			goto out;
+		}
 	}
+
+	/* PHY-initiated link reconfiguration */
+	if (status & DPMAC_IRQ_EVENT_LINK_CHANGED) {
+		dev_dbg(dev, "DPMAC IRQ %d - LINK_CHANGED\n", irq_num);
+		clear |= DPMAC_IRQ_EVENT_LINK_CHANGED;
+
+		/* If PHY is in polling mode, we'll get the chance to call
+		 * dpmac_set_link_state() later; but if it is in interrupt mode,
+		 * we want to make sure we have the DPMAC state updated.
+		 */
+		if (phy_interrupt_is_valid(priv->netdev->phydev))
+			ppx_link_changed(priv->netdev);
+	}
+
+out:
+	err = dpmac_clear_irq_status(mc_dev->mc_io, 0, mc_dev->mc_handle,
+				     irq_index, clear);
+	if (err < 0)
+		dev_err(&mc_dev->dev, "dpmac_clear_irq_status() err %d\n", err);
 
 	return IRQ_HANDLED;
 
@@ -450,6 +481,12 @@ static int ppx_setup_irqs(struct fsl_mc_device *mc_dev)
 		return err;
 	}
 
+	err = dpmac_set_irq_mask(mc_dev->mc_io, 0, mc_dev->mc_handle,
+				 DPMAC_IRQ_INDEX, dpmac_irq_mask);
+	if (err < 0) {
+		dev_err(&mc_dev->dev, "dpmac_set_irq_mask err %d\n", err);
+		goto free_irq;
+	}
 	err = dpmac_set_irq_enable(mc_dev->mc_io, 0, mc_dev->mc_handle,
 				   DPMAC_IRQ_INDEX, 0);
 	if (err) {
@@ -468,6 +505,12 @@ static int ppx_setup_irqs(struct fsl_mc_device *mc_dev)
 		goto free_irq;
 	}
 
+	err = dpmac_set_irq_mask(mc_dev->mc_io, 0, mc_dev->mc_handle,
+				 DPMAC_IRQ_INDEX, dpmac_irq_mask);
+	if (err < 0) {
+		dev_err(&mc_dev->dev, "dpmac_set_irq_mask err %d\n", err);
+		goto free_irq;
+	}
 	err = dpmac_set_irq_enable(mc_dev->mc_io, 0, mc_dev->mc_handle,
 				   DPMAC_IRQ_INDEX, 1);
 	if (err) {
@@ -487,8 +530,18 @@ free_irq:
 
 static void ppx_teardown_irqs(struct fsl_mc_device *mc_dev)
 {
-	dpmac_set_irq_enable(mc_dev->mc_io, 0, mc_dev->mc_handle,
-			     DPMAC_IRQ_INDEX, 0);
+	int err;
+
+	err = dpmac_set_irq_mask(mc_dev->mc_io, 0, mc_dev->mc_handle,
+				 DPMAC_IRQ_INDEX, dpmac_irq_mask);
+	if (err < 0)
+		dev_err(&mc_dev->dev, "dpmac_set_irq_mask err %d\n", err);
+
+	err = dpmac_set_irq_enable(mc_dev->mc_io, 0, mc_dev->mc_handle,
+				   DPMAC_IRQ_INDEX, 0);
+	if (err < 0)
+		dev_err(&mc_dev->dev, "dpmac_set_irq_enable err %d\n", err);
+
 	devm_free_irq(&mc_dev->dev, mc_dev->irqs[0]->irq_number, &mc_dev->dev);
 	fsl_mc_free_irqs(mc_dev);
 
