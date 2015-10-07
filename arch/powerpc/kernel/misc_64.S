@@ -476,6 +476,10 @@ _GLOBAL(kexec_wait)
 #ifdef CONFIG_KEXEC		/* use no memory without kexec */
 	lwz	r4,0(r5)
 	cmpwi	0,r4,0
+#ifndef CONFIG_PPC_BOOK3S_64
+	/* Create TLB entry in book3e_secondary_core_init */
+	li	r4,0
+#endif
 	bnea	0x60
 #endif
 	b	99b
