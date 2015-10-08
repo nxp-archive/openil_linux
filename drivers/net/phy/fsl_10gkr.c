@@ -90,7 +90,7 @@
 #define ZERO_COE_MIN			0x0
 
 #define TECR0_INIT			0x24200000
-#define RATIO_PREQ			0x2
+#define RATIO_PREQ			0x3
 #define RATIO_PST1Q			0xd
 #define RATIO_EQ			0x20
 
@@ -710,6 +710,25 @@ static int is_ld_valid(u32 *ld_coe)
 	return 1;
 }
 
+#define VAL_INVALID 0xff
+
+static const u32 preq_table[] = {0x0, 0x1, 0x3, 0x5,
+				 0x7, 0x9, 0xb, 0xc, VAL_INVALID};
+static const u32 pst1q_table[] = {0x0, 0x1, 0x3, 0x5,
+				  0x7, 0x9, 0xb, 0xd, 0xf, 0x10, VAL_INVALID};
+
+static int is_value_allowed(const u32 *val_table, u32 val)
+{
+	int i;
+
+	for (i = 0;; i++) {
+		if (*(val_table + i) == VAL_INVALID)
+			return 0;
+		if (*(val_table + i) == val)
+			return 1;
+	}
+}
+
 static int inc_dec(struct fsl_xgkr_inst *inst, int field, int request)
 {
 	u32 ld_limit[3], ld_coe[3], step[3];
@@ -757,6 +776,22 @@ static int inc_dec(struct fsl_xgkr_inst *inst, int field, int request)
 		inst->ratio_pst1q = ld_coe[0];
 		inst->adpt_eq = ld_coe[1];
 		inst->ratio_preq = ld_coe[2];
+		/* only some values for preq and pst1q can be used.
+		 * for preq: 0x0, 0x1, 0x3, 0x5, 0x7, 0x9, 0xb, 0xc.
+		 * for pst1q: 0x0, 0x1, 0x3, 0x5, 0x7, 0x9, 0xb, 0xd, 0xf, 0x10.
+		 */
+		if (!is_value_allowed((const u32 *)&preq_table, ld_coe[2])) {
+			dev_dbg(&inst->phydev->dev,
+				"preq skipped value: %d.\n", ld_coe[2]);
+			return 0;
+		}
+
+		if (!is_value_allowed((const u32 *)&pst1q_table, ld_coe[0])) {
+			dev_dbg(&inst->phydev->dev,
+				"pst1q skipped value: %d.\n", ld_coe[0]);
+			return 0;
+		}
+
 		tune_tecr0(inst);
 	} else {
 		if (request == DECREMENT)
