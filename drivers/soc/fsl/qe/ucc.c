@@ -210,3 +210,774 @@ int ucc_set_qe_mux_rxtx(unsigned int ucc_num, enum qe_clock clock,
 
 	return 0;
 }
+
+/* tdm_num: TDM A-H port num is 0-7 */
+int ucc_set_tdm_rxtx_clk(u32 tdm_num, enum qe_clock clock,
+		enum comm_dir mode)
+{
+	u32 clock_bits, shift;
+	struct qe_mux *qe_mux_reg;
+	 __be32 __iomem *cmxs1cr;
+
+	clock_bits = 0;
+	qe_mux_reg = &qe_immr->qmx;
+
+	if ((tdm_num > 7 || tdm_num < 0))
+		return -EINVAL;
+
+	/* The communications direction must be RX or TX */
+	if (!((mode == COMM_DIR_RX) || (mode == COMM_DIR_TX)))
+		return -EINVAL;
+
+	switch (mode) {
+	case COMM_DIR_RX:
+		switch (tdm_num) {
+		case 0:
+			switch (clock) {
+			case QE_BRG3:
+					clock_bits = 1;
+					break;
+			case QE_BRG4:
+					clock_bits = 2;
+					break;
+			case QE_CLK1:
+					clock_bits = 4;
+					break;
+			case QE_CLK2:
+					clock_bits = 5;
+					break;
+			case QE_CLK3:
+					clock_bits = 6;
+					break;
+			case QE_CLK8:
+					clock_bits = 7;
+					break;
+			default:
+					break;
+			}
+			shift = 28;
+			break;
+		case 1:
+			switch (clock) {
+			case QE_BRG3:
+					clock_bits = 1;
+					break;
+			case QE_BRG4:
+					clock_bits = 2;
+					break;
+			case QE_CLK1:
+					clock_bits = 4;
+					break;
+			case QE_CLK2:
+					clock_bits = 5;
+					break;
+			case QE_CLK5:
+					clock_bits = 6;
+					break;
+			case QE_CLK10:
+					clock_bits = 7;
+					break;
+			default:
+					break;
+			}
+			shift = 24;
+			break;
+		case 2:
+			switch (clock) {
+			case QE_BRG3:
+					clock_bits = 1;
+					break;
+			case QE_BRG4:
+					clock_bits = 2;
+					break;
+			case QE_CLK1:
+					clock_bits = 4;
+					break;
+			case QE_CLK2:
+					clock_bits = 5;
+					break;
+			case QE_CLK7:
+					clock_bits = 6;
+					break;
+			case QE_CLK12:
+					clock_bits = 7;
+					break;
+			default:
+					break;
+			}
+			shift = 20;
+			break;
+		case 3:
+			switch (clock) {
+			case QE_BRG3:
+					clock_bits = 1;
+					break;
+			case QE_BRG4:
+					clock_bits = 2;
+					break;
+			case QE_CLK1:
+					clock_bits = 4;
+					break;
+			case QE_CLK2:
+					clock_bits = 5;
+					break;
+			case QE_CLK9:
+					clock_bits = 6;
+					break;
+			case QE_CLK14:
+					clock_bits = 7;
+					break;
+			default:
+					break;
+			}
+			shift = 16;
+			break;
+		case 4:
+			switch (clock) {
+			case QE_BRG12:
+					clock_bits = 1;
+					break;
+			case QE_BRG13:
+					clock_bits = 2;
+					break;
+			case QE_CLK23:
+					clock_bits = 4;
+					break;
+			case QE_CLK24:
+					clock_bits = 5;
+					break;
+			case QE_CLK11:
+					clock_bits = 6;
+					break;
+			case QE_CLK16:
+					clock_bits = 7;
+					break;
+			default:
+					break;
+			}
+			shift = 28;
+			break;
+		case 5:
+			switch (clock) {
+			case QE_BRG12:
+					clock_bits = 1;
+					break;
+			case QE_BRG13:
+					clock_bits = 2;
+					break;
+			case QE_CLK23:
+					clock_bits = 4;
+					break;
+			case QE_CLK24:
+					clock_bits = 5;
+					break;
+			case QE_CLK13:
+					clock_bits = 6;
+					break;
+			case QE_CLK18:
+					clock_bits = 7;
+					break;
+			default:
+					break;
+			}
+			shift = 24;
+			break;
+		case 6:
+			switch (clock) {
+			case QE_BRG12:
+					clock_bits = 1;
+					break;
+			case QE_BRG13:
+					clock_bits = 2;
+					break;
+			case QE_CLK23:
+					clock_bits = 4;
+					break;
+			case QE_CLK24:
+					clock_bits = 5;
+					break;
+			case QE_CLK15:
+					clock_bits = 6;
+					break;
+			case QE_CLK20:
+					clock_bits = 7;
+					break;
+			default:
+					break;
+			}
+			shift = 20;
+			break;
+		case 7:
+			switch (clock) {
+			case QE_BRG12:
+					clock_bits = 1;
+					break;
+			case QE_BRG13:
+					clock_bits = 2;
+					break;
+			case QE_CLK23:
+					clock_bits = 4;
+					break;
+			case QE_CLK24:
+					clock_bits = 5;
+					break;
+			case QE_CLK17:
+					clock_bits = 6;
+					break;
+			case QE_CLK22:
+					clock_bits = 7;
+					break;
+			default:
+					break;
+			}
+			shift = 16;
+			break;
+		default:
+				break;
+		}
+		break;
+	case COMM_DIR_TX:
+		switch (tdm_num) {
+		case 0:
+			switch (clock) {
+			case QE_BRG3:
+					clock_bits = 1;
+					break;
+			case QE_BRG4:
+					clock_bits = 2;
+					break;
+			case QE_CLK1:
+					clock_bits = 4;
+					break;
+			case QE_CLK2:
+					clock_bits = 5;
+					break;
+			case QE_CLK4:
+					clock_bits = 6;
+					break;
+			case QE_CLK9:
+					clock_bits = 7;
+					break;
+			default:
+					break;
+			}
+			shift = 12;
+			break;
+		case 1:
+			switch (clock) {
+			case QE_BRG3:
+					clock_bits = 1;
+					break;
+			case QE_BRG4:
+					clock_bits = 2;
+					break;
+			case QE_CLK1:
+					clock_bits = 4;
+					break;
+			case QE_CLK2:
+					clock_bits = 5;
+					break;
+			case QE_CLK6:
+					clock_bits = 6;
+					break;
+			case QE_CLK11:
+					clock_bits = 7;
+					break;
+			default:
+					break;
+			}
+			shift = 8;
+			break;
+		case 2:
+			switch (clock) {
+			case QE_BRG3:
+					clock_bits = 1;
+					break;
+			case QE_BRG4:
+					clock_bits = 2;
+					break;
+			case QE_CLK1:
+					clock_bits = 4;
+					break;
+			case QE_CLK2:
+					clock_bits = 5;
+					break;
+			case QE_CLK8:
+					clock_bits = 6;
+					break;
+			case QE_CLK13:
+					clock_bits = 7;
+					break;
+			default:
+					break;
+			}
+			shift = 4;
+			break;
+		case 3:
+			switch (clock) {
+			case QE_BRG3:
+					clock_bits = 1;
+					break;
+			case QE_BRG4:
+					clock_bits = 2;
+					break;
+			case QE_CLK1:
+					clock_bits = 4;
+					break;
+			case QE_CLK2:
+					clock_bits = 5;
+					break;
+			case QE_CLK10:
+					clock_bits = 6;
+					break;
+			case QE_CLK15:
+					clock_bits = 7;
+					break;
+			default:
+					break;
+			}
+			shift = 0;
+			break;
+		case 4:
+			switch (clock) {
+			case QE_BRG12:
+					clock_bits = 1;
+					break;
+			case QE_BRG13:
+					clock_bits = 2;
+					break;
+			case QE_CLK23:
+					clock_bits = 4;
+					break;
+			case QE_CLK24:
+					clock_bits = 5;
+					break;
+			case QE_CLK12:
+					clock_bits = 6;
+					break;
+			case QE_CLK17:
+					clock_bits = 7;
+					break;
+			default:
+					break;
+			}
+			shift = 12;
+			break;
+		case 5:
+			switch (clock) {
+			case QE_BRG12:
+					clock_bits = 1;
+					break;
+			case QE_BRG13:
+					clock_bits = 2;
+					break;
+			case QE_CLK23:
+					clock_bits = 4;
+					break;
+			case QE_CLK24:
+					clock_bits = 5;
+					break;
+			case QE_CLK14:
+					clock_bits = 6;
+					break;
+			case QE_CLK19:
+					clock_bits = 7;
+					break;
+			default:
+					break;
+			}
+			shift = 8;
+			break;
+		case 6:
+			switch (clock) {
+			case QE_BRG12:
+					clock_bits = 1;
+					break;
+			case QE_BRG13:
+					clock_bits = 2;
+					break;
+			case QE_CLK23:
+					clock_bits = 4;
+					break;
+			case QE_CLK24:
+					clock_bits = 5;
+					break;
+			case QE_CLK16:
+					clock_bits = 6;
+					break;
+			case QE_CLK21:
+					clock_bits = 7;
+					break;
+			default:
+					break;
+			}
+			shift = 4;
+			break;
+		case 7:
+			switch (clock) {
+			case QE_BRG12:
+					clock_bits = 1;
+					break;
+			case QE_BRG13:
+					clock_bits = 2;
+					break;
+			case QE_CLK23:
+					clock_bits = 4;
+					break;
+			case QE_CLK24:
+					clock_bits = 5;
+					break;
+			case QE_CLK18:
+					clock_bits = 6;
+					break;
+			case QE_CLK3:
+					clock_bits = 7;
+					break;
+			default:
+					break;
+			}
+			shift = 0;
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
+	}
+
+	if (!clock_bits)
+		return -ENOENT;
+
+	cmxs1cr = (tdm_num < 4) ? (&qe_mux_reg->cmxsi1cr_l) :
+				  (&qe_mux_reg->cmxsi1cr_h);
+
+	clrsetbits_be32(cmxs1cr, QE_CMXUCR_TX_CLK_SRC_MASK << shift,
+		   clock_bits << shift);
+
+	return 0;
+}
+
+
+int ucc_set_tdm_rxtx_sync(u32 tdm_num, enum qe_clock clock,
+		enum comm_dir mode)
+{
+	u32 shift, clock_bits;
+	struct qe_mux *qe_mux_reg;
+	int source;
+
+	source = 0;
+	shift = 0;
+	qe_mux_reg = &qe_immr->qmx;
+
+	if ((tdm_num > 7 || tdm_num < 0))
+		return -EINVAL;
+
+	/* The communications direction must be RX or TX */
+	if (!((mode == COMM_DIR_RX) || (mode == COMM_DIR_TX)))
+		return -EINVAL;
+
+	switch (mode) {
+	case COMM_DIR_RX:
+		switch (tdm_num) {
+		case 0:
+			switch (clock) {
+			case QE_RSYNC_PIN:
+					source = 0;
+					break;
+			case QE_BRG9:
+					source = 1;
+					break;
+			case QE_BRG10:
+					source = 2;
+					break;
+			default:
+					source = -1;
+					break;
+			}
+			shift = 30;
+			break;
+		case 1:
+			switch (clock) {
+			case QE_RSYNC_PIN:
+					source = 0;
+					break;
+			case QE_BRG9:
+					source = 1;
+					break;
+			case QE_BRG10:
+					source = 2;
+					break;
+			default:
+					source = -1;
+					break;
+			}
+			shift = 28;
+			break;
+		case 2:
+			switch (clock) {
+			case QE_RSYNC_PIN:
+					source = 0;
+					break;
+			case QE_BRG9:
+					source = 1;
+					break;
+			case QE_BRG11:
+					source = 2;
+					break;
+			default:
+					source = -1;
+					break;
+			}
+			shift = 26;
+			break;
+		case 3:
+			switch (clock) {
+			case QE_RSYNC_PIN:
+					source = 0;
+					break;
+			case QE_BRG9:
+					source = 1;
+					break;
+			case QE_BRG11:
+					source = 2;
+					break;
+			default:
+					source = -1;
+					break;
+			}
+			shift = 24;
+			break;
+		case 4:
+			switch (clock) {
+			case QE_RSYNC_PIN:
+					source = 0;
+					break;
+			case QE_BRG13:
+					source = 1;
+					break;
+			case QE_BRG14:
+					source = 2;
+					break;
+			default:
+					source = -1;
+					break;
+			}
+			shift = 22;
+			break;
+		case 5:
+			switch (clock) {
+			case QE_RSYNC_PIN:
+					source = 0;
+					break;
+			case QE_BRG13:
+					source = 1;
+					break;
+			case QE_BRG14:
+					source = 2;
+					break;
+			default:
+					source = -1;
+					break;
+			}
+			shift = 20;
+			break;
+		case 6:
+			switch (clock) {
+			case QE_RSYNC_PIN:
+					source = 0;
+					break;
+			case QE_BRG13:
+					source = 1;
+					break;
+			case QE_BRG15:
+					source = 2;
+					break;
+			default:
+					source = -1;
+					break;
+			}
+			shift = 18;
+			break;
+		case 7:
+			switch (clock) {
+			case QE_RSYNC_PIN:
+					source = 0;
+					break;
+			case QE_BRG13:
+					source = 1;
+					break;
+			case QE_BRG15:
+					source = 2;
+					break;
+			default:
+					source = -1;
+					break;
+			}
+			shift = 16;
+			break;
+		default:
+			source = -1;
+			break;
+		}
+		break;
+	case COMM_DIR_TX:
+		switch (tdm_num) {
+		case 0:
+			switch (clock) {
+			case QE_TSYNC_PIN:
+					source = 0;
+					break;
+			case QE_BRG9:
+					source = 1;
+					break;
+			case QE_BRG10:
+					source = 2;
+					break;
+			default:
+					source = -1;
+					break;
+			}
+			shift = 14;
+			break;
+		case 1:
+			switch (clock) {
+			case QE_TSYNC_PIN:
+					source = 0;
+					break;
+			case QE_BRG9:
+					source = 1;
+					break;
+			case QE_BRG10:
+					source = 2;
+					break;
+			default:
+					source = -1;
+					break;
+			}
+			shift = 12;
+			break;
+		case 2:
+			switch (clock) {
+			case QE_TSYNC_PIN:
+					source = 0;
+					break;
+			case QE_BRG9:
+					source = 1;
+					break;
+			case QE_BRG11:
+					source = 2;
+					break;
+			default:
+					source = -1;
+					break;
+			}
+			shift = 10;
+			break;
+		case 3:
+			switch (clock) {
+			case QE_TSYNC_PIN:
+					source = 0;
+					break;
+			case QE_BRG9:
+					source = 1;
+					break;
+			case QE_BRG11:
+					source = 2;
+					break;
+			default:
+					source = -1;
+					break;
+			}
+			shift = 8;
+			break;
+		case 4:
+			switch (clock) {
+			case QE_TSYNC_PIN:
+					source = 0;
+					break;
+			case QE_BRG13:
+					source = 1;
+					break;
+			case QE_BRG14:
+					source = 2;
+					break;
+			default:
+					source = -1;
+					break;
+			}
+			shift = 6;
+			break;
+		case 5:
+			switch (clock) {
+			case QE_TSYNC_PIN:
+					source = 0;
+					break;
+			case QE_BRG13:
+					source = 1;
+					break;
+			case QE_BRG14:
+					source = 2;
+					break;
+			default:
+					source = -1;
+					break;
+			}
+			shift = 4;
+			break;
+		case 6:
+			switch (clock) {
+			case QE_TSYNC_PIN:
+					source = 0;
+					break;
+			case QE_BRG13:
+					source = 1;
+					break;
+			case QE_BRG15:
+					source = 2;
+					break;
+			default:
+					source = -1;
+					break;
+			}
+			shift = 2;
+			break;
+		case 7:
+			switch (clock) {
+			case QE_TSYNC_PIN:
+					source = 0;
+					break;
+			case QE_BRG13:
+					source = 1;
+					break;
+			case QE_BRG15:
+					source = 2;
+					break;
+			default:
+					source = -1;
+					break;
+			}
+			shift = 0;
+			break;
+
+		default:
+			source = -1;
+			break;
+		}
+		break;
+	default:
+		source = -1;
+		break;
+	}
+
+	if (source == -1)
+		return -ENOENT;
+
+	clock_bits = (u32) source;
+
+	clrsetbits_be32(&qe_mux_reg->cmxsi1syr,
+			QE_CMXUCR_TX_CLK_SRC_MASK << shift,
+			clock_bits << shift);
+
+	return 0;
+}
