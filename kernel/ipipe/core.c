@@ -1736,11 +1736,10 @@ int notrace __ipipe_check_percpu_access(void)
 	 * currently stalled, in which case preemption would be
 	 * disabled, and no migration could occur.
 	 */
-	if (this_domain == ipipe_root_domain) {
-		p = raw_cpu_ptr(&ipipe_percpu.root);
-		if (test_bit(IPIPE_STALL_FLAG, &p->status) || preempt_count())
-			goto out;
-	}
+
+	p = raw_cpu_ptr(&ipipe_percpu.root);
+	if (test_bit(IPIPE_STALL_FLAG, &p->status) || preempt_count())
+		goto out;
 	/*
 	 * Our caller may end up accessing the wrong per-cpu variable
 	 * instance due to CPU migration; tell it to complain about
