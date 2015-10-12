@@ -1738,7 +1738,7 @@ int notrace __ipipe_check_percpu_access(void)
 	 */
 
 	p = raw_cpu_ptr(&ipipe_percpu.root);
-	if (test_bit(IPIPE_STALL_FLAG, &p->status) || preempt_count())
+	if (!preemptible())
 		goto out;
 	/*
 	 * Our caller may end up accessing the wrong per-cpu variable
