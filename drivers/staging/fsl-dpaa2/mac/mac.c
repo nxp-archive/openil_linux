@@ -372,9 +372,8 @@ static void ppx_link_changed(struct net_device *netdev)
 	 */
 	err = dpmac_set_link_state(priv->mc_dev->mc_io, 0,
 				   priv->mc_dev->mc_handle, &state);
-
 	if (err && err != -EACCES && err != -ENAVAIL)
-		ppx_err(netdev, "dpmac_set_link_state err %d\n", err);
+		dev_err(&priv->mc_dev->dev, "dpmac_set_link_state: %d\n", err);
 }
 
 static int ppx_configure_link(struct ppx_priv *priv, struct dpmac_link_cfg *cfg)
