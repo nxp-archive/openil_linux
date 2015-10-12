@@ -934,6 +934,7 @@ static int __cold ldpaa_eth_stop(struct net_device *net_dev)
 
 	/* Stop Tx and Rx traffic */
 	netif_tx_stop_all_queues(net_dev);
+	netif_carrier_off(net_dev);
 	dpni_disable(priv->mc_io, 0, priv->mc_token);
 
 	/* TODO: Make sure queues are drained before if down is complete! */
