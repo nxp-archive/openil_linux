@@ -47,7 +47,6 @@
 #include "dpaa2-eth-trace.h"
 #include "dpaa2-eth-debugfs.h"
 
-#define DPAA2_ETH_TX_QUEUES		8
 #define DPAA2_ETH_STORE_SIZE		16
 
 /* Maximum receive frame size is 64K */

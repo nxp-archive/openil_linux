@@ -685,7 +685,7 @@ static int dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	/* Tracing point */
 	trace_dpaa2_tx_fd(net_dev, &fd);
 
-	for (i = 0; i < (DPAA2_ETH_TX_QUEUES << 1); i++) {
+	for (i = 0; i < (DPAA2_ETH_MAX_TX_QUEUES << 1); i++) {
 		err = dpaa2_io_service_enqueue_qd(NULL, priv->tx_qdid, 0,
 						 priv->fq[queue_mapping].flowid,
 						 &fd);
@@ -2556,7 +2556,7 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 	dev = &dpni_dev->dev;
 
 	/* Net device */
-	net_dev = alloc_etherdev_mq(sizeof(*priv), DPAA2_ETH_TX_QUEUES);
+	net_dev = alloc_etherdev_mq(sizeof(*priv), DPAA2_ETH_MAX_TX_QUEUES);
 	if (!net_dev) {
 		dev_err(dev, "alloc_etherdev_mq() failed\n");
 		return -ENOMEM;
