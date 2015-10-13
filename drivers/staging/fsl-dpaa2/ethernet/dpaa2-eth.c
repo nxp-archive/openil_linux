@@ -69,12 +69,6 @@ do { \
 		(cpu) = cpumask_first((maskptr)); \
 } while (0)
 
-static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv,
-			     struct dpaa2_eth_channel *ch,
-			     u16 bpid);
-static int dpaa2_dpbp_seed(struct dpaa2_eth_priv *priv, u16 bpid);
-static void __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv);
-
 static void dpaa2_eth_rx_csum(struct dpaa2_eth_priv *priv,
 			      u32 fd_status,
 			      struct sk_buff *skb)
@@ -796,6 +790,168 @@ static int dpaa2_eth_set_tx_csum(struct dpaa2_eth_priv *priv, bool enable)
 	}
 
 	return 0;
+}
+
+static int dpaa2_bp_add_7(struct dpaa2_eth_priv *priv, u16 bpid)
+{
+	struct device *dev = priv->net_dev->dev.parent;
+	u64 buf_array[7];
+	void *buf;
+	dma_addr_t addr;
+	int i;
+
+	for (i = 0; i < 7; i++) {
+		/* Allocate buffer visible to WRIOP + skb shared info +
+		 * alignment padding
+		 */
+		buf = napi_alloc_frag(DPAA2_ETH_BUF_RAW_SIZE);
+		if (unlikely(!buf)) {
+			dev_err(dev, "buffer allocation failed\n");
+			goto err_alloc;
+		}
+		buf = PTR_ALIGN(buf, DPAA2_ETH_RX_BUF_ALIGN);
+
+		addr = dma_map_single(dev, buf, DPAA2_ETH_RX_BUFFER_SIZE,
+				      DMA_FROM_DEVICE);
+		if (unlikely(dma_mapping_error(dev, addr))) {
+			dev_err(dev, "dma_map_single() failed\n");
+			goto err_map;
+		}
+		buf_array[i] = addr;
+
+		/* tracing point */
+		trace_dpaa2_eth_buf_seed(priv->net_dev,
+					 buf, DPAA2_ETH_BUF_RAW_SIZE,
+					 addr, DPAA2_ETH_RX_BUFFER_SIZE,
+					 bpid);
+	}
+
+release_bufs:
+	/* In case the portal is busy, retry until successful.
+	 * The buffer release function would only fail if the QBMan portal
+	 * was busy, which implies portal contention (i.e. more CPUs than
+	 * portals, i.e. GPPs w/o affine DPIOs). For all practical purposes,
+	 * there is little we can realistically do, short of giving up -
+	 * in which case we'd risk depleting the buffer pool and never again
+	 * receiving the Rx interrupt which would kick-start the refill logic.
+	 * So just keep retrying, at the risk of being moved to ksoftirqd.
+	 */
+	while (dpaa2_io_service_release(NULL, bpid, buf_array, i))
+		cpu_relax();
+	return i;
+
+err_map:
+	put_page(virt_to_head_page(buf));
+err_alloc:
+	if (i)
+		goto release_bufs;
+
+	return 0;
+}
+
+static int dpaa2_dpbp_seed(struct dpaa2_eth_priv *priv, u16 bpid)
+{
+	int i, j;
+	int new_count;
+
+	/* This is the lazy seeding of Rx buffer pools.
+	 * dpaa2_bp_add_7() is also used on the Rx hotpath and calls
+	 * napi_alloc_frag(). The trouble with that is that it in turn ends up
+	 * calling this_cpu_ptr(), which mandates execution in atomic context.
+	 * Rather than splitting up the code, do a one-off preempt disable.
+	 */
+	preempt_disable();
+	for (j = 0; j < priv->num_channels; j++) {
+		for (i = 0; i < DPAA2_ETH_NUM_BUFS; i += 7) {
+			new_count = dpaa2_bp_add_7(priv, bpid);
+			priv->channel[j]->buf_count += new_count;
+
+			if (new_count < 7) {
+				preempt_enable();
+				goto out_of_memory;
+			}
+		}
+	}
+	preempt_enable();
+
+	return 0;
+
+out_of_memory:
+	return -ENOMEM;
+}
+
+/**
+ * Drain the specified number of buffers from the DPNI's private buffer pool.
+ * @count must not exceeed 7
+ */
+static void dpaa2_dpbp_drain_cnt(struct dpaa2_eth_priv *priv, int count)
+{
+	struct device *dev = priv->net_dev->dev.parent;
+	u64 buf_array[7];
+	void *vaddr;
+	int ret, i;
+
+	do {
+		ret = dpaa2_io_service_acquire(NULL, priv->dpbp_attrs.bpid,
+					      buf_array, count);
+		if (ret < 0) {
+			pr_err("dpaa2_io_service_acquire() failed\n");
+			return;
+		}
+		for (i = 0; i < ret; i++) {
+			/* Same logic as on regular Rx path */
+			dma_unmap_single(dev, buf_array[i],
+					 DPAA2_ETH_RX_BUFFER_SIZE,
+					 DMA_FROM_DEVICE);
+			vaddr = phys_to_virt(buf_array[i]);
+			put_page(virt_to_head_page(vaddr));
+		}
+	} while (ret);
+}
+
+static void dpaa2_dpbp_drain(struct dpaa2_eth_priv *priv)
+{
+	dpaa2_dpbp_drain_cnt(priv, 7);
+	dpaa2_dpbp_drain_cnt(priv, 1);
+}
+
+static void __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
+{
+	int i;
+
+	dpaa2_dpbp_drain(priv);
+
+	for (i = 0; i < priv->num_channels; i++)
+		priv->channel[i]->buf_count = 0;
+}
+
+/* Function is called from softirq context only, so we don't need to guard
+ * the access to percpu count
+ */
+static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv,
+			     struct dpaa2_eth_channel *ch,
+			     u16 bpid)
+{
+	int new_count;
+	int err = 0;
+
+	if (unlikely(ch->buf_count < DPAA2_ETH_REFILL_THRESH)) {
+		do {
+			new_count = dpaa2_bp_add_7(priv, bpid);
+			if (unlikely(!new_count)) {
+				/* Out of memory; abort for now, we'll
+				 * try later on
+				 */
+				break;
+			}
+			ch->buf_count += new_count;
+		} while (ch->buf_count < DPAA2_ETH_NUM_BUFS);
+
+		if (unlikely(ch->buf_count < DPAA2_ETH_NUM_BUFS))
+			err = -ENOMEM;
+	}
+
+	return err;
 }
 
 static int __dpaa2_eth_pull_channel(struct dpaa2_eth_channel *ch)
@@ -1629,158 +1785,6 @@ static void dpaa2_set_fq_affinity(struct dpaa2_eth_priv *priv)
 	}
 }
 
-/**
- * Drain the specified number of buffers from the DPNI's private buffer pool.
- * @count must not exceeed 7
- */
-static void dpaa2_dpbp_drain_cnt(struct dpaa2_eth_priv *priv, int count)
-{
-	struct device *dev = priv->net_dev->dev.parent;
-	u64 buf_array[7];
-	void *vaddr;
-	int ret, i;
-
-	do {
-		ret = dpaa2_io_service_acquire(NULL, priv->dpbp_attrs.bpid,
-					      buf_array, count);
-		if (ret < 0) {
-			pr_err("dpaa2_io_service_acquire() failed\n");
-			return;
-		}
-		for (i = 0; i < ret; i++) {
-			/* Same logic as on regular Rx path */
-			dma_unmap_single(dev, buf_array[i],
-					 DPAA2_ETH_RX_BUFFER_SIZE,
-					 DMA_FROM_DEVICE);
-			vaddr = phys_to_virt(buf_array[i]);
-			put_page(virt_to_head_page(vaddr));
-		}
-	} while (ret);
-}
-
-static void dpaa2_dpbp_drain(struct dpaa2_eth_priv *priv)
-{
-	dpaa2_dpbp_drain_cnt(priv, 7);
-	dpaa2_dpbp_drain_cnt(priv, 1);
-}
-
-static int dpaa2_bp_add_7(struct dpaa2_eth_priv *priv, u16 bpid)
-{
-	struct device *dev = priv->net_dev->dev.parent;
-	u64 buf_array[7];
-	void *buf;
-	dma_addr_t addr;
-	int i;
-
-	for (i = 0; i < 7; i++) {
-		/* Allocate buffer visible to WRIOP + skb shared info +
-		 * alignment padding
-		 */
-		buf = napi_alloc_frag(DPAA2_ETH_BUF_RAW_SIZE);
-		if (unlikely(!buf)) {
-			dev_err(dev, "buffer allocation failed\n");
-			goto err_alloc;
-		}
-		buf = PTR_ALIGN(buf, DPAA2_ETH_RX_BUF_ALIGN);
-
-		addr = dma_map_single(dev, buf, DPAA2_ETH_RX_BUFFER_SIZE,
-				      DMA_FROM_DEVICE);
-		if (unlikely(dma_mapping_error(dev, addr))) {
-			dev_err(dev, "dma_map_single() failed\n");
-			goto err_map;
-		}
-		buf_array[i] = addr;
-
-		/* tracing point */
-		trace_dpaa2_eth_buf_seed(priv->net_dev,
-					 buf, DPAA2_ETH_BUF_RAW_SIZE,
-					 addr, DPAA2_ETH_RX_BUFFER_SIZE,
-					 bpid);
-	}
-
-release_bufs:
-	/* In case the portal is busy, retry until successful.
-	 * The buffer release function would only fail if the QBMan portal
-	 * was busy, which implies portal contention (i.e. more CPUs than
-	 * portals, i.e. GPPs w/o affine DPIOs). For all practical purposes,
-	 * there is little we can realistically do, short of giving up -
-	 * in which case we'd risk depleting the buffer pool and never again
-	 * receiving the Rx interrupt which would kick-start the refill logic.
-	 * So just keep retrying, at the risk of being moved to ksoftirqd.
-	 */
-	while (dpaa2_io_service_release(NULL, bpid, buf_array, i))
-		cpu_relax();
-	return i;
-
-err_map:
-	put_page(virt_to_head_page(buf));
-err_alloc:
-	if (i)
-		goto release_bufs;
-
-	return 0;
-}
-
-static int dpaa2_dpbp_seed(struct dpaa2_eth_priv *priv, u16 bpid)
-{
-	int i, j;
-	int new_count;
-
-	/* This is the lazy seeding of Rx buffer pools.
-	 * dpaa2_bp_add_7() is also used on the Rx hotpath and calls
-	 * napi_alloc_frag(). The trouble with that is that it in turn ends up
-	 * calling this_cpu_ptr(), which mandates execution in atomic context.
-	 * Rather than splitting up the code, do a one-off preempt disable.
-	 */
-	preempt_disable();
-	for (j = 0; j < priv->num_channels; j++) {
-		for (i = 0; i < DPAA2_ETH_NUM_BUFS; i += 7) {
-			new_count = dpaa2_bp_add_7(priv, bpid);
-			priv->channel[j]->buf_count += new_count;
-
-			if (new_count < 7) {
-				preempt_enable();
-				goto out_of_memory;
-			}
-		}
-	}
-	preempt_enable();
-
-	return 0;
-
-out_of_memory:
-	return -ENOMEM;
-}
-
-/* Function is called from softirq context only, so we don't need to guard
- * the access to percpu count
- */
-static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv,
-			     struct dpaa2_eth_channel *ch,
-			     u16 bpid)
-{
-	int new_count;
-	int err = 0;
-
-	if (unlikely(ch->buf_count < DPAA2_ETH_REFILL_THRESH)) {
-		do {
-			new_count = dpaa2_bp_add_7(priv, bpid);
-			if (unlikely(!new_count)) {
-				/* Out of memory; abort for now, we'll
-				 * try later on
-				 */
-				break;
-			}
-			ch->buf_count += new_count;
-		} while (ch->buf_count < DPAA2_ETH_NUM_BUFS);
-
-		if (unlikely(ch->buf_count < DPAA2_ETH_NUM_BUFS))
-			err = -ENOMEM;
-	}
-
-	return err;
-}
-
 static int dpaa2_dpbp_setup(struct dpaa2_eth_priv *priv)
 {
 	int err;
@@ -1831,16 +1835,6 @@ err_open:
 	fsl_mc_object_free(dpbp_dev);
 
 	return err;
-}
-
-static void __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
-{
-	int i;
-
-	dpaa2_dpbp_drain(priv);
-
-	for (i = 0; i < priv->num_channels; i++)
-		priv->channel[i]->buf_count = 0;
 }
 
 static void dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
