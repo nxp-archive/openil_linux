@@ -758,7 +758,7 @@ dpa_bp_alloc(struct dpa_bp *dpa_bp)
 		goto pdev_register_failed;
 	}
 
-	err = dma_set_mask(&pdev->dev, DMA_BIT_MASK(40));
+	err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(40));
 	if (err)
 		goto pdev_mask_failed;
 
