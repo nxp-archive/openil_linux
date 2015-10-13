@@ -75,14 +75,6 @@ static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv, uint16_t bpid);
 static int dpaa2_dpbp_seed(struct dpaa2_eth_priv *priv, uint16_t bpid);
 static void __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv);
 
-/* TODO Assert it is smaller than DPAA2_ETH_SWA_SIZE */
-struct dpaa2_eth_swa {
-	struct sk_buff *skb;
-	struct scatterlist *scl;
-	int num_sg;
-	int num_dma_bufs;
-};
-
 static void dpaa2_eth_rx_csum(struct dpaa2_eth_priv *priv,
 			      uint32_t fd_status,
 			      struct sk_buff *skb)

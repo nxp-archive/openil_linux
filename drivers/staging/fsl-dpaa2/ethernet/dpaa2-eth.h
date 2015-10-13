@@ -93,11 +93,19 @@
 /* PTP nominal frequency 1MHz */
 #define DPAA2_PTP_NOMINAL_FREQ_PERIOD_NS 1000
 
-/* We are accommodating a skb backpointer and potentially other data (see
- * struct backpointers) in the frame's software annotation. The hardware
+/* We are accommodating a skb backpointer and some S/G info
+ * in the frame's software annotation. The hardware
  * options are either 0 or 64, so we choose the latter.
  */
 #define DPAA2_ETH_SWA_SIZE		64
+
+/* Must keep this struct smaller than DPAA2_ETH_SWA_SIZE */
+struct dpaa2_eth_swa {
+	struct sk_buff *skb;
+	struct scatterlist *scl;
+	int num_sg;
+	int num_dma_bufs;
+};
 
 /* Annotation valid bits in FD FRC */
 #define DPAA2_FD_FRC_FASV		0x8000
