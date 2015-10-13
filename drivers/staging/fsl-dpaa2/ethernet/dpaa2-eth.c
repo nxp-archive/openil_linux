@@ -61,14 +61,6 @@ MODULE_PARM_DESC(debug, "Module/Driver verbosity level");
 #define DPAA2_SUPPORTED_DPBP_VERSION	2
 #define DPAA2_SUPPORTED_DPCON_VERSION	2
 
-/* Iterate through the cpumask in a round-robin fashion. */
-#define cpumask_rr(cpu, maskptr) \
-do { \
-	(cpu) = cpumask_next((cpu), (maskptr)); \
-	if ((cpu) >= nr_cpu_ids) \
-		(cpu) = cpumask_first((maskptr)); \
-} while (0)
-
 static void dpaa2_eth_rx_csum(struct dpaa2_eth_priv *priv,
 			      u32 fd_status,
 			      struct sk_buff *skb)
@@ -1810,7 +1802,7 @@ static void dpaa2_set_fq_affinity(struct dpaa2_eth_priv *priv)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	struct dpaa2_eth_fq *fq;
-	int rx_cpu, txconf_cpu;
+	int rx_cpu, txc_cpu;
 	int i;
 
 	/* For each FQ, pick one channel/CPU to deliver frames to.
@@ -1818,7 +1810,7 @@ static void dpaa2_set_fq_affinity(struct dpaa2_eth_priv *priv)
 	 * through direct user intervention.
 	 */
 	rx_cpu = cpumask_first(&priv->dpio_cpumask);
-	txconf_cpu = cpumask_first(&priv->txconf_cpumask);
+	txc_cpu = cpumask_first(&priv->txconf_cpumask);
 
 	for (i = 0; i < priv->num_fqs; i++) {
 		fq = &priv->fq[i];
@@ -1826,11 +1818,15 @@ static void dpaa2_set_fq_affinity(struct dpaa2_eth_priv *priv)
 		case DPAA2_RX_FQ:
 		case DPAA2_RX_ERR_FQ:
 			fq->target_cpu = rx_cpu;
-			cpumask_rr(rx_cpu, &priv->dpio_cpumask);
+			rx_cpu = cpumask_next(rx_cpu, &priv->dpio_cpumask);
+			if (rx_cpu >= nr_cpu_ids)
+				rx_cpu = cpumask_first(&priv->dpio_cpumask);
 			break;
 		case DPAA2_TX_CONF_FQ:
-			fq->target_cpu = txconf_cpu;
-			cpumask_rr(txconf_cpu, &priv->txconf_cpumask);
+			fq->target_cpu = txc_cpu;
+			txc_cpu = cpumask_next(txc_cpu, &priv->txconf_cpumask);
+			if (txc_cpu >= nr_cpu_ids)
+				txc_cpu = cpumask_first(&priv->txconf_cpumask);
 			break;
 		default:
 			dev_err(dev, "Unknown FQ type: %d\n", fq->type);
