@@ -761,6 +761,8 @@ dpa_bp_alloc(struct dpa_bp *dpa_bp)
 	err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(40));
 	if (err)
 		goto pdev_mask_failed;
+	/* force coherency */
+	pdev->dev.archdata.dma_coherent = true;
 
 	dpa_bp->dev = &pdev->dev;
 
