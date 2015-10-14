@@ -871,8 +871,8 @@ static int ldpaa_link_state_update(struct ldpaa_eth_priv *priv)
 		netif_carrier_off(priv->net_dev);
 	}
 
-	netdev_info(priv->net_dev, "Link Event: state: %d", state.up);
-	WARN_ONCE(state.up > 1, "Garbage read into link_state");
+	netdev_info(priv->net_dev, "Link Event: state %s",
+		    state.up ? "up" : "down");
 
 	return 0;
 }
@@ -2079,8 +2079,8 @@ static int ldpaa_eth_netdev_init(struct net_device *net_dev)
 		 * register_netdevice()
 		 */
 		eth_hw_addr_random(net_dev);
-		netdev_info(net_dev, "Replacing all-zero hwaddr with %pM",
-			    net_dev->dev_addr);
+		dev_info(dev, "Replacing all-zero hwaddr with %pM",
+			 net_dev->dev_addr);
 		err = dpni_set_primary_mac_addr(priv->mc_io, 0, priv->mc_token,
 						net_dev->dev_addr);
 		if (unlikely(err)) {
@@ -2148,6 +2148,7 @@ static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 	struct net_device *net_dev = dev_get_drvdata(dev);
 	int err;
 
+	netdev_dbg(net_dev, "IRQ %d received\n", irq_num);
 	/* Sanity check; TODO a bit of cleanup here */
 	if (WARN_ON(!dpni_dev || !dpni_dev->irqs || !dpni_dev->irqs[irq_index]))
 		goto out;
