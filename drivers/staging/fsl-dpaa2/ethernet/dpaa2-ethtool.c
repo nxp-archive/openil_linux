@@ -134,6 +134,15 @@ static int __cold ldpaa_set_settings(struct net_device *net_dev,
 
 	netdev_info(net_dev, "Setting link parameters...");
 
+	/* Due to a temporary firmware limitation, the DPNI must be down
+	 * in order to be able to change link settings. Taking steps to let
+	 * the user know that.
+	 */
+	if (netif_running(net_dev)) {
+		netdev_info(net_dev, "Sorry, interface must be brought down first.\n");
+		return -EACCES;
+	}
+
 	cfg.rate = ethtool_cmd_speed(cmd);
 	if (cmd->autoneg == AUTONEG_ENABLE)
 		cfg.options |= DPNI_LINK_OPT_AUTONEG;
