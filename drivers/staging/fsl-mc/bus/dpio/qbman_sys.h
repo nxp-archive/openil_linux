@@ -153,7 +153,7 @@ static inline void qbman_cinh_write(struct qbman_swp_sys *s, uint32_t offset,
 				    uint32_t val)
 {
 
-	__raw_writel(val, s->addr_cinh + offset);
+	writel_relaxed(val, s->addr_cinh + offset);
 #ifdef QBMAN_CINH_TRACE
 	pr_info("qbman_cinh_write(%p:0x%03x) 0x%08x\n",
 		s->addr_cinh, offset, val);
@@ -162,7 +162,7 @@ static inline void qbman_cinh_write(struct qbman_swp_sys *s, uint32_t offset,
 
 static inline uint32_t qbman_cinh_read(struct qbman_swp_sys *s, uint32_t offset)
 {
-	uint32_t reg = __raw_readl(s->addr_cinh + offset);
+	uint32_t reg = readl_relaxed(s->addr_cinh + offset);
 
 #ifdef QBMAN_CINH_TRACE
 	pr_info("qbman_cinh_read(%p:0x%03x) 0x%08x\n",
@@ -197,10 +197,10 @@ static inline void qbman_cena_write_complete(struct qbman_swp_sys *s,
 	hexdump(cmd, 64);
 #endif
 	for (loop = 15; loop >= 1; loop--)
-		__raw_writel(shadow[loop], s->addr_cena +
+		writel_relaxed(shadow[loop], s->addr_cena +
 					 offset + loop * 4);
 	lwsync();
-	__raw_writel(shadow[0], s->addr_cena + offset);
+	writel_relaxed(shadow[0], s->addr_cena + offset);
 	dcbf(s->addr_cena + offset);
 }
 
@@ -215,7 +215,7 @@ static inline void *qbman_cena_read(struct qbman_swp_sys *s, uint32_t offset)
 #endif
 
 	for (loop = 0; loop < 16; loop++)
-		shadow[loop] = __raw_readl(s->addr_cena + offset
+		shadow[loop] = readl_relaxed(s->addr_cena + offset
 					+ loop * 4);
 #ifdef QBMAN_CENA_TRACE
 	hexdump(shadow, 64);
