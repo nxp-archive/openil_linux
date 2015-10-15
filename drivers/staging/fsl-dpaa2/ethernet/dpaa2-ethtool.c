@@ -115,6 +115,11 @@ static int __cold ldpaa_get_settings(struct net_device *net_dev,
 		goto out;
 	}
 
+	/* At the moment, we have no way of interrogating the DPMAC
+	 * from the DPNI side - and for that matter there may exist
+	 * no DPMAC at all. So for now we just don't report anything
+	 * beyond the DPNI attributes.
+	 */
 	if (state.options & DPNI_LINK_OPT_AUTONEG)
 		cmd->autoneg = AUTONEG_ENABLE;
 	if (!(state.options & DPNI_LINK_OPT_HALF_DUPLEX))
@@ -132,7 +137,7 @@ static int __cold ldpaa_set_settings(struct net_device *net_dev,
 	struct ldpaa_eth_priv *priv = netdev_priv(net_dev);
 	int err = 0;
 
-	netdev_info(net_dev, "Setting link parameters...");
+	netdev_dbg(net_dev, "Setting link parameters...");
 
 	/* Due to a temporary firmware limitation, the DPNI must be down
 	 * in order to be able to change link settings. Taking steps to let
@@ -155,7 +160,10 @@ static int __cold ldpaa_set_settings(struct net_device *net_dev,
 
 	err = dpni_set_link_cfg(priv->mc_io, 0, priv->mc_token, &cfg);
 	if (unlikely(err))
-		netdev_err(net_dev, "ERROR %d setting link cfg", err);
+		/* ethtool will be loud enough if we return an error; no point
+		 * in putting our own error message on the console by default
+		 */
+		netdev_dbg(net_dev, "ERROR %d setting link cfg", err);
 
 	return err;
 }
