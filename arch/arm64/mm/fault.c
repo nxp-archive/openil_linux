@@ -97,6 +97,9 @@ static void __do_kernel_fault(struct mm_struct *mm, unsigned long addr,
 	if (ret)
 		return;
 
+	if (__ipipe_report_trap(IPIPE_TRAP_ACCESS, regs))
+		return;
+
 	/*
 	 * No handler, we'll have to terminate things with extreme prejudice.
 	 */
@@ -120,6 +123,9 @@ static void __do_user_fault(struct task_struct *tsk, unsigned long addr,
 			    struct pt_regs *regs)
 {
 	struct siginfo si;
+
+	if (__ipipe_report_trap(IPIPE_TRAP_ACCESS, regs))
+		return;
 
 	if (show_unhandled_signals && unhandled_signal(tsk, sig) &&
 	    printk_ratelimit()) {
@@ -369,9 +375,6 @@ static int __kprobes do_translation_fault(unsigned long addr,
 {
 	if (addr < TASK_SIZE)
 		return do_page_fault(addr, esr, regs);
-
-	if (__ipipe_report_trap(IPIPE_TRAP_ACCESS, regs))
-		return 0;
 
 	do_bad_area(addr, esr, regs);
 
