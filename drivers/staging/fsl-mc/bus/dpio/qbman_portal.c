@@ -948,14 +948,7 @@ int qbman_result_bpscn_is_surplus(const struct ldpaa_dq *scn)
 
 uint64_t qbman_result_bpscn_ctx(const struct ldpaa_dq *scn)
 {
-	uint64_t ctx;
-	uint32_t ctx_hi, ctx_lo;
-
-	ctx = qbman_result_SCN_ctx(scn);
-	ctx_hi = upper32(ctx);
-	ctx_lo = lower32(ctx);
-	return ((uint64_t)make_le32(ctx_hi) << 32 |
-	       (uint64_t)make_le32(ctx_lo));
+	return qbman_result_SCN_ctx(scn);
 }
 
 /*****************/
@@ -968,14 +961,7 @@ uint16_t qbman_result_cgcu_cgid(const struct ldpaa_dq *scn)
 
 uint64_t qbman_result_cgcu_icnt(const struct ldpaa_dq *scn)
 {
-	uint64_t ctx;
-	uint32_t ctx_hi, ctx_lo;
-
-	ctx = qbman_result_SCN_ctx(scn);
-	ctx_hi = upper32(ctx);
-	ctx_lo = lower32(ctx);
-	return ((uint64_t)(make_le32(ctx_hi) & 0xFF) << 32) |
-		       (uint64_t)make_le32(ctx_lo);
+	return qbman_result_SCN_ctx(scn) & 0xFFFFFFFFFF;
 }
 
 /******************/
