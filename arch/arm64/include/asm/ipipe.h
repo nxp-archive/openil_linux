@@ -239,6 +239,9 @@ static inline unsigned long __ipipe_ffnz(unsigned long ul)
 
 #define __ipipe_root_tick_p(regs) (!arch_irqs_disabled_flags(regs->pstate))
 
+struct task_struct *ipipe_switch_to(struct task_struct *prev,
+				    struct task_struct *next);
+
 #else /* !CONFIG_IPIPE */
 
 #define __ipipe_tsc_update()	do { } while(0)
