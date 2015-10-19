@@ -663,14 +663,10 @@ ret_from_exception:
 	disable_irq
 	kernel_exit 0, ret = 0
 ipipe_fast_sysret:
-	ldr	x0, [sp, #S_X0]
 	disable_irq
 	ldr	x1, [tsk, #TI_FLAGS]
 	enable_step_tsk x1, x2
 	kernel_exit 0, ret = 1
-ipipe_slow_sysret:
-	ldr	x0, [sp, #S_X0]
-	/* Falldown wanted. */
 #endif /* CONFIG_IPIPE */
 /*
  * This is the fast syscall return path.  We do as little as possible here,
@@ -747,13 +743,14 @@ el0_svc_naked:					// compat entry point
 	bl	__ipipe_syscall_root
 	get_thread_info tsk
 	cmp	x0, #0
+	ldr	x0, [sp, #S_X0]
 	blt	ipipe_fast_sysret
-	bgt	ipipe_slow_sysret
+	bgt	ret_fast_syscall
 	/*
 	 * Save/restore needed during syscalls.  Restore syscall arguments from
 	 * the values already saved on stack during kernel_entry.
 	 */
-	ldp	x0, x1, [sp]
+	ldr	x1, [sp, #S_X1]
 	ldp	x2, x3, [sp, #S_X2]
 	ldp	x4, x5, [sp, #S_X4]
 	ldp	x6, x7, [sp, #S_X6]
