@@ -662,6 +662,18 @@
 			reg = <0x0 0x2d24000 0x0 0x4000>;
 		};
 
+		ptp_clock@2d10e00 {
+			compatible = "fsl,etsec-ptp";
+			reg = <0x0 0x2d10e00 0x0 0xb0>;
+			interrupts = <GIC_SPI 173 IRQ_TYPE_LEVEL_HIGH>;
+			fsl,tclk-period = <0x00000005>;
+			fsl,tmr-prsc    = <0x00000002>;
+			fsl,tmr-add     = <0xaaaaaaab>;
+			fsl,tmr-fiper1  = <0x3b9ac9f6>;
+			fsl,tmr-fiper2  = <0x00018696>;
+			fsl,max-adj     = <0x1dcd64ff>;
+		};
+
 		enet0: ethernet@2d10000 {
 			compatible = "fsl,etsec2";
 			device_type = "network";
