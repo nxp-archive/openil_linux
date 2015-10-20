@@ -657,10 +657,10 @@ ENDPROC(cpu_switch_to)
 
 #ifdef CONFIG_IPIPE
 ret_from_exception:
+	disable_irq
 	ldr	x0, [tsk, #TI_IPIPE]
 	tst	x0, #_TIP_HEAD
-	b.eq	ret_to_user
-	disable_irq
+	b.eq	ret_to_user_noirq
 	kernel_exit 0, ret = 0
 ipipe_fast_sysret:
 	disable_irq
@@ -704,6 +704,7 @@ work_resched:
  */
 ret_to_user:
 	disable_irq				// disable interrupts
+ret_to_user_noirq:
 	ldr	x1, [tsk, #TI_FLAGS]
 	and	x2, x1, #_TIF_WORK_MASK
 	cbnz	x2, work_pending
