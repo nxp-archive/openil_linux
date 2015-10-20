@@ -49,10 +49,7 @@
 #include <asm/unistd.h>
 #include <asm/mmu_context.h>
 #include <asm/exception.h>
-
-#ifndef CONFIG_IPIPE_ARM_KUSER_TSC
 #include <asm/arch_timer.h>
-#endif
 
 static void __ipipe_do_IRQ(unsigned irq, void *cookie);
 
@@ -502,7 +499,6 @@ void deferred_switch_mm(struct mm_struct *next)
 #endif	/* finish_arch_post_lock_switch */
 #endif /* CONFIG_MMU */
 
-#ifndef CONFIG_IPIPE_ARM_KUSER_TSC
 static struct __ipipe_tscinfo tsc_info;
 
 void __init __ipipe_tsc_register(struct __ipipe_tscinfo *info)
@@ -510,14 +506,11 @@ void __init __ipipe_tsc_register(struct __ipipe_tscinfo *info)
 	tsc_info = *info;
 	__ipipe_hrclock_freq = info->freq;
 }
+
 void __ipipe_mach_get_tscinfo(struct __ipipe_tscinfo *info)
 {
 	*info = tsc_info;
 }
-unsigned long long __ipipe_mach_get_tsc(void) {
-	return arch_counter_get_cntvct();
-}
-#endif
 
 EXPORT_SYMBOL_GPL(do_munmap);
 EXPORT_SYMBOL_GPL(show_stack);

@@ -540,9 +540,7 @@ u64 smp_irq_stat_cpu(unsigned int cpu)
 static inline void ipi_timer(void)
 {
 #ifdef CONFIG_IPIPE
-#ifndef CONFIG_IPIPE_ARM_KUSER_TSC
 	__ipipe_mach_update_tsc();
-#endif /* CONFIG_IPIPE_ARM_KUSER_TSC */
 #endif /* CONFIG_IPIPE */
 
 	tick_receive_broadcast();
