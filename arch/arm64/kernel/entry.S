@@ -738,8 +738,7 @@ el0_svc_naked:					// compat entry point
 	enable_dbg_and_irq
 
 #ifdef CONFIG_IPIPE
-	mov	x1, sp
-	mov	x0, scno
+	mov	x0, sp
 	bl	__ipipe_syscall_root
 	get_thread_info tsk
 	cmp	x0, #0

@@ -310,42 +310,11 @@ asmlinkage int __ipipe_check_root_interruptible(void)
 	return __ipipe_root_p && !irqs_disabled();
 }
 
-__kprobes int
-__ipipe_switch_to_notifier_call_chain(struct atomic_notifier_head *nh,
-				      unsigned long val, void *v)
-{
-	unsigned long flags;
-	int ret;
-
-	local_irq_save(flags);
-	ret = atomic_notifier_call_chain(nh, val, v);
-	__ipipe_restore_root_nosync(flags);
-
-	return ret;
-}
-
-#define fast_irq_disable()			\
-	({					\
-		hard_local_irq_disable();	\
-		0;				\
-	})
-#define fast_irq_enable(flags)			\
-	({					\
-		hard_local_irq_enable();	\
-		(void)(flags);			\
-	})
-
-#ifndef __NR_SYSCALL_BASE
-#define __NR_SYSCALL_BASE 0
-#endif
-
-asmlinkage int __ipipe_syscall_root(unsigned long scno, struct pt_regs *regs)
+asmlinkage int __ipipe_syscall_root(struct pt_regs *regs)
 {
 	struct task_struct *const task = current;
 	struct ipipe_percpu_domain_data *p;
-	unsigned long orig_x8;
-	unsigned long flags;
-	int ret = 0;
+	int ret;
 
 #ifdef CONFIG_IPIPE_DEBUG_INTERNAL
 	WARN_ON_ONCE(hard_irqs_disabled());
@@ -360,26 +329,13 @@ asmlinkage int __ipipe_syscall_root(unsigned long scno, struct pt_regs *regs)
 	 * tail work has to be performed (for handling signals etc).
 	 */
 
-	scno += __NR_SYSCALL_BASE;
-	if (!__ipipe_syscall_watched_p(task, scno))
-		goto out;
-
-	/*
-	 * We use x8 to pass the syscall number to the other domains.
-	 */
-	orig_x8 = regs->regs[8];
-	regs->regs[8] = scno;
+	if (!__ipipe_syscall_watched_p(task, regs->syscallno))
+		return 0;
 
 	ret = __ipipe_notify_syscall(regs);
 
-	regs->regs[8] = orig_x8;
+	hard_local_irq_disable();
 
-	flags = fast_irq_disable();
-
-	/*
-	 * This is the end of the syscall path, so we may
-	 * safely assume a valid Linux task stack here.
-	 */
 	if (ipipe_test_thread_flag(TIP_MAYDAY)) {
 		ipipe_clear_thread_flag(TIP_MAYDAY);
 		__ipipe_notify_trap(IPIPE_TRAP_MAYDAY, regs);
@@ -393,8 +349,8 @@ asmlinkage int __ipipe_syscall_root(unsigned long scno, struct pt_regs *regs)
 			__ipipe_sync_stage();
 	}
 
-	fast_irq_enable(flags);
-out:
+	hard_local_irq_enable();
+
 	return ret;
 }
 
