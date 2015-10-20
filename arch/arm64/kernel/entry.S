@@ -216,7 +216,7 @@ tsk	.req	x28		// current thread_info
 	blr	x1
 #ifdef CONFIG_IPIPE
 	bl  __ipipe_check_root_interruptible
-	cmp x0, #1
+	cmp w0, #1
 #endif /* CONFIG_IPIPE */
 	.endm
 
@@ -362,7 +362,7 @@ el1_undef:
 	mov	x0, #7				//@ x0 = IPIPE_TRAP_UNDEFINSTR
 	mov	x1, sp				//@ x1 = &regs
 	bl	__ipipe_notify_trap		//@ branch to trap handler
-	cmp	x0, #0
+	cmp	w0, #0
 	bne	ipipe_fast_svc_irq_exit
 #endif /* CONFIG_IPIPE */
 	enable_dbg
@@ -571,7 +571,7 @@ el0_undef:
 	mov	x0, #7				// x0 = IPIPE_TRAP_UNDEFINSTR
 	mov	x1, sp				// x1 = &regs
 	bl	__ipipe_notify_trap		// branch to trap handler
-	cmp	x0, #0
+	cmp	w0, #0
 	bne	ret_from_exception
 #endif /* CONFIG_IPIPE */
 	// enable interrupts before calling the main handler
@@ -741,7 +741,7 @@ el0_svc_naked:					// compat entry point
 	mov	x0, sp
 	bl	__ipipe_syscall_root
 	get_thread_info tsk
-	cmp	x0, #0
+	cmp	w0, #0
 	ldr	x0, [sp, #S_X0]
 	blt	ipipe_fast_sysret
 	bgt	ret_fast_syscall
@@ -753,7 +753,6 @@ el0_svc_naked:					// compat entry point
 	ldp	x2, x3, [sp, #S_X2]
 	ldp	x4, x5, [sp, #S_X4]
 	ldp	x6, x7, [sp, #S_X6]
-
 #endif /* CONFIG_IPIPE */
 
 	ct_user_exit 1
