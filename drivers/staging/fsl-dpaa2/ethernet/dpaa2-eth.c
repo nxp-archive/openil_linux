@@ -2180,7 +2180,7 @@ static int ldpaa_eth_setup_irqs(struct fsl_mc_device *ls_dev)
 	struct fsl_mc_device_irq *irq;
 	int irq_count = ls_dev->obj_desc.irq_count;
 	uint8_t irq_index = DPNI_IRQ_INDEX;
-	uint32_t mask = ~0x0u;
+	uint32_t mask = DPNI_IRQ_EVENT_LINK_CHANGED;
 
 	/* The only interrupt supported now is the link state notification. */
 	if (WARN_ON(irq_count != 1))
