@@ -2079,8 +2079,8 @@ static int ldpaa_eth_netdev_init(struct net_device *net_dev)
 		 * register_netdevice()
 		 */
 		eth_hw_addr_random(net_dev);
-		dev_info(dev, "Replacing all-zero hwaddr with %pM",
-			 net_dev->dev_addr);
+		/* Make the user aware, without cluttering the boot log */
+		pr_info_once(KBUILD_MODNAME " device(s) have all-zero hwaddr, replaced with random");
 		err = dpni_set_primary_mac_addr(priv->mc_io, 0, priv->mc_token,
 						net_dev->dev_addr);
 		if (unlikely(err)) {
@@ -2532,7 +2532,7 @@ ldpaa_eth_probe(struct fsl_mc_device *dpni_dev)
 	ldpaa_eth_sysfs_init(&net_dev->dev);
 	ldpaa_dbg_add(priv);
 
-	dev_info(dev, "ldpaa ethernet: Probed interface %s\n", net_dev->name);
+	dev_info(dev, "Probed interface %s\n", net_dev->name);
 	return 0;
 
 #ifndef CONFIG_FSL_DPAA2_ETH_LINK_POLL
