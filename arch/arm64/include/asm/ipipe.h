@@ -73,18 +73,16 @@ struct ipipe_arch_sysinfo {
 
 
 /* arch specific stuff */
-extern char __ipipe_tsc_area[];
+
 void __ipipe_mach_get_tscinfo(struct __ipipe_tscinfo *info);
 
-#ifdef CONFIG_IPIPE_ARM_KUSER_TSC
-unsigned long long __ipipe_tsc_get(void) __attribute__((long_call));
-void __ipipe_tsc_register(struct __ipipe_tscinfo *info);
-void __ipipe_tsc_update(void);
-extern unsigned long __ipipe_kuser_tsc_freq;
-#define __ipipe_hrclock_freq __ipipe_kuser_tsc_freq
-#else /* ! generic tsc */
 static inline void __ipipe_mach_update_tsc(void) {}
-unsigned long long __ipipe_mach_get_tsc(void);
+
+static inline notrace unsigned long long __ipipe_mach_get_tsc(void)
+{
+	return arch_counter_get_cntvct();
+}
+
 #define __ipipe_tsc_get() __ipipe_mach_get_tsc()
 void __ipipe_tsc_register(struct __ipipe_tscinfo *info);
 static inline void __ipipe_tsc_update(void) {}
@@ -92,7 +90,6 @@ static inline void __ipipe_tsc_update(void) {}
 extern unsigned long __ipipe_hrtimer_freq;
 #define __ipipe_hrclock_freq __ipipe_hrtimer_freq
 #endif /* !__ipipe_mach_hrclock_freq */
-#endif /* ! generic tsc */
 
 #ifdef CONFIG_IPIPE_DEBUG_INTERNAL
 extern void (*__ipipe_mach_hrtimer_debug)(unsigned irq);

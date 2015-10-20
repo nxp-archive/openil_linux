@@ -159,15 +159,6 @@ static inline unsigned ipipe_test_and_stall_root(void)
 
 #endif /* !__ASSEMBLY__ */
 
-#ifdef CONFIG_IPIPE_LEGACY
-#define __IPIPE_FEATURE_PREEMPTIBLE_SWITCH	1
-#define __IPIPE_FEATURE_SYSINFO_V2		1
-
-#ifdef CONFIG_IPIPE_ARM_KUSER_TSC
-#define __IPIPE_FEATURE_KUSER_TSC		1
-#endif
-#endif /* CONFIG_IPIPE_LEGACY */
-
 #endif /* CONFIG_IPIPE */
 
 #endif /* __ASM_ARM_IPIPE_BASE_H */
