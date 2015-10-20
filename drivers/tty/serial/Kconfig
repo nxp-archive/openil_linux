@@ -1517,7 +1517,6 @@ config SERIAL_FSL_LPUART
 	tristate "Freescale lpuart serial port support"
 	depends on HAS_DMA
 	select SERIAL_CORE
-	select SERIAL_EARLYCON
 	help
 	  Support for the on-chip lpuart on some Freescale SOCs.
 
@@ -1525,6 +1524,7 @@ config SERIAL_FSL_LPUART_CONSOLE
 	bool "Console on Freescale lpuart serial port"
 	depends on SERIAL_FSL_LPUART=y
 	select SERIAL_CORE_CONSOLE
+	select SERIAL_EARLYCON
 	help
 	  If you have enabled the lpuart serial port on the Freescale SoCs,
 	  you can make it the console by answering Y to this option.
