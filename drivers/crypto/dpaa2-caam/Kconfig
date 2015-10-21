@@ -1,0 +1,8 @@
+menuconfig FSL_DPAA2_CAAM
+	tristate "Freescale DPAA2 CAAM"
+	depends on FSL_MC_BUS && FSL_MC_DPIO
+	default "y"
+	select CRYPTO_BLKCIPHER
+	---help---
+	  Freescale Data Path Acceleration Architecture 2 CAAM driver,
+	  using the Freescale MC bus driver.
