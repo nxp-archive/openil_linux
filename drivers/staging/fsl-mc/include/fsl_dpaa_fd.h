@@ -117,6 +117,7 @@ static inline void ldpaa_fd_set_bpid(struct dpaa_fd *fd, uint16_t bpid)
 	fd->simple.bpid_offset |= (u32)bpid;
 }
 
+/* Scatter gather entry */
 struct dpaa_sg_entry {
 	u32 addr_lo;
 	u32 addr_hi;
@@ -130,6 +131,13 @@ enum dpaa_sg_format {
 	dpaa_sg_sgt_ext
 };
 
+/* Accessors for SG entry fields
+ *
+ * These setters and getters assume little endian format. For converting
+ * between LE and cpu endianness, the specific conversion functions must be
+ * called before the SGE contents are accessed by the core (on Rx),
+ * respectively before the SG table is sent to hardware (on Tx)
+ */
 static inline dma_addr_t ldpaa_sg_get_addr(const struct dpaa_sg_entry *sg)
 {
 	return (dma_addr_t)((((u64)sg->addr_hi) << 32) + sg->addr_lo);
@@ -205,6 +213,35 @@ static inline void ldpaa_sg_set_final(struct dpaa_sg_entry *sg, bool final)
 	sg->bpid_offset &= 0x7FFFFFFF;
 	sg->bpid_offset |= (u32)final << 31;
 }
+
+/* Endianness conversion helper functions
+ * The accelerator drivers which construct / read scatter gather entries
+ * need to call these in order to account for endianness mismatches between
+ * hardware and cpu
+ */
+#ifdef __BIG_ENDIAN
+static inline void ldpaa_sg_cpu_to_le(struct dpaa_sg_entry *sg)
+{
+	uint32_t *p = (uint32_t *)sg;
+	int i;
+
+	for (i = 0; i < sizeof(*sg) / sizeof(u32); i++)
+		cpu_to_le32s(p++);
+}
+
+static inline void ldpaa_sg_le_to_cpu(struct dpaa_sg_entry *sg)
+{
+	uint32_t *p = (uint32_t *)sg;
+	int i;
+
+	for (i = 0; i < sizeof(*sg) / sizeof(u32); i++)
+		le32_to_cpus(p++);
+}
+#else
+#define ldpaa_sg_cpu_to_le(sg)
+#define ldpaa_sg_le_to_cpu(sg)
+#endif /* __BIG_ENDIAN */
+
 
 /* When frames are dequeued, the FDs show up inside "dequeue" result structures
  * (if at all, not all dequeue results contain valid FDs). This structure type
