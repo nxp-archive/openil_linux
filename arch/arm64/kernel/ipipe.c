@@ -307,50 +307,6 @@ asmlinkage int __ipipe_check_root_interruptible(void)
 	return __ipipe_root_p && !irqs_disabled();
 }
 
-asmlinkage int __ipipe_syscall_root(struct pt_regs *regs)
-{
-	struct task_struct *const task = current;
-	struct ipipe_percpu_domain_data *p;
-	int ret;
-
-#ifdef CONFIG_IPIPE_DEBUG_INTERNAL
-	WARN_ON_ONCE(hard_irqs_disabled());
-#endif
-
-	/*
-	 * This routine either returns:
-	 * 0 -- if the syscall is to be passed to Linux;
-	 * <0 -- if the syscall should not be passed to Linux, and no
-	 * tail work should be performed;
-	 * >0 -- if the syscall should not be passed to Linux but the
-	 * tail work has to be performed (for handling signals etc).
-	 */
-
-	if (!__ipipe_syscall_watched_p(task, regs->syscallno))
-		return 0;
-
-	ret = __ipipe_notify_syscall(regs);
-
-	hard_local_irq_disable();
-
-	if (ipipe_test_thread_flag(TIP_MAYDAY)) {
-		ipipe_clear_thread_flag(TIP_MAYDAY);
-		__ipipe_notify_trap(IPIPE_TRAP_MAYDAY, regs);
-	}
-
-	if (!__ipipe_root_p)
-		ret = -1;
-	else {
-		p = ipipe_this_cpu_root_context();
-		if (__ipipe_ipending_p(p))
-			__ipipe_sync_stage();
-	}
-
-	hard_local_irq_enable();
-
-	return ret;
-}
-
 void __ipipe_exit_irq(struct pt_regs *regs)
 {
 	/*
