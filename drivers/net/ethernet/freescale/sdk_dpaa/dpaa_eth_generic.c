@@ -983,9 +983,10 @@ static struct list_head *dpa_generic_fq_probe(struct platform_device *_of_dev,
 	}
 
 	fqids = __fq_alloc(dev, num_ranges, fqids_off);
-	if (!dpa_fq_alloc(dev, &fqids[0], list, FQ_TYPE_RX_ERROR) ||
-			!dpa_fq_alloc(dev, &fqids[1], list,
-				FQ_TYPE_RX_DEFAULT)) {
+	if (!dpa_fq_alloc(dev, fqids[0].start, fqids[0].count, list,
+			  FQ_TYPE_RX_ERROR) ||
+			!dpa_fq_alloc(dev, fqids[1].start, fqids[1].count,
+				      list, FQ_TYPE_RX_DEFAULT)) {
 		dev_err(dev, "Cannot allocate space for default frame queues\n");
 		return ERR_PTR(-ENOMEM);
 	}
@@ -1002,7 +1003,8 @@ static struct list_head *dpa_generic_fq_probe(struct platform_device *_of_dev,
 	num_ranges = lenp / sizeof(*fqids);
 	fqids = __fq_alloc(dev, num_ranges, fqids_off);
 	for (i = 0; i < num_ranges; i++) {
-		if (!dpa_fq_alloc(dev, &fqids[i], list, FQ_TYPE_TX)) {
+		if (!dpa_fq_alloc(dev, fqids[i].start, fqids[i].count, list,
+				  FQ_TYPE_TX)) {
 			dev_err(dev, "_dpa_fq_alloc() failed\n");
 			return ERR_PTR(-ENOMEM);
 		}
@@ -1016,7 +1018,8 @@ static struct list_head *dpa_generic_fq_probe(struct platform_device *_of_dev,
 	num_ranges = lenp / sizeof(*fqids);
 	fqids = __fq_alloc(dev, num_ranges, fqids_off);
 	for (i = 0; i < num_ranges; i++) {
-		if (!dpa_fq_alloc(dev, &fqids[i], list, FQ_TYPE_RX_PCD)) {
+		if (!dpa_fq_alloc(dev, fqids[i].start, fqids[i].count, list,
+				  FQ_TYPE_RX_PCD)) {
 			dev_err(dev, "_dpa_fq_alloc() failed\n");
 			return ERR_PTR(-ENOMEM);
 		}

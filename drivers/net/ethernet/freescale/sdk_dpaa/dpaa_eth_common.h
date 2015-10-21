@@ -170,9 +170,10 @@ u16 dpa_select_queue(struct net_device *net_dev, struct sk_buff *skb,
 		     void *accel_priv, select_queue_fallback_t fallback);
 #endif
 struct dpa_fq *dpa_fq_alloc(struct device *dev,
-				   const struct fqid_cell *fqids,
-				   struct list_head *list,
-				   enum dpa_fq_type fq_type);
+			    u32 fq_start,
+			    u32 fq_count,
+			    struct list_head *list,
+			    enum dpa_fq_type fq_type);
 int dpa_fq_probe_mac(struct device *dev, struct list_head *list,
 		     struct fm_port_fqs *port_fqs,
 		     bool tx_conf_fqs_per_core,
