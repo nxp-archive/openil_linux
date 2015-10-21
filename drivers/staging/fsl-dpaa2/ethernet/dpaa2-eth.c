@@ -113,6 +113,8 @@ static void ldpaa_eth_free_rx_fd(struct ldpaa_eth_priv *priv,
 		int i;
 
 		for (i = 0; i < LDPAA_ETH_MAX_SG_ENTRIES; i++) {
+			ldpaa_sg_le_to_cpu(&sgt[i]);
+
 			addr = ldpaa_sg_get_addr(&sgt[i]);
 			dma_unmap_single(dev, addr, LDPAA_ETH_RX_BUFFER_SIZE,
 					 DMA_FROM_DEVICE);
@@ -157,7 +159,7 @@ static struct sk_buff *ldpaa_eth_build_linear_skb(struct ldpaa_eth_priv *priv,
 
 /* Build a non linear (fragmented) skb based on a S/G table */
 static struct sk_buff *ldpaa_eth_build_frag_skb(struct ldpaa_eth_priv *priv,
-						const struct dpaa_sg_entry *sgt)
+						struct dpaa_sg_entry *sgt)
 {
 	struct sk_buff *skb = NULL;
 	struct device *dev = priv->net_dev->dev.parent;
@@ -171,7 +173,9 @@ static struct sk_buff *ldpaa_eth_build_frag_skb(struct ldpaa_eth_priv *priv,
 	int i;
 
 	for (i = 0; i < LDPAA_ETH_MAX_SG_ENTRIES; i++) {
-		const struct dpaa_sg_entry *sge = &sgt[i];
+		struct dpaa_sg_entry *sge = &sgt[i];
+
+		ldpaa_sg_le_to_cpu(sge);
 
 		/* We don't support anything else yet! */
 		BUG_ON(ldpaa_sg_get_format(sge) != dpaa_sg_single);
@@ -259,7 +263,7 @@ static void ldpaa_eth_rx(struct ldpaa_eth_priv *priv,
 	if (fd_format == dpaa_fd_single) {
 		skb = ldpaa_eth_build_linear_skb(priv, fd, vaddr);
 	} else if (fd_format == dpaa_fd_sg) {
-		const struct dpaa_sg_entry *sgt =
+		struct dpaa_sg_entry *sgt =
 				vaddr + ldpaa_fd_get_offset(fd);
 		skb = ldpaa_eth_build_frag_skb(priv, sgt);
 		put_page(virt_to_head_page(vaddr));
@@ -388,7 +392,7 @@ static int ldpaa_eth_build_sg_fd(struct ldpaa_eth_priv *priv,
 	dma_addr_t addr;
 	int nr_frags = skb_shinfo(skb)->nr_frags;
 	struct dpaa_sg_entry *sgt;
-	int i, err;
+	int i, j, err;
 	int sgt_buf_size;
 	struct scatterlist *scl, *crt_scl;
 	int num_sg;
@@ -457,6 +461,9 @@ static int ldpaa_eth_build_sg_fd(struct ldpaa_eth_priv *priv,
 	bps->scl = scl;
 	bps->num_sg = num_sg;
 	bps->num_dma_bufs = num_dma_bufs;
+
+	for (j = 0; j < i; j++)
+		ldpaa_sg_cpu_to_le(&sgt[j]);
 
 	/* Separately map the SGT buffer */
 	addr = dma_map_single(dev, sgt_buf, sgt_buf_size, DMA_TO_DEVICE);
