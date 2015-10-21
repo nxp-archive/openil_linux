@@ -64,6 +64,14 @@
 #define PREEMPT_SCHEDULE_IRQ	preempt_schedule_irq
 #endif /* CONFIG_IPIPE */
 
+#if defined(CONFIG_TRACE_IRQFLAGS) && !defined(CONFIG_IPIPE)
+#define TRACE_IRQSON  	bl  trace_hardirqs_on
+#define TRACE_IRQSOFF  	bl  trace_hardirqs_off
+#else
+#define TRACE_IRQSON
+#define TRACE_IRQSOFF
+#endif
+
 /*
  * Bad Abort numbers
  *-----------------
@@ -392,9 +400,7 @@ ENDPROC(el1_sync)
 el1_irq:
 	kernel_entry 1
 	enable_dbg
-#ifdef CONFIG_TRACE_IRQFLAGS
-	bl	trace_hardirqs_off
-#endif
+	TRACE_IRQSOFF
 
 	irq_handler
 
@@ -413,9 +419,7 @@ el1_irq:
 #ifdef CONFIG_IPIPE
 ipipe_fast_svc_irq_exit:
 #endif
-#ifdef CONFIG_TRACE_IRQFLAGS
-	bl	trace_hardirqs_on
-#endif
+	TRACE_IRQSON
 	kernel_exit 1
 ENDPROC(el1_irq)
 
@@ -607,9 +611,7 @@ el0_irq:
 	kernel_entry 0
 el0_irq_naked:
 	enable_dbg
-#ifdef CONFIG_TRACE_IRQFLAGS
-	bl	trace_hardirqs_off
-#endif
+	TRACE_IRQSOFF
 
 	ct_user_exit
 	irq_handler
@@ -619,9 +621,7 @@ el0_irq_naked:
 	kernel_exit 0, ret = 0
 normal_irq_ret:
 #endif	/* CONFIG_IPIPE */
-#ifdef CONFIG_TRACE_IRQFLAGS
-	bl	trace_hardirqs_on
-#endif
+	TRACE_IRQSON
 	b	ret_to_user
 ENDPROC(el0_irq)
 
