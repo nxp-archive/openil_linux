@@ -96,7 +96,11 @@ static int _dpa_bp_add_8_bufs(const struct dpa_bp *dpa_bp)
 		 * We only need enough space to store a pointer, but allocate
 		 * an entire cacheline for performance reasons.
 		 */
+#ifdef CONFIG_ARM64
+		new_buf	= page_address(alloc_page(GFP_ATOMIC));
+#else
 		new_buf = netdev_alloc_frag(SMP_CACHE_BYTES + DPA_BP_RAW_SIZE);
+#endif
 		if (unlikely(!new_buf))
 			goto netdev_alloc_failed;
 		new_buf = PTR_ALIGN(new_buf + SMP_CACHE_BYTES, SMP_CACHE_BYTES);
