@@ -661,4 +661,11 @@ static inline void _dpa_bp_free_pf(void *addr)
 	put_page(virt_to_head_page(addr));
 }
 
+#ifdef CONFIG_ARM64
+#define HAS_DMA_ISSUE(start, size) \
+	(((u64)(start) ^ ((u64)(start) + (u64)(size))) & ~0xFFF)
+
+#define BOUNDARY_4K(start, size) (((u64)(start) + (u64)(size)) & ~0xFFF)
+#endif
+
 #endif	/* __DPA_H */
