@@ -1620,16 +1620,26 @@ static int ldpaa_dpbp_seed(struct ldpaa_eth_priv *priv, uint16_t bpid)
 	int new_count;
 	int *count;
 
+	/* This is the lazy seeding of Rx buffer pools.
+	 * ldpaa_bp_add_7() is also used on the Rx hotpath and calls
+	 * napi_alloc_frag(). The trouble with that is that it in turn ends up
+	 * calling this_cpu_ptr(), which mandates execution in atomic context.
+	 * Rather than splitting up the code, do a one-off preempt disable.
+	 */
+	preempt_disable();
 	for_each_possible_cpu(j) {
 		for (i = 0; i < LDPAA_ETH_NUM_BUFS; i += 7) {
 			new_count = ldpaa_bp_add_7(priv, bpid);
 			count = per_cpu_ptr(priv->buf_count, j);
 			*count += new_count;
 
-			if (unlikely(new_count < 7))
+			if (unlikely(new_count < 7)) {
+				preempt_enable();
 				goto out_of_memory;
+			}
 		}
 	}
+	preempt_enable();
 
 	return 0;
 
