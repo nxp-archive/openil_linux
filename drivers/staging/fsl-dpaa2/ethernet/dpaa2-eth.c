@@ -1743,22 +1743,6 @@ static void __cold ldpaa_dpbp_free(struct ldpaa_eth_priv *priv)
 	fsl_mc_object_free(priv->dpbp_dev);
 }
 
-/* Avoid unnecessary math every time we call ldpaa_queue_count().
- * This is in fact a workaround past an MC issue that computes
- * a different Rx hash size than the one returned in the DPNI
- * attributes structure.
- * TODO Remove altogether once the MC issue is fixed.
- */
-static void ldpaa_eth_fix_dpni_attrs(struct ldpaa_eth_priv *priv)
-{
-	struct dpni_attr *attr = &priv->dpni_attrs;
-	int i;
-
-	for (i = 0; i < attr->max_tcs; i++)
-		attr->max_dist_per_tc[i] =
-			roundup_pow_of_two(attr->max_dist_per_tc[i] + 1);
-}
-
 static int __cold ldpaa_dpni_setup(struct fsl_mc_device *ls_dev)
 {
 	struct device *dev = &ls_dev->dev;
@@ -1787,7 +1771,6 @@ static int __cold ldpaa_dpni_setup(struct fsl_mc_device *ls_dev)
 		dev_err(dev, "dpni_get_attributes() failed (err=%d)\n", err);
 		goto err_get_attr;
 	}
-	ldpaa_eth_fix_dpni_attrs(priv);
 
 	/* Configure our buffers' layout */
 	priv->buf_layout.options = DPNI_BUF_LAYOUT_OPT_PARSER_RESULT |
