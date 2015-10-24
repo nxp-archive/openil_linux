@@ -123,6 +123,32 @@ struct dpaa2_caam_priv_per_cpu {
 #define MAX_SDLEN	((CAAM_DESC_BYTES_MAX - DESC_JOB_IO_LEN) / CAAM_CMD_SZ)
 
 /*
+ * aead_edesc - s/w-extended aead descriptor
+ * @assoc_nents: number of segments in associated data (SPI+Seq) scatterlist
+ * @assoc_chained: if assoc is chained
+ * @src_nents: number of segments in input scatterlist
+ * @src_chained: if source is chained
+ * @dst_nents: number of segments in output scatterlist
+ * @dst_chained: if destination is chained
+ * @iv_dma: dma address of iv for checking continuity and link table
+ * @qm_sg_bytes: length of dma mapped qm_sg space
+ * @qm_sg_dma: I/O virtual address of h/w link table
+ * @qm_sg: h/w link table
+ */
+struct aead_edesc {
+	int assoc_nents;
+	bool assoc_chained;
+	int src_nents;
+	bool src_chained;
+	int dst_nents;
+	bool dst_chained;
+	dma_addr_t iv_dma;
+	int qm_sg_bytes;
+	dma_addr_t qm_sg_dma;
+	struct dpaa_sg_entry qm_sg[0];
+};
+
+/*
  * ablkcipher_edesc - s/w-extended ablkcipher descriptor
  * @src_nents: number of segments in input scatterlist
  * @src_chained: if source is chained
