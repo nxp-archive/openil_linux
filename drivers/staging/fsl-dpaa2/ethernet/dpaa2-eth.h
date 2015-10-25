@@ -72,14 +72,15 @@
  * and ingress buffer lengths.
  */
 #define LDPAA_ETH_RX_BUFFER_SIZE	2048
-#define LDPAA_ETH_BUF_ALIGN		64
+#define LDPAA_ETH_BUF_ALIGN		64 /* TODO rename to TX_BUF_ALIGN */
+#define LDPAA_ETH_RX_BUF_ALIGN		256
 #define LDPAA_ETH_NEEDED_HEADROOM(p_priv) \
 	((p_priv)->tx_data_offset + LDPAA_ETH_BUF_ALIGN)
 
 #define LDPAA_ETH_BUF_RAW_SIZE \
 	(LDPAA_ETH_RX_BUFFER_SIZE + \
 	SKB_DATA_ALIGN(sizeof(struct skb_shared_info)) + \
-	LDPAA_ETH_BUF_ALIGN)
+	LDPAA_ETH_RX_BUF_ALIGN)
 
 /* We are accomodating a skb backpointer and potentially other data (see
  * struct backpointers) in the frame's software annotation. The hardware

@@ -1579,7 +1579,7 @@ static int ldpaa_bp_add_7(struct ldpaa_eth_priv *priv, uint16_t bpid)
 			dev_err(dev, "buffer allocation failed\n");
 			goto err_alloc;
 		}
-		buf = PTR_ALIGN(buf, LDPAA_ETH_BUF_ALIGN);
+		buf = PTR_ALIGN(buf, LDPAA_ETH_RX_BUF_ALIGN);
 
 		addr = dma_map_single(dev, buf, LDPAA_ETH_RX_BUFFER_SIZE,
 				      DMA_FROM_DEVICE);
@@ -1775,10 +1775,13 @@ static int __cold ldpaa_dpni_setup(struct fsl_mc_device *ls_dev)
 	/* Configure our buffers' layout */
 	priv->buf_layout.options = DPNI_BUF_LAYOUT_OPT_PARSER_RESULT |
 				   DPNI_BUF_LAYOUT_OPT_FRAME_STATUS |
-				   DPNI_BUF_LAYOUT_OPT_PRIVATE_DATA_SIZE;
+				   DPNI_BUF_LAYOUT_OPT_PRIVATE_DATA_SIZE |
+				   DPNI_BUF_LAYOUT_OPT_DATA_ALIGN;
 	priv->buf_layout.pass_parser_result = true;
 	priv->buf_layout.pass_frame_status = true;
 	priv->buf_layout.private_data_size = LDPAA_ETH_SWA_SIZE;
+	/* HW erratum mandates data alignment in multiples of 256 */
+	priv->buf_layout.data_align = LDPAA_ETH_RX_BUF_ALIGN;
 	/* ...rx, ... */
 	err = dpni_set_rx_buffer_layout(priv->mc_io, 0, priv->mc_token,
 					&priv->buf_layout);
@@ -1787,7 +1790,9 @@ static int __cold ldpaa_dpni_setup(struct fsl_mc_device *ls_dev)
 		goto err_buf_layout;
 	}
 	/* ... tx, ... */
-	priv->buf_layout.options &= ~DPNI_BUF_LAYOUT_OPT_PARSER_RESULT;
+	/* remove Rx-only options */
+	priv->buf_layout.options &= ~(DPNI_BUF_LAYOUT_OPT_DATA_ALIGN |
+				      DPNI_BUF_LAYOUT_OPT_PARSER_RESULT);
 	err = dpni_set_tx_buffer_layout(priv->mc_io, 0, priv->mc_token,
 					&priv->buf_layout);
 	if (err) {
