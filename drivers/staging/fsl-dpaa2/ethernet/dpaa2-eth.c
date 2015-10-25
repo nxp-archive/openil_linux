@@ -422,13 +422,13 @@ static int ldpaa_eth_build_sg_fd(struct ldpaa_eth_priv *priv,
 	/* Prepare the HW SGT structure */
 	sgt_buf_size = priv->tx_data_offset +
 		       sizeof(struct dpaa_sg_entry) * (1 + num_dma_bufs);
-	sgt_buf = kzalloc(sgt_buf_size + LDPAA_ETH_BUF_ALIGN, GFP_ATOMIC);
+	sgt_buf = kzalloc(sgt_buf_size + LDPAA_ETH_TX_BUF_ALIGN, GFP_ATOMIC);
 	if (unlikely(!sgt_buf)) {
 		netdev_err(priv->net_dev, "failed to allocate SGT buffer\n");
 		err = -ENOMEM;
 		goto sgt_buf_alloc_failed;
 	}
-	sgt_buf = PTR_ALIGN(sgt_buf, LDPAA_ETH_BUF_ALIGN);
+	sgt_buf = PTR_ALIGN(sgt_buf, LDPAA_ETH_TX_BUF_ALIGN);
 
 	/* PTA from egress side is passed as is to the confirmation side so
 	 * we need to clear some fields here in order to find consistent values
@@ -502,8 +502,8 @@ static int ldpaa_eth_build_single_fd(struct ldpaa_eth_priv *priv,
 	dma_addr_t addr;
 
 	buffer_start = PTR_ALIGN(skb->data - priv->tx_data_offset -
-				 LDPAA_ETH_BUF_ALIGN,
-				 LDPAA_ETH_BUF_ALIGN);
+				 LDPAA_ETH_TX_BUF_ALIGN,
+				 LDPAA_ETH_TX_BUF_ALIGN);
 
 	/* PTA from egress side is passed as is to the confirmation side so
 	 * we need to clear some fields here in order to find consistent values

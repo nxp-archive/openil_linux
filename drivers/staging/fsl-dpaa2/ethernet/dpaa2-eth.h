@@ -72,10 +72,10 @@
  * and ingress buffer lengths.
  */
 #define LDPAA_ETH_RX_BUFFER_SIZE	2048
-#define LDPAA_ETH_BUF_ALIGN		64 /* TODO rename to TX_BUF_ALIGN */
+#define LDPAA_ETH_TX_BUF_ALIGN		64
 #define LDPAA_ETH_RX_BUF_ALIGN		256
 #define LDPAA_ETH_NEEDED_HEADROOM(p_priv) \
-	((p_priv)->tx_data_offset + LDPAA_ETH_BUF_ALIGN)
+	((p_priv)->tx_data_offset + LDPAA_ETH_TX_BUF_ALIGN)
 
 #define LDPAA_ETH_BUF_RAW_SIZE \
 	(LDPAA_ETH_RX_BUFFER_SIZE + \
