@@ -177,8 +177,6 @@ struct dpni_cfg {
 	 * @max_tcs: Maximum number of traffic classes (for both Tx and Rx);
 	 *		'0' will e treated as '1'
 	 * @max_dist_per_tc: Maximum distribution size per Rx traffic class;
-	 *			Must be set to the required value minus 1;
-	 *			i.e. 0->1, 1->2, ... ,255->256;
 	 *			Non-power-of-2 values are rounded up to the next
 	 *			power-of-2 value as hardware demands it
 	 * @max_unicast_filters: Maximum number of unicast filters;
@@ -205,7 +203,7 @@ struct dpni_cfg {
 		enum net_prot		start_hdr;
 		uint8_t		max_senders;
 		uint8_t		max_tcs;
-		uint8_t			max_dist_per_tc[DPNI_MAX_TC];
+		uint8_t		max_dist_per_tc[DPNI_MAX_TC];
 		uint8_t		max_unicast_filters;
 		uint8_t		max_multicast_filters;
 		uint8_t			max_vlan_filters;
@@ -1390,10 +1388,8 @@ int dpni_prepare_key_cfg(struct dpkg_profile_cfg	*cfg,
 
 /**
  * struct dpni_rx_tc_dist_cfg - Rx traffic class distribution configuration
- * @dist_size: Set the distribution size; Must be set to the required value
- *		minus 1, for example: 0->1, 1->2, ... ,255->256;
- *		Non-power-of-2 values are rounded up to the next power-of-2
- *		value as HW demands it
+ * @dist_size: Set the distribution size; Non-power-of-2 values are rounded
+ *	up to the next power-of-2 value as HW demands it
  * @dist_mode: Distribution mode
  * @key_cfg_iova: I/O virtual address of 256 bytes DMA-able memory filled with
  *		the extractions to be used for the distribution key by calling
