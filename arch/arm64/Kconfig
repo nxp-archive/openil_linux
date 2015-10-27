@@ -176,10 +176,10 @@ config ARCH_EXYNOS7
 	help
 	  This enables support for Samsung Exynos7 SoC family
 
-config ARCH_FSL_LS2085A
-	bool "Freescale LS2085A SOC"
+config ARCH_LAYERSCAPE
+	bool "Freescale Layerscape SoC family"
 	help
-	  This enables support for Freescale LS2085A SOC.
+	  This enables support for Freescale Layerscape SoC family
 
 config ARCH_MEDIATEK
 	bool "Mediatek MT65xx & MT81xx ARMv8 SoC"
