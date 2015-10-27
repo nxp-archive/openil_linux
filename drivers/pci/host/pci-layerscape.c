@@ -164,6 +164,7 @@ static struct dw_host_ops ls2_dw_host_ops = {
 static const struct of_device_id ls_pcie_of_match[] = {
 	{ .compatible = "fsl,ls1021a-pcie", .data = &ls1_dw_host_ops },
 	{ .compatible = "fsl,ls2085a-pcie", .data = &ls2_dw_host_ops },
+	{ .compatible = "fsl,ls2080a-pcie", .data = &ls2_dw_host_ops },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, ls_pcie_of_match);
