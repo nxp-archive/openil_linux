@@ -1062,8 +1062,17 @@ int __hot dpa_tx_extended(struct sk_buff *skb, struct net_device *net_dev,
 			/* Common out-of-memory error path */
 			goto enomem;
 
+#ifdef DPAA_LS1043A_DMA_4K_ISSUE
+		if (unlikely(HAS_DMA_ISSUE(skb->data, skb->len))) {
+			err = skb_to_sg_fd(priv, skb, &fd);
+			percpu_priv->tx_frag_skbuffs++;
+		} else {
+			err = skb_to_contig_fd(priv, skb, &fd, countptr, &offset);
+		}
+#else
 		/* Finally, create a contig FD from this skb */
 		err = skb_to_contig_fd(priv, skb, &fd, countptr, &offset);
+#endif
 	}
 	if (unlikely(err < 0))
 		goto skb_to_fd_failed;
