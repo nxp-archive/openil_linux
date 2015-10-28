@@ -168,7 +168,7 @@ config POWER_RESET_RMOBILE
 
 config POWER_RESET_LAYERSCAPE
 	bool "Freescale LayerScape reset driver"
-	depends on ARCH_FSL_LS2085A
+	depends on ARCH_LAYERSCAPE
 	help
 	  Reboot support for the Freescale LayerScape SoCs.
 
