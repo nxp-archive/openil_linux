@@ -607,25 +607,17 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 
 	err = fsl_mc_portal_allocate(mc_dev, FSL_MC_IO_ATOMIC_CONTEXT_PORTAL,
 				     &mc_dev->mc_io);
-	if (err) {
-		dev_err(dev, "fsl_mc_portal_allocate err %d\n", err);
-		goto err_free_netdev;
-	}
-	if (!mc_dev->mc_io) {
-		dev_err(dev,
-			"fsl_mc_portal_allocate returned null handle but no error\n");
+	if (err || !mc_dev->mc_io) {
+		dev_err(dev, "fsl_mc_portal_allocate error: %d\n", err);
+		err = -ENODEV;
 		goto err_free_netdev;
 	}
 
 	err = dpmac_open(mc_dev->mc_io, 0, mc_dev->obj_desc.id,
 			 &mc_dev->mc_handle);
-	if (err) {
-		dev_err(dev, "dpmac_open err %d\n", err);
-		goto err_free_mcp;
-	}
-	if (!mc_dev->mc_handle) {
-		dev_err(dev, "dpmac_open returned null handle but no error\n");
-		err = -EFAULT;
+	if (err || !mc_dev->mc_handle) {
+		dev_err(dev, "dpmac_open error: %d\n", err);
+		err = -ENODEV;
 		goto err_free_mcp;
 	}
 
@@ -633,6 +625,7 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 				   mc_dev->mc_handle, &priv->attr);
 	if (err) {
 		dev_err(dev, "dpmac_get_attributes err %d\n", err);
+		err = -EINVAL;
 		goto err_close;
 	}
 
@@ -640,12 +633,15 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 	dpmac_node = ppx_lookup_node(dev, priv->attr.id);
 	if (!dpmac_node) {
 		dev_err(dev, "No dpmac@%d subnode found.\n", priv->attr.id);
+		err = -ENODEV;
 		goto err_close;
 	}
 
 	err = ppx_setup_irqs(mc_dev);
-	if (err)
+	if (err) {
+		err = -EFAULT;
 		goto err_close;
+	}
 
 #ifdef CONFIG_FSL_DPAA2_MAC_NETDEVS
 	/* OPTIONAL, register netdev just to make it visible to the user */
@@ -658,6 +654,7 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 	err = register_netdev(priv->netdev);
 	if (err < 0) {
 		dev_err(dev, "register_netdev error %d\n", err);
+		err = -ENODEV;
 		goto err_free_irq;
 	}
 #endif /* CONFIG_FSL_DPAA2_MAC_NETDEVS */
@@ -683,6 +680,7 @@ ppx_probe(struct fsl_mc_device *mc_dev)
 	if (!phy_node) {
 		if (!phy_node) {
 			dev_err(dev, "dpmac node has no phy-handle property\n");
+			err = -ENODEV;
 			goto err_no_phy;
 		}
 	}
@@ -713,7 +711,7 @@ probe_fixed_link:
 		if (!netdev->phydev || IS_ERR(netdev->phydev)) {
 			dev_err(dev, "error trying to register fixed PHY\n");
 			err = -EFAULT;
-			goto err_free_irq;
+			goto err_no_phy;
 		}
 		dev_info(dev, "Registered fixed PHY.\n");
 	}
@@ -730,8 +728,8 @@ err_defer:
 err_no_phy:
 #ifdef CONFIG_FSL_DPAA2_MAC_NETDEVS
 	unregister_netdev(netdev);
-#endif
 err_free_irq:
+#endif
 	ppx_teardown_irqs(mc_dev);
 err_close:
 	dpmac_close(mc_dev->mc_io, 0, mc_dev->mc_handle);
