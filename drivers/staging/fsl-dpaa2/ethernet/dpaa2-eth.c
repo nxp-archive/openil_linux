@@ -1221,22 +1221,6 @@ static int ldpaa_eth_set_features(struct net_device *net_dev,
 	return 0;
 }
 
-static inline u16 ldpaa_eth_select_queue(struct net_device *dev,
-					 struct sk_buff *skb,
-					 void *accel_priv,
-					 select_queue_fallback_t fallback)
-{
-	struct ldpaa_eth_priv *priv = netdev_priv(dev);
-
-	/* Choose the transmit queue id based on current cpu
-	 * and total number of hardware queues
-	 */
-	if (likely(!preemptible()))
-		return smp_processor_id() % priv->dpni_attrs.max_senders;
-
-	return skb_get_hash(skb) % priv->dpni_attrs.max_senders;
-}
-
 static const struct net_device_ops ldpaa_eth_ops = {
 	.ndo_open = ldpaa_eth_open,
 	.ndo_start_xmit = ldpaa_eth_tx,
@@ -1247,7 +1231,6 @@ static const struct net_device_ops ldpaa_eth_ops = {
 	.ndo_change_mtu = ldpaa_eth_change_mtu,
 	.ndo_set_rx_mode = ldpaa_eth_set_rx_mode,
 	.ndo_set_features = ldpaa_eth_set_features,
-	.ndo_select_queue = ldpaa_eth_select_queue,
 };
 
 static void ldpaa_eth_cdan_cb(struct dpaa_io_notification_ctx *ctx)
