@@ -1019,7 +1019,7 @@ int __hot dpa_tx_extended(struct sk_buff *skb, struct net_device *net_dev,
 	 * the skb, so we're one extra frag short.
 	 */
 	if (nonlinear &&
-		likely(skb_shinfo(skb)->nr_frags < DPA_SGT_MAX_ENTRIES)) {
+		likely(skb_shinfo(skb)->nr_frags < DPA_SGT_ENTRIES_THRESHOLD)) {
 		/* Just create a S/G fd based on the skb */
 		err = skb_to_sg_fd(priv, skb, &fd);
 		percpu_priv->tx_frag_skbuffs++;
