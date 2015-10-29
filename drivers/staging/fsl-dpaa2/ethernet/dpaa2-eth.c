@@ -2234,6 +2234,7 @@ static int dpaa2_eth_netdev_init(struct net_device *net_dev)
 	struct device *dev = net_dev->dev.parent;
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
 	u8 mac_addr[ETH_ALEN];
+	u8 bcast_addr[ETH_ALEN];
 
 	net_dev->netdev_ops = &dpaa2_eth_ops;
 
@@ -2268,6 +2269,16 @@ static int dpaa2_eth_netdev_init(struct net_device *net_dev)
 		 * fill in the device addr.
 		 */
 		memcpy(net_dev->dev_addr, mac_addr, net_dev->addr_len);
+	}
+
+	/* Explicitly add the broadcast address to the MAC filtering table;
+	 * the MC won't do that for us.
+	 */
+	eth_broadcast_addr(bcast_addr);
+	err = dpni_add_mac_addr(priv->mc_io, 0, priv->mc_token, bcast_addr);
+	if (err) {
+		dev_warn(dev, "dpni_add_mac_addr() failed (%d)\n", err);
+		/* Won't return an error; at least, we'd have egress traffic */
 	}
 
 	/* Reserve enough space to align buffer as per hardware requirement;
@@ -2564,7 +2575,6 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 	struct net_device		*net_dev = NULL;
 	struct dpaa2_eth_priv		*priv = NULL;
 	int				err = 0;
-	u8				bcast_addr[ETH_ALEN];
 
 	dev = &dpni_dev->dev;
 
@@ -2656,17 +2666,6 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 	err = dpaa2_eth_netdev_init(net_dev);
 	if (err)
 		goto err_netdev_init;
-
-	/* Explicitly add the broadcast address to the MAC filtering table;
-	 * the MC won't do that for us.
-	 */
-	eth_broadcast_addr(bcast_addr);
-	err = dpni_add_mac_addr(priv->mc_io, 0, priv->mc_token, bcast_addr);
-	if (err) {
-		netdev_warn(net_dev,
-			    "dpni_add_mac_addr() failed with code %d\n", err);
-		/* Won't return an error; at least, we'd have egress traffic */
-	}
 
 	/* Configure checksum offload based on current interface flags */
 	err = dpaa2_eth_set_rx_csum(priv,
