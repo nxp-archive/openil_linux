@@ -93,13 +93,13 @@ static void dpaa2_get_drvinfo(struct net_device *net_dev,
 		sizeof(drvinfo->bus_info));
 }
 
-static uint32_t dpaa2_get_msglevel(struct net_device *net_dev)
+static u32 dpaa2_get_msglevel(struct net_device *net_dev)
 {
 	return ((struct dpaa2_eth_priv *)netdev_priv(net_dev))->msg_enable;
 }
 
 static void dpaa2_set_msglevel(struct net_device *net_dev,
-			       uint32_t msg_enable)
+			       u32 msg_enable)
 {
 	((struct dpaa2_eth_priv *)netdev_priv(net_dev))->msg_enable =
 					msg_enable;
@@ -211,13 +211,13 @@ static void dpaa2_get_ethtool_stats(struct net_device *net_dev,
 	int j, k, err;
 
 #ifdef CONFIG_FSL_QBMAN_DEBUG
-	uint32_t fcnt, bcnt;
-	uint32_t fcnt_rx_total = 0, fcnt_tx_total = 0;
-	uint32_t bcnt_rx_total = 0, bcnt_tx_total = 0;
-	uint32_t buf_cnt;
+	u32 fcnt, bcnt;
+	u32 fcnt_rx_total = 0, fcnt_tx_total = 0;
+	u32 bcnt_rx_total = 0, bcnt_tx_total = 0;
+	u32 buf_cnt;
 #endif
-	uint64_t cdan = 0;
-	uint64_t portal_busy = 0;
+	u64 cdan = 0;
+	u64 portal_busy = 0;
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
 	struct dpaa2_eth_stats *extras;
 	struct dpaa2_eth_ch_stats *ch_stats;

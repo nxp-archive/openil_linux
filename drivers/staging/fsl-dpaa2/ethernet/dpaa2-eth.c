@@ -54,7 +54,7 @@ MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Freescale Semiconductor, Inc");
 MODULE_DESCRIPTION(DPAA2_ETH_DESCRIPTION);
 
-static uint8_t debug = -1;
+static u8 debug = -1;
 module_param(debug, byte, S_IRUGO);
 MODULE_PARM_DESC(debug, "Module/Driver verbosity level");
 
@@ -71,12 +71,12 @@ do { \
 		(cpu) = cpumask_first((maskptr)); \
 } while (0)
 
-static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv, uint16_t bpid);
-static int dpaa2_dpbp_seed(struct dpaa2_eth_priv *priv, uint16_t bpid);
+static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv, u16 bpid);
+static int dpaa2_dpbp_seed(struct dpaa2_eth_priv *priv, u16 bpid);
 static void __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv);
 
 static void dpaa2_eth_rx_csum(struct dpaa2_eth_priv *priv,
-			      uint32_t fd_status,
+			      u32 fd_status,
 			      struct sk_buff *skb)
 {
 	skb_checksum_none_assert(skb);
@@ -103,7 +103,7 @@ static void dpaa2_eth_free_rx_fd(struct dpaa2_eth_priv *priv,
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	dma_addr_t addr = dpaa2_fd_get_addr(fd);
-	uint8_t fd_format = dpaa2_fd_get_format(fd);
+	u8 fd_format = dpaa2_fd_get_format(fd);
 
 	if (fd_format == dpaa2_fd_sg) {
 		struct dpaa2_sg_entry *sgt = vaddr + dpaa2_fd_get_offset(fd);
@@ -134,8 +134,8 @@ static struct sk_buff *dpaa2_eth_build_linear_skb(struct dpaa2_eth_priv *priv,
 						  void *fd_vaddr)
 {
 	struct sk_buff *skb = NULL;
-	uint16_t fd_offset = dpaa2_fd_get_offset(fd);
-	uint32_t fd_length = dpaa2_fd_get_len(fd);
+	u16 fd_offset = dpaa2_fd_get_offset(fd);
+	u32 fd_length = dpaa2_fd_get_len(fd);
 	int *count;
 
 	skb = build_skb(fd_vaddr, DPAA2_ETH_RX_BUFFER_SIZE +
@@ -162,8 +162,8 @@ static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
 	struct device *dev = priv->net_dev->dev.parent;
 	void *sg_vaddr;
 	dma_addr_t sg_addr;
-	uint16_t sg_offset;
-	uint32_t sg_length;
+	u16 sg_offset;
+	u32 sg_length;
 	struct page *page, *head_page;
 	int page_offset;
 	int *count;
@@ -240,14 +240,14 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 			 struct napi_struct *napi)
 {
 	dma_addr_t addr = dpaa2_fd_get_addr(fd);
-	uint8_t fd_format = dpaa2_fd_get_format(fd);
+	u8 fd_format = dpaa2_fd_get_format(fd);
 	void *vaddr;
 	struct sk_buff *skb;
 	struct rtnl_link_stats64 *percpu_stats;
 	struct dpaa2_eth_stats *percpu_extras;
 	struct device *dev = priv->net_dev->dev.parent;
 	struct dpaa2_fas *fas;
-	uint32_t status = 0;
+	u32 status = 0;
 
 	/* Tracing point */
 	trace_dpaa2_rx_fd(priv->net_dev, fd);
@@ -329,7 +329,7 @@ static void dpaa2_eth_rx_err(struct dpaa2_eth_priv *priv,
 	void *vaddr;
 	struct rtnl_link_stats64 *percpu_stats;
 	struct dpaa2_fas *fas;
-	uint32_t status = 0;
+	u32 status = 0;
 
 	dma_unmap_single(dev, addr, DPAA2_ETH_RX_BUFFER_SIZE, DMA_FROM_DEVICE);
 	vaddr = phys_to_virt(addr);
@@ -508,7 +508,7 @@ static int dpaa2_eth_build_single_fd(struct dpaa2_eth_priv *priv,
 				     struct dpaa2_fd *fd)
 {
 	struct device *dev = priv->net_dev->dev.parent;
-	uint8_t *buffer_start;
+	u8 *buffer_start;
 	struct sk_buff **skbh;
 	dma_addr_t addr;
 
@@ -540,7 +540,7 @@ static int dpaa2_eth_build_single_fd(struct dpaa2_eth_priv *priv,
 	}
 
 	dpaa2_fd_set_addr(fd, addr);
-	dpaa2_fd_set_offset(fd, (uint16_t)(skb->data - buffer_start));
+	dpaa2_fd_set_offset(fd, (u16)(skb->data - buffer_start));
 	dpaa2_fd_set_len(fd, skb->len);
 	dpaa2_fd_set_format(fd, dpaa2_fd_single);
 
@@ -559,7 +559,7 @@ static int dpaa2_eth_build_single_fd(struct dpaa2_eth_priv *priv,
  */
 static void dpaa2_eth_free_fd(const struct dpaa2_eth_priv *priv,
 			      const struct dpaa2_fd *fd,
-			      uint32_t *status)
+			      u32 *status)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	dma_addr_t fd_addr;
@@ -725,7 +725,7 @@ static void dpaa2_eth_tx_conf(struct dpaa2_eth_priv *priv,
 {
 	struct rtnl_link_stats64 *percpu_stats;
 	struct dpaa2_eth_stats *percpu_extras;
-	uint32_t status = 0;
+	u32 status = 0;
 
 	/* Tracing point */
 	trace_dpaa2_tx_conf_fd(priv->net_dev, fd);
@@ -985,10 +985,10 @@ static int dpaa2_eth_stop(struct net_device *net_dev)
 
 static int dpaa2_eth_init(struct net_device *net_dev)
 {
-	uint64_t supported = 0;
-	uint64_t not_supported = 0;
+	u64 supported = 0;
+	u64 not_supported = 0;
 	const struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
-	uint32_t options = priv->dpni_attrs.options;
+	u32 options = priv->dpni_attrs.options;
 
 	/* Capabilities listing */
 	supported |= IFF_LIVE_ADDR_CHANGE | IFF_PROMISC | IFF_ALLMULTI;
@@ -1077,7 +1077,7 @@ static int dpaa2_eth_change_mtu(struct net_device *net_dev, int mtu)
 	 * account for L2 headers when computing the MFL
 	 */
 	err = dpni_set_max_frame_length(priv->mc_io, 0, priv->mc_token,
-					(uint16_t)DPAA2_ETH_L2_MAX_FRM(mtu));
+					(u16)DPAA2_ETH_L2_MAX_FRM(mtu));
 	if (err) {
 		netdev_err(net_dev, "dpni_set_mfl() failed\n");
 		return err;
@@ -1135,10 +1135,10 @@ static void dpaa2_eth_set_rx_mode(struct net_device *net_dev)
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
 	int uc_count = netdev_uc_count(net_dev);
 	int mc_count = netdev_mc_count(net_dev);
-	uint8_t max_uc = priv->dpni_attrs.max_unicast_filters;
-	uint8_t max_mc = priv->dpni_attrs.max_multicast_filters;
-	uint32_t options = priv->dpni_attrs.options;
-	uint16_t mc_token = priv->mc_token;
+	u8 max_uc = priv->dpni_attrs.max_unicast_filters;
+	u8 max_mc = priv->dpni_attrs.max_multicast_filters;
+	u32 options = priv->dpni_attrs.options;
+	u16 mc_token = priv->mc_token;
 	struct fsl_mc_io *mc_io = priv->mc_io;
 	int err;
 
@@ -1335,7 +1335,7 @@ static void dpaa2_eth_setup_fqs(struct dpaa2_eth_priv *priv)
 		priv->fq[priv->num_fqs].netdev_priv = priv;
 		priv->fq[priv->num_fqs].type = DPAA2_RX_FQ;
 		priv->fq[priv->num_fqs].consume = dpaa2_eth_rx;
-		priv->fq[priv->num_fqs++].flowid = (uint16_t)i;
+		priv->fq[priv->num_fqs++].flowid = (u16)i;
 	}
 
 #ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
@@ -1346,11 +1346,11 @@ static void dpaa2_eth_setup_fqs(struct dpaa2_eth_priv *priv)
 #endif
 }
 
-static int check_obj_version(struct fsl_mc_device *ls_dev, uint16_t mc_version)
+static int check_obj_version(struct fsl_mc_device *ls_dev, u16 mc_version)
 {
 	char *name = ls_dev->obj_desc.type;
 	struct device *dev = &ls_dev->dev;
-	uint16_t supported_version, flib_version;
+	u16 supported_version, flib_version;
 
 	if (strcmp(name, "dpni") == 0) {
 		flib_version = DPNI_VER_MAJOR;
@@ -1639,7 +1639,7 @@ static void dpaa2_set_fq_affinity(struct dpaa2_eth_priv *priv)
 static void dpaa2_dpbp_drain_cnt(struct dpaa2_eth_priv *priv, int count)
 {
 	struct device *dev = priv->net_dev->dev.parent;
-	uint64_t buf_array[7];
+	u64 buf_array[7];
 	void *vaddr;
 	int ret, i;
 
@@ -1667,10 +1667,10 @@ static void dpaa2_dpbp_drain(struct dpaa2_eth_priv *priv)
 	dpaa2_dpbp_drain_cnt(priv, 1);
 }
 
-static int dpaa2_bp_add_7(struct dpaa2_eth_priv *priv, uint16_t bpid)
+static int dpaa2_bp_add_7(struct dpaa2_eth_priv *priv, u16 bpid)
 {
 	struct device *dev = priv->net_dev->dev.parent;
-	uint64_t buf_array[7];
+	u64 buf_array[7];
 	void *buf;
 	dma_addr_t addr;
 	int i;
@@ -1724,7 +1724,7 @@ err_alloc:
 	return 0;
 }
 
-static int dpaa2_dpbp_seed(struct dpaa2_eth_priv *priv, uint16_t bpid)
+static int dpaa2_dpbp_seed(struct dpaa2_eth_priv *priv, u16 bpid)
 {
 	int i, j;
 	int new_count;
@@ -1760,7 +1760,7 @@ out_of_memory:
 /* Function is called from softirq context only, so we don't need to guard
  * the access to percpu count
  */
-static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv, uint16_t bpid)
+static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv, u16 bpid)
 {
 	int new_count;
 	int err = 0;
@@ -2018,7 +2018,7 @@ static int dpaa2_rx_flow_setup(struct dpaa2_eth_priv *priv,
 			    DPNI_QUEUE_OPT_TAILDROP_THRESHOLD;
 	queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPCON;
 	queue_cfg.dest_cfg.priority = 1;
-	queue_cfg.user_ctx = (uint64_t)fq;
+	queue_cfg.user_ctx = (u64)fq;
 	queue_cfg.dest_cfg.dest_id = fq->channel->dpcon_id;
 	queue_cfg.tail_drop_threshold = DPAA2_ETH_TAILDROP_THRESH;
 	err = dpni_set_rx_flow(priv->mc_io, 0, priv->mc_token, 0, fq->flowid,
@@ -2062,7 +2062,7 @@ static int dpaa2_tx_flow_setup(struct dpaa2_eth_priv *priv,
 	tx_conf_cfg.errors_only = 0;
 	tx_conf_cfg.queue_cfg.options = DPNI_QUEUE_OPT_USER_CTX |
 					DPNI_QUEUE_OPT_DEST;
-	tx_conf_cfg.queue_cfg.user_ctx = (uint64_t)fq;
+	tx_conf_cfg.queue_cfg.user_ctx = (u64)fq;
 	tx_conf_cfg.queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPCON;
 	tx_conf_cfg.queue_cfg.dest_cfg.dest_id = fq->channel->dpcon_id;
 	tx_conf_cfg.queue_cfg.dest_cfg.priority = 0;
@@ -2099,7 +2099,7 @@ static int dpaa2_rx_err_setup(struct dpaa2_eth_priv *priv,
 	queue_cfg.options = DPNI_QUEUE_OPT_USER_CTX | DPNI_QUEUE_OPT_DEST;
 	queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPCON;
 	queue_cfg.dest_cfg.priority = 1;
-	queue_cfg.user_ctx = (uint64_t)fq;
+	queue_cfg.user_ctx = (u64)fq;
 	queue_cfg.dest_cfg.dest_id = fq->channel->dpcon_id;
 	err = dpni_set_rx_err_queue(priv->mc_io, 0, priv->mc_token, &queue_cfg);
 	if (err) {
@@ -2235,7 +2235,7 @@ static int dpaa2_eth_netdev_init(struct net_device *net_dev)
 	int err;
 	struct device *dev = net_dev->dev.parent;
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
-	uint8_t mac_addr[ETH_ALEN];
+	u8 mac_addr[ETH_ALEN];
 
 	net_dev->netdev_ops = &dpaa2_eth_ops;
 
@@ -2311,8 +2311,8 @@ static irqreturn_t dpni_irq0_handler(int irq_num, void *arg)
 
 static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 {
-	uint8_t irq_index = DPNI_IRQ_INDEX;
-	uint32_t status, clear = 0;
+	u8 irq_index = DPNI_IRQ_INDEX;
+	u32 status, clear = 0;
 	struct device *dev = (struct device *)arg;
 	struct fsl_mc_device *dpni_dev = to_fsl_mc_device(dev);
 	struct net_device *net_dev = dev_get_drvdata(dev);
@@ -2349,8 +2349,8 @@ static int dpaa2_eth_setup_irqs(struct fsl_mc_device *ls_dev)
 	int err = 0;
 	struct fsl_mc_device_irq *irq;
 	int irq_count = ls_dev->obj_desc.irq_count;
-	uint8_t irq_index = DPNI_IRQ_INDEX;
-	uint32_t mask = DPNI_IRQ_EVENT_LINK_CHANGED;
+	u8 irq_index = DPNI_IRQ_INDEX;
+	u32 mask = DPNI_IRQ_EVENT_LINK_CHANGED;
 
 	/* The only interrupt supported now is the link state notification. */
 	if (WARN_ON(irq_count != 1))

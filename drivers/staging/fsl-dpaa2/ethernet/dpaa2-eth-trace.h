@@ -129,7 +129,7 @@ TRACE_EVENT(dpaa2_eth_buf_seed,
 		     dma_addr_t dma_addr,
 		     size_t map_size,
 		     /* buffer pool id, if relevant */
-		     uint16_t bpid),
+		     u16 bpid),
 
 	    /* Repeat argument list here */
 	    TP_ARGS(netdev, vaddr, size, dma_addr, map_size, bpid),
@@ -144,7 +144,7 @@ TRACE_EVENT(dpaa2_eth_buf_seed,
 			     __field(size_t, size)
 			     __field(dma_addr_t, dma_addr)
 			     __field(size_t, map_size)
-			     __field(uint16_t, bpid)
+			     __field(u16, bpid)
 			     __string(name, netdev->name)
 	    ),
 

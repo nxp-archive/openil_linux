@@ -108,7 +108,7 @@ static int dpaa2_dbg_fqs_show(struct seq_file *file, void *offset)
 {
 	struct dpaa2_eth_priv *priv = (struct dpaa2_eth_priv *)file->private;
 	struct dpaa2_eth_fq *fq;
-	uint32_t fcnt, bcnt;
+	u32 fcnt, bcnt;
 	int i, err;
 
 	seq_printf(file, "FQ stats for %s:\n", priv->net_dev->name);

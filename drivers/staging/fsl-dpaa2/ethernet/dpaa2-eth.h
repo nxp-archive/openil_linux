@@ -242,8 +242,8 @@ enum dpaa2_eth_fq_type {
 struct dpaa2_eth_priv;
 
 struct dpaa2_eth_fq {
-	uint32_t fqid;
-	uint16_t flowid;
+	u32 fqid;
+	u16 flowid;
 	int target_cpu;
 	struct dpaa2_eth_channel *channel;
 	enum dpaa2_eth_fq_type type;
@@ -275,11 +275,11 @@ struct dpaa2_cls_rule {
 struct dpaa2_eth_priv {
 	struct net_device *net_dev;
 
-	uint8_t num_fqs;
+	u8 num_fqs;
 	/* First queue is tx conf, the rest are rx */
 	struct dpaa2_eth_fq fq[DPAA2_ETH_MAX_QUEUES];
 
-	uint8_t num_channels;
+	u8 num_channels;
 	struct dpaa2_eth_channel *channel[DPAA2_ETH_MAX_DPCONS];
 
 	int dpni_id;
@@ -289,7 +289,7 @@ struct dpaa2_eth_priv {
 	 * of buffers (Rx, Tx, Tx-Conf).
 	 */
 	struct dpni_buffer_layout buf_layout;
-	uint16_t tx_data_offset;
+	u16 tx_data_offset;
 
 	/* TODO: Support multiple BPs */
 	struct fsl_mc_device *dpbp_dev;
@@ -297,7 +297,7 @@ struct dpaa2_eth_priv {
 
 	int __percpu *buf_count;
 
-	uint16_t tx_qdid;
+	u16 tx_qdid;
 	struct fsl_mc_io *mc_io;
 	/* SysFS-controlled affinity mask for TxConf FQs */
 	struct cpumask txconf_cpumask;
@@ -312,9 +312,9 @@ struct dpaa2_eth_priv {
 	struct rtnl_link_stats64 __percpu *percpu_stats;
 	/* Extra stats, in addition to the ones known by the kernel */
 	struct dpaa2_eth_stats __percpu *percpu_extras;
-	uint32_t msg_enable;	/* net_device message level */
+	u32 msg_enable;	/* net_device message level */
 
-	uint16_t mc_token;
+	u16 mc_token;
 
 	struct dpni_link_state link_state;
 	struct task_struct *poll_thread;
