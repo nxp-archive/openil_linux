@@ -39,7 +39,7 @@
 #include <linux/net_tstamp.h>
 
 #include "../../fsl-mc/include/mc.h"
-#include "../../fsl-mc/include/mc-sys.h" /* FSL_MC_IO_ATOMIC_CONTEXT_PORTAL */
+#include "../../fsl-mc/include/mc-sys.h"
 #include "dpaa2-eth.h"
 
 /* CREATE_TRACE_POINTS only needs to be defined once. Other dpa files
@@ -48,14 +48,12 @@
 #define CREATE_TRACE_POINTS
 #include "dpaa2-eth-trace.h"
 
-#define DPAA2_ETH_DESCRIPTION "Freescale DPAA Ethernet Driver"
-
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Freescale Semiconductor, Inc");
-MODULE_DESCRIPTION(DPAA2_ETH_DESCRIPTION);
+MODULE_DESCRIPTION("Freescale DPAA2 Ethernet Driver");
 
-static u8 debug = -1;
-module_param(debug, byte, S_IRUGO);
+static int debug = -1;
+module_param(debug, int, S_IRUGO);
 MODULE_PARM_DESC(debug, "Module/Driver verbosity level");
 
 /* Oldest DPAA2 objects version we are compatible with */
