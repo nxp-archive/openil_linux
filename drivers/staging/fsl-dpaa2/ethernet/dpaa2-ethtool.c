@@ -461,7 +461,7 @@ int ldpaa_set_hash(struct net_device *net_dev, u64 flags)
 		return -ENOMEM;
 	}
 
-	dist_cfg.dist_size = ldpaa_queue_count(priv) - 1;
+	dist_cfg.dist_size = ldpaa_queue_count(priv);
 	if (ldpaa_eth_fs_enabled(priv)) {
 		dist_cfg.dist_mode = DPNI_DIST_MODE_FS;
 		dist_cfg.fs_cfg.miss_action = DPNI_FS_MISS_HASH;
