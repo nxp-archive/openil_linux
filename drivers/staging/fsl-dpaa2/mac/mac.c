@@ -63,11 +63,6 @@
 #define ppx_info(netdev, ...) dev_err(&netdev->dev, __VA_ARGS__)
 #endif /* CONFIG_FSL_DPAA2_MAC_NETDEVS */
 
-struct phy_device *fixed_phy_register2(unsigned int irq,
-				       struct fixed_phy_status *status,
-				       struct device_node *np);
-
-
 struct ppx_priv {
 	struct net_device		*netdev;
 	struct fsl_mc_device		*mc_dev;
