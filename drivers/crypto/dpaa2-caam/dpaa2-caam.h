@@ -170,6 +170,24 @@ struct ablkcipher_edesc {
 	struct dpaa_sg_entry qm_sg[0];
 };
 
+/*
+ * ahash_edesc - s/w-extended ahash descriptor
+ * @dst_dma: I/O virtual address of req->result
+ * @chained: if source is chained
+ * @src_nents: number of segments in input scatterlist
+ * @qm_sg_bytes: length of dma mapped qm_sg space
+ * @qm_sg_dma: I/O virtual address of h/w link table
+ * @qm_sg: pointer to h/w link table
+ */
+struct ahash_edesc {
+	dma_addr_t dst_dma;
+	bool chained;
+	int src_nents;
+	int qm_sg_bytes;
+	dma_addr_t qm_sg_dma;
+	struct dpaa_sg_entry qm_sg[0];
+};
+
 /**
  * caam_flc - Flow Context (FLC)
  * @flc: Flow Context options
@@ -202,6 +220,51 @@ struct caam_request {
 	void *ctx;
 	void *edesc;
 } ____cacheline_aligned;
+
+/* max hash key is max split key size */
+#define CAAM_MAX_HASH_KEY_SIZE		(SHA512_DIGEST_SIZE * 2)
+
+#define CAAM_MAX_HASH_BLOCK_SIZE	SHA512_BLOCK_SIZE
+#define CAAM_MAX_HASH_DIGEST_SIZE	SHA512_DIGEST_SIZE
+
+/* length of descriptors text */
+#define DESC_AHASH_BASE			(4 * CAAM_CMD_SZ)
+#define DESC_AHASH_UPDATE_LEN		(6 * CAAM_CMD_SZ)
+#define DESC_AHASH_UPDATE_FIRST_LEN	(DESC_AHASH_BASE + 4 * CAAM_CMD_SZ)
+#define DESC_AHASH_FINAL_LEN		(DESC_AHASH_BASE + 5 * CAAM_CMD_SZ)
+#define DESC_AHASH_FINUP_LEN		(DESC_AHASH_BASE + 5 * CAAM_CMD_SZ)
+#define DESC_AHASH_DIGEST_LEN		(DESC_AHASH_BASE + 4 * CAAM_CMD_SZ)
+
+#define DESC_HASH_MAX_USED_BYTES	(DESC_AHASH_FINAL_LEN + \
+					 CAAM_MAX_HASH_KEY_SIZE)
+#define DESC_HASH_MAX_USED_LEN		(DESC_HASH_MAX_USED_BYTES / CAAM_CMD_SZ)
+
+/* caam context sizes for hashes: running digest + 8 */
+#define HASH_MSG_LEN			8
+#define MAX_CTX_LEN			(HASH_MSG_LEN + SHA512_DIGEST_SIZE)
+
+/* ahash state */
+struct caam_hash_state {
+	struct caam_request caam_req;
+	dma_addr_t buf_dma;
+	dma_addr_t ctx_dma;
+	u8 buf_0[CAAM_MAX_HASH_BLOCK_SIZE] ____cacheline_aligned;
+	int buflen_0;
+	u8 buf_1[CAAM_MAX_HASH_BLOCK_SIZE] ____cacheline_aligned;
+	int buflen_1;
+	u8 caam_ctx[MAX_CTX_LEN] ____cacheline_aligned;
+	/*
+	 * Dummy guard - never touched by CPU, only inserted to make sure
+	 * caam_ctx not trashed by CPU writes.
+	 * TODO: When HW coherency support is fixed, this can (and should)
+	 * be safely removed.
+	 */
+	int  dummy_guard ____cacheline_aligned;
+	int (*update)(struct ahash_request *req);
+	int (*final)(struct ahash_request *req);
+	int (*finup)(struct ahash_request *req);
+	int current_buf;
+};
 
 /**
  * dpaa2_caam_enqueue() - enqueue a crypto request
