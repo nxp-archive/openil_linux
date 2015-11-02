@@ -617,7 +617,10 @@ static int ldpaa_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	struct rtnl_link_stats64 *percpu_stats;
 	struct ldpaa_eth_stats *percpu_extras;
 	int err, i;
-	int queue_mapping = skb_get_queue_mapping(skb);
+	/* TxConf FQ selection primarily based on cpu affinity; this is
+	 * non-migratable context, so it's safe to call smp_processor_id().
+	 */
+	int queue_mapping = smp_processor_id() % priv->dpni_attrs.max_senders;
 
 	percpu_stats = this_cpu_ptr(priv->percpu_stats);
 	percpu_extras = this_cpu_ptr(priv->percpu_extras);
