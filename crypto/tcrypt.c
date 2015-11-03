@@ -217,7 +217,7 @@ static u32 block_sizes[] = { 16, 64, 256, 1024, 8192, 0 };
 static u32 aead_sizes[] = { 16, 64, 256, 512, 1024, 2048, 4096, 8192, 0 };
 
 #define XBUFSIZE 8
-#define MAX_IVLEN 32
+#define MAX_IVLEN 128
 
 static int testmgr_alloc_buf(char *buf[XBUFSIZE])
 {
@@ -1093,11 +1093,15 @@ static void test_acipher_speed(const char *algo, int enc, unsigned int secs,
 	unsigned int ret, i, j, k, iv_len;
 	struct tcrypt_result tresult;
 	const char *key;
-	char iv[128];
+	char *iv;
 	struct ablkcipher_request *req;
 	struct crypto_ablkcipher *tfm;
 	const char *e;
 	u32 *b_size;
+
+	iv = kzalloc(MAX_IVLEN, GFP_KERNEL);
+	if (!iv)
+		return;
 
 	if (enc == ENCRYPT)
 		e = "encryption";
@@ -1111,7 +1115,7 @@ static void test_acipher_speed(const char *algo, int enc, unsigned int secs,
 	if (IS_ERR(tfm)) {
 		pr_err("failed to load transform for %s: %ld\n", algo,
 		       PTR_ERR(tfm));
-		return;
+		goto out_iv;
 	}
 
 	pr_info("\ntesting speed of async %s (%s) %s\n", algo,
@@ -1186,7 +1190,7 @@ static void test_acipher_speed(const char *algo, int enc, unsigned int secs,
 
 			iv_len = crypto_ablkcipher_ivsize(tfm);
 			if (iv_len)
-				memset(&iv, 0xff, iv_len);
+				memset(iv, 0xff, iv_len);
 
 			ablkcipher_request_set_crypt(req, sg, sg, *b_size, iv);
 
@@ -1212,6 +1216,8 @@ out_free_req:
 	ablkcipher_request_free(req);
 out:
 	crypto_free_ablkcipher(tfm);
+out_iv:
+	kfree(iv);
 }
 
 static void test_available(void)
