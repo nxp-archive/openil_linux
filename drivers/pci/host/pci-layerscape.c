@@ -199,7 +199,8 @@ static int __init ls_pcie_probe(struct platform_device *pdev)
 	pcie->pp.dw_ops = (struct dw_host_ops *)match->data;
 	pcie->pp.atu_num = PCIE_ATU_NUM;
 
-	if (of_device_is_compatible(pdev->dev.of_node, "fsl,ls2085a-pcie")) {
+	if (of_device_is_compatible(pdev->dev.of_node, "fsl,ls2085a-pcie") ||
+	of_device_is_compatible(pdev->dev.of_node, "fsl,ls2080a-pcie")) {
 		int len;
 		const u32 *prop;
 		struct device_node *np;
