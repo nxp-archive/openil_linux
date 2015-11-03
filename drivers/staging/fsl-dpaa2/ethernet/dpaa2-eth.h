@@ -55,7 +55,7 @@
  * multiple of 7, because we're doing ldpaa_bp_add_7(). This is a per-CPU
  * counter.
  */
-#define LDPAA_ETH_NUM_BUFS		(300 * 7)
+#define LDPAA_ETH_NUM_BUFS		(16 * 7)
 #define LDPAA_ETH_REFILL_THRESH		(LDPAA_ETH_NUM_BUFS * 5 / 6)
 
 /* Maximum receive frame size is 64K */
