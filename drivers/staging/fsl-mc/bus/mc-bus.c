@@ -618,10 +618,12 @@ int fsl_mc_device_add(struct dprc_obj_desc *obj_desc,
 			goto error_cleanup_dev;
 	}
 
-	/* DPAA2 devices on the mc-bus *are* dma-coherent.
+	/* DPAA2 devices on the mc-bus *are* dma-coherent,
+	 * with the noticeable exception of DPSECI.
 	 * FIXME: fill up @dma_base, @size, @iommu
 	 */
-	arch_setup_dma_ops(&mc_dev->dev, 0, 0, NULL, true);
+	if (strcmp(obj_desc->type, "dpseci"))
+		arch_setup_dma_ops(&mc_dev->dev, 0, 0, NULL, true);
 
 	/*
 	 * The device-specific probe callback will get invoked by device_add()
