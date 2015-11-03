@@ -7,7 +7,7 @@
 #
 
 menuconfig FSL_DPAA2_ETH
-	tristate "Freescale DPAA Ethernet"
+	tristate "Freescale DPAA2 Ethernet"
 	depends on FSL_DPAA2 && FSL_MC_BUS && FSL_MC_DPIO
 	select FSL_DPAA2_MAC
 	default y
@@ -17,7 +17,7 @@ menuconfig FSL_DPAA2_ETH
 
 if FSL_DPAA2_ETH
 config FSL_DPAA2_ETH_GCOV
-	bool "Gcov support in the FSL LDPAA Ethernet driver"
+	bool "Gcov support in the FSL DPAA2 Ethernet driver"
 	default n
 	depends on GCOV_KERNEL
 	---help---

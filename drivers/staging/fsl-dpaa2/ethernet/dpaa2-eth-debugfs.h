@@ -29,15 +29,15 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef LDPAA_ETH_DEBUGFS_H
-#define LDPAA_ETH_DEBUGFS_H
+#ifndef DPAA2_ETH_DEBUGFS_H
+#define DPAA2_ETH_DEBUGFS_H
 
 #include <linux/dcache.h>
 #include "dpaa2-eth.h"
 
-extern struct ldpaa_eth_priv *priv;
+extern struct dpaa2_eth_priv *priv;
 
-struct ldpaa_debugfs {
+struct dpaa2_debugfs {
 	struct dentry *dir;
 	struct dentry *fq_stats;
 	struct dentry *ch_stats;
@@ -46,16 +46,16 @@ struct ldpaa_debugfs {
 };
 
 #ifdef CONFIG_FSL_DPAA2_ETH_DEBUGFS
-void ldpaa_eth_dbg_init(void);
-void ldpaa_eth_dbg_exit(void);
-void ldpaa_dbg_add(struct ldpaa_eth_priv *priv);
-void ldpaa_dbg_remove(struct ldpaa_eth_priv *priv);
+void dpaa2_eth_dbg_init(void);
+void dpaa2_eth_dbg_exit(void);
+void dpaa2_dbg_add(struct dpaa2_eth_priv *priv);
+void dpaa2_dbg_remove(struct dpaa2_eth_priv *priv);
 #else
-static inline void ldpaa_eth_dbg_init(void) {}
-static inline void ldpaa_eth_dbg_exit(void) {}
-static inline void ldpaa_dbg_add(struct ldpaa_eth_priv *priv) {}
-static inline void ldpaa_dbg_remove(struct ldpaa_eth_priv *priv) {}
+static inline void dpaa2_eth_dbg_init(void) {}
+static inline void dpaa2_eth_dbg_exit(void) {}
+static inline void dpaa2_dbg_add(struct dpaa2_eth_priv *priv) {}
+static inline void dpaa2_dbg_remove(struct dpaa2_eth_priv *priv) {}
 #endif /* CONFIG_FSL_DPAA2_ETH_DEBUGFS */
 
-#endif /* LDPAA_ETH_DEBUGFS_H */
+#endif /* DPAA2_ETH_DEBUGFS_H */
 

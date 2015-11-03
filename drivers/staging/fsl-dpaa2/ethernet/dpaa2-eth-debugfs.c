@@ -36,16 +36,16 @@
 #include "dpaa2-eth.h"
 #include "dpaa2-eth-debugfs.h"
 
-#define LDPAA_ETH_DBG_ROOT "dpaa2-eth"
+#define DPAA2_ETH_DBG_ROOT "dpaa2-eth"
 
 
-static struct dentry *ldpaa_dbg_root;
+static struct dentry *dpaa2_dbg_root;
 
-static int ldpaa_dbg_cpu_show(struct seq_file *file, void *offset)
+static int dpaa2_dbg_cpu_show(struct seq_file *file, void *offset)
 {
-	struct ldpaa_eth_priv *priv = (struct ldpaa_eth_priv *)file->private;
+	struct dpaa2_eth_priv *priv = (struct dpaa2_eth_priv *)file->private;
 	struct rtnl_link_stats64 *stats;
-	struct ldpaa_eth_stats *extras;
+	struct dpaa2_eth_stats *extras;
 	int i;
 
 	seq_printf(file, "Per-CPU stats for %s\n", priv->net_dev->name);
@@ -71,43 +71,43 @@ static int ldpaa_dbg_cpu_show(struct seq_file *file, void *offset)
 	return 0;
 }
 
-static int ldpaa_dbg_cpu_open(struct inode *inode, struct file *file)
+static int dpaa2_dbg_cpu_open(struct inode *inode, struct file *file)
 {
 	int err;
-	struct ldpaa_eth_priv *priv = (struct ldpaa_eth_priv *)inode->i_private;
+	struct dpaa2_eth_priv *priv = (struct dpaa2_eth_priv *)inode->i_private;
 
-	err = single_open(file, ldpaa_dbg_cpu_show, priv);
+	err = single_open(file, dpaa2_dbg_cpu_show, priv);
 	if (unlikely(err < 0))
 		netdev_err(priv->net_dev, "single_open() failed\n");
 
 	return err;
 }
 
-static const struct file_operations ldpaa_dbg_cpu_ops = {
-	.open = ldpaa_dbg_cpu_open,
+static const struct file_operations dpaa2_dbg_cpu_ops = {
+	.open = dpaa2_dbg_cpu_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
 	.release = single_release,
 };
 
-static char *fq_type_to_str(struct ldpaa_eth_fq *fq)
+static char *fq_type_to_str(struct dpaa2_eth_fq *fq)
 {
 	switch (fq->type) {
-	case LDPAA_RX_FQ:
+	case DPAA2_RX_FQ:
 		return "Rx";
-	case LDPAA_TX_CONF_FQ:
+	case DPAA2_TX_CONF_FQ:
 		return "Tx conf";
-	case LDPAA_RX_ERR_FQ:
+	case DPAA2_RX_ERR_FQ:
 		return "Rx err";
 	default:
 		return "N/A";
 	}
 }
 
-static int ldpaa_dbg_fqs_show(struct seq_file *file, void *offset)
+static int dpaa2_dbg_fqs_show(struct seq_file *file, void *offset)
 {
-	struct ldpaa_eth_priv *priv = (struct ldpaa_eth_priv *)file->private;
-	struct ldpaa_eth_fq *fq;
+	struct dpaa2_eth_priv *priv = (struct dpaa2_eth_priv *)file->private;
+	struct dpaa2_eth_fq *fq;
 	uint32_t fcnt, bcnt;
 	int i, err;
 
@@ -132,29 +132,29 @@ static int ldpaa_dbg_fqs_show(struct seq_file *file, void *offset)
 	return 0;
 }
 
-static int ldpaa_dbg_fqs_open(struct inode *inode, struct file *file)
+static int dpaa2_dbg_fqs_open(struct inode *inode, struct file *file)
 {
 	int err;
-	struct ldpaa_eth_priv *priv = (struct ldpaa_eth_priv *)inode->i_private;
+	struct dpaa2_eth_priv *priv = (struct dpaa2_eth_priv *)inode->i_private;
 
-	err = single_open(file, ldpaa_dbg_fqs_show, priv);
+	err = single_open(file, dpaa2_dbg_fqs_show, priv);
 	if (unlikely(err < 0))
 		netdev_err(priv->net_dev, "single_open() failed\n");
 
 	return err;
 }
 
-static const struct file_operations ldpaa_dbg_fq_ops = {
-	.open = ldpaa_dbg_fqs_open,
+static const struct file_operations dpaa2_dbg_fq_ops = {
+	.open = dpaa2_dbg_fqs_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
 	.release = single_release,
 };
 
-static int ldpaa_dbg_ch_show(struct seq_file *file, void *offset)
+static int dpaa2_dbg_ch_show(struct seq_file *file, void *offset)
 {
-	struct ldpaa_eth_priv *priv = (struct ldpaa_eth_priv *)file->private;
-	struct ldpaa_eth_channel *ch;
+	struct dpaa2_eth_priv *priv = (struct dpaa2_eth_priv *)file->private;
+	struct dpaa2_eth_channel *ch;
 	int i;
 
 	seq_printf(file, "Channel stats for %s:\n", priv->net_dev->name);
@@ -176,33 +176,33 @@ static int ldpaa_dbg_ch_show(struct seq_file *file, void *offset)
 	return 0;
 }
 
-static int ldpaa_dbg_ch_open(struct inode *inode, struct file *file)
+static int dpaa2_dbg_ch_open(struct inode *inode, struct file *file)
 {
 	int err;
-	struct ldpaa_eth_priv *priv = (struct ldpaa_eth_priv *)inode->i_private;
+	struct dpaa2_eth_priv *priv = (struct dpaa2_eth_priv *)inode->i_private;
 
-	err = single_open(file, ldpaa_dbg_ch_show, priv);
+	err = single_open(file, dpaa2_dbg_ch_show, priv);
 	if (unlikely(err < 0))
 		netdev_err(priv->net_dev, "single_open() failed\n");
 
 	return err;
 }
 
-static const struct file_operations ldpaa_dbg_ch_ops = {
-	.open = ldpaa_dbg_ch_open,
+static const struct file_operations dpaa2_dbg_ch_ops = {
+	.open = dpaa2_dbg_ch_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
 	.release = single_release,
 };
 
-static ssize_t ldpaa_dbg_reset_write(struct file *file, const char __user *buf,
+static ssize_t dpaa2_dbg_reset_write(struct file *file, const char __user *buf,
 				     size_t count, loff_t *offset)
 {
-	struct ldpaa_eth_priv *priv = file->private_data;
+	struct dpaa2_eth_priv *priv = file->private_data;
 	struct rtnl_link_stats64 *percpu_stats;
-	struct ldpaa_eth_stats *percpu_extras;
-	struct ldpaa_eth_fq *fq;
-	struct ldpaa_eth_channel *ch;
+	struct dpaa2_eth_stats *percpu_extras;
+	struct dpaa2_eth_fq *fq;
+	struct dpaa2_eth_channel *ch;
 	int i;
 
 	for_each_online_cpu(i) {
@@ -226,19 +226,19 @@ static ssize_t ldpaa_dbg_reset_write(struct file *file, const char __user *buf,
 	return count;
 }
 
-static const struct file_operations ldpaa_dbg_reset_ops = {
+static const struct file_operations dpaa2_dbg_reset_ops = {
 	.open = simple_open,
-	.write = ldpaa_dbg_reset_write,
+	.write = dpaa2_dbg_reset_write,
 };
 
-void ldpaa_dbg_add(struct ldpaa_eth_priv *priv)
+void dpaa2_dbg_add(struct dpaa2_eth_priv *priv)
 {
-	if (unlikely(!ldpaa_dbg_root))
+	if (unlikely(!dpaa2_dbg_root))
 		return;
 
 	/* Create a directory for the interface */
 	priv->dbg.dir = debugfs_create_dir(priv->net_dev->name,
-					   ldpaa_dbg_root);
+					   dpaa2_dbg_root);
 	if (unlikely(!priv->dbg.dir)) {
 		netdev_err(priv->net_dev, "debugfs_create_dir() failed\n");
 		return;
@@ -247,7 +247,7 @@ void ldpaa_dbg_add(struct ldpaa_eth_priv *priv)
 	/* per-cpu stats file */
 	priv->dbg.cpu_stats = debugfs_create_file("cpu_stats", S_IRUGO,
 						  priv->dbg.dir, priv,
-						  &ldpaa_dbg_cpu_ops);
+						  &dpaa2_dbg_cpu_ops);
 	if (unlikely(!priv->dbg.cpu_stats)) {
 		netdev_err(priv->net_dev, "debugfs_create_file() failed\n");
 		goto err_cpu_stats;
@@ -256,7 +256,7 @@ void ldpaa_dbg_add(struct ldpaa_eth_priv *priv)
 	/* per-fq stats file */
 	priv->dbg.fq_stats = debugfs_create_file("fq_stats", S_IRUGO,
 						 priv->dbg.dir, priv,
-						 &ldpaa_dbg_fq_ops);
+						 &dpaa2_dbg_fq_ops);
 	if (unlikely(!priv->dbg.fq_stats)) {
 		netdev_err(priv->net_dev, "debugfs_create_file() failed\n");
 		goto err_fq_stats;
@@ -265,7 +265,7 @@ void ldpaa_dbg_add(struct ldpaa_eth_priv *priv)
 	/* per-fq stats file */
 	priv->dbg.ch_stats = debugfs_create_file("ch_stats", S_IRUGO,
 						 priv->dbg.dir, priv,
-						 &ldpaa_dbg_ch_ops);
+						 &dpaa2_dbg_ch_ops);
 	if (unlikely(!priv->dbg.fq_stats)) {
 		netdev_err(priv->net_dev, "debugfs_create_file() failed\n");
 		goto err_ch_stats;
@@ -274,7 +274,7 @@ void ldpaa_dbg_add(struct ldpaa_eth_priv *priv)
 	/* reset stats */
 	priv->dbg.reset_stats = debugfs_create_file("reset_stats", S_IWUSR,
 						    priv->dbg.dir, priv,
-						    &ldpaa_dbg_reset_ops);
+						    &dpaa2_dbg_reset_ops);
 	if (unlikely(!priv->dbg.reset_stats)) {
 		netdev_err(priv->net_dev, "debugfs_create_file() failed\n");
 		goto err_reset_stats;
@@ -292,7 +292,7 @@ err_cpu_stats:
 	debugfs_remove(priv->dbg.dir);
 }
 
-void ldpaa_dbg_remove(struct ldpaa_eth_priv *priv)
+void dpaa2_dbg_remove(struct dpaa2_eth_priv *priv)
 {
 	debugfs_remove(priv->dbg.reset_stats);
 	debugfs_remove(priv->dbg.fq_stats);
@@ -301,10 +301,10 @@ void ldpaa_dbg_remove(struct ldpaa_eth_priv *priv)
 	debugfs_remove(priv->dbg.dir);
 }
 
-void ldpaa_eth_dbg_init(void)
+void dpaa2_eth_dbg_init(void)
 {
-	ldpaa_dbg_root = debugfs_create_dir(LDPAA_ETH_DBG_ROOT, NULL);
-	if (unlikely(!ldpaa_dbg_root)) {
+	dpaa2_dbg_root = debugfs_create_dir(DPAA2_ETH_DBG_ROOT, NULL);
+	if (unlikely(!dpaa2_dbg_root)) {
 		pr_err("DPAA2-ETH: debugfs create failed\n");
 		return;
 	}
@@ -312,8 +312,8 @@ void ldpaa_eth_dbg_init(void)
 	pr_info("DPAA2-ETH: debugfs created\n");
 }
 
-void __exit ldpaa_eth_dbg_exit(void)
+void __exit dpaa2_eth_dbg_exit(void)
 {
-	debugfs_remove(ldpaa_dbg_root);
+	debugfs_remove(dpaa2_dbg_root);
 }
 

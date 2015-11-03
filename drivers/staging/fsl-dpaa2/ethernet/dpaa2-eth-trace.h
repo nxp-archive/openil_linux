@@ -30,10 +30,10 @@
  */
 
 #undef TRACE_SYSTEM
-#define TRACE_SYSTEM	ldpaa_eth
+#define TRACE_SYSTEM	dpaa2_eth
 
-#if !defined(_LDPAA_ETH_TRACE_H) || defined(TRACE_HEADER_MULTI_READ)
-#define _LDPAA_ETH_TRACE_H
+#if !defined(_DPAA2_ETH_TRACE_H) || defined(TRACE_HEADER_MULTI_READ)
+#define _DPAA2_ETH_TRACE_H
 
 #include <linux/skbuff.h>
 #include <linux/netdevice.h>
@@ -49,7 +49,7 @@
  */
 
 /* Store details about a frame descriptor */
-DECLARE_EVENT_CLASS(ldpaa_eth_fd,
+DECLARE_EVENT_CLASS(dpaa2_eth_fd,
 		    /* Trace function prototype */
 		    TP_PROTO(struct net_device *netdev,
 			     const struct dpaa_fd *fd),
@@ -95,7 +95,7 @@ DECLARE_EVENT_CLASS(ldpaa_eth_fd,
  */
 
 /* Tx (egress) fd */
-DEFINE_EVENT(ldpaa_eth_fd, ldpaa_tx_fd,
+DEFINE_EVENT(dpaa2_eth_fd, dpaa2_tx_fd,
 	     TP_PROTO(struct net_device *netdev,
 		      const struct dpaa_fd *fd),
 
@@ -103,7 +103,7 @@ DEFINE_EVENT(ldpaa_eth_fd, ldpaa_tx_fd,
 );
 
 /* Rx fd */
-DEFINE_EVENT(ldpaa_eth_fd, ldpaa_rx_fd,
+DEFINE_EVENT(dpaa2_eth_fd, dpaa2_rx_fd,
 	     TP_PROTO(struct net_device *netdev,
 		      const struct dpaa_fd *fd),
 
@@ -111,7 +111,7 @@ DEFINE_EVENT(ldpaa_eth_fd, ldpaa_rx_fd,
 );
 
 /* Tx confirmation fd */
-DEFINE_EVENT(ldpaa_eth_fd, ldpaa_tx_conf_fd,
+DEFINE_EVENT(dpaa2_eth_fd, dpaa2_tx_conf_fd,
 	     TP_PROTO(struct net_device *netdev,
 		      const struct dpaa_fd *fd),
 
@@ -119,7 +119,7 @@ DEFINE_EVENT(ldpaa_eth_fd, ldpaa_tx_conf_fd,
 );
 
 /* Log data about raw buffers. Useful for tracing DPBP content. */
-TRACE_EVENT(ldpaa_eth_buf_seed,
+TRACE_EVENT(dpaa2_eth_buf_seed,
 	    /* Trace function prototype */
 	    TP_PROTO(struct net_device *netdev,
 		     /* virtual address and size */
@@ -177,9 +177,9 @@ TRACE_EVENT(ldpaa_eth_buf_seed,
  * The syntax is the same as for DECLARE_EVENT_CLASS().
  */
 
-#endif /* _LDPAA_ETH_TRACE_H */
+#endif /* _DPAA2_ETH_TRACE_H */
 
-/* This must be outside ifdef _LDPAA_ETH_TRACE_H */
+/* This must be outside ifdef _DPAA2_ETH_TRACE_H */
 #undef TRACE_INCLUDE_PATH
 #define TRACE_INCLUDE_PATH .
 #undef TRACE_INCLUDE_FILE
