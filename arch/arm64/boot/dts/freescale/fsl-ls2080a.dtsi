@@ -618,6 +618,70 @@
 		 */
 		ranges = <0x0 0x0 0x0 0x8 0x0c000000 0x4000000
 			  0x1 0x0 0x0 0x8 0x18000000 0x8000000>;
+
+		/*
+		 * Define the maximum number of MACs present on the SoC.
+		 * They won't necessarily be all probed, since the
+		 * Data Path Layout file and the MC firmware can put fewer
+		 * actual DPMAC objects on the MC bus.
+		 */
+		dpmacs {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			dpmac1: dpmac@1 {
+				compatible = "fsl,qoriq-mc-dpmac";
+				reg = <1>;
+			};
+			dpmac2: dpmac@2 {
+				compatible = "fsl,qoriq-mc-dpmac";
+				reg = <2>;
+			};
+			dpmac3: dpmac@3 {
+				compatible = "fsl,qoriq-mc-dpmac";
+				reg = <3>;
+			};
+			dpmac4: dpmac@4 {
+				compatible = "fsl,qoriq-mc-dpmac";
+				reg = <4>;
+			};
+			dpmac5: dpmac@5 {
+				compatible = "fsl,qoriq-mc-dpmac";
+				reg = <5>;
+			};
+			dpmac9: dpmac@9 {
+				compatible = "fsl,qoriq-mc-dpmac";
+				reg = <9>;
+			};
+			dpmac10: dpmac@10 {
+				compatible = "fsl,qoriq-mc-dpmac";
+				reg = <0xa>;
+			};
+			dpmac11: dpmac@11 {
+				compatible = "fsl,qoriq-mc-dpmac";
+				reg = <0xb>;
+			};
+			dpmac12: dpmac@12 {
+				compatible = "fsl,qoriq-mc-dpmac";
+				reg = <0xc>;
+			};
+			dpmac13: dpmac@13 {
+				compatible = "fsl,qoriq-mc-dpmac";
+				reg = <0xd>;
+			};
+			dpmac14: dpmac@14 {
+				compatible = "fsl,qoriq-mc-dpmac";
+				reg = <0xe>;
+			};
+			dpmac15: dpmac@15 {
+				compatible = "fsl,qoriq-mc-dpmac";
+				reg = <0xf>;
+			};
+			dpmac16: dpmac@16 {
+				compatible = "fsl,qoriq-mc-dpmac";
+				reg = <0x10>;
+			};
+		};
 	};
 
 	ccn@4000000 {
