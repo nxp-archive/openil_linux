@@ -283,7 +283,7 @@ static struct qb_attr_code code_eq_orp_en = QB_CODE(0, 2, 1);
 static struct qb_attr_code code_eq_orp_is_nesn = QB_CODE(0, 31, 1);
 static struct qb_attr_code code_eq_orp_nlis = QB_CODE(0, 30, 1);
 static struct qb_attr_code code_eq_orp_seqnum = QB_CODE(0, 16, 14);
-static struct qb_attr_code code_eq_orp_id = QB_CODE(1, 0, 16);
+static struct qb_attr_code code_eq_opr_id = QB_CODE(1, 0, 16);
 static struct qb_attr_code code_eq_tgt_id = QB_CODE(2, 0, 24);
 /* static struct qb_attr_code code_eq_tag = QB_CODE(3, 0, 32); */
 static struct qb_attr_code code_eq_qd_en = QB_CODE(0, 4, 1);
@@ -318,7 +318,7 @@ void qbman_eq_desc_set_no_orp(struct qbman_eq_desc *d, int respond_success)
 }
 
 void qbman_eq_desc_set_orp(struct qbman_eq_desc *d, int respond_success,
-			   uint32_t orp_id, uint32_t seqnum, int incomplete)
+			   uint32_t opr_id, uint32_t seqnum, int incomplete)
 {
 	uint32_t *cl = qb_cl(d);
 
@@ -326,32 +326,32 @@ void qbman_eq_desc_set_orp(struct qbman_eq_desc *d, int respond_success,
 	qb_attr_code_encode(&code_eq_cmd, cl,
 			    respond_success ? qbman_eq_cmd_respond :
 					      qbman_eq_cmd_respond_reject);
-	qb_attr_code_encode(&code_eq_orp_id, cl, orp_id);
+	qb_attr_code_encode(&code_eq_opr_id, cl, opr_id);
 	qb_attr_code_encode(&code_eq_orp_seqnum, cl, seqnum);
 	qb_attr_code_encode(&code_eq_orp_nlis, cl, !!incomplete);
 }
 
-void qbman_eq_desc_set_orp_hole(struct qbman_eq_desc *d, uint32_t orp_id,
+void qbman_eq_desc_set_orp_hole(struct qbman_eq_desc *d, uint32_t opr_id,
 				uint32_t seqnum)
 {
 	uint32_t *cl = qb_cl(d);
 
 	qb_attr_code_encode(&code_eq_orp_en, cl, 1);
 	qb_attr_code_encode(&code_eq_cmd, cl, qbman_eq_cmd_empty);
-	qb_attr_code_encode(&code_eq_orp_id, cl, orp_id);
+	qb_attr_code_encode(&code_eq_opr_id, cl, opr_id);
 	qb_attr_code_encode(&code_eq_orp_seqnum, cl, seqnum);
 	qb_attr_code_encode(&code_eq_orp_nlis, cl, 0);
 	qb_attr_code_encode(&code_eq_orp_is_nesn, cl, 0);
 }
 
-void qbman_eq_desc_set_orp_nesn(struct qbman_eq_desc *d, uint32_t orp_id,
+void qbman_eq_desc_set_orp_nesn(struct qbman_eq_desc *d, uint32_t opr_id,
 				uint32_t seqnum)
 {
 	uint32_t *cl = qb_cl(d);
 
 	qb_attr_code_encode(&code_eq_orp_en, cl, 1);
 	qb_attr_code_encode(&code_eq_cmd, cl, qbman_eq_cmd_empty);
-	qb_attr_code_encode(&code_eq_orp_id, cl, orp_id);
+	qb_attr_code_encode(&code_eq_opr_id, cl, opr_id);
 	qb_attr_code_encode(&code_eq_orp_seqnum, cl, seqnum);
 	qb_attr_code_encode(&code_eq_orp_nlis, cl, 0);
 	qb_attr_code_encode(&code_eq_orp_is_nesn, cl, 1);

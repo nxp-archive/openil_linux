@@ -31,22 +31,30 @@
 #ifndef _FSL_QBMAN_BASE_H
 #define _FSL_QBMAN_BASE_H
 
-/* Descriptor for a QBMan instance on the SoC. On partitions/targets that do not
+/**
+ * struct qbman_block_desc - qbman block descriptor structure
+ *
+ * Descriptor for a QBMan instance on the SoC. On partitions/targets that do not
  * control this QBMan instance, these values may simply be place-holders. The
  * idea is simply that we be able to distinguish between them, eg. so that SWP
- * descriptors can identify which QBMan instance they belong to. */
+ * descriptors can identify which QBMan instance they belong to.
+ */
 struct qbman_block_desc {
 	void *ccsr_reg_bar; /* CCSR register map */
 	int irq_rerr;  /* Recoverable error interrupt line */
 	int irq_nrerr; /* Non-recoverable error interrupt line */
 };
 
-/* Descriptor for a QBMan software portal, expressed in terms that make sense to
+/**
+ * struct qbman_swp_desc - qbman software portal descriptor structure
+ *
+ * Descriptor for a QBMan software portal, expressed in terms that make sense to
  * the user context. Ie. on MC, this information is likely to be true-physical,
  * and instantiated statically at compile-time. On GPP, this information is
  * likely to be obtained via "discovery" over a partition's "layerscape bus"
  * (ie. in response to a MC portal command), and would take into account any
- * virtualisation of the GPP user's address space and/or interrupt numbering. */
+ * virtualisation of the GPP user's address space and/or interrupt numbering.
+ */
 struct qbman_swp_desc {
 	const struct qbman_block_desc *block; /* The QBMan instance */
 	void *cena_bar; /* Cache-enabled portal register map */
@@ -56,7 +64,10 @@ struct qbman_swp_desc {
 /* Driver object for managing a QBMan portal */
 struct qbman_swp;
 
-/* Place-holder for FDs, we represent it via the simplest form that we need for
+/**
+ * struct qbman_fd - basci structure for qbman frame descriptor
+ *
+ * Place-holder for FDs, we represent it via the simplest form that we need for
  * now. Different overlays may be needed to support different options, etc. (It
  * is impractical to define One True Struct, because the resulting encoding
  * routines (lots of read-modify-writes) would be worst-case performance whether
