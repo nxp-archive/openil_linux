@@ -340,7 +340,7 @@ static int vfio_fsl_mc_device_remove(struct device *dev, void *data)
 	WARN_ON(dev == NULL);
 
 	mc_dev = to_fsl_mc_device(dev);
-	WARN_ON(mc_dev == NULL);
+	if (WARN_ON(mc_dev == NULL))
 		return -ENODEV;
 
 	fsl_mc_device_remove(mc_dev);
