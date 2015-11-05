@@ -29,5 +29,5 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-int dpaa_io_service_driver_init(void);
-void dpaa_io_service_driver_exit(void);
+int dpaa2_io_service_driver_init(void);
+void dpaa2_io_service_driver_exit(void);

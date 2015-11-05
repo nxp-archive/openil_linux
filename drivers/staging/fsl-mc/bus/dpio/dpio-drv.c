@@ -39,7 +39,7 @@
 #include <linux/delay.h>
 
 #include "../../include/mc.h"
-#include "../../include/fsl_dpaa_io.h"
+#include "../../include/fsl_dpaa2_io.h"
 
 #include "fsl_qbman_portal.h"
 #include "fsl_dpio.h"
@@ -56,20 +56,20 @@ MODULE_DESCRIPTION(DPIO_DESCRIPTION);
 #define MAX_DPIO_IRQ_NAME 16 /* Big enough for "FSL DPIO %d" */
 
 struct dpio_priv {
-	struct dpaa_io *io;
+	struct dpaa2_io *io;
 	char irq_name[MAX_DPIO_IRQ_NAME];
 	struct task_struct *thread;
 };
 
 static int dpio_thread(void *data)
 {
-	struct dpaa_io *io = data;
+	struct dpaa2_io *io = data;
 
 	while (!kthread_should_stop()) {
-		int err = dpaa_io_poll(io);
+		int err = dpaa2_io_poll(io);
 
 		if (err) {
-			pr_err("dpaa_io_poll() failed\n");
+			pr_err("dpaa2_io_poll() failed\n");
 			return err;
 		}
 		msleep(50);
@@ -82,7 +82,7 @@ static irqreturn_t dpio_irq_handler(int irq_num, void *arg)
 	struct device *dev = (struct device *)arg;
 	struct dpio_priv *priv = dev_get_drvdata(dev);
 
-	return dpaa_io_irq(priv->io);
+	return dpaa2_io_irq(priv->io);
 }
 
 static void unregister_dpio_irq_handlers(struct fsl_mc_device *ls_dev)
@@ -150,14 +150,14 @@ error_unregister_irq_handlers:
 }
 
 static int __cold
-ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
+dpaa2_dpio_probe(struct fsl_mc_device *ls_dev)
 {
 	struct dpio_attr dpio_attrs;
-	struct dpaa_io_desc desc;
+	struct dpaa2_io_desc desc;
 	struct dpio_priv *priv;
 	int err = -ENOMEM;
 	struct device *dev = &ls_dev->dev;
-	struct dpaa_io *defservice;
+	struct dpaa2_io *defservice;
 	bool irq_allocated = false;
 	static int next_cpu;
 
@@ -233,10 +233,10 @@ ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
 			desc.has_irq = 0;
 	}
 
-	priv->io = dpaa_io_create(&desc);
+	priv->io = dpaa2_io_create(&desc);
 	if (!priv->io) {
 		dev_err(dev, "DPIO setup failed\n");
-		goto err_dpaa_io_create;
+		goto err_dpaa2_io_create;
 	}
 
 	/* If no irq then go to poll mode */
@@ -270,12 +270,12 @@ ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
 		wake_up_process(priv->thread);
 	}
 
-	defservice = dpaa_io_default_service();
-	err = dpaa_io_service_add(defservice, priv->io);
-	dpaa_io_down(defservice);
+	defservice = dpaa2_io_default_service();
+	err = dpaa2_io_service_add(defservice, priv->io);
+	dpaa2_io_down(defservice);
 	if (err) {
 		dev_err(dev, "DPIO add-to-service failed\n");
-		goto err_dpaa_io_add;
+		goto err_dpaa2_io_add;
 	}
 
 	dev_info(dev, "dpio: probed object %d\n", ls_dev->obj_desc.id);
@@ -286,14 +286,14 @@ ldpaa_dpio_probe(struct fsl_mc_device *ls_dev)
 	fsl_mc_portal_free(ls_dev->mc_io);
 	return 0;
 
-err_dpaa_io_add:
+err_dpaa2_io_add:
 	unregister_dpio_irq_handlers(ls_dev);
 /* TEMP: To be restored once polling is removed
   err_register_dpio_irq:
 	fsl_mc_free_irqs(ls_dev);
 */
 err_dpaa_thread:
-err_dpaa_io_create:
+err_dpaa2_io_create:
 	dpio_disable(ls_dev->mc_io, 0, ls_dev->mc_handle);
 err_get_attr:
 	dpio_close(ls_dev->mc_io, 0, ls_dev->mc_handle);
@@ -317,7 +317,7 @@ static void dpio_teardown_irqs(struct fsl_mc_device *ls_dev)
 }
 
 static int __cold
-ldpaa_dpio_remove(struct fsl_mc_device *ls_dev)
+dpaa2_dpio_remove(struct fsl_mc_device *ls_dev)
 {
 	struct device *dev;
 	struct dpio_priv *priv;
@@ -350,7 +350,7 @@ ldpaa_dpio_remove(struct fsl_mc_device *ls_dev)
 	}
 
 	dev_set_drvdata(dev, NULL);
-	dpaa_io_down(priv->io);
+	dpaa2_io_down(priv->io);
 
 	err = 0;
 
@@ -362,7 +362,7 @@ err_mcportal:
 	return err;
 }
 
-static const struct fsl_mc_device_match_id ldpaa_dpio_match_id_table[] = {
+static const struct fsl_mc_device_match_id dpaa2_dpio_match_id_table[] = {
 	{
 		.vendor = FSL_MC_VENDOR_FREESCALE,
 		.obj_type = "dpio",
@@ -372,32 +372,32 @@ static const struct fsl_mc_device_match_id ldpaa_dpio_match_id_table[] = {
 	{ .vendor = 0x0 }
 };
 
-static struct fsl_mc_driver ldpaa_dpio_driver = {
+static struct fsl_mc_driver dpaa2_dpio_driver = {
 	.driver = {
 		.name		= KBUILD_MODNAME,
 		.owner		= THIS_MODULE,
 	},
-	.probe		= ldpaa_dpio_probe,
-	.remove		= ldpaa_dpio_remove,
-	.match_id_table = ldpaa_dpio_match_id_table
+	.probe		= dpaa2_dpio_probe,
+	.remove		= dpaa2_dpio_remove,
+	.match_id_table = dpaa2_dpio_match_id_table
 };
 
 static int dpio_driver_init(void)
 {
 	int err;
 
-	err = dpaa_io_service_driver_init();
+	err = dpaa2_io_service_driver_init();
 	if (!err) {
-		err = fsl_mc_driver_register(&ldpaa_dpio_driver);
+		err = fsl_mc_driver_register(&dpaa2_dpio_driver);
 		if (err)
-			dpaa_io_service_driver_exit();
+			dpaa2_io_service_driver_exit();
 	}
 	return err;
 }
 static void dpio_driver_exit(void)
 {
-	fsl_mc_driver_unregister(&ldpaa_dpio_driver);
-	dpaa_io_service_driver_exit();
+	fsl_mc_driver_unregister(&dpaa2_dpio_driver);
+	dpaa2_io_service_driver_exit();
 }
 module_init(dpio_driver_init);
 module_exit(dpio_driver_exit);

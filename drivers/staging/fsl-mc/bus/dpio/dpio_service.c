@@ -31,7 +31,7 @@
 #include <linux/types.h>
 #include "fsl_qbman_portal.h"
 #include "../../include/mc.h"
-#include "../../include/fsl_dpaa_io.h"
+#include "../../include/fsl_dpaa2_io.h"
 #include "fsl_dpio.h"
 #include <linux/init.h>
 #include <linux/module.h>
@@ -48,22 +48,22 @@
 #define MAGIC_SERVICE 0xabcd9876
 #define MAGIC_OBJECT 0x1234fedc
 
-struct dpaa_io {
+struct dpaa2_io {
 	/* If MAGIC_SERVICE, this is a group of objects, use the 'service' part
 	 * of the union. If MAGIC_OBJECT, use the 'object' part of the union. If
 	 * it's neither, something got corrupted. This is mainly to satisfy
-	 * dpaa_io_from_registration(), which dereferences a caller-instantiated
-	 * struct and so warrants a bug-checking step - hence the magic rather
-	 * than a boolean.
+	 * dpaa2_io_from_registration(), which dereferences a caller-
+	 * instantiated struct and so warrants a bug-checking step - hence the
+	 * magic rather than a boolean.
 	 */
 	unsigned int magic;
 	atomic_t refs;
 	union {
-		struct dpaa_io_service {
+		struct dpaa2_io_service {
 			spinlock_t lock;
 			struct list_head list;
-			/* for targeted dpaa_io selection */
-			struct dpaa_io *objects_by_cpu[NR_CPUS];
+			/* for targeted dpaa2_io selection */
+			struct dpaa2_io *objects_by_cpu[NR_CPUS];
 			cpumask_t cpus_notifications;
 			cpumask_t cpus_stashing;
 			int has_nonaffine;
@@ -72,13 +72,13 @@ struct dpaa_io {
 			 * need to avoid a kfree() ... */
 			int is_defservice;
 		} service;
-		struct dpaa_io_object {
-			struct dpaa_io_desc dpio_desc;
+		struct dpaa2_io_object {
+			struct dpaa2_io_desc dpio_desc;
 			struct qbman_swp_desc swp_desc;
 			struct qbman_swp *swp;
 			/* If the object is part of a service, this is it (and
 			 * 'node' is linked into the service's list) */
-			struct dpaa_io *service;
+			struct dpaa2_io *service;
 			struct list_head node;
 			/* Interrupt mask, as used with
 			 * qbman_swp_interrupt_[gs]et_vanish(). This isn't
@@ -98,10 +98,10 @@ struct dpaa_io {
 	};
 };
 
-struct dpaa_io_store {
+struct dpaa2_io_store {
 	unsigned int max;
 	dma_addr_t paddr;
-	struct ldpaa_dq *vaddr;
+	struct dpaa2_dq *vaddr;
 	void *alloced_addr; /* the actual return from kmalloc as it may
 			       be adjusted for alignment purposes */
 	unsigned int idx; /* position of the next-to-be-returned entry */
@@ -109,15 +109,15 @@ struct dpaa_io_store {
 	struct device *dev; /* device used for DMA mapping */
 };
 
-static struct dpaa_io def_serv;
+static struct dpaa2_io def_serv;
 
 /**********************/
 /* Internal functions */
 /**********************/
 
-static void service_init(struct dpaa_io *d, int is_defservice)
+static void service_init(struct dpaa2_io *d, int is_defservice)
 {
-	struct dpaa_io_service *s = &d->service;
+	struct dpaa2_io_service *s = &d->service;
 
 	d->magic = MAGIC_SERVICE;
 	atomic_set(&d->refs, 1);
@@ -130,13 +130,13 @@ static void service_init(struct dpaa_io *d, int is_defservice)
 }
 
 /* Selection algorithms, stupid ones at that. These are to handle the case where
- * the given dpaa_io is a service, by choosing the non-service dpaa_io within it
- * to use.
+ * the given dpaa2_io is a service, by choosing the non-service dpaa2_io within
+ * it to use.
  */
-static struct dpaa_io *_service_select_by_cpu_slow(struct dpaa_io_service *ss,
+static struct dpaa2_io *_service_select_by_cpu_slow(struct dpaa2_io_service *ss,
 						   int cpu)
 {
-	struct dpaa_io *o;
+	struct dpaa2_io *o;
 	unsigned long irqflags;
 
 	spin_lock_irqsave(&ss->lock, irqflags);
@@ -156,7 +156,7 @@ static struct dpaa_io *_service_select_by_cpu_slow(struct dpaa_io_service *ss,
 
 	/* No joy. Try the first object. Told you it was horrible. */
 	if (!list_empty(&ss->list))
-		o = list_entry(ss->list.next, struct dpaa_io, object.node);
+		o = list_entry(ss->list.next, struct dpaa2_io, object.node);
 	else
 		o = NULL;
 
@@ -165,9 +165,9 @@ found:
 	return o;
 }
 
-static struct dpaa_io *service_select_by_cpu(struct dpaa_io *d, int cpu)
+static struct dpaa2_io *service_select_by_cpu(struct dpaa2_io *d, int cpu)
 {
-	struct dpaa_io_service *ss;
+	struct dpaa2_io_service *ss;
 	unsigned long irqflags;
 
 	if (!d)
@@ -193,10 +193,10 @@ static struct dpaa_io *service_select_by_cpu(struct dpaa_io *d, int cpu)
 	return ss->objects_by_cpu[cpu];
 }
 
-static inline struct dpaa_io *service_select_any(struct dpaa_io *d)
+static inline struct dpaa2_io *service_select_any(struct dpaa2_io *d)
 {
-	struct dpaa_io_service *ss;
-	struct dpaa_io *o;
+	struct dpaa2_io_service *ss;
+	struct dpaa2_io *o;
 	unsigned long irqflags;
 
 	if (!d)
@@ -216,7 +216,7 @@ static inline struct dpaa_io *service_select_any(struct dpaa_io *d)
 	ss = &d->service;
 	spin_lock_irqsave(&ss->lock, irqflags);
 	if (!list_empty(&ss->list)) {
-		o = list_entry(ss->list.next, struct dpaa_io, object.node);
+		o = list_entry(ss->list.next, struct dpaa2_io, object.node);
 		list_del(&o->object.node);
 		list_add_tail(&o->object.node, &ss->list);
 	} else
@@ -228,9 +228,9 @@ static inline struct dpaa_io *service_select_any(struct dpaa_io *d)
 /* If the context is not preemptible, select the service affine to the
  * current cpu. Otherwise, "select any".
  */
-static inline struct dpaa_io *_service_select(struct dpaa_io *d)
+static inline struct dpaa2_io *_service_select(struct dpaa2_io *d)
 {
-	struct dpaa_io *temp = d;
+	struct dpaa2_io *temp = d;
 
 	if (likely(!preemptible())) {
 		d = service_select_by_cpu(d, smp_processor_id());
@@ -244,10 +244,10 @@ static inline struct dpaa_io *_service_select(struct dpaa_io *d)
 /* Exported functions */
 /**********************/
 
-struct dpaa_io *dpaa_io_create(const struct dpaa_io_desc *desc)
+struct dpaa2_io *dpaa2_io_create(const struct dpaa2_io_desc *desc)
 {
-	struct dpaa_io *ret = kmalloc(sizeof(*ret), GFP_KERNEL);
-	struct dpaa_io_object *o = &ret->object;
+	struct dpaa2_io *ret = kmalloc(sizeof(*ret), GFP_KERNEL);
+	struct dpaa2_io_object *o = &ret->object;
 
 	if (!ret)
 		return NULL;
@@ -278,26 +278,26 @@ struct dpaa_io *dpaa_io_create(const struct dpaa_io_desc *desc)
 		qbman_swp_push_set(o->swp, 0, 1);
 	return ret;
 }
-EXPORT_SYMBOL(dpaa_io_create);
+EXPORT_SYMBOL(dpaa2_io_create);
 
-struct dpaa_io *dpaa_io_create_service(void)
+struct dpaa2_io *dpaa2_io_create_service(void)
 {
-	struct dpaa_io *ret = kmalloc(sizeof(*ret), GFP_KERNEL);
+	struct dpaa2_io *ret = kmalloc(sizeof(*ret), GFP_KERNEL);
 
 	if (ret)
 		service_init(ret, 0);
 	return ret;
 }
-EXPORT_SYMBOL(dpaa_io_create_service);
+EXPORT_SYMBOL(dpaa2_io_create_service);
 
-struct dpaa_io *dpaa_io_default_service(void)
+struct dpaa2_io *dpaa2_io_default_service(void)
 {
 	atomic_inc(&def_serv.refs);
 	return &def_serv;
 }
-EXPORT_SYMBOL(dpaa_io_default_service);
+EXPORT_SYMBOL(dpaa2_io_default_service);
 
-void dpaa_io_down(struct dpaa_io *d)
+void dpaa2_io_down(struct dpaa2_io *d)
 {
 	if (!atomic_dec_and_test(&d->refs))
 		return;
@@ -313,12 +313,12 @@ void dpaa_io_down(struct dpaa_io *d)
 	}
 	kfree(d);
 }
-EXPORT_SYMBOL(dpaa_io_down);
+EXPORT_SYMBOL(dpaa2_io_down);
 
-int dpaa_io_service_add(struct dpaa_io *s, struct dpaa_io *o)
+int dpaa2_io_service_add(struct dpaa2_io *s, struct dpaa2_io *o)
 {
-	struct dpaa_io_service *ss = &s->service;
-	struct dpaa_io_object *oo = &o->object;
+	struct dpaa2_io_service *ss = &s->service;
+	struct dpaa2_io_object *oo = &o->object;
 	int res = -EINVAL;
 
 	if ((s->magic != MAGIC_SERVICE) || (o->magic != MAGIC_OBJECT))
@@ -335,7 +335,7 @@ int dpaa_io_service_add(struct dpaa_io *s, struct dpaa_io *o)
 					&ss->cpus_notifications);
 			/* Update the fast-access array */
 			ss->objects_by_cpu[oo->dpio_desc.cpu] =
-				container_of(oo, struct dpaa_io, object);
+				container_of(oo, struct dpaa2_io, object);
 		}
 		if (oo->dpio_desc.stash_affinity)
 			cpumask_set_cpu(oo->dpio_desc.cpu,
@@ -347,14 +347,14 @@ int dpaa_io_service_add(struct dpaa_io *s, struct dpaa_io *o)
 	}
 	spin_unlock(&ss->lock);
 	if (res) {
-		dpaa_io_down(s);
-		dpaa_io_down(o);
+		dpaa2_io_down(s);
+		dpaa2_io_down(o);
 	}
 	return res;
 }
-EXPORT_SYMBOL(dpaa_io_service_add);
+EXPORT_SYMBOL(dpaa2_io_service_add);
 
-int dpaa_io_get_descriptor(struct dpaa_io *obj, struct dpaa_io_desc *desc)
+int dpaa2_io_get_descriptor(struct dpaa2_io *obj, struct dpaa2_io_desc *desc)
 {
 	if (obj->magic == MAGIC_SERVICE)
 		return -EINVAL;
@@ -362,13 +362,13 @@ int dpaa_io_get_descriptor(struct dpaa_io *obj, struct dpaa_io_desc *desc)
 	*desc = obj->object.dpio_desc;
 	return 0;
 }
-EXPORT_SYMBOL(dpaa_io_get_descriptor);
+EXPORT_SYMBOL(dpaa2_io_get_descriptor);
 
 #define DPAA_POLL_MAX 32
 
-int dpaa_io_poll(struct dpaa_io *obj)
+int dpaa2_io_poll(struct dpaa2_io *obj)
 {
-	const struct ldpaa_dq *dq;
+	const struct dpaa2_dq *dq;
 	struct qbman_swp *swp;
 	int max = 0;
 
@@ -378,7 +378,7 @@ int dpaa_io_poll(struct dpaa_io *obj)
 	dq = qbman_swp_dqrr_next(swp);
 	while (dq) {
 		if (qbman_result_is_SCN(dq)) {
-			struct dpaa_io_notification_ctx *ctx;
+			struct dpaa2_io_notification_ctx *ctx;
 			uint64_t q64;
 
 			q64 = qbman_result_SCN_ctx(dq);
@@ -394,9 +394,9 @@ int dpaa_io_poll(struct dpaa_io *obj)
 	}
 	return 0;
 }
-EXPORT_SYMBOL(dpaa_io_poll);
+EXPORT_SYMBOL(dpaa2_io_poll);
 
-int dpaa_io_irq(struct dpaa_io *obj)
+int dpaa2_io_irq(struct dpaa2_io *obj)
 {
 	struct qbman_swp *swp;
 	uint32_t status;
@@ -407,56 +407,56 @@ int dpaa_io_irq(struct dpaa_io *obj)
 	status = qbman_swp_interrupt_read_status(swp);
 	if (!status)
 		return IRQ_NONE;
-	dpaa_io_poll(obj);
+	dpaa2_io_poll(obj);
 	qbman_swp_interrupt_clear_status(swp, status);
 	qbman_swp_interrupt_set_inhibit(swp, 0);
 	return IRQ_HANDLED;
 }
-EXPORT_SYMBOL(dpaa_io_irq);
+EXPORT_SYMBOL(dpaa2_io_irq);
 
-int dpaa_io_pause_poll(struct dpaa_io *obj)
+int dpaa2_io_pause_poll(struct dpaa2_io *obj)
 {
 	UNIMPLEMENTED();
 	return -EINVAL;
 }
-EXPORT_SYMBOL(dpaa_io_pause_poll);
+EXPORT_SYMBOL(dpaa2_io_pause_poll);
 
-int dpaa_io_resume_poll(struct dpaa_io *obj)
+int dpaa2_io_resume_poll(struct dpaa2_io *obj)
 {
 	UNIMPLEMENTED();
 	return -EINVAL;
 }
-EXPORT_SYMBOL(dpaa_io_resume_poll);
+EXPORT_SYMBOL(dpaa2_io_resume_poll);
 
-void dpaa_io_service_notifications(struct dpaa_io *s, cpumask_t *mask)
+void dpaa2_io_service_notifications(struct dpaa2_io *s, cpumask_t *mask)
 {
-	struct dpaa_io_service *ss = &s->service;
+	struct dpaa2_io_service *ss = &s->service;
 
 	BUG_ON(s->magic != MAGIC_SERVICE);
 	cpumask_copy(mask, &ss->cpus_notifications);
 }
-EXPORT_SYMBOL(dpaa_io_service_notifications);
+EXPORT_SYMBOL(dpaa2_io_service_notifications);
 
-void dpaa_io_service_stashing(struct dpaa_io *s, cpumask_t *mask)
+void dpaa2_io_service_stashing(struct dpaa2_io *s, cpumask_t *mask)
 {
-	struct dpaa_io_service *ss = &s->service;
+	struct dpaa2_io_service *ss = &s->service;
 
 	BUG_ON(s->magic != MAGIC_SERVICE);
 	cpumask_copy(mask, &ss->cpus_stashing);
 }
-EXPORT_SYMBOL(dpaa_io_service_stashing);
+EXPORT_SYMBOL(dpaa2_io_service_stashing);
 
-int dpaa_io_service_has_nonaffine(struct dpaa_io *s)
+int dpaa2_io_service_has_nonaffine(struct dpaa2_io *s)
 {
-	struct dpaa_io_service *ss = &s->service;
+	struct dpaa2_io_service *ss = &s->service;
 
 	BUG_ON(s->magic != MAGIC_SERVICE);
 	return ss->has_nonaffine;
 }
-EXPORT_SYMBOL(dpaa_io_service_has_nonaffine);
+EXPORT_SYMBOL(dpaa2_io_service_has_nonaffine);
 
-int dpaa_io_service_register(struct dpaa_io *d,
-			     struct dpaa_io_notification_ctx *ctx)
+int dpaa2_io_service_register(struct dpaa2_io *d,
+			     struct dpaa2_io_notification_ctx *ctx)
 {
 	unsigned long irqflags;
 
@@ -476,12 +476,12 @@ int dpaa_io_service_register(struct dpaa_io *d,
 						  ctx->qman64);
 	return 0;
 }
-EXPORT_SYMBOL(dpaa_io_service_register);
+EXPORT_SYMBOL(dpaa2_io_service_register);
 
-int dpaa_io_service_deregister(struct dpaa_io *service,
-			       struct dpaa_io_notification_ctx *ctx)
+int dpaa2_io_service_deregister(struct dpaa2_io *service,
+			       struct dpaa2_io_notification_ctx *ctx)
 {
-	struct dpaa_io *d = ctx->dpio_private;
+	struct dpaa2_io *d = ctx->dpio_private;
 	unsigned long irqflags;
 
 	if (!service)
@@ -495,10 +495,10 @@ int dpaa_io_service_deregister(struct dpaa_io *service,
 	spin_unlock_irqrestore(&d->object.lock_notifications, irqflags);
 	return 0;
 }
-EXPORT_SYMBOL(dpaa_io_service_deregister);
+EXPORT_SYMBOL(dpaa2_io_service_deregister);
 
-int dpaa_io_service_rearm(struct dpaa_io *d,
-			  struct dpaa_io_notification_ctx *ctx)
+int dpaa2_io_service_rearm(struct dpaa2_io *d,
+			  struct dpaa2_io_notification_ctx *ctx)
 {
 	unsigned long irqflags;
 	int err;
@@ -514,13 +514,13 @@ int dpaa_io_service_rearm(struct dpaa_io *d,
 	spin_unlock_irqrestore(&d->object.lock_mgmt_cmd, irqflags);
 	return err;
 }
-EXPORT_SYMBOL(dpaa_io_service_rearm);
+EXPORT_SYMBOL(dpaa2_io_service_rearm);
 
-int dpaa_io_from_registration(struct dpaa_io_notification_ctx *ctx,
-			      struct dpaa_io **io)
+int dpaa2_io_from_registration(struct dpaa2_io_notification_ctx *ctx,
+			      struct dpaa2_io **io)
 {
-	struct dpaa_io_notification_ctx *tmp;
-	struct dpaa_io *d = ctx->dpio_private;
+	struct dpaa2_io_notification_ctx *tmp;
+	struct dpaa2_io *d = ctx->dpio_private;
 	unsigned long irqflags;
 	int ret = 0;
 
@@ -540,10 +540,10 @@ found:
 	}
 	return ret;
 }
-EXPORT_SYMBOL(dpaa_io_from_registration);
+EXPORT_SYMBOL(dpaa2_io_from_registration);
 
-int dpaa_io_service_get_persistent(struct dpaa_io *service, int cpu,
-				   struct dpaa_io **ret)
+int dpaa2_io_service_get_persistent(struct dpaa2_io *service, int cpu,
+				   struct dpaa2_io **ret)
 {
 	if (cpu == -1)
 		*ret = service_select_any(service);
@@ -555,10 +555,10 @@ int dpaa_io_service_get_persistent(struct dpaa_io *service, int cpu,
 	}
 	return -ENODEV;
 }
-EXPORT_SYMBOL(dpaa_io_service_get_persistent);
+EXPORT_SYMBOL(dpaa2_io_service_get_persistent);
 
-int dpaa_io_service_pull_fq(struct dpaa_io *d, uint32_t fqid,
-			    struct dpaa_io_store *s)
+int dpaa2_io_service_pull_fq(struct dpaa2_io *d, uint32_t fqid,
+			    struct dpaa2_io_store *s)
 {
 	struct qbman_pull_desc pd;
 	int err;
@@ -576,10 +576,10 @@ int dpaa_io_service_pull_fq(struct dpaa_io *d, uint32_t fqid,
 		s->swp = NULL;
 	return err;
 }
-EXPORT_SYMBOL(dpaa_io_service_pull_fq);
+EXPORT_SYMBOL(dpaa2_io_service_pull_fq);
 
-int dpaa_io_service_pull_channel(struct dpaa_io *d, uint32_t channelid,
-				 struct dpaa_io_store *s)
+int dpaa2_io_service_pull_channel(struct dpaa2_io *d, uint32_t channelid,
+				 struct dpaa2_io_store *s)
 {
 	struct qbman_pull_desc pd;
 	int err;
@@ -597,9 +597,9 @@ int dpaa_io_service_pull_channel(struct dpaa_io *d, uint32_t channelid,
 		s->swp = NULL;
 	return err;
 }
-EXPORT_SYMBOL(dpaa_io_service_pull_channel);
+EXPORT_SYMBOL(dpaa2_io_service_pull_channel);
 
-int dpaa_io_service_enqueue_fq(struct dpaa_io *d,
+int dpaa2_io_service_enqueue_fq(struct dpaa2_io *d,
 			       uint32_t fqid,
 			       const struct dpaa_fd *fd)
 {
@@ -614,9 +614,9 @@ int dpaa_io_service_enqueue_fq(struct dpaa_io *d,
 	return qbman_swp_enqueue(d->object.swp, &ed,
 				 (const struct qbman_fd *)fd);
 }
-EXPORT_SYMBOL(dpaa_io_service_enqueue_fq);
+EXPORT_SYMBOL(dpaa2_io_service_enqueue_fq);
 
-int dpaa_io_service_enqueue_qd(struct dpaa_io *d,
+int dpaa2_io_service_enqueue_qd(struct dpaa2_io *d,
 			       uint32_t qdid, uint8_t prio, uint16_t qdbin,
 			       const struct dpaa_fd *fd)
 {
@@ -631,9 +631,9 @@ int dpaa_io_service_enqueue_qd(struct dpaa_io *d,
 	return qbman_swp_enqueue(d->object.swp, &ed,
 				 (const struct qbman_fd *)fd);
 }
-EXPORT_SYMBOL(dpaa_io_service_enqueue_qd);
+EXPORT_SYMBOL(dpaa2_io_service_enqueue_qd);
 
-int dpaa_io_service_release(struct dpaa_io *d,
+int dpaa2_io_service_release(struct dpaa2_io *d,
 			    uint32_t bpid,
 			    const uint64_t *buffers,
 			    unsigned int num_buffers)
@@ -647,9 +647,9 @@ int dpaa_io_service_release(struct dpaa_io *d,
 	qbman_release_desc_set_bpid(&rd, bpid);
 	return qbman_swp_release(d->object.swp, &rd, buffers, num_buffers);
 }
-EXPORT_SYMBOL(dpaa_io_service_release);
+EXPORT_SYMBOL(dpaa2_io_service_release);
 
-int dpaa_io_service_acquire(struct dpaa_io *d,
+int dpaa2_io_service_acquire(struct dpaa2_io *d,
 			    uint32_t bpid,
 			    uint64_t *buffers,
 			    unsigned int num_buffers)
@@ -665,19 +665,19 @@ int dpaa_io_service_acquire(struct dpaa_io *d,
 	spin_unlock_irqrestore(&d->object.lock_mgmt_cmd, irqflags);
 	return err;
 }
-EXPORT_SYMBOL(dpaa_io_service_acquire);
+EXPORT_SYMBOL(dpaa2_io_service_acquire);
 
-struct dpaa_io_store *dpaa_io_store_create(unsigned int max_frames,
+struct dpaa2_io_store *dpaa2_io_store_create(unsigned int max_frames,
 					   struct device *dev)
 {
-	struct dpaa_io_store *ret = kmalloc(sizeof(*ret), GFP_KERNEL);
+	struct dpaa2_io_store *ret = kmalloc(sizeof(*ret), GFP_KERNEL);
 	size_t size;
 
 	BUG_ON(!max_frames || (max_frames > 16));
 	if (!ret)
 		return NULL;
 	ret->max = max_frames;
-	size = max_frames * sizeof(struct ldpaa_dq) + 64;
+	size = max_frames * sizeof(struct dpaa2_dq) + 64;
 	ret->alloced_addr = kmalloc(size, GFP_KERNEL);
 	if (!ret->alloced_addr) {
 		kfree(ret);
@@ -685,7 +685,7 @@ struct dpaa_io_store *dpaa_io_store_create(unsigned int max_frames,
 	}
 	ret->vaddr =  PTR_ALIGN(ret->alloced_addr, 64);
 	ret->paddr = dma_map_single(dev, ret->vaddr,
-				    sizeof(struct ldpaa_dq) * max_frames,
+				    sizeof(struct dpaa2_dq) * max_frames,
 				    DMA_FROM_DEVICE);
 	if (dma_mapping_error(dev, ret->paddr)) {
 		kfree(ret->alloced_addr);
@@ -696,21 +696,21 @@ struct dpaa_io_store *dpaa_io_store_create(unsigned int max_frames,
 	ret->dev = dev;
 	return ret;
 }
-EXPORT_SYMBOL(dpaa_io_store_create);
+EXPORT_SYMBOL(dpaa2_io_store_create);
 
-void dpaa_io_store_destroy(struct dpaa_io_store *s)
+void dpaa2_io_store_destroy(struct dpaa2_io_store *s)
 {
-	dma_unmap_single(s->dev, s->paddr, sizeof(struct ldpaa_dq) * s->max,
+	dma_unmap_single(s->dev, s->paddr, sizeof(struct dpaa2_dq) * s->max,
 			 DMA_FROM_DEVICE);
 	kfree(s->alloced_addr);
 	kfree(s);
 }
-EXPORT_SYMBOL(dpaa_io_store_destroy);
+EXPORT_SYMBOL(dpaa2_io_store_destroy);
 
-struct ldpaa_dq *dpaa_io_store_next(struct dpaa_io_store *s, int *is_last)
+struct dpaa2_dq *dpaa2_io_store_next(struct dpaa2_io_store *s, int *is_last)
 {
 	int match;
-	struct ldpaa_dq *ret = &s->vaddr[s->idx];
+	struct dpaa2_dq *ret = &s->vaddr[s->idx];
 
 	match = qbman_result_has_new_result(s->swp, ret);
 	if (!match) {
@@ -719,22 +719,22 @@ struct ldpaa_dq *dpaa_io_store_next(struct dpaa_io_store *s, int *is_last)
 	}
 	BUG_ON(!qbman_result_is_DQ(ret));
 	s->idx++;
-	if (ldpaa_dq_is_pull_complete(ret)) {
+	if (dpaa2_dq_is_pull_complete(ret)) {
 		*is_last = 1;
 		s->idx = 0;
 		/* If we get an empty dequeue result to terminate a zero-results
 		 * vdqcr, return NULL to the caller rather than expecting him to
 		 * check non-NULL results every time. */
-		if (!(ldpaa_dq_flags(ret) & LDPAA_DQ_STAT_VALIDFRAME))
+		if (!(dpaa2_dq_flags(ret) & DPAA2_DQ_STAT_VALIDFRAME))
 			ret = NULL;
 	} else
 		*is_last = 0;
 	return ret;
 }
-EXPORT_SYMBOL(dpaa_io_store_next);
+EXPORT_SYMBOL(dpaa2_io_store_next);
 
 #ifdef CONFIG_FSL_QBMAN_DEBUG
-int dpaa_io_query_fq_count(struct dpaa_io *d, uint32_t fqid,
+int dpaa2_io_query_fq_count(struct dpaa2_io *d, uint32_t fqid,
 			   uint32_t *fcnt, uint32_t *bcnt)
 {
 	struct qbman_attr state;
@@ -757,9 +757,9 @@ int dpaa_io_query_fq_count(struct dpaa_io *d, uint32_t fqid,
 
 	return 0;
 }
-EXPORT_SYMBOL(dpaa_io_query_fq_count);
+EXPORT_SYMBOL(dpaa2_io_query_fq_count);
 
-int dpaa_io_query_bp_count(struct dpaa_io *d, uint32_t bpid,
+int dpaa2_io_query_bp_count(struct dpaa2_io *d, uint32_t bpid,
 			   uint32_t *num)
 {
 	struct qbman_attr state;
@@ -780,20 +780,20 @@ int dpaa_io_query_bp_count(struct dpaa_io *d, uint32_t bpid,
 	*num = qbman_bp_info_num_free_bufs(&state);
 	return 0;
 }
-EXPORT_SYMBOL(dpaa_io_query_bp_count);
+EXPORT_SYMBOL(dpaa2_io_query_bp_count);
 
 #endif
 
 /* module init/exit hooks called from dpio-drv.c. These are declared in
  * dpio-drv.h.
  */
-int dpaa_io_service_driver_init(void)
+int dpaa2_io_service_driver_init(void)
 {
 	service_init(&def_serv, 1);
 	return 0;
 }
 
-void dpaa_io_service_driver_exit(void)
+void dpaa2_io_service_driver_exit(void)
 {
 	if (atomic_read(&def_serv.refs) != 1)
 		pr_err("default DPIO service leaves dangling DPIO objects!\n");

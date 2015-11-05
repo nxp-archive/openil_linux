@@ -492,7 +492,7 @@ void qbman_pull_desc_clear(struct qbman_pull_desc *d)
 }
 
 void qbman_pull_desc_set_storage(struct qbman_pull_desc *d,
-				 struct ldpaa_dq *storage,
+				 struct dpaa2_dq *storage,
 				 dma_addr_t storage_phys,
 				 int stash)
 {
@@ -606,12 +606,12 @@ static struct qb_attr_code code_dqpi_pi = QB_CODE(0, 0, 4);
 /* NULL return if there are no unconsumed DQRR entries. Returns a DQRR entry
  * only once, so repeated calls can return a sequence of DQRR entries, without
  * requiring they be consumed immediately or in any particular order. */
-const struct ldpaa_dq *qbman_swp_dqrr_next(struct qbman_swp *s)
+const struct dpaa2_dq *qbman_swp_dqrr_next(struct qbman_swp *s)
 {
 	uint32_t verb;
 	uint32_t response_verb;
 	uint32_t flags;
-	const struct ldpaa_dq *dq;
+	const struct dpaa2_dq *dq;
 	const uint32_t *p;
 
 	/* Before using valid-bit to detect if something is there, we have to
@@ -674,11 +674,11 @@ const struct ldpaa_dq *qbman_swp_dqrr_next(struct qbman_swp *s)
 
 	/* If this is the final response to a volatile dequeue command
 	   indicate that the vdq is no longer busy */
-	flags = ldpaa_dq_flags(dq);
+	flags = dpaa2_dq_flags(dq);
 	response_verb = qb_attr_code_decode(&code_dqrr_response, &verb);
 	if ((response_verb == QBMAN_RESULT_DQ) &&
-	    (flags & LDPAA_DQ_STAT_VOLATILE) &&
-	    (flags & LDPAA_DQ_STAT_EXPIRED))
+	    (flags & DPAA2_DQ_STAT_VOLATILE) &&
+	    (flags & DPAA2_DQ_STAT_EXPIRED))
 		atomic_inc(&s->vdq.busy);
 
 	qbman_cena_invalidate_prefetch(&s->sys,
@@ -687,7 +687,7 @@ const struct ldpaa_dq *qbman_swp_dqrr_next(struct qbman_swp *s)
 }
 
 /* Consume DQRR entries previously returned from qbman_swp_dqrr_next(). */
-void qbman_swp_dqrr_consume(struct qbman_swp *s, const struct ldpaa_dq *dq)
+void qbman_swp_dqrr_consume(struct qbman_swp *s, const struct dpaa2_dq *dq)
 {
 	qbman_cinh_write(&s->sys, QBMAN_CINH_SWP_DCAP, QBMAN_IDX_FROM_DQRR(dq));
 }
@@ -697,7 +697,7 @@ void qbman_swp_dqrr_consume(struct qbman_swp *s, const struct ldpaa_dq *dq)
 /*********************************/
 
 int qbman_result_has_new_result(struct qbman_swp *s,
-				  const struct ldpaa_dq *dq)
+				  const struct dpaa2_dq *dq)
 {
 	/* To avoid converting the little-endian DQ entry to host-endian prior
 	 * to us knowing whether there is a valid entry or not (and run the
@@ -711,7 +711,7 @@ int qbman_result_has_new_result(struct qbman_swp *s,
 	 * however the same address that was provided to us non-const in the
 	 * first place, for directing hardware DMA to. So we can cast away the
 	 * const because it is mutable from our perspective. */
-	uint32_t *p = qb_cl((struct ldpaa_dq *)dq);
+	uint32_t *p = qb_cl((struct dpaa2_dq *)dq);
 	uint32_t token;
 
 	token = qb_attr_code_decode(&code_dqrr_tok_detect, &p[1]);
@@ -747,7 +747,7 @@ int qbman_result_has_new_result(struct qbman_swp *s,
 static struct qb_attr_code code_result_in_mem =
 			QB_CODE(0, QBMAN_RESULT_VERB_OFFSET_IN_MEM, 7);
 
-static inline int __qbman_result_is_x(const struct ldpaa_dq *dq, uint32_t x)
+static inline int __qbman_result_is_x(const struct dpaa2_dq *dq, uint32_t x)
 {
 	const uint32_t *p = qb_cl(dq);
 	uint32_t response_verb = qb_attr_code_decode(&code_dqrr_response, p);
@@ -755,7 +755,7 @@ static inline int __qbman_result_is_x(const struct ldpaa_dq *dq, uint32_t x)
 	return response_verb == x;
 }
 
-static inline int __qbman_result_is_x_in_mem(const struct ldpaa_dq *dq,
+static inline int __qbman_result_is_x_in_mem(const struct dpaa2_dq *dq,
 					     uint32_t x)
 {
 	const uint32_t *p = qb_cl(dq);
@@ -764,48 +764,48 @@ static inline int __qbman_result_is_x_in_mem(const struct ldpaa_dq *dq,
 	return (response_verb == x);
 }
 
-int qbman_result_is_DQ(const struct ldpaa_dq *dq)
+int qbman_result_is_DQ(const struct dpaa2_dq *dq)
 {
 	return __qbman_result_is_x(dq, QBMAN_RESULT_DQ);
 }
 
-int qbman_result_is_FQDAN(const struct ldpaa_dq *dq)
+int qbman_result_is_FQDAN(const struct dpaa2_dq *dq)
 {
 	return __qbman_result_is_x(dq, QBMAN_RESULT_FQDAN);
 }
 
-int qbman_result_is_CDAN(const struct ldpaa_dq *dq)
+int qbman_result_is_CDAN(const struct dpaa2_dq *dq)
 {
 	return __qbman_result_is_x(dq, QBMAN_RESULT_CDAN);
 }
 
-int qbman_result_is_CSCN(const struct ldpaa_dq *dq)
+int qbman_result_is_CSCN(const struct dpaa2_dq *dq)
 {
 	return __qbman_result_is_x_in_mem(dq, QBMAN_RESULT_CSCN_MEM) ||
 		__qbman_result_is_x(dq, QBMAN_RESULT_CSCN_WQ);
 }
 
-int qbman_result_is_BPSCN(const struct ldpaa_dq *dq)
+int qbman_result_is_BPSCN(const struct dpaa2_dq *dq)
 {
 	return __qbman_result_is_x_in_mem(dq, QBMAN_RESULT_BPSCN);
 }
 
-int qbman_result_is_CGCU(const struct ldpaa_dq *dq)
+int qbman_result_is_CGCU(const struct dpaa2_dq *dq)
 {
 	return __qbman_result_is_x_in_mem(dq, QBMAN_RESULT_CGCU);
 }
 
-int qbman_result_is_FQRN(const struct ldpaa_dq *dq)
+int qbman_result_is_FQRN(const struct dpaa2_dq *dq)
 {
 	return __qbman_result_is_x_in_mem(dq, QBMAN_RESULT_FQRN);
 }
 
-int qbman_result_is_FQRNI(const struct ldpaa_dq *dq)
+int qbman_result_is_FQRNI(const struct dpaa2_dq *dq)
 {
 	return __qbman_result_is_x_in_mem(dq, QBMAN_RESULT_FQRNI);
 }
 
-int qbman_result_is_FQPN(const struct ldpaa_dq *dq)
+int qbman_result_is_FQPN(const struct dpaa2_dq *dq)
 {
 	return __qbman_result_is_x(dq, QBMAN_RESULT_FQPN);
 }
@@ -816,63 +816,63 @@ int qbman_result_is_FQPN(const struct ldpaa_dq *dq)
 
 /* These APIs assume qbman_result_is_DQ() is TRUE */
 
-uint32_t ldpaa_dq_flags(const struct ldpaa_dq *dq)
+uint32_t dpaa2_dq_flags(const struct dpaa2_dq *dq)
 {
 	const uint32_t *p = qb_cl(dq);
 
 	return qb_attr_code_decode(&code_dqrr_stat, p);
 }
 
-uint16_t ldpaa_dq_seqnum(const struct ldpaa_dq *dq)
+uint16_t dpaa2_dq_seqnum(const struct dpaa2_dq *dq)
 {
 	const uint32_t *p = qb_cl(dq);
 
 	return (uint16_t)qb_attr_code_decode(&code_dqrr_seqnum, p);
 }
 
-uint16_t ldpaa_dq_odpid(const struct ldpaa_dq *dq)
+uint16_t dpaa2_dq_odpid(const struct dpaa2_dq *dq)
 {
 	const uint32_t *p = qb_cl(dq);
 
 	return (uint16_t)qb_attr_code_decode(&code_dqrr_odpid, p);
 }
 
-uint32_t ldpaa_dq_fqid(const struct ldpaa_dq *dq)
+uint32_t dpaa2_dq_fqid(const struct dpaa2_dq *dq)
 {
 	const uint32_t *p = qb_cl(dq);
 
 	return qb_attr_code_decode(&code_dqrr_fqid, p);
 }
 
-uint32_t ldpaa_dq_byte_count(const struct ldpaa_dq *dq)
+uint32_t dpaa2_dq_byte_count(const struct dpaa2_dq *dq)
 {
 	const uint32_t *p = qb_cl(dq);
 
 	return qb_attr_code_decode(&code_dqrr_byte_count, p);
 }
 
-uint32_t ldpaa_dq_frame_count(const struct ldpaa_dq *dq)
+uint32_t dpaa2_dq_frame_count(const struct dpaa2_dq *dq)
 {
 	const uint32_t *p = qb_cl(dq);
 
 	return qb_attr_code_decode(&code_dqrr_frame_count, p);
 }
 
-uint64_t ldpaa_dq_fqd_ctx(const struct ldpaa_dq *dq)
+uint64_t dpaa2_dq_fqd_ctx(const struct dpaa2_dq *dq)
 {
 	const uint64_t *p = (uint64_t *)qb_cl(dq);
 
 	return qb_attr_code_decode_64(&code_dqrr_ctx_lo, p);
 }
-EXPORT_SYMBOL(ldpaa_dq_fqd_ctx);
+EXPORT_SYMBOL(dpaa2_dq_fqd_ctx);
 
-const struct dpaa_fd *ldpaa_dq_fd(const struct ldpaa_dq *dq)
+const struct dpaa_fd *dpaa2_dq_fd(const struct dpaa2_dq *dq)
 {
 	const uint32_t *p = qb_cl(dq);
 
 	return (const struct dpaa_fd *)&p[8];
 }
-EXPORT_SYMBOL(ldpaa_dq_fd);
+EXPORT_SYMBOL(dpaa2_dq_fd);
 
 /**************************************/
 /* Parsing state-change notifications */
@@ -886,35 +886,35 @@ static struct qb_attr_code code_scn_rid_in_mem =
 			QB_CODE(1, SCN_RID_OFFSET_IN_MEM, 24);
 static struct qb_attr_code code_scn_ctx_lo = QB_CODE(2, 0, 32);
 
-uint8_t qbman_result_SCN_state(const struct ldpaa_dq *scn)
+uint8_t qbman_result_SCN_state(const struct dpaa2_dq *scn)
 {
 	const uint32_t *p = qb_cl(scn);
 
 	return (uint8_t)qb_attr_code_decode(&code_scn_state, p);
 }
 
-uint32_t qbman_result_SCN_rid(const struct ldpaa_dq *scn)
+uint32_t qbman_result_SCN_rid(const struct dpaa2_dq *scn)
 {
 	const uint32_t *p = qb_cl(scn);
 
 	return qb_attr_code_decode(&code_scn_rid, p);
 }
 
-uint64_t qbman_result_SCN_ctx(const struct ldpaa_dq *scn)
+uint64_t qbman_result_SCN_ctx(const struct dpaa2_dq *scn)
 {
 	const uint64_t *p = (uint64_t *)qb_cl(scn);
 
 	return qb_attr_code_decode_64(&code_scn_ctx_lo, p);
 }
 
-uint8_t qbman_result_SCN_state_in_mem(const struct ldpaa_dq *scn)
+uint8_t qbman_result_SCN_state_in_mem(const struct dpaa2_dq *scn)
 {
 	const uint32_t *p = qb_cl(scn);
 
 	return (uint8_t)qb_attr_code_decode(&code_scn_state_in_mem, p);
 }
 
-uint32_t qbman_result_SCN_rid_in_mem(const struct ldpaa_dq *scn)
+uint32_t qbman_result_SCN_rid_in_mem(const struct dpaa2_dq *scn)
 {
 	const uint32_t *p = qb_cl(scn);
 	uint32_t result_rid;
@@ -926,27 +926,27 @@ uint32_t qbman_result_SCN_rid_in_mem(const struct ldpaa_dq *scn)
 /*****************/
 /* Parsing BPSCN */
 /*****************/
-uint16_t qbman_result_bpscn_bpid(const struct ldpaa_dq *scn)
+uint16_t qbman_result_bpscn_bpid(const struct dpaa2_dq *scn)
 {
 	return (uint16_t)qbman_result_SCN_rid_in_mem(scn) & 0x3FFF;
 }
 
-int qbman_result_bpscn_has_free_bufs(const struct ldpaa_dq *scn)
+int qbman_result_bpscn_has_free_bufs(const struct dpaa2_dq *scn)
 {
 	return !(int)(qbman_result_SCN_state_in_mem(scn) & 0x1);
 }
 
-int qbman_result_bpscn_is_depleted(const struct ldpaa_dq *scn)
+int qbman_result_bpscn_is_depleted(const struct dpaa2_dq *scn)
 {
 	return (int)(qbman_result_SCN_state_in_mem(scn) & 0x2);
 }
 
-int qbman_result_bpscn_is_surplus(const struct ldpaa_dq *scn)
+int qbman_result_bpscn_is_surplus(const struct dpaa2_dq *scn)
 {
 	return (int)(qbman_result_SCN_state_in_mem(scn) & 0x4);
 }
 
-uint64_t qbman_result_bpscn_ctx(const struct ldpaa_dq *scn)
+uint64_t qbman_result_bpscn_ctx(const struct dpaa2_dq *scn)
 {
 	return qbman_result_SCN_ctx(scn);
 }
@@ -954,12 +954,12 @@ uint64_t qbman_result_bpscn_ctx(const struct ldpaa_dq *scn)
 /*****************/
 /* Parsing CGCU  */
 /*****************/
-uint16_t qbman_result_cgcu_cgid(const struct ldpaa_dq *scn)
+uint16_t qbman_result_cgcu_cgid(const struct dpaa2_dq *scn)
 {
 	return (uint16_t)qbman_result_SCN_rid_in_mem(scn) & 0xFFFF;
 }
 
-uint64_t qbman_result_cgcu_icnt(const struct ldpaa_dq *scn)
+uint64_t qbman_result_cgcu_icnt(const struct dpaa2_dq *scn)
 {
 	return qbman_result_SCN_ctx(scn) & 0xFFFFFFFFFF;
 }

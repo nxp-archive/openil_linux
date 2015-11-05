@@ -31,7 +31,7 @@
 
 #include "qbman_private.h"
 #include "fsl_qbman_portal.h"
-#include "../../include/fsl_dpaa_fd.h"
+#include "../../include/fsl_dpaa2_fd.h"
 
 /* All QBMan command and result structures use this "valid bit" encoding */
 #define QB_VALID_BIT ((uint32_t)0x80)
@@ -88,7 +88,7 @@ struct qbman_swp {
 		 * targeting DQRR or main-memory, and detected is based on the
 		 * presence of the dequeue command's "token" showing up in
 		 * dequeue entries in DQRR or main-memory (respectively). */
-		struct ldpaa_dq *storage; /* NULL if DQRR */
+		struct dpaa2_dq *storage; /* NULL if DQRR */
 	} vdq;
 	/* DQRR */
 	struct {

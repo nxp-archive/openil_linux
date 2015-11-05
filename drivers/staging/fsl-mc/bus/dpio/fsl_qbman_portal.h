@@ -125,11 +125,11 @@ void qbman_swp_interrupt_set_inhibit(struct qbman_swp *p, int inhibit);
 	/************/
 
 /* See the QBMan driver API documentation for details on the enqueue
- * mechanisms. NB: the use of a 'ldpaa_' prefix for this type is because it is
+ * mechanisms. NB: the use of a 'dpaa2_' prefix for this type is because it is
  * primarily used by the "DPIO" layer that sits above (and hides) the QBMan
  * driver. The structure is defined in the DPIO interface, but to avoid circular
  * dependencies we just pre/re-declare it here opaquely. */
-struct ldpaa_dq;
+struct dpaa2_dq;
 
 /* ------------------- */
 /* Push-mode dequeuing */
@@ -197,7 +197,7 @@ void qbman_pull_desc_clear(struct qbman_pull_desc *d);
  * those writes to main-memory express a cache-warming attribute.
  */
 void qbman_pull_desc_set_storage(struct qbman_pull_desc *d,
-				 struct ldpaa_dq *storage,
+				 struct dpaa2_dq *storage,
 				 dma_addr_t storage_phys,
 				 int stash);
 /**
@@ -255,7 +255,7 @@ int qbman_swp_pull(struct qbman_swp *, struct qbman_pull_desc *d);
  * only once, so repeated calls can return a sequence of DQRR entries, without
  * requiring they be consumed immediately or in any particular order.
  */
-const struct ldpaa_dq *qbman_swp_dqrr_next(struct qbman_swp *s);
+const struct dpaa2_dq *qbman_swp_dqrr_next(struct qbman_swp *s);
 
 /**
  * qbman_swp_dqrr_consume() -  Consume DQRR entries previously returned from
@@ -263,7 +263,7 @@ const struct ldpaa_dq *qbman_swp_dqrr_next(struct qbman_swp *s);
  * @s: the software portal object.
  * @dq: the DQRR entry to be consumed.
  */
-void qbman_swp_dqrr_consume(struct qbman_swp *s, const struct ldpaa_dq *dq);
+void qbman_swp_dqrr_consume(struct qbman_swp *s, const struct dpaa2_dq *dq);
 
 /* ------------------------------------------------- */
 /* Polling user-provided storage for dequeue results */
@@ -288,7 +288,7 @@ void qbman_swp_dqrr_consume(struct qbman_swp *s, const struct ldpaa_dq *dq);
  * dequeue result.
  */
 int qbman_result_has_new_result(struct qbman_swp *,
-				  const struct ldpaa_dq *);
+				  const struct dpaa2_dq *);
 
 /* -------------------------------------------------------- */
 /* Parsing dequeue entries (DQRR and user-provided storage) */
@@ -300,7 +300,7 @@ int qbman_result_has_new_result(struct qbman_swp *,
  *
  * DQRR entries may contain non-dequeue results, ie. notifications
  */
-int qbman_result_is_DQ(const struct ldpaa_dq *);
+int qbman_result_is_DQ(const struct dpaa2_dq *);
 
 /**
  * qbman_result_is_SCN() - Check the dequeue result is notification or not
@@ -310,7 +310,7 @@ int qbman_result_is_DQ(const struct ldpaa_dq *);
  * notifications" of one type or another. Some APIs apply to all of them, of the
  * form qbman_result_SCN_***().
  */
-static inline int qbman_result_is_SCN(const struct ldpaa_dq *dq)
+static inline int qbman_result_is_SCN(const struct dpaa2_dq *dq)
 {
 	return !qbman_result_is_DQ(dq);
 }
@@ -319,49 +319,49 @@ static inline int qbman_result_is_SCN(const struct ldpaa_dq *dq)
  * Recognise different notification types, only required if the user allows for
  * these to occur, and cares about them when they do.
  */
-int qbman_result_is_FQDAN(const struct ldpaa_dq *);
+int qbman_result_is_FQDAN(const struct dpaa2_dq *);
 				/* FQ Data Availability */
-int qbman_result_is_CDAN(const struct ldpaa_dq *);
+int qbman_result_is_CDAN(const struct dpaa2_dq *);
 				/* Channel Data Availability */
-int qbman_result_is_CSCN(const struct ldpaa_dq *);
+int qbman_result_is_CSCN(const struct dpaa2_dq *);
 				/* Congestion State Change */
-int qbman_result_is_BPSCN(const struct ldpaa_dq *);
+int qbman_result_is_BPSCN(const struct dpaa2_dq *);
 				/* Buffer Pool State Change */
-int qbman_result_is_CGCU(const struct ldpaa_dq *);
+int qbman_result_is_CGCU(const struct dpaa2_dq *);
 				/* Congestion Group Count Update */
 /* Frame queue state change notifications; (FQDAN in theory counts too as it
  * leaves a FQ parked, but it is primarily a data availability notification) */
-int qbman_result_is_FQRN(const struct ldpaa_dq *); /* Retirement */
-int qbman_result_is_FQRNI(const struct ldpaa_dq *);
+int qbman_result_is_FQRN(const struct dpaa2_dq *); /* Retirement */
+int qbman_result_is_FQRNI(const struct dpaa2_dq *);
 				/* Retirement Immediate */
-int qbman_result_is_FQPN(const struct ldpaa_dq *); /* Park */
+int qbman_result_is_FQPN(const struct dpaa2_dq *); /* Park */
 
 /* NB: for parsing dequeue results (when "is_DQ" is TRUE), use the higher-layer
- * ldpaa_dq_*() functions. */
+ * dpaa2_dq_*() functions. */
 
 /* State-change notifications (FQDAN/CDAN/CSCN/...). */
 /**
  * qbman_result_SCN_state() - Get the state field in State-change notification
  */
-uint8_t qbman_result_SCN_state(const struct ldpaa_dq *);
+uint8_t qbman_result_SCN_state(const struct dpaa2_dq *);
 /**
  * qbman_result_SCN_rid() - Get the resource id in State-change notification
  */
-uint32_t qbman_result_SCN_rid(const struct ldpaa_dq *);
+uint32_t qbman_result_SCN_rid(const struct dpaa2_dq *);
 /**
  * qbman_result_SCN_ctx() - Get the context data in State-change notification
  */
-uint64_t qbman_result_SCN_ctx(const struct ldpaa_dq *);
+uint64_t qbman_result_SCN_ctx(const struct dpaa2_dq *);
 /**
  * qbman_result_SCN_state_in_mem() - Get the state field in State-change
  * notification which is written to memory instead of DQRR.
  */
-uint8_t qbman_result_SCN_state_in_mem(const struct ldpaa_dq *);
+uint8_t qbman_result_SCN_state_in_mem(const struct dpaa2_dq *);
 /**
  * qbman_result_SCN_rid_in_mem() - Get the resource id in State-change
  * notification which is written to memory instead of DQRR.
  */
-uint32_t qbman_result_SCN_rid_in_mem(const struct ldpaa_dq *);
+uint32_t qbman_result_SCN_rid_in_mem(const struct dpaa2_dq *);
 
 /* Type-specific "resource IDs". Mainly for illustration purposes, though it
  * also gives the appropriate type widths. */
@@ -377,34 +377,34 @@ uint32_t qbman_result_SCN_rid_in_mem(const struct ldpaa_dq *);
  *
  * Return the buffer pool id.
  */
-uint16_t qbman_result_bpscn_bpid(const struct ldpaa_dq *);
+uint16_t qbman_result_bpscn_bpid(const struct dpaa2_dq *);
 /**
  * qbman_result_bpscn_has_free_bufs() - Check whether there are free
  * buffers in the pool from BPSCN.
  *
  * Return the number of free buffers.
  */
-int qbman_result_bpscn_has_free_bufs(const struct ldpaa_dq *);
+int qbman_result_bpscn_has_free_bufs(const struct dpaa2_dq *);
 /**
  * qbman_result_bpscn_is_depleted() - Check BPSCN to see whether the
  * buffer pool is depleted.
  *
  * Return the status of buffer pool depletion.
  */
-int qbman_result_bpscn_is_depleted(const struct ldpaa_dq *);
+int qbman_result_bpscn_is_depleted(const struct dpaa2_dq *);
 /**
  * qbman_result_bpscn_is_surplus() - Check BPSCN to see whether the buffer
  * pool is surplus or not.
  *
  * Return the status of buffer pool surplus.
  */
-int qbman_result_bpscn_is_surplus(const struct ldpaa_dq *);
+int qbman_result_bpscn_is_surplus(const struct dpaa2_dq *);
 /**
  * qbman_result_bpscn_ctx() - Get the BPSCN CTX from BPSCN message
  *
  * Return the BPSCN context.
  */
-uint64_t qbman_result_bpscn_ctx(const struct ldpaa_dq *);
+uint64_t qbman_result_bpscn_ctx(const struct dpaa2_dq *);
 
 /* Parsing CGCU */
 /**
@@ -412,13 +412,13 @@ uint64_t qbman_result_bpscn_ctx(const struct ldpaa_dq *);
  *
  * Return the CGCU resource id.
  */
-uint16_t qbman_result_cgcu_cgid(const struct ldpaa_dq *);
+uint16_t qbman_result_cgcu_cgid(const struct dpaa2_dq *);
 /**
  * qbman_result_cgcu_icnt() - Get the I_CNT from CGCU
  *
  * Return instantaneous count in the CGCU notification.
  */
-uint64_t qbman_result_cgcu_icnt(const struct ldpaa_dq *);
+uint64_t qbman_result_cgcu_icnt(const struct dpaa2_dq *);
 
 	/************/
 	/* Enqueues */
