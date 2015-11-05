@@ -525,8 +525,10 @@ static int vfio_fsl_mc_remove(struct fsl_mc_device *mc_dev)
 			dev_err(&mc_dev->dev, "dprc_close() fails: error %d\n",
 				ret);
 		}
-	} else
+	} else {
 		vfio_fsl_mc_free_irqs(vdev);
+		mc_dev->mc_io = NULL;
+	}
 
 	iommu_group_put(mc_dev->dev.iommu_group);
 	kfree(vdev);
