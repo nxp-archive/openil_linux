@@ -373,6 +373,108 @@ static inline void dpaa2_sg_le_to_cpu(struct dpaa_sg_entry *sg)
 #define dpaa2_sg_le_to_cpu(sg)
 #endif /* __BIG_ENDIAN */
 
+
+/*
+ * Frame List Entry (FLE)
+ * Identical to dpaa_fd.simple layout, but some bits are different
+ */
+struct dpaa_fl_entry {
+	u32 addr_lo;
+	u32 addr_hi;
+	u32 len;
+	u32 bpid_offset;
+	u32 frc;
+	u32 ctrl;
+	u32 flc_lo;
+	u32 flc_hi;
+};
+
+enum dpaa_fl_format {
+	dpaa_fl_single = 0,
+	dpaa_fl_res,
+	dpaa_fl_sg
+};
+
+static inline dma_addr_t dpaa2_fl_get_addr(const struct dpaa_fl_entry *fle)
+{
+	return (dma_addr_t)((((uint64_t)fle->addr_hi) << 32) + fle->addr_lo);
+}
+
+static inline void dpaa2_fl_set_addr(struct dpaa_fl_entry *fle, dma_addr_t addr)
+{
+	fle->addr_hi = upper_32_bits(addr);
+	fle->addr_lo = lower_32_bits(addr);
+}
+
+static inline dma_addr_t dpaa2_fl_get_flc(const struct dpaa_fl_entry *fle)
+{
+	return (dma_addr_t)((((uint64_t)fle->flc_hi) << 32) + fle->flc_lo);
+}
+
+static inline void dpaa2_fl_set_flc(struct dpaa_fl_entry *fle,
+				    dma_addr_t flc_addr)
+{
+	fle->flc_hi = upper_32_bits(flc_addr);
+	fle->flc_lo = lower_32_bits(flc_addr);
+}
+
+static inline u32 dpaa2_fl_get_len(const struct dpaa_fl_entry *fle)
+{
+	return fle->len;
+}
+
+static inline void dpaa2_fl_set_len(struct dpaa_fl_entry *fle, u32 len)
+{
+	fle->len = len;
+}
+
+static inline uint16_t dpaa2_fl_get_offset(const struct dpaa_fl_entry *fle)
+{
+	return (uint16_t)(fle->bpid_offset >> 16) & 0x0FFF;
+}
+
+static inline void dpaa2_fl_set_offset(struct dpaa_fl_entry *fle,
+				       uint16_t offset)
+{
+	fle->bpid_offset &= 0xF000FFFF;
+	fle->bpid_offset |= (u32)(offset & 0x0FFF) << 16;
+}
+
+static inline enum dpaa_fl_format dpaa2_fl_get_format(
+	const struct dpaa_fl_entry *fle)
+{
+	return (enum dpaa_fl_format)((fle->bpid_offset >> 28) & 0x3);
+}
+
+static inline void dpaa2_fl_set_format(struct dpaa_fl_entry *fle,
+				       enum dpaa_fl_format format)
+{
+	fle->bpid_offset &= 0xCFFFFFFF;
+	fle->bpid_offset |= (u32)(format & 0x3) << 28;
+}
+
+static inline uint16_t dpaa2_fl_get_bpid(const struct dpaa_fl_entry *fle)
+{
+	return (uint16_t)(fle->bpid_offset & 0x3FFF);
+}
+
+static inline void dpaa2_fl_set_bpid(struct dpaa_fl_entry *fle, uint16_t bpid)
+{
+	fle->bpid_offset &= 0xFFFFC000;
+	fle->bpid_offset |= (u32)bpid;
+}
+
+static inline bool dpaa2_fl_is_final(const struct dpaa_fl_entry *fle)
+{
+	return !!(fle->bpid_offset >> 31);
+}
+
+static inline void dpaa2_fl_set_final(struct dpaa_fl_entry *fle, bool final)
+{
+	fle->bpid_offset &= 0x7FFFFFFF;
+	fle->bpid_offset |= (u32)final << 31;
+}
+
 /**
  * struct dpaa2_dq - the qman result structure
  *
