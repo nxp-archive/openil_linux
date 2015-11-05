@@ -31,11 +31,15 @@
 #ifndef __FSL_DPAA_FD_H
 #define __FSL_DPAA_FD_H
 
-/* Place-holder for FDs, we represent it via the simplest form that we need for
- * now. Different overlays may be needed to support different options, etc. (It
- * is impractical to define One True Struct, because the resulting encoding
- * routines (lots of read-modify-writes) would be worst-case performance whether
- * or not circumstances required them.) */
+/**
+ * struct dpaa_fd - Place-holder for FDs.
+ *
+ * We represent it via the simplest form that we need for now. Different
+ * overlays may be needed to support different options, etc. (It is impractical
+ * to define One True Struct, because the resulting encoding routines (lots of
+ * read-modify-writes) would be worst-case performance whether or not
+ * circumstances required them.)
+ */
 struct dpaa_fd {
 	union {
 		u32 words[8];
@@ -61,44 +65,90 @@ enum dpaa_fd_format {
 	dpaa_fd_sg
 };
 
+/**
+ * ldpaa_fd_get_addr() - get the addr field of frame descriptor
+ * @fd: the given frame descriptor.
+ *
+ * Return the address in the frame descritpor.
+ */
 static inline dma_addr_t ldpaa_fd_get_addr(const struct dpaa_fd *fd)
 {
 	return (dma_addr_t)((((uint64_t)fd->simple.addr_hi) << 32)
 				+ fd->simple.addr_lo);
 }
 
+/**
+ * ldpaa_fd_set_addr() - Set the addr field of frame descriptor
+ * @fd: the given frame descriptor.
+ * @addr: the address needs to be set in frame descriptor.
+ */
 static inline void ldpaa_fd_set_addr(struct dpaa_fd *fd, dma_addr_t addr)
 {
 	fd->simple.addr_hi = upper_32_bits(addr);
 	fd->simple.addr_lo = lower_32_bits(addr);
 }
 
+/**
+ * ldpaa_fd_get_len() - Get the length in the frame descriptor
+ * @fd: the given frame descriptor.
+ *
+ * Return the length field in the frame descriptor.
+ */
 static inline u32 ldpaa_fd_get_len(const struct dpaa_fd *fd)
 {
 	return fd->simple.len;
 }
 
+/**
+ * ldpaa_fd_set_len() - Set the length field of frame descriptor
+ * @fd: the given frame descriptor.
+ * @len: the length needs to be set in frame descriptor.
+ */
 static inline void ldpaa_fd_set_len(struct dpaa_fd *fd, u32 len)
 {
 	fd->simple.len = len;
 }
 
+/**
+ * ldpaa_fd_get_offset() - Get the offset field in the frame descriptor
+ * @fd: the given frame descriptor.
+ *
+ * Return the offset.
+ */
 static inline uint16_t ldpaa_fd_get_offset(const struct dpaa_fd *fd)
 {
 	return (uint16_t)(fd->simple.bpid_offset >> 16) & 0x0FFF;
 }
 
+/**
+ * ldpaa_fd_set_offset() - Set the offset field of frame descriptor
+ *
+ * @fd: the given frame descriptor.
+ * @offset: the offset needs to be set in frame descriptor.
+ */
 static inline void ldpaa_fd_set_offset(struct dpaa_fd *fd, uint16_t offset)
 {
 	fd->simple.bpid_offset &= 0xF000FFFF;
 	fd->simple.bpid_offset |= (u32)offset << 16;
 }
 
+/**
+ * ldpaa_fd_get_format() - Get the format field in the frame descriptor
+ * @fd: the given frame descriptor.
+ *
+ * Return the format.
+ */
 static inline enum dpaa_fd_format ldpaa_fd_get_format(const struct dpaa_fd *fd)
 {
 	return (enum dpaa_fd_format)((fd->simple.bpid_offset >> 28) & 0x3);
 }
 
+/**
+ * ldpaa_fd_set_format() - Set the format field of frame descriptor
+ *
+ * @fd: the given frame descriptor.
+ * @format: the format needs to be set in frame descriptor.
+ */
 static inline void ldpaa_fd_set_format(struct dpaa_fd *fd,
 				       enum dpaa_fd_format format)
 {
@@ -106,18 +156,32 @@ static inline void ldpaa_fd_set_format(struct dpaa_fd *fd,
 	fd->simple.bpid_offset |= (u32)format << 28;
 }
 
+/**
+ * ldpaa_fd_get_bpid() - Get the bpid field in the frame descriptor
+ * @fd: the given frame descriptor.
+ *
+ * Return the bpid.
+ */
 static inline uint16_t ldpaa_fd_get_bpid(const struct dpaa_fd *fd)
 {
 	return (uint16_t)(fd->simple.bpid_offset & 0xFFFF);
 }
 
+/**
+ * ldpaa_fd_set_bpid() - Set the bpid field of frame descriptor
+ *
+ * @fd: the given frame descriptor.
+ * @bpid: the bpid needs to be set in frame descriptor.
+ */
 static inline void ldpaa_fd_set_bpid(struct dpaa_fd *fd, uint16_t bpid)
 {
 	fd->simple.bpid_offset &= 0xFFFF0000;
 	fd->simple.bpid_offset |= (u32)bpid;
 }
 
-/* Scatter gather entry */
+/**
+ * struct dpaa_sg_entry - the scatter-gathering structure
+ */
 struct dpaa_sg_entry {
 	u32 addr_lo;
 	u32 addr_hi;
@@ -138,23 +202,40 @@ enum dpaa_sg_format {
  * called before the SGE contents are accessed by the core (on Rx),
  * respectively before the SG table is sent to hardware (on Tx)
  */
+
+/**
+ * ldpaa_sg_get_addr() - Get the address from SG entry
+ * @sg: the given scatter-gathering object.
+ *
+ * Return the address.
+ */
 static inline dma_addr_t ldpaa_sg_get_addr(const struct dpaa_sg_entry *sg)
 {
 	return (dma_addr_t)((((u64)sg->addr_hi) << 32) + sg->addr_lo);
 }
 
+/**
+ * ldpaa_sg_set_addr() - Set the address in SG entry
+ * @sg: the given scatter-gathering object.
+ * @addr: the address to be set.
+ */
 static inline void ldpaa_sg_set_addr(struct dpaa_sg_entry *sg, dma_addr_t addr)
 {
 	sg->addr_hi = upper_32_bits(addr);
 	sg->addr_lo = lower_32_bits(addr);
 }
 
-
 static inline bool ldpaa_sg_short_len(const struct dpaa_sg_entry *sg)
 {
 	return (sg->bpid_offset >> 30) & 0x1;
 }
 
+/**
+ * ldpaa_sg_get_len() - Get the length in SG entry
+ * @sg: the given scatter-gathering object.
+ *
+ * Return the length.
+ */
 static inline u32 ldpaa_sg_get_len(const struct dpaa_sg_entry *sg)
 {
 	if (ldpaa_sg_short_len(sg))
@@ -162,16 +243,32 @@ static inline u32 ldpaa_sg_get_len(const struct dpaa_sg_entry *sg)
 	return sg->len;
 }
 
+/**
+ * ldpaa_sg_set_len() - Set the length in SG entry
+ * @sg: the given scatter-gathering object.
+ * @len: the length to be set.
+ */
 static inline void ldpaa_sg_set_len(struct dpaa_sg_entry *sg, u32 len)
 {
 	sg->len = len;
 }
 
+/**
+ * ldpaa_sg_get_offset() - Get the offset in SG entry
+ * @sg: the given scatter-gathering object.
+ *
+ * Return the offset.
+ */
 static inline u16 ldpaa_sg_get_offset(const struct dpaa_sg_entry *sg)
 {
 	return (u16)(sg->bpid_offset >> 16) & 0x0FFF;
 }
 
+/**
+ * ldpaa_sg_set_offset() - Set the offset in SG entry
+ * @sg: the given scatter-gathering object.
+ * @offset: the offset to be set.
+ */
 static inline void ldpaa_sg_set_offset(struct dpaa_sg_entry *sg,
 				       u16 offset)
 {
@@ -179,12 +276,23 @@ static inline void ldpaa_sg_set_offset(struct dpaa_sg_entry *sg,
 	sg->bpid_offset |= (u32)offset << 16;
 }
 
+/**
+ * ldpaa_sg_get_format() - Get the SG format in SG entry
+ * @sg: the given scatter-gathering object.
+ *
+ * Return the format.
+ */
 static inline enum dpaa_sg_format
 	ldpaa_sg_get_format(const struct dpaa_sg_entry *sg)
 {
 	return (enum dpaa_sg_format)((sg->bpid_offset >> 28) & 0x3);
 }
 
+/**
+ * ldpaa_sg_set_format() - Set the SG format in SG entry
+ * @sg: the given scatter-gathering object.
+ * @format: the format to be set.
+ */
 static inline void ldpaa_sg_set_format(struct dpaa_sg_entry *sg,
 				       enum dpaa_sg_format format)
 {
@@ -192,22 +300,44 @@ static inline void ldpaa_sg_set_format(struct dpaa_sg_entry *sg,
 	sg->bpid_offset |= (u32)format << 28;
 }
 
+/**
+ * ldpaa_sg_get_bpid() - Get the buffer pool id in SG entry
+ * @sg: the given scatter-gathering object.
+ *
+ * Return the bpid.
+ */
 static inline u16 ldpaa_sg_get_bpid(const struct dpaa_sg_entry *sg)
 {
 	return (u16)(sg->bpid_offset & 0x3FFF);
 }
 
+/**
+ * ldpaa_sg_set_bpid() - Set the buffer pool id in SG entry
+ * @sg: the given scatter-gathering object.
+ * @bpid: the bpid to be set.
+ */
 static inline void ldpaa_sg_set_bpid(struct dpaa_sg_entry *sg, u16 bpid)
 {
 	sg->bpid_offset &= 0xFFFFC000;
 	sg->bpid_offset |= (u32)bpid;
 }
 
+/**
+ * ldpaa_sg_is_final() - Check final bit in SG entry
+ * @sg: the given scatter-gathering object.
+ *
+ * Return bool.
+ */
 static inline bool ldpaa_sg_is_final(const struct dpaa_sg_entry *sg)
 {
 	return !!(sg->bpid_offset >> 31);
 }
 
+/**
+ * ldpaa_sg_set_final() - Set the final bit in SG entry
+ * @sg: the given scatter-gathering object.
+ * @final: the final boolean to be set.
+ */
 static inline void ldpaa_sg_set_final(struct dpaa_sg_entry *sg, bool final)
 {
 	sg->bpid_offset &= 0x7FFFFFFF;
@@ -242,12 +372,15 @@ static inline void ldpaa_sg_le_to_cpu(struct dpaa_sg_entry *sg)
 #define ldpaa_sg_le_to_cpu(sg)
 #endif /* __BIG_ENDIAN */
 
-
-/* When frames are dequeued, the FDs show up inside "dequeue" result structures
+/**
+ * struct ldpaa_dq - the qman result structure
+ *
+ * When frames are dequeued, the FDs show up inside "dequeue" result structures
  * (if at all, not all dequeue results contain valid FDs). This structure type
  * is intentionally defined without internal detail, and the only reason it
  * isn't declared opaquely (without size) is to allow the user to provide
- * suitably-sized (and aligned) memory for these entries. */
+ * suitably-sized (and aligned) memory for these entries.
+ */
 struct ldpaa_dq {
 	uint32_t dont_manipulate_directly[16];
 };
@@ -260,26 +393,78 @@ struct ldpaa_dq {
 #define LDPAA_DQ_STAT_ODPVALID      0x04
 #define LDPAA_DQ_STAT_VOLATILE      0x02
 #define LDPAA_DQ_STAT_EXPIRED       0x01
+/**
+ * ldpaa_dq_flags() - Get the stat field of dequeue response
+ */
 uint32_t ldpaa_dq_flags(const struct ldpaa_dq *);
+
+/**
+ * ldpaa_dq_is_pull() - Check whether the dq response is from a pull
+ * command.
+ * @dq: the dequeue result.
+ *
+ * Return 1 for volatile(pull) dequeue, 0 for static dequeue.
+ */
 static inline int ldpaa_dq_is_pull(const struct ldpaa_dq *dq)
 {
 	return (int)(ldpaa_dq_flags(dq) & LDPAA_DQ_STAT_VOLATILE);
 }
+
+/**
+ * ldpaa_dq_is_pull_complete() - Check whether the pull command is completed.
+ * @dq: the dequeue result.
+ *
+ * Return boolean.
+ */
 static inline int ldpaa_dq_is_pull_complete(
 					const struct ldpaa_dq *dq)
 {
 	return (int)(ldpaa_dq_flags(dq) & LDPAA_DQ_STAT_EXPIRED);
 }
-/* seqnum/odpid are valid only if VALIDFRAME and ODPVALID flags are TRUE */
+
+/**
+ * ldpaa_dq_seqnum() - Get the seqnum field in dequeue response
+ * seqnum is valid only if VALIDFRAME flag is TRUE
+ *
+ * Return seqnum.
+ */
 uint16_t ldpaa_dq_seqnum(const struct ldpaa_dq *);
+/**
+ * ldpaa_dq_odpid() - Get the seqnum field in dequeue response
+ * odpid is valid only if ODPVAILD flag is TRUE.
+ *
+ * Return odpid.
+ */
 uint16_t ldpaa_dq_odpid(const struct ldpaa_dq *);
+/**
+ * ldpaa_dq_fqid() - Get the fqid in dequeue response
+ *
+ * Return fqid.
+ */
 uint32_t ldpaa_dq_fqid(const struct ldpaa_dq *);
+/**
+ * ldpaa_dq_byte_count() - Get the byte count in dequeue response
+ *
+ * Return the byte count remaining in the FQ.
+ */
 uint32_t ldpaa_dq_byte_count(const struct ldpaa_dq *);
+/**
+ * ldpaa_dq_frame_count() - Get the frame count in dequeue response
+ *
+ * Return the frame count remaining in the FQ.
+ */
 uint32_t ldpaa_dq_frame_count(const struct ldpaa_dq *);
-uint32_t ldpaa_dq_fqd_ctx_hi(const struct ldpaa_dq *);
-uint32_t ldpaa_dq_fqd_ctx_lo(const struct ldpaa_dq *);
+/**
+ * ldpaa_dq_fd_ctx() - Get the frame queue context in dequeue response
+ *
+ * Return the frame queue context.
+ */
 uint64_t ldpaa_dq_fqd_ctx(const struct ldpaa_dq *dq);
-/* get the Frame Descriptor */
+/**
+ * ldpaa_dq_fd() - Get the frame descriptor in dequeue response
+ *
+ * Return the frame descriptor.
+ */
 const struct dpaa_fd *ldpaa_dq_fd(const struct ldpaa_dq *);
 
 #endif /* __FSL_DPAA_FD_H */
