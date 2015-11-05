@@ -51,7 +51,7 @@ config OF_IOMMU
 config FSL_PAMU
 	bool "Freescale IOMMU support"
 	depends on PPC32
-	depends on PPC_E500MC || COMPILE_TEST
+	depends on PPC_E500MC
 	select IOMMU_API
 	select GENERIC_ALLOCATOR
 	help
