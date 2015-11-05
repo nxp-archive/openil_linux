@@ -486,18 +486,18 @@ static int vfio_fsl_mc_remove(struct fsl_mc_device *mc_dev)
 {
 	struct vfio_fsl_mc_device *vdev;
 	struct fsl_mc_bus *mc_bus;
+	struct device *dev = &mc_dev->dev;
 	int ret;
 
-	dev_info(&mc_dev->dev, "Un-binding with vfio-fsl-mc driver\n");
+	dev_info(dev, "Un-binding with vfio-fsl-mc driver\n");
 
-	vdev = vfio_del_group_dev(&mc_dev->dev);
+	vdev = vfio_del_group_dev(dev);
 	if (!vdev)
 		return -EINVAL;
 
 	/* Only FSL-MC DPRC device can be unbound */
 	if (strcmp(mc_dev->obj_desc.type, "dprc") == 0) {
-		device_for_each_child(&mc_dev->dev, NULL,
-				      vfio_fsl_mc_device_remove);
+		device_for_each_child(dev, NULL, vfio_fsl_mc_device_remove);
 
 		vfio_fsl_mc_free_irqs(vdev);
 		dprc_cleanup_all_resource_pools(mc_dev);
@@ -506,13 +506,14 @@ static int vfio_fsl_mc_remove(struct fsl_mc_device *mc_dev)
 		if (fsl_mc_interrupts_supported())
 			fsl_mc_cleanup_irq_pool(mc_bus);
 
-		ret = dprc_close(mc_dev->mc_io,
-				 0,
-				 mc_dev->mc_handle);
-		if (ret < 0) {
-			dev_err(&mc_dev->dev, "dprc_close() fails: error %d\n",
-				ret);
-		}
+		ret = dprc_close(mc_dev->mc_io, 0, mc_dev->mc_handle);
+		if (ret < 0)
+			dev_err(dev, "dprc_close() fails %d\n", ret);
+
+		ret = dprc_close(mc_bus->atomic_mc_io, 0,
+				 mc_bus->atomic_dprc_handle);
+		if (ret < 0)
+			dev_err(dev, "dprc_close(atomic-io) fails %d\n", ret);
 	} else {
 		vfio_fsl_mc_free_irqs(vdev);
 		mc_dev->mc_io = NULL;
