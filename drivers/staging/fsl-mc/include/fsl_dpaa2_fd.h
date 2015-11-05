@@ -96,6 +96,16 @@ static inline void dpaa2_fd_set_addr(struct dpaa_fd *fd, dma_addr_t addr)
 	fd->simple.addr_lo = lower_32_bits(addr);
 }
 
+static inline u32 dpaa2_fd_get_frc(const struct dpaa_fd *fd)
+{
+	return fd->simple.frc;
+}
+
+static inline void dpaa2_fd_set_frc(struct dpaa_fd *fd, u32 frc)
+{
+	fd->simple.frc = frc;
+}
+
 /**
  * dpaa2_fd_get_len() - Get the length in the frame descriptor
  * @fd: the given frame descriptor.
