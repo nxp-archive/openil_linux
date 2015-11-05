@@ -104,25 +104,25 @@ static void dpaa2_eth_free_rx_fd(struct dpaa2_eth_priv *priv,
 				 void *vaddr)
 {
 	struct device *dev = priv->net_dev->dev.parent;
-	dma_addr_t addr = ldpaa_fd_get_addr(fd);
-	uint8_t fd_format = ldpaa_fd_get_format(fd);
+	dma_addr_t addr = dpaa2_fd_get_addr(fd);
+	uint8_t fd_format = dpaa2_fd_get_format(fd);
 
 	if (fd_format == dpaa_fd_sg) {
-		struct dpaa_sg_entry *sgt = vaddr + ldpaa_fd_get_offset(fd);
+		struct dpaa_sg_entry *sgt = vaddr + dpaa2_fd_get_offset(fd);
 		void *sg_vaddr;
 		int i;
 
 		for (i = 0; i < DPAA2_ETH_MAX_SG_ENTRIES; i++) {
-			ldpaa_sg_le_to_cpu(&sgt[i]);
+			dpaa2_sg_le_to_cpu(&sgt[i]);
 
-			addr = ldpaa_sg_get_addr(&sgt[i]);
+			addr = dpaa2_sg_get_addr(&sgt[i]);
 			dma_unmap_single(dev, addr, DPAA2_ETH_RX_BUFFER_SIZE,
 					 DMA_FROM_DEVICE);
 
 			sg_vaddr = phys_to_virt(addr);
 			put_page(virt_to_head_page(sg_vaddr));
 
-			if (ldpaa_sg_is_final(&sgt[i]))
+			if (dpaa2_sg_is_final(&sgt[i]))
 				break;
 		}
 	}
@@ -136,8 +136,8 @@ static struct sk_buff *dpaa2_eth_build_linear_skb(struct dpaa2_eth_priv *priv,
 						  void *fd_vaddr)
 {
 	struct sk_buff *skb = NULL;
-	uint16_t fd_offset = ldpaa_fd_get_offset(fd);
-	uint32_t fd_length = ldpaa_fd_get_len(fd);
+	uint16_t fd_offset = dpaa2_fd_get_offset(fd);
+	uint32_t fd_length = dpaa2_fd_get_len(fd);
 	int *count;
 
 	skb = build_skb(fd_vaddr, DPAA2_ETH_RX_BUFFER_SIZE +
@@ -175,13 +175,13 @@ static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
 	for (i = 0; i < DPAA2_ETH_MAX_SG_ENTRIES; i++) {
 		struct dpaa_sg_entry *sge = &sgt[i];
 
-		ldpaa_sg_le_to_cpu(sge);
+		dpaa2_sg_le_to_cpu(sge);
 
 		/* We don't support anything else yet! */
-		BUG_ON(ldpaa_sg_get_format(sge) != dpaa_sg_single);
+		BUG_ON(dpaa2_sg_get_format(sge) != dpaa_sg_single);
 
 		/* Get the address, offset and length from the S/G entry */
-		sg_addr = ldpaa_sg_get_addr(sge);
+		sg_addr = dpaa2_sg_get_addr(sge);
 		dma_unmap_single(dev, sg_addr, DPAA2_ETH_RX_BUFFER_SIZE,
 				 DMA_FROM_DEVICE);
 		if (unlikely(dma_mapping_error(dev, sg_addr))) {
@@ -189,7 +189,7 @@ static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
 			return NULL;
 		}
 		sg_vaddr = phys_to_virt(sg_addr);
-		sg_length = ldpaa_sg_get_len(sge);
+		sg_length = dpaa2_sg_get_len(sge);
 
 		if (i == 0) {
 			/* We build the skb around the first data buffer */
@@ -199,7 +199,7 @@ static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
 				netdev_err(priv->net_dev, "build_skb failed\n");
 				return NULL;
 			}
-			sg_offset = ldpaa_sg_get_offset(sge);
+			sg_offset = dpaa2_sg_get_offset(sge);
 			skb_reserve(skb, sg_offset);
 			skb_put(skb, sg_length);
 		} else {
@@ -207,7 +207,7 @@ static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
 			 * offset 0 in their buffers, we don't need to
 			 * compute sg_offset.
 			 */
-			WARN_ONCE(ldpaa_sg_get_offset(sge) != 0,
+			WARN_ONCE(dpaa2_sg_get_offset(sge) != 0,
 				  "Non-zero offset in SGE[%d]!\n", i);
 
 			/* Rest of the data buffers are stored as skb frags */
@@ -223,7 +223,7 @@ static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
 					sg_length, DPAA2_ETH_RX_BUFFER_SIZE);
 		}
 
-		if (ldpaa_sg_is_final(sge))
+		if (dpaa2_sg_is_final(sge))
 			break;
 	}
 
@@ -238,8 +238,8 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 			 const struct dpaa_fd *fd,
 			 struct napi_struct *napi)
 {
-	dma_addr_t addr = ldpaa_fd_get_addr(fd);
-	uint8_t fd_format = ldpaa_fd_get_format(fd);
+	dma_addr_t addr = dpaa2_fd_get_addr(fd);
+	uint8_t fd_format = dpaa2_fd_get_format(fd);
 	void *vaddr;
 	struct sk_buff *skb;
 	struct rtnl_link_stats64 *percpu_stats;
@@ -255,7 +255,7 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 	vaddr = phys_to_virt(addr);
 
 	prefetch(vaddr + priv->buf_layout.private_data_size);
-	prefetch(vaddr + ldpaa_fd_get_offset(fd));
+	prefetch(vaddr + dpaa2_fd_get_offset(fd));
 
 	percpu_stats = this_cpu_ptr(priv->percpu_stats);
 	percpu_extras = this_cpu_ptr(priv->percpu_extras);
@@ -264,11 +264,11 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 		skb = dpaa2_eth_build_linear_skb(priv, fd, vaddr);
 	} else if (fd_format == dpaa_fd_sg) {
 		struct dpaa_sg_entry *sgt =
-				vaddr + ldpaa_fd_get_offset(fd);
+				vaddr + dpaa2_fd_get_offset(fd);
 		skb = dpaa2_eth_build_frag_skb(priv, sgt);
 		put_page(virt_to_head_page(vaddr));
 		percpu_extras->rx_sg_frames++;
-		percpu_extras->rx_sg_bytes += ldpaa_fd_get_len(fd);
+		percpu_extras->rx_sg_bytes += dpaa2_fd_get_len(fd);
 	} else {
 		/* We don't support any other format */
 		netdev_err(priv->net_dev, "Received invalid frame format\n");
@@ -313,7 +313,7 @@ static void dpaa2_eth_rx_err(struct dpaa2_eth_priv *priv,
 			     struct napi_struct *napi __always_unused)
 {
 	struct device *dev = priv->net_dev->dev.parent;
-	dma_addr_t addr = ldpaa_fd_get_addr(fd);
+	dma_addr_t addr = dpaa2_fd_get_addr(fd);
 	void *vaddr;
 	struct rtnl_link_stats64 *percpu_stats;
 	struct dpaa2_fas *fas;
@@ -350,13 +350,13 @@ static int dpaa2_eth_store_consume(struct dpaa2_eth_channel *ch)
 {
 	struct dpaa2_eth_priv *priv = ch->priv;
 	struct dpaa2_eth_fq *fq;
-	struct ldpaa_dq *dq;
+	struct dpaa2_dq *dq;
 	const struct dpaa_fd *fd;
 	int cleaned = 0;
 	int is_last;
 
 	do {
-		dq = dpaa_io_store_next(ch->store, &is_last);
+		dq = dpaa2_io_store_next(ch->store, &is_last);
 		if (unlikely(!dq)) {
 			if (unlikely(!is_last)) {
 				netdev_dbg(priv->net_dev,
@@ -373,8 +373,8 @@ static int dpaa2_eth_store_consume(struct dpaa2_eth_channel *ch)
 		}
 
 		/* Obtain FD and process it */
-		fd = ldpaa_dq_fd(dq);
-		fq = (struct dpaa2_eth_fq *)ldpaa_dq_fqd_ctx(dq);
+		fd = dpaa2_dq_fd(dq);
+		fq = (struct dpaa2_eth_fq *)dpaa2_dq_fqd_ctx(dq);
 		fq->stats.frames++;
 		fq->consume(priv, fd, &ch->napi);
 		cleaned++;
@@ -447,10 +447,10 @@ static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
 	 *   - format is 'dpaa_sg_single'
 	 */
 	for_each_sg(scl, crt_scl, num_dma_bufs, i) {
-		ldpaa_sg_set_addr(&sgt[i], sg_dma_address(crt_scl));
-		ldpaa_sg_set_len(&sgt[i], sg_dma_len(crt_scl));
+		dpaa2_sg_set_addr(&sgt[i], sg_dma_address(crt_scl));
+		dpaa2_sg_set_len(&sgt[i], sg_dma_len(crt_scl));
 	}
-	ldpaa_sg_set_final(&sgt[i-1], true);
+	dpaa2_sg_set_final(&sgt[i-1], true);
 
 	/* Store the skb backpointer in the SGT buffer.
 	 * Fit the scatterlist and the number of buffers alongside the
@@ -463,7 +463,7 @@ static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
 	bps->num_dma_bufs = num_dma_bufs;
 
 	for (j = 0; j < i; j++)
-		ldpaa_sg_cpu_to_le(&sgt[j]);
+		dpaa2_sg_cpu_to_le(&sgt[j]);
 
 	/* Separately map the SGT buffer */
 	addr = dma_map_single(dev, sgt_buf, sgt_buf_size, DMA_TO_DEVICE);
@@ -472,11 +472,11 @@ static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
 		err = -ENOMEM;
 		goto dma_map_single_failed;
 	}
-	ldpaa_fd_set_offset(fd, priv->tx_data_offset);
-	ldpaa_fd_set_bpid(fd, priv->dpbp_attrs.bpid);
-	ldpaa_fd_set_format(fd, dpaa_fd_sg);
-	ldpaa_fd_set_addr(fd, addr);
-	ldpaa_fd_set_len(fd, skb->len);
+	dpaa2_fd_set_offset(fd, priv->tx_data_offset);
+	dpaa2_fd_set_bpid(fd, priv->dpbp_attrs.bpid);
+	dpaa2_fd_set_format(fd, dpaa_fd_sg);
+	dpaa2_fd_set_addr(fd, addr);
+	dpaa2_fd_set_len(fd, skb->len);
 
 	fd->simple.ctrl = DPAA2_FD_CTRL_ASAL | DPAA2_FD_CTRL_PTA |
 			 DPAA2_FD_CTRL_PTV1;
@@ -528,11 +528,11 @@ static int dpaa2_eth_build_single_fd(struct dpaa2_eth_priv *priv,
 		return -EINVAL;
 	}
 
-	ldpaa_fd_set_addr(fd, addr);
-	ldpaa_fd_set_offset(fd, (uint16_t)(skb->data - buffer_start));
-	ldpaa_fd_set_bpid(fd, priv->dpbp_attrs.bpid);
-	ldpaa_fd_set_len(fd, skb->len);
-	ldpaa_fd_set_format(fd, dpaa_fd_single);
+	dpaa2_fd_set_addr(fd, addr);
+	dpaa2_fd_set_offset(fd, (uint16_t)(skb->data - buffer_start));
+	dpaa2_fd_set_bpid(fd, priv->dpbp_attrs.bpid);
+	dpaa2_fd_set_len(fd, skb->len);
+	dpaa2_fd_set_format(fd, dpaa_fd_single);
 
 	fd->simple.ctrl = DPAA2_FD_CTRL_ASAL | DPAA2_FD_CTRL_PTA |
 			 DPAA2_FD_CTRL_PTV1;
@@ -562,9 +562,9 @@ static void dpaa2_eth_free_fd(const struct dpaa2_eth_priv *priv,
 	bool fd_single;
 	struct dpaa2_fas *fas;
 
-	fd_addr = ldpaa_fd_get_addr(fd);
+	fd_addr = dpaa2_fd_get_addr(fd);
 	skbh = phys_to_virt(fd_addr);
-	fd_single = (ldpaa_fd_get_format(fd) == dpaa_fd_single);
+	fd_single = (dpaa2_fd_get_format(fd) == dpaa_fd_single);
 
 	if (fd_single) {
 		skb = *skbh;
@@ -668,7 +668,7 @@ static int dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	trace_dpaa2_tx_fd(net_dev, &fd);
 
 	for (i = 0; i < (DPAA2_ETH_TX_QUEUES << 1); i++) {
-		err = dpaa_io_service_enqueue_qd(NULL, priv->tx_qdid, 0,
+		err = dpaa2_io_service_enqueue_qd(NULL, priv->tx_qdid, 0,
 						 priv->fq[queue_mapping].flowid,
 						 &fd);
 		if (err != -EBUSY)
@@ -707,7 +707,7 @@ static void dpaa2_eth_tx_conf(struct dpaa2_eth_priv *priv,
 
 	percpu_extras = this_cpu_ptr(priv->percpu_extras);
 	percpu_extras->tx_conf_frames++;
-	percpu_extras->tx_conf_bytes += ldpaa_fd_get_len(fd);
+	percpu_extras->tx_conf_bytes += dpaa2_fd_get_len(fd);
 
 	dpaa2_eth_free_fd(priv, fd, &status);
 
@@ -781,11 +781,11 @@ static inline int __dpaa2_eth_pull_channel(struct dpaa2_eth_channel *ch)
 
 	/* Retry while portal is busy */
 	do {
-		err = dpaa_io_service_pull_channel(NULL, ch->ch_id, ch->store);
+		err = dpaa2_io_service_pull_channel(NULL, ch->ch_id, ch->store);
 		dequeues++;
 	} while (err == -EBUSY);
 	if (unlikely(err))
-		netdev_err(priv->net_dev, "dpaa_io_service_pull err %d", err);
+		netdev_err(priv->net_dev, "dpaa2_io_service_pull err %d", err);
 
 	ch->stats.dequeue_portal_busy += dequeues;
 	return err;
@@ -822,7 +822,7 @@ static int dpaa2_eth_poll(struct napi_struct *napi, int budget)
 
 	if (cleaned < budget) {
 		napi_complete_done(napi, cleaned);
-		err = dpaa_io_service_rearm(NULL, &ch->nctx);
+		err = dpaa2_io_service_rearm(NULL, &ch->nctx);
 		if (unlikely(err))
 			netdev_err(priv->net_dev,
 				   "Notif rearm failed for channel %d\n",
@@ -1236,7 +1236,7 @@ static const struct net_device_ops dpaa2_eth_ops = {
 	.ndo_set_features = dpaa2_eth_set_features,
 };
 
-static void dpaa2_eth_cdan_cb(struct dpaa_io_notification_ctx *ctx)
+static void dpaa2_eth_cdan_cb(struct dpaa2_io_notification_ctx *ctx)
 {
 	struct dpaa2_eth_channel *ch;
 
@@ -1371,7 +1371,7 @@ static void dpaa2_free_channel(struct dpaa2_eth_priv *priv,
 
 static int __cold dpaa2_dpio_setup(struct dpaa2_eth_priv *priv)
 {
-	struct dpaa_io_notification_ctx *nctx;
+	struct dpaa2_io_notification_ctx *nctx;
 	struct dpaa2_eth_channel *channel;
 	struct dpcon_notification_cfg dpcon_notif_cfg;
 	struct device *dev = priv->net_dev->dev.parent;
@@ -1399,7 +1399,7 @@ static int __cold dpaa2_dpio_setup(struct dpaa2_eth_priv *priv)
 		nctx->desired_cpu = i;
 
 		/* Register the new context */
-		err = dpaa_io_service_register(NULL, nctx);
+		err = dpaa2_io_service_register(NULL, nctx);
 		if (unlikely(err)) {
 			dev_info(dev, "No affine DPIO for core %d\n", i);
 			/* This core doesn't have an affine DPIO, but there's
@@ -1439,7 +1439,7 @@ static int __cold dpaa2_dpio_setup(struct dpaa2_eth_priv *priv)
 	return 0;
 
 err_set_cdan:
-	dpaa_io_service_deregister(NULL, nctx);
+	dpaa2_io_service_deregister(NULL, nctx);
 	dpaa2_free_channel(priv, channel);
 err_alloc_ch:
 	if (unlikely(cpumask_empty(&priv->dpio_cpumask))) {
@@ -1459,7 +1459,7 @@ static void __cold dpaa2_dpio_free(struct dpaa2_eth_priv *priv)
 	/* deregister CDAN notifications and free channels */
 	for (i = 0; i < priv->num_channels; i++) {
 		ch = priv->channel[i];
-		dpaa_io_service_deregister(NULL, &ch->nctx);
+		dpaa2_io_service_deregister(NULL, &ch->nctx);
 		dpaa2_free_channel(priv, ch);
 	}
 }
@@ -1525,10 +1525,10 @@ static void dpaa2_dpbp_drain_cnt(struct dpaa2_eth_priv *priv, int count)
 	BUG_ON(count > 7);
 
 	do {
-		ret = dpaa_io_service_acquire(NULL, priv->dpbp_attrs.bpid,
+		ret = dpaa2_io_service_acquire(NULL, priv->dpbp_attrs.bpid,
 					      buf_array, count);
 		if (ret < 0) {
-			pr_err("dpaa_io_service_acquire() failed\n");
+			pr_err("dpaa2_io_service_acquire() failed\n");
 			return;
 		}
 		for (i = 0; i < ret; i++) {
@@ -1587,7 +1587,7 @@ release_bufs:
 	 * This function is guaranteed to succeed in a reasonable amount
 	 * of time.
 	 */
-	while (dpaa_io_service_release(NULL, bpid, buf_array, i))
+	while (dpaa2_io_service_release(NULL, bpid, buf_array, i))
 		cpu_relax();
 	return i;
 
@@ -2021,9 +2021,9 @@ static int dpaa2_eth_alloc_rings(struct dpaa2_eth_priv *priv)
 
 	for (i = 0; i < priv->num_channels; i++) {
 		priv->channel[i]->store =
-			dpaa_io_store_create(DPAA2_ETH_STORE_SIZE, dev);
+			dpaa2_io_store_create(DPAA2_ETH_STORE_SIZE, dev);
 		if (unlikely(!priv->channel[i]->store)) {
-			netdev_err(net_dev, "dpaa_io_store_create() failed\n");
+			netdev_err(net_dev, "dpaa2_io_store_create() failed\n");
 			goto err_ring;
 		}
 	}
@@ -2034,7 +2034,7 @@ err_ring:
 	for (i = 0; i < priv->num_channels; i++) {
 		if (!priv->channel[i]->store)
 			break;
-		dpaa_io_store_destroy(priv->channel[i]->store);
+		dpaa2_io_store_destroy(priv->channel[i]->store);
 	}
 
 	return -ENOMEM;
@@ -2045,7 +2045,7 @@ static void dpaa2_eth_free_rings(struct dpaa2_eth_priv *priv)
 	int i;
 
 	for (i = 0; i < priv->num_channels; i++)
-		dpaa_io_store_destroy(priv->channel[i]->store);
+		dpaa2_io_store_destroy(priv->channel[i]->store);
 }
 
 static int dpaa2_eth_netdev_init(struct net_device *net_dev)

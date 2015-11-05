@@ -34,8 +34,8 @@
 
 #include <linux/netdevice.h>
 #include <linux/if_vlan.h>
-#include "../../fsl-mc/include/fsl_dpaa_io.h"
-#include "../../fsl-mc/include/fsl_dpaa_fd.h"
+#include "../../fsl-mc/include/fsl_dpaa2_io.h"
+#include "../../fsl-mc/include/fsl_dpaa2_fd.h"
 #include "../../fsl-mc/include/dpbp.h"
 #include "../../fsl-mc/include/dpcon.h"
 #include "dpni.h"
@@ -236,13 +236,13 @@ struct dpaa2_eth_fq {
 };
 
 struct dpaa2_eth_channel {
-	struct dpaa_io_notification_ctx nctx;
+	struct dpaa2_io_notification_ctx nctx;
 	struct fsl_mc_device *dpcon;
 	int dpcon_id;
 	int ch_id;
 	int dpio_id;
 	struct napi_struct napi;
-	struct dpaa_io_store *store;
+	struct dpaa2_io_store *store;
 	struct dpaa2_eth_priv *priv;
 	struct dpaa2_eth_ch_stats stats;
 };

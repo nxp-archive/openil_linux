@@ -73,9 +73,9 @@ DECLARE_EVENT_CLASS(dpaa2_eth_fd,
 		     * fields
 		     */
 		    TP_fast_assign(
-				   __entry->fd_addr = ldpaa_fd_get_addr(fd);
-				   __entry->fd_len = ldpaa_fd_get_len(fd);
-				   __entry->fd_offset = ldpaa_fd_get_offset(fd);
+				   __entry->fd_addr = dpaa2_fd_get_addr(fd);
+				   __entry->fd_len = dpaa2_fd_get_len(fd);
+				   __entry->fd_offset = dpaa2_fd_get_offset(fd);
 				   __assign_str(name, netdev->name);
 		    ),
 

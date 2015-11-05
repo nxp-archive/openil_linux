@@ -252,7 +252,7 @@ static void dpaa2_get_ethtool_stats(struct net_device *net_dev,
 #ifdef CONFIG_FSL_QBMAN_DEBUG
 	for (j = 0; j < priv->num_fqs; j++) {
 		/* Print FQ instantaneous counts */
-		err = dpaa_io_query_fq_count(NULL, priv->fq[j].fqid,
+		err = dpaa2_io_query_fq_count(NULL, priv->fq[j].fqid,
 					     &fcnt, &bcnt);
 		if (unlikely(err)) {
 			netdev_warn(net_dev, "FQ query error %d", err);
@@ -272,7 +272,7 @@ static void dpaa2_get_ethtool_stats(struct net_device *net_dev,
 	*(data + i++) = fcnt_tx_total;
 	*(data + i++) = bcnt_tx_total;
 
-	err = dpaa_io_query_bp_count(NULL, priv->dpbp_attrs.bpid, &buf_cnt);
+	err = dpaa2_io_query_bp_count(NULL, priv->dpbp_attrs.bpid, &buf_cnt);
 	if (unlikely(err)) {
 		netdev_warn(net_dev, "Buffer count query error %d\n", err);
 		return;
