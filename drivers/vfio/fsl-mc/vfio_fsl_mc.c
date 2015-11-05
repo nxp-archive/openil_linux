@@ -515,7 +515,9 @@ static int vfio_fsl_mc_remove(struct fsl_mc_device *mc_dev)
 		if (ret < 0)
 			dev_err(dev, "dprc_close(atomic-io) fails %d\n", ret);
 	} else {
-		vfio_fsl_mc_free_irqs(vdev);
+		if (mc_dev->obj_desc.irq_count)
+			vfio_fsl_mc_free_irqs(vdev);
+
 		mc_dev->mc_io = NULL;
 	}
 
