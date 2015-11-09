@@ -96,22 +96,44 @@ static inline void dpaa2_fd_set_addr(struct dpaa_fd *fd, dma_addr_t addr)
 	fd->simple.addr_lo = lower_32_bits(addr);
 }
 
+/**
+ * dpaa2_fd_get_frc() - Get the frame context in the frame descriptor
+ * @fd: the given frame descriptor.
+ *
+ * Return the frame context field in the frame descriptor.
+ */
 static inline u32 dpaa2_fd_get_frc(const struct dpaa_fd *fd)
 {
 	return fd->simple.frc;
 }
 
+/**
+ * dpaa2_fd_set_frc() - Set the frame context in the frame descriptor
+ * @fd: the given frame descriptor.
+ * @frc: the frame context needs to be set in frame descriptor.
+ */
 static inline void dpaa2_fd_set_frc(struct dpaa_fd *fd, u32 frc)
 {
 	fd->simple.frc = frc;
 }
 
+/**
+ * dpaa2_fd_get_flc() - Get the flow context in the frame descriptor
+ * @fd: the given frame descriptor.
+ *
+ * Return the flow context in the frame descriptor.
+ */
 static inline dma_addr_t dpaa2_fd_get_flc(const struct dpaa_fd *fd)
 {
 	return (dma_addr_t)((((uint64_t)fd->simple.flc_hi) << 32) +
 			    fd->simple.flc_lo);
 }
 
+/**
+ * dpaa2_fd_set_flc() - Set the flow context field of frame descriptor
+ * @fd: the given frame descriptor.
+ * @flc_addr: the flow context needs to be set in frame descriptor.
+ */
 static inline void dpaa2_fd_set_flc(struct dpaa_fd *fd,  dma_addr_t flc_addr)
 {
 	fd->simple.flc_hi = upper_32_bits(flc_addr);
@@ -396,7 +418,9 @@ static inline void dpaa2_sg_le_to_cpu(struct dpaa_sg_entry *sg)
 #endif /* __BIG_ENDIAN */
 
 
-/*
+/**
+ * struct dpaa_fl_entry - structure for frame list entry.
+ *
  * Frame List Entry (FLE)
  * Identical to dpaa_fd.simple layout, but some bits are different
  */
@@ -417,22 +441,36 @@ enum dpaa_fl_format {
 	dpaa_fl_sg
 };
 
+/**
+ * dpaa2_fl_get_addr()
+ * dpaa2_fl_set_addr() - Get/Set the address in the frame list entry
+ * @fle: the given frame list entry.
+ * @addr: the address needs to be set.
+ *
+ * Return address for the get function.
+ */
 static inline dma_addr_t dpaa2_fl_get_addr(const struct dpaa_fl_entry *fle)
 {
 	return (dma_addr_t)((((uint64_t)fle->addr_hi) << 32) + fle->addr_lo);
 }
-
 static inline void dpaa2_fl_set_addr(struct dpaa_fl_entry *fle, dma_addr_t addr)
 {
 	fle->addr_hi = upper_32_bits(addr);
 	fle->addr_lo = lower_32_bits(addr);
 }
 
+/**
+ * dpaa2_fl_get_flc()
+ * dpaa2_fl_set_flc() - Get/Set the flow context in the frame list entry
+ * @fle: the given frame list entry.
+ * @flc_addr: the flow context address needs to be set.
+ *
+ * Return flow context for the get function.
+ */
 static inline dma_addr_t dpaa2_fl_get_flc(const struct dpaa_fl_entry *fle)
 {
 	return (dma_addr_t)((((uint64_t)fle->flc_hi) << 32) + fle->flc_lo);
 }
-
 static inline void dpaa2_fl_set_flc(struct dpaa_fl_entry *fle,
 				    dma_addr_t flc_addr)
 {
@@ -440,16 +478,31 @@ static inline void dpaa2_fl_set_flc(struct dpaa_fl_entry *fle,
 	fle->flc_lo = lower_32_bits(flc_addr);
 }
 
+/**
+ * dpaa2_fl_get_len()
+ * dpaa2_fl_set_len() - Get/Set the length in the frame list entry
+ * @fle: the given frame list entry.
+ * @len: the length needs to be set.
+ *
+ * Return length for the get function.
+ */
 static inline u32 dpaa2_fl_get_len(const struct dpaa_fl_entry *fle)
 {
 	return fle->len;
 }
-
 static inline void dpaa2_fl_set_len(struct dpaa_fl_entry *fle, u32 len)
 {
 	fle->len = len;
 }
 
+/**
+ * dpaa2_fl_get_offset()
+ * dpaa2_fl_set_offset() - Get/Set the offset in the frame list entry
+ * @fle: the given frame list entry.
+ * @offset: the offset needs to be set.
+ *
+ * Return offset for the get function.
+ */
 static inline uint16_t dpaa2_fl_get_offset(const struct dpaa_fl_entry *fle)
 {
 	return (uint16_t)(fle->bpid_offset >> 16) & 0x0FFF;
@@ -462,12 +515,19 @@ static inline void dpaa2_fl_set_offset(struct dpaa_fl_entry *fle,
 	fle->bpid_offset |= (u32)(offset & 0x0FFF) << 16;
 }
 
+/**
+ * dpaa2_fl_get_format()
+ * dpaa2_fl_set_format() - Get/Set the format in the frame list entry
+ * @fle: the given frame list entry.
+ * @format: the frame list format needs to be set.
+ *
+ * Return frame list format for the get function.
+ */
 static inline enum dpaa_fl_format dpaa2_fl_get_format(
 	const struct dpaa_fl_entry *fle)
 {
 	return (enum dpaa_fl_format)((fle->bpid_offset >> 28) & 0x3);
 }
-
 static inline void dpaa2_fl_set_format(struct dpaa_fl_entry *fle,
 				       enum dpaa_fl_format format)
 {
@@ -475,22 +535,40 @@ static inline void dpaa2_fl_set_format(struct dpaa_fl_entry *fle,
 	fle->bpid_offset |= (u32)(format & 0x3) << 28;
 }
 
+/**
+ * dpaa2_fl_get_bpid()
+ * dpaa2_fl_set_bpid() - Get/Set the buffer pool id in the frame list entry
+ * @fle: the given frame list entry.
+ * @bpid: the buffer pool id needs to be set.
+ *
+ * Return bpid for the get function.
+ */
 static inline uint16_t dpaa2_fl_get_bpid(const struct dpaa_fl_entry *fle)
 {
 	return (uint16_t)(fle->bpid_offset & 0x3FFF);
 }
-
 static inline void dpaa2_fl_set_bpid(struct dpaa_fl_entry *fle, uint16_t bpid)
 {
 	fle->bpid_offset &= 0xFFFFC000;
 	fle->bpid_offset |= (u32)bpid;
 }
 
+/** dpaa_fl_is_final() - check the final bit is set or not in the frame list.
+ * @fle: the given frame list entry.
+ *
+ * Return final bit settting.
+ */
 static inline bool dpaa2_fl_is_final(const struct dpaa_fl_entry *fle)
 {
 	return !!(fle->bpid_offset >> 31);
 }
 
+/**
+ * dpaa2_fl_set_final() - Set the final bit in the frame list entry
+ * @fle: the given frame list entry.
+ * @final: the final bit needs to be set.
+ *
+ */
 static inline void dpaa2_fl_set_final(struct dpaa_fl_entry *fle, bool final)
 {
 	fle->bpid_offset &= 0x7FFFFFFF;
