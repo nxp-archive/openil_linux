@@ -117,7 +117,7 @@ static int dpaa2_dbg_fqs_show(struct seq_file *file, void *offset)
 
 	for (i = 0; i <  priv->num_fqs; i++) {
 		fq = &priv->fq[i];
-		err = dpaa_io_query_fq_count(NULL, fq->fqid, &fcnt, &bcnt);
+		err = dpaa2_io_query_fq_count(NULL, fq->fqid, &fcnt, &bcnt);
 		if (unlikely(err))
 			fcnt = 0;
 
