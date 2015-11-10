@@ -45,7 +45,9 @@
 #define DPAA2_CAAM_MAX_QUEUE_PAIRS	NR_CPUS
 #define DPAA2_CAAM_MAX_QUEUES		(2 * DPAA2_CAAM_MAX_QUEUE_PAIRS)
 
-#define DPAA2_CAAM_NAPI_WEIGHT	63
+#define DPAA2_CAAM_STORE_SIZE	16
+/* NAPI weight *must* be a multiple of the store size. */
+#define DPAA2_CAAM_NAPI_WEIGHT	64
 
 /**
  * dpaa2_caam_priv - driver private data
@@ -80,7 +82,6 @@ struct dpaa2_caam_priv {
  * @prio: internal queue number - index for dpaa2_caam_priv.*_queue_attr
  * @nctx: notification context of response FQ
  * @store: where dequeued frames are stored
- * @has_frames: indication that response FQ has frames to be dequeued
  * @priv: backpointer to dpaa2_caam_priv
  */
 struct dpaa2_caam_priv_per_cpu {
@@ -91,7 +92,6 @@ struct dpaa2_caam_priv_per_cpu {
 	int prio;
 	struct dpaa2_io_notification_ctx nctx;
 	struct dpaa2_io_store *store;
-	bool has_frames;
 	struct dpaa2_caam_priv *priv;
 };
 
