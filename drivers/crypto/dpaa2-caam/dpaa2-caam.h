@@ -145,7 +145,7 @@ struct aead_edesc {
 	dma_addr_t iv_dma;
 	int qm_sg_bytes;
 	dma_addr_t qm_sg_dma;
-	struct dpaa_sg_entry qm_sg[0];
+	struct dpaa2_sg_entry qm_sg[0];
 };
 
 /*
@@ -167,7 +167,7 @@ struct ablkcipher_edesc {
 	dma_addr_t iv_dma;
 	int qm_sg_bytes;
 	dma_addr_t qm_sg_dma;
-	struct dpaa_sg_entry qm_sg[0];
+	struct dpaa2_sg_entry qm_sg[0];
 };
 
 /*
@@ -185,7 +185,7 @@ struct ahash_edesc {
 	int src_nents;
 	int qm_sg_bytes;
 	dma_addr_t qm_sg_dma;
-	struct dpaa_sg_entry qm_sg[0];
+	struct dpaa2_sg_entry qm_sg[0];
 };
 
 /**
@@ -212,7 +212,7 @@ struct caam_flc {
  * @edesc: extended descriptor; points to one of {ablkcipher,ahash,aead}_edesc
  */
 struct caam_request {
-	struct dpaa_fl_entry fd_flt[2];
+	struct dpaa2_fl_entry fd_flt[2];
 	dma_addr_t fd_flt_dma;
 	struct caam_flc *flc;
 	dma_addr_t flc_dma;

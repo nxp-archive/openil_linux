@@ -621,7 +621,7 @@ int gen_split_key(struct device *dev, u8 *key_out, int split_key_len,
 	struct split_key_result result;
 	dma_addr_t dma_addr_in, dma_addr_out, flc_dma;
 	struct caam_flc *flc;
-	struct dpaa_fl_entry *in_fle, *out_fle;
+	struct dpaa2_fl_entry *in_fle, *out_fle;
 	int ret = -ENOMEM;
 
 	req_ctx = kzalloc(sizeof(*req_ctx), GFP_KERNEL | GFP_DMA);
@@ -679,10 +679,10 @@ int gen_split_key(struct device *dev, u8 *key_out, int split_key_len,
 	}
 
 	dpaa2_fl_set_final(in_fle, true);
-	dpaa2_fl_set_format(in_fle, dpaa_fl_single);
+	dpaa2_fl_set_format(in_fle, dpaa2_fl_single);
 	dpaa2_fl_set_addr(in_fle, dma_addr_in);
 	dpaa2_fl_set_len(in_fle, keylen);
-	dpaa2_fl_set_format(out_fle, dpaa_fl_single);
+	dpaa2_fl_set_format(out_fle, dpaa2_fl_single);
 	dpaa2_fl_set_addr(out_fle, dma_addr_out);
 	dpaa2_fl_set_len(out_fle, split_key_pad_len);
 
@@ -804,8 +804,8 @@ static struct aead_edesc *aead_edesc_alloc(struct aead_request *req,
 {
 	struct crypto_aead *aead = crypto_aead_reqtfm(req);
 	struct caam_request *req_ctx = aead_request_ctx(req);
-	struct dpaa_fl_entry *in_fle = &req_ctx->fd_flt[1];
-	struct dpaa_fl_entry *out_fle = &req_ctx->fd_flt[0];
+	struct dpaa2_fl_entry *in_fle = &req_ctx->fd_flt[1];
+	struct dpaa2_fl_entry *out_fle = &req_ctx->fd_flt[0];
 	struct caam_ctx *ctx = crypto_aead_ctx(aead);
 	struct device *dev = ctx->priv->dev;
 	gfp_t flags = (req->base.flags & (CRYPTO_TFM_REQ_MAY_BACKLOG |
@@ -819,7 +819,7 @@ static struct aead_edesc *aead_edesc_alloc(struct aead_request *req,
 	int ivsize = crypto_aead_ivsize(aead);
 	int qm_sg_index = 0, qm_sg_nents = 0, qm_sg_bytes;
 	unsigned int authsize = ctx->authsize;
-	struct dpaa_sg_entry *sg_table;
+	struct dpaa2_sg_entry *sg_table;
 	bool is_gcm = false;
 
 	assoc_nents = sg_count(req->assoc, req->assoclen, &assoc_chained);
@@ -881,7 +881,7 @@ static struct aead_edesc *aead_edesc_alloc(struct aead_request *req,
 	}
 
 	qm_sg_nents += dst_nents;
-	qm_sg_bytes = qm_sg_nents * sizeof(struct dpaa_sg_entry);
+	qm_sg_bytes = qm_sg_nents * sizeof(struct dpaa2_sg_entry);
 
 	/* allocate space for base edesc and link tables */
 	edesc = qi_cache_alloc(GFP_DMA | flags);
@@ -910,7 +910,7 @@ static struct aead_edesc *aead_edesc_alloc(struct aead_request *req,
 	dpaa2_fl_set_final(in_fle, true);
 
 	if (!all_contig) {
-		dpaa2_fl_set_format(in_fle, dpaa_fl_sg);
+		dpaa2_fl_set_format(in_fle, dpaa2_fl_sg);
 		dpaa2_fl_set_addr(in_fle, edesc->qm_sg_dma);
 
 		if (!is_gcm) {
@@ -931,7 +931,7 @@ static struct aead_edesc *aead_edesc_alloc(struct aead_request *req,
 				 0);
 		qm_sg_index += src_nents;
 	} else {
-		dpaa2_fl_set_format(in_fle, dpaa_fl_single);
+		dpaa2_fl_set_format(in_fle, dpaa2_fl_single);
 		if (is_gcm)
 			dpaa2_fl_set_addr(in_fle, iv_dma);
 		else
@@ -944,21 +944,21 @@ static struct aead_edesc *aead_edesc_alloc(struct aead_request *req,
 
 	if (req->src == req->dst) {
 		if (src_nents <= 1) {
-			dpaa2_fl_set_format(out_fle, dpaa_fl_single);
+			dpaa2_fl_set_format(out_fle, dpaa2_fl_single);
 			dpaa2_fl_set_addr(out_fle, sg_dma_address(req->src));
 		} else {
-			dpaa2_fl_set_format(out_fle, dpaa_fl_sg);
+			dpaa2_fl_set_format(out_fle, dpaa2_fl_sg);
 			dpaa2_fl_set_addr(out_fle, edesc->qm_sg_dma +
 					  ((edesc->assoc_nents ? : 1) + 1) *
-					  sizeof(struct dpaa_sg_entry));
+					  sizeof(struct dpaa2_sg_entry));
 		}
 	} else if (!dst_nents) {
-		dpaa2_fl_set_format(out_fle, dpaa_fl_single);
+		dpaa2_fl_set_format(out_fle, dpaa2_fl_single);
 		dpaa2_fl_set_addr(out_fle, sg_dma_address(req->dst));
 	} else {
-		dpaa2_fl_set_format(out_fle, dpaa_fl_sg);
+		dpaa2_fl_set_format(out_fle, dpaa2_fl_sg);
 		dpaa2_fl_set_addr(out_fle, edesc->qm_sg_dma + qm_sg_index *
-				  sizeof(struct dpaa_sg_entry));
+				  sizeof(struct dpaa2_sg_entry));
 	}
 
 	dma_sync_single_for_device(dev, edesc->qm_sg_dma, qm_sg_bytes,
@@ -977,8 +977,8 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 {
 	struct aead_request *req = &areq->areq;
 	struct caam_request *req_ctx = aead_request_ctx(req);
-	struct dpaa_fl_entry *in_fle = &req_ctx->fd_flt[1];
-	struct dpaa_fl_entry *out_fle = &req_ctx->fd_flt[0];
+	struct dpaa2_fl_entry *in_fle = &req_ctx->fd_flt[1];
+	struct dpaa2_fl_entry *out_fle = &req_ctx->fd_flt[0];
 	struct crypto_aead *aead = crypto_aead_reqtfm(req);
 	struct caam_ctx *ctx = crypto_aead_ctx(aead);
 	struct device *dev = ctx->priv->dev;
@@ -992,7 +992,7 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 	int ivsize = crypto_aead_ivsize(aead);
 	bool assoc_chained = false, src_chained = false, dst_chained = false;
 	int qm_sg_index = 0, qm_sg_nents = 0, qm_sg_bytes;
-	struct dpaa_sg_entry *sg_table;
+	struct dpaa2_sg_entry *sg_table;
 	bool is_gcm = false;
 
 	assoc_nents = sg_count(req->assoc, req->assoclen, &assoc_chained);
@@ -1068,7 +1068,7 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 		qm_sg_nents += 1 + dst_nents;
 	}
 
-	qm_sg_bytes = qm_sg_nents * sizeof(struct dpaa_sg_entry);
+	qm_sg_bytes = qm_sg_nents * sizeof(struct dpaa2_sg_entry);
 
 	/* allocate space for base edesc and link tables */
 	edesc = qi_cache_alloc(GFP_DMA | flags);
@@ -1097,7 +1097,7 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 	dpaa2_fl_set_final(in_fle, true);
 
 	if (!(contig & GIV_SRC_CONTIG)) {
-		dpaa2_fl_set_format(in_fle, dpaa_fl_sg);
+		dpaa2_fl_set_format(in_fle, dpaa2_fl_sg);
 		dpaa2_fl_set_addr(in_fle, edesc->qm_sg_dma);
 
 		if (!is_gcm) {
@@ -1119,7 +1119,7 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 				 0);
 		qm_sg_index += src_nents;
 	} else {
-		dpaa2_fl_set_format(in_fle, dpaa_fl_single);
+		dpaa2_fl_set_format(in_fle, dpaa2_fl_single);
 		if (is_gcm)
 			dpaa2_fl_set_addr(in_fle, iv_dma);
 		else
@@ -1127,12 +1127,12 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 	}
 
 	if (!(contig & GIV_DST_CONTIG)) {
-		dpaa2_fl_set_format(out_fle, dpaa_fl_sg);
+		dpaa2_fl_set_format(out_fle, dpaa2_fl_sg);
 		if (req->src == req->dst) {
 			dpaa2_fl_set_addr(out_fle, edesc->qm_sg_dma +
 					  (edesc->assoc_nents + (is_gcm ? 1 +
 					   edesc->src_nents : 0)) *
-					   sizeof(struct dpaa_sg_entry));
+					   sizeof(struct dpaa2_sg_entry));
 			if (is_gcm) {
 				dma_to_qm_sg_one(sg_table + qm_sg_index, iv_dma,
 						 ivsize, 0);
@@ -1143,7 +1143,7 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 		} else {
 			dpaa2_fl_set_addr(out_fle, edesc->qm_sg_dma +
 					  qm_sg_index *
-					  sizeof(struct dpaa_sg_entry));
+					  sizeof(struct dpaa2_sg_entry));
 			dma_to_qm_sg_one(sg_table + qm_sg_index, iv_dma, ivsize,
 					 0);
 			qm_sg_index += 1;
@@ -1151,7 +1151,7 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 					 qm_sg_index, 0);
 		}
 	} else {
-		dpaa2_fl_set_format(out_fle, dpaa_fl_single);
+		dpaa2_fl_set_format(out_fle, dpaa2_fl_single);
 		dpaa2_fl_set_addr(out_fle, iv_dma);
 	}
 
@@ -1691,8 +1691,8 @@ static struct ablkcipher_edesc *ablkcipher_edesc_alloc(struct ablkcipher_request
 {
 	struct crypto_ablkcipher *ablkcipher = crypto_ablkcipher_reqtfm(req);
 	struct caam_request *req_ctx = ablkcipher_request_ctx(req);
-	struct dpaa_fl_entry *in_fle = &req_ctx->fd_flt[1];
-	struct dpaa_fl_entry *out_fle = &req_ctx->fd_flt[0];
+	struct dpaa2_fl_entry *in_fle = &req_ctx->fd_flt[1];
+	struct dpaa2_fl_entry *out_fle = &req_ctx->fd_flt[0];
 	struct caam_ctx *ctx = crypto_ablkcipher_ctx(ablkcipher);
 	struct device *dev = ctx->priv->dev;
 	gfp_t flags = (req->base.flags & (CRYPTO_TFM_REQ_MAY_BACKLOG |
@@ -1705,7 +1705,7 @@ static struct ablkcipher_edesc *ablkcipher_edesc_alloc(struct ablkcipher_request
 	int sgc;
 	int ivsize = crypto_ablkcipher_ivsize(ablkcipher);
 	bool src_chained = false, dst_chained = false;
-	struct dpaa_sg_entry *sg_table;
+	struct dpaa2_sg_entry *sg_table;
 	int qm_sg_index = 0;
 
 	src_nents = sg_count(req->src, req->nbytes, &src_chained);
@@ -1738,7 +1738,7 @@ static struct ablkcipher_edesc *ablkcipher_edesc_alloc(struct ablkcipher_request
 	else
 		src_nents = src_nents ? : 1;
 	qm_sg_bytes = ((iv_contig ? 0 : 1) + src_nents + dst_nents) *
-		      sizeof(struct dpaa_sg_entry);
+		      sizeof(struct dpaa2_sg_entry);
 
 	/* allocate space for base edesc and link tables */
 	edesc = qi_cache_alloc(GFP_DMA | flags);
@@ -1765,34 +1765,34 @@ static struct ablkcipher_edesc *ablkcipher_edesc_alloc(struct ablkcipher_request
 	dpaa2_fl_set_final(in_fle, true);
 
 	if (!iv_contig) {
-		dpaa2_fl_set_format(in_fle, dpaa_fl_sg);
+		dpaa2_fl_set_format(in_fle, dpaa2_fl_sg);
 		dpaa2_fl_set_addr(in_fle, edesc->qm_sg_dma);
 
 		dma_to_qm_sg_one(sg_table, iv_dma, ivsize, 0);
 		sg_to_qm_sg_last(req->src, src_nents, sg_table + 1, 0);
 		qm_sg_index = 1 + src_nents;
 	} else {
-		dpaa2_fl_set_format(in_fle, dpaa_fl_single);
+		dpaa2_fl_set_format(in_fle, dpaa2_fl_single);
 		dpaa2_fl_set_addr(in_fle, iv_dma);
 	}
 
 	if (req->src == req->dst) {
 		if (!iv_contig) {
-			dpaa2_fl_set_format(out_fle, dpaa_fl_sg);
+			dpaa2_fl_set_format(out_fle, dpaa2_fl_sg);
 			dpaa2_fl_set_addr(out_fle, edesc->qm_sg_dma +
-					  sizeof(struct dpaa_sg_entry));
+					  sizeof(struct dpaa2_sg_entry));
 		} else {
-			dpaa2_fl_set_format(out_fle, dpaa_fl_single);
+			dpaa2_fl_set_format(out_fle, dpaa2_fl_single);
 			dpaa2_fl_set_addr(out_fle, sg_dma_address(req->src));
 		}
 	} else if (dst_nents) {
-		dpaa2_fl_set_format(out_fle, dpaa_fl_sg);
+		dpaa2_fl_set_format(out_fle, dpaa2_fl_sg);
 		dpaa2_fl_set_addr(out_fle, edesc->qm_sg_dma + qm_sg_index *
-				  sizeof(struct dpaa_sg_entry));
+				  sizeof(struct dpaa2_sg_entry));
 		sg_to_qm_sg_last(req->dst, dst_nents, sg_table + qm_sg_index,
 				 0);
 	} else {
-		dpaa2_fl_set_format(out_fle, dpaa_fl_single);
+		dpaa2_fl_set_format(out_fle, dpaa2_fl_single);
 		dpaa2_fl_set_addr(out_fle, sg_dma_address(req->dst));
 	}
 
@@ -1813,8 +1813,8 @@ static struct ablkcipher_edesc *ablkcipher_giv_edesc_alloc(
 	struct ablkcipher_request *req = &greq->creq;
 	struct crypto_ablkcipher *ablkcipher = crypto_ablkcipher_reqtfm(req);
 	struct caam_request *req_ctx = ablkcipher_request_ctx(req);
-	struct dpaa_fl_entry *in_fle = &req_ctx->fd_flt[1];
-	struct dpaa_fl_entry *out_fle = &req_ctx->fd_flt[0];
+	struct dpaa2_fl_entry *in_fle = &req_ctx->fd_flt[1];
+	struct dpaa2_fl_entry *out_fle = &req_ctx->fd_flt[0];
 	struct caam_ctx *ctx = crypto_ablkcipher_ctx(ablkcipher);
 	struct device *dev = ctx->priv->dev;
 	gfp_t flags = (req->base.flags & (CRYPTO_TFM_REQ_MAY_BACKLOG |
@@ -1827,7 +1827,7 @@ static struct ablkcipher_edesc *ablkcipher_giv_edesc_alloc(
 	int sgc;
 	int ivsize = crypto_ablkcipher_ivsize(ablkcipher);
 	bool src_chained = false, dst_chained = false;
-	struct dpaa_sg_entry *sg_table;
+	struct dpaa2_sg_entry *sg_table;
 	int qm_sg_index = 0;
 
 	src_nents = sg_count(req->src, req->nbytes, &src_chained);
@@ -1860,7 +1860,7 @@ static struct ablkcipher_edesc *ablkcipher_giv_edesc_alloc(
 	else
 		dst_nents = dst_nents ? : 1;
 	qm_sg_bytes = ((iv_contig ? 0 : 1) + src_nents + dst_nents) *
-		      sizeof(struct dpaa_sg_entry);
+		      sizeof(struct dpaa2_sg_entry);
 
 	/* allocate space for base edesc and link tables */
 	edesc = qi_cache_alloc(GFP_DMA | flags);
@@ -1887,17 +1887,17 @@ static struct ablkcipher_edesc *ablkcipher_giv_edesc_alloc(
 	dpaa2_fl_set_final(in_fle, true);
 
 	if (src_nents) {
-		dpaa2_fl_set_format(in_fle, dpaa_fl_sg);
+		dpaa2_fl_set_format(in_fle, dpaa2_fl_sg);
 		dpaa2_fl_set_addr(in_fle, edesc->qm_sg_dma);
 		sg_to_qm_sg_last(req->src, src_nents, sg_table, 0);
 		qm_sg_index = src_nents;
 	} else {
-		dpaa2_fl_set_format(in_fle, dpaa_fl_single);
+		dpaa2_fl_set_format(in_fle, dpaa2_fl_single);
 		dpaa2_fl_set_addr(in_fle, sg_dma_address(req->src));
 	}
 
 	if (!iv_contig) {
-		dpaa2_fl_set_format(out_fle, dpaa_fl_sg);
+		dpaa2_fl_set_format(out_fle, dpaa2_fl_sg);
 		dpaa2_fl_set_addr(out_fle, edesc->qm_sg_dma);
 
 		dma_to_qm_sg_one(sg_table + qm_sg_index, iv_dma, ivsize, 0);
@@ -1905,7 +1905,7 @@ static struct ablkcipher_edesc *ablkcipher_giv_edesc_alloc(
 		sg_to_qm_sg_last(req->dst, dst_nents, sg_table + qm_sg_index,
 				 0);
 	} else {
-		dpaa2_fl_set_format(out_fle, dpaa_fl_single);
+		dpaa2_fl_set_format(out_fle, dpaa2_fl_single);
 		dpaa2_fl_set_addr(out_fle, sg_dma_address(req->dst));
 	}
 
@@ -3085,7 +3085,7 @@ struct caam_hash_template {
 
 /* Map current buffer in state and put it in link table */
 static inline dma_addr_t buf_map_to_qm_sg(struct device *dev,
-					  struct dpaa_sg_entry *qm_sg, u8 *buf,
+					  struct dpaa2_sg_entry *qm_sg, u8 *buf,
 					  int buflen)
 {
 	dma_addr_t buf_dma;
@@ -3098,7 +3098,7 @@ static inline dma_addr_t buf_map_to_qm_sg(struct device *dev,
 
 /* Map req->src and put it in link table */
 static inline void src_map_to_qm_sg(struct device *dev, struct scatterlist *src,
-				    int src_nents, struct dpaa_sg_entry *qm_sg,
+				    int src_nents, struct dpaa2_sg_entry *qm_sg,
 				    bool chained)
 {
 	dma_map_sg_chained(dev, src, src_nents, DMA_TO_DEVICE, chained);
@@ -3110,7 +3110,7 @@ static inline void src_map_to_qm_sg(struct device *dev, struct scatterlist *src,
  * since a buffer has previously been used, and needs to be unmapped,
  */
 static inline dma_addr_t
-try_buf_map_to_qm_sg(struct device *dev, struct dpaa_sg_entry *qm_sg, u8 *buf,
+try_buf_map_to_qm_sg(struct device *dev, struct dpaa2_sg_entry *qm_sg, u8 *buf,
 		     dma_addr_t buf_dma, int buflen, int last_buflen)
 {
 	if (buf_dma && !dma_mapping_error(dev, buf_dma))
@@ -3221,7 +3221,7 @@ static int hash_digest_key(struct caam_hash_ctx *ctx, const u8 *key_in,
 	dma_addr_t src_dma, dst_dma, flc_dma;
 	struct caam_flc *flc;
 	int ret = -ENOMEM;
-	struct dpaa_fl_entry *in_fle, *out_fle;
+	struct dpaa2_fl_entry *in_fle, *out_fle;
 
 	req_ctx = kzalloc(sizeof(*req_ctx), GFP_KERNEL | GFP_DMA);
 	if (!req_ctx)
@@ -3266,10 +3266,10 @@ static int hash_digest_key(struct caam_hash_ctx *ctx, const u8 *key_in,
 	}
 
 	dpaa2_fl_set_final(in_fle, true);
-	dpaa2_fl_set_format(in_fle, dpaa_fl_single);
+	dpaa2_fl_set_format(in_fle, dpaa2_fl_single);
 	dpaa2_fl_set_addr(in_fle, src_dma);
 	dpaa2_fl_set_len(in_fle, *keylen);
-	dpaa2_fl_set_format(out_fle, dpaa_fl_single);
+	dpaa2_fl_set_format(out_fle, dpaa2_fl_single);
 	dpaa2_fl_set_addr(out_fle, dst_dma);
 	dpaa2_fl_set_len(out_fle, digestsize);
 
@@ -3685,8 +3685,8 @@ static int ahash_update_ctx(struct ahash_request *req)
 	struct caam_hash_state *state = ahash_request_ctx(req);
 	struct caam_request *req_ctx = &state->caam_req;
 	struct device *dev = ctx->priv->dev;
-	struct dpaa_fl_entry *in_fle = &req_ctx->fd_flt[1];
-	struct dpaa_fl_entry *out_fle = &req_ctx->fd_flt[0];
+	struct dpaa2_fl_entry *in_fle = &req_ctx->fd_flt[1];
+	struct dpaa2_fl_entry *out_fle = &req_ctx->fd_flt[0];
 	gfp_t flags = (req->base.flags & (CRYPTO_TFM_REQ_MAY_BACKLOG |
 		       CRYPTO_TFM_REQ_MAY_SLEEP)) ? GFP_KERNEL : GFP_ATOMIC;
 	u8 *buf = state->current_buf ? state->buf_1 : state->buf_0;
@@ -3697,7 +3697,7 @@ static int ahash_update_ctx(struct ahash_request *req)
 	int in_len = *buflen + req->nbytes, to_hash;
 	int src_nents, qm_sg_bytes, qm_sg_src_index;
 	struct ahash_edesc *edesc;
-	struct dpaa_sg_entry *sg_table;
+	struct dpaa2_sg_entry *sg_table;
 	bool chained = false;
 	int ret = 0;
 
@@ -3710,7 +3710,7 @@ static int ahash_update_ctx(struct ahash_request *req)
 				       &chained);
 		qm_sg_src_index = 1 + (*buflen ? 1 : 0);
 		qm_sg_bytes = (qm_sg_src_index + src_nents) *
-				 sizeof(struct dpaa_sg_entry);
+				 sizeof(struct dpaa2_sg_entry);
 
 		/* allocate space for base edesc and link tables */
 		edesc = qi_cache_zalloc(GFP_DMA | flags);
@@ -3761,9 +3761,9 @@ static int ahash_update_ctx(struct ahash_request *req)
 		memset(&req_ctx->fd_flt, 0, sizeof(req_ctx->fd_flt));
 		dpaa2_fl_set_final(in_fle, true);
 
-		dpaa2_fl_set_format(in_fle, dpaa_fl_sg);
+		dpaa2_fl_set_format(in_fle, dpaa2_fl_sg);
 		dpaa2_fl_set_addr(in_fle, edesc->qm_sg_dma);
-		dpaa2_fl_set_format(out_fle, dpaa_fl_single);
+		dpaa2_fl_set_format(out_fle, dpaa2_fl_single);
 		dpaa2_fl_set_addr(out_fle, state->ctx_dma);
 
 		dpaa2_fl_set_len(out_fle, ctx->ctx_len);
@@ -3805,8 +3805,8 @@ static int ahash_final_ctx(struct ahash_request *req)
 	struct caam_hash_state *state = ahash_request_ctx(req);
 	struct caam_request *req_ctx = &state->caam_req;
 	struct device *dev = ctx->priv->dev;
-	struct dpaa_fl_entry *in_fle = &req_ctx->fd_flt[1];
-	struct dpaa_fl_entry *out_fle = &req_ctx->fd_flt[0];
+	struct dpaa2_fl_entry *in_fle = &req_ctx->fd_flt[1];
+	struct dpaa2_fl_entry *out_fle = &req_ctx->fd_flt[0];
 	gfp_t flags = (req->base.flags & (CRYPTO_TFM_REQ_MAY_BACKLOG |
 		       CRYPTO_TFM_REQ_MAY_SLEEP)) ? GFP_KERNEL : GFP_ATOMIC;
 	u8 *buf = state->current_buf ? state->buf_1 : state->buf_0;
@@ -3816,11 +3816,11 @@ static int ahash_final_ctx(struct ahash_request *req)
 	int qm_sg_bytes, qm_sg_src_index;
 	int digestsize = crypto_ahash_digestsize(ahash);
 	struct ahash_edesc *edesc;
-	struct dpaa_sg_entry *sg_table;
+	struct dpaa2_sg_entry *sg_table;
 	int ret = 0;
 
 	qm_sg_src_index = 1 + (buflen ? 1 : 0);
-	qm_sg_bytes = qm_sg_src_index * sizeof(struct dpaa_sg_entry);
+	qm_sg_bytes = qm_sg_src_index * sizeof(struct dpaa2_sg_entry);
 
 	/* allocate space for base edesc and link tables */
 	edesc = qi_cache_zalloc(GFP_DMA | flags);
@@ -3861,10 +3861,10 @@ static int ahash_final_ctx(struct ahash_request *req)
 
 	memset(&req_ctx->fd_flt, 0, sizeof(req_ctx->fd_flt));
 	dpaa2_fl_set_final(in_fle, true);
-	dpaa2_fl_set_format(in_fle, dpaa_fl_sg);
+	dpaa2_fl_set_format(in_fle, dpaa2_fl_sg);
 	dpaa2_fl_set_addr(in_fle, edesc->qm_sg_dma);
 	dpaa2_fl_set_len(in_fle, ctx->ctx_len + buflen);
-	dpaa2_fl_set_format(out_fle, dpaa_fl_single);
+	dpaa2_fl_set_format(out_fle, dpaa2_fl_single);
 	dpaa2_fl_set_addr(out_fle, edesc->dst_dma);
 	dpaa2_fl_set_len(out_fle, digestsize);
 
@@ -3890,8 +3890,8 @@ static int ahash_finup_ctx(struct ahash_request *req)
 	struct caam_hash_state *state = ahash_request_ctx(req);
 	struct caam_request *req_ctx = &state->caam_req;
 	struct device *dev = ctx->priv->dev;
-	struct dpaa_fl_entry *in_fle = &req_ctx->fd_flt[1];
-	struct dpaa_fl_entry *out_fle = &req_ctx->fd_flt[0];
+	struct dpaa2_fl_entry *in_fle = &req_ctx->fd_flt[1];
+	struct dpaa2_fl_entry *out_fle = &req_ctx->fd_flt[0];
 	gfp_t flags = (req->base.flags & (CRYPTO_TFM_REQ_MAY_BACKLOG |
 		       CRYPTO_TFM_REQ_MAY_SLEEP)) ? GFP_KERNEL : GFP_ATOMIC;
 	u8 *buf = state->current_buf ? state->buf_1 : state->buf_0;
@@ -3902,14 +3902,14 @@ static int ahash_finup_ctx(struct ahash_request *req)
 	int src_nents;
 	int digestsize = crypto_ahash_digestsize(ahash);
 	struct ahash_edesc *edesc;
-	struct dpaa_sg_entry *sg_table;
+	struct dpaa2_sg_entry *sg_table;
 	bool chained = false;
 	int ret = 0;
 
 	src_nents = __sg_count(req->src, req->nbytes, &chained);
 	qm_sg_src_index = 1 + (buflen ? 1 : 0);
 	qm_sg_bytes = (qm_sg_src_index + src_nents) *
-		      sizeof(struct dpaa_sg_entry);
+		      sizeof(struct dpaa2_sg_entry);
 
 	/* allocate space for base edesc and link tables */
 	edesc = qi_cache_zalloc(GFP_DMA | flags);
@@ -3955,9 +3955,9 @@ static int ahash_finup_ctx(struct ahash_request *req)
 
 	memset(&req_ctx->fd_flt, 0, sizeof(req_ctx->fd_flt));
 	dpaa2_fl_set_final(in_fle, true);
-	dpaa2_fl_set_format(in_fle, dpaa_fl_sg);
+	dpaa2_fl_set_format(in_fle, dpaa2_fl_sg);
 	dpaa2_fl_set_addr(in_fle, edesc->qm_sg_dma);
-	dpaa2_fl_set_format(out_fle, dpaa_fl_single);
+	dpaa2_fl_set_format(out_fle, dpaa2_fl_single);
 	dpaa2_fl_set_addr(out_fle, edesc->dst_dma);
 
 	dpaa2_fl_set_len(out_fle, digestsize);
@@ -3985,21 +3985,21 @@ static int ahash_digest(struct ahash_request *req)
 	struct caam_hash_state *state = ahash_request_ctx(req);
 	struct caam_request *req_ctx = &state->caam_req;
 	struct device *dev = ctx->priv->dev;
-	struct dpaa_fl_entry *in_fle = &req_ctx->fd_flt[1];
-	struct dpaa_fl_entry *out_fle = &req_ctx->fd_flt[0];
+	struct dpaa2_fl_entry *in_fle = &req_ctx->fd_flt[1];
+	struct dpaa2_fl_entry *out_fle = &req_ctx->fd_flt[0];
 	gfp_t flags = (req->base.flags & (CRYPTO_TFM_REQ_MAY_BACKLOG |
 		       CRYPTO_TFM_REQ_MAY_SLEEP)) ? GFP_KERNEL : GFP_ATOMIC;
 	int digestsize = crypto_ahash_digestsize(ahash);
 	int src_nents, qm_sg_bytes;
 	struct ahash_edesc *edesc;
-	struct dpaa_sg_entry *sg_table;
+	struct dpaa2_sg_entry *sg_table;
 	bool chained = false;
 	int ret = 0;
 
 	src_nents = sg_count(req->src, req->nbytes, &chained);
 	dma_map_sg_chained(dev, req->src, src_nents ? : 1, DMA_TO_DEVICE,
 			   chained);
-	qm_sg_bytes = src_nents * sizeof(struct dpaa_sg_entry);
+	qm_sg_bytes = src_nents * sizeof(struct dpaa2_sg_entry);
 
 	/* allocate space for base edesc and link tables */
 	edesc = qi_cache_zalloc(GFP_DMA | flags);
@@ -4023,10 +4023,10 @@ static int ahash_digest(struct ahash_request *req)
 			dev_err(dev, "unable to map S/G table\n");
 			return -ENOMEM;
 		}
-		dpaa2_fl_set_format(in_fle, dpaa_fl_sg);
+		dpaa2_fl_set_format(in_fle, dpaa2_fl_sg);
 		dpaa2_fl_set_addr(in_fle, edesc->qm_sg_dma);
 	} else {
-		dpaa2_fl_set_format(in_fle, dpaa_fl_single);
+		dpaa2_fl_set_format(in_fle, dpaa2_fl_single);
 		dpaa2_fl_set_addr(in_fle, sg_dma_address(req->src));
 	}
 
@@ -4038,7 +4038,7 @@ static int ahash_digest(struct ahash_request *req)
 	}
 
 	dpaa2_fl_set_final(in_fle, true);
-	dpaa2_fl_set_format(out_fle, dpaa_fl_single);
+	dpaa2_fl_set_format(out_fle, dpaa2_fl_single);
 	dpaa2_fl_set_addr(out_fle, edesc->dst_dma);
 
 	dpaa2_fl_set_len(out_fle, digestsize);
@@ -4066,8 +4066,8 @@ static int ahash_final_no_ctx(struct ahash_request *req)
 	struct caam_hash_state *state = ahash_request_ctx(req);
 	struct caam_request *req_ctx = &state->caam_req;
 	struct device *dev = ctx->priv->dev;
-	struct dpaa_fl_entry *in_fle = &req_ctx->fd_flt[1];
-	struct dpaa_fl_entry *out_fle = &req_ctx->fd_flt[0];
+	struct dpaa2_fl_entry *in_fle = &req_ctx->fd_flt[1];
+	struct dpaa2_fl_entry *out_fle = &req_ctx->fd_flt[0];
 	gfp_t flags = (req->base.flags & (CRYPTO_TFM_REQ_MAY_BACKLOG |
 		       CRYPTO_TFM_REQ_MAY_SLEEP)) ? GFP_KERNEL : GFP_ATOMIC;
 	u8 *buf = state->current_buf ? state->buf_1 : state->buf_0;
@@ -4098,10 +4098,10 @@ static int ahash_final_no_ctx(struct ahash_request *req)
 
 	memset(&req_ctx->fd_flt, 0, sizeof(req_ctx->fd_flt));
 	dpaa2_fl_set_final(in_fle, true);
-	dpaa2_fl_set_format(in_fle, dpaa_fl_single);
+	dpaa2_fl_set_format(in_fle, dpaa2_fl_single);
 	dpaa2_fl_set_addr(in_fle, state->buf_dma);
 	dpaa2_fl_set_len(in_fle, buflen);
-	dpaa2_fl_set_format(out_fle, dpaa_fl_single);
+	dpaa2_fl_set_format(out_fle, dpaa2_fl_single);
 	dpaa2_fl_set_addr(out_fle, edesc->dst_dma);
 	dpaa2_fl_set_len(out_fle, digestsize);
 
@@ -4127,8 +4127,8 @@ static int ahash_update_no_ctx(struct ahash_request *req)
 	struct caam_hash_state *state = ahash_request_ctx(req);
 	struct caam_request *req_ctx = &state->caam_req;
 	struct device *dev = ctx->priv->dev;
-	struct dpaa_fl_entry *in_fle = &req_ctx->fd_flt[1];
-	struct dpaa_fl_entry *out_fle = &req_ctx->fd_flt[0];
+	struct dpaa2_fl_entry *in_fle = &req_ctx->fd_flt[1];
+	struct dpaa2_fl_entry *out_fle = &req_ctx->fd_flt[0];
 	gfp_t flags = (req->base.flags & (CRYPTO_TFM_REQ_MAY_BACKLOG |
 		       CRYPTO_TFM_REQ_MAY_SLEEP)) ? GFP_KERNEL : GFP_ATOMIC;
 	u8 *buf = state->current_buf ? state->buf_1 : state->buf_0;
@@ -4139,7 +4139,7 @@ static int ahash_update_no_ctx(struct ahash_request *req)
 	int in_len = *buflen + req->nbytes, to_hash;
 	int qm_sg_bytes, src_nents;
 	struct ahash_edesc *edesc;
-	struct dpaa_sg_entry *sg_table;
+	struct dpaa2_sg_entry *sg_table;
 	bool chained = false;
 	int ret = 0;
 
@@ -4149,7 +4149,7 @@ static int ahash_update_no_ctx(struct ahash_request *req)
 	if (to_hash) {
 		src_nents = __sg_count(req->src, req->nbytes - (*next_buflen),
 				       &chained);
-		qm_sg_bytes = (1 + src_nents) * sizeof(struct dpaa_sg_entry);
+		qm_sg_bytes = (1 + src_nents) * sizeof(struct dpaa2_sg_entry);
 
 		/* allocate space for base edesc and link tables */
 		edesc = qi_cache_zalloc(GFP_DMA | flags);
@@ -4189,9 +4189,9 @@ static int ahash_update_no_ctx(struct ahash_request *req)
 
 		memset(&req_ctx->fd_flt, 0, sizeof(req_ctx->fd_flt));
 		dpaa2_fl_set_final(in_fle, true);
-		dpaa2_fl_set_format(in_fle, dpaa_fl_sg);
+		dpaa2_fl_set_format(in_fle, dpaa2_fl_sg);
 		dpaa2_fl_set_addr(in_fle, edesc->qm_sg_dma);
-		dpaa2_fl_set_format(out_fle, dpaa_fl_single);
+		dpaa2_fl_set_format(out_fle, dpaa2_fl_single);
 		dpaa2_fl_set_addr(out_fle, state->ctx_dma);
 
 		dpaa2_fl_set_len(out_fle, ctx->ctx_len);
@@ -4237,8 +4237,8 @@ static int ahash_finup_no_ctx(struct ahash_request *req)
 	struct caam_hash_state *state = ahash_request_ctx(req);
 	struct caam_request *req_ctx = &state->caam_req;
 	struct device *dev = ctx->priv->dev;
-	struct dpaa_fl_entry *in_fle = &req_ctx->fd_flt[1];
-	struct dpaa_fl_entry *out_fle = &req_ctx->fd_flt[0];
+	struct dpaa2_fl_entry *in_fle = &req_ctx->fd_flt[1];
+	struct dpaa2_fl_entry *out_fle = &req_ctx->fd_flt[0];
 	gfp_t flags = (req->base.flags & (CRYPTO_TFM_REQ_MAY_BACKLOG |
 		       CRYPTO_TFM_REQ_MAY_SLEEP)) ? GFP_KERNEL : GFP_ATOMIC;
 	u8 *buf = state->current_buf ? state->buf_1 : state->buf_0;
@@ -4248,14 +4248,14 @@ static int ahash_finup_no_ctx(struct ahash_request *req)
 	int qm_sg_bytes, qm_sg_src_index, src_nents;
 	int digestsize = crypto_ahash_digestsize(ahash);
 	struct ahash_edesc *edesc;
-	struct dpaa_sg_entry *sg_table;
+	struct dpaa2_sg_entry *sg_table;
 	bool chained = false;
 	int ret = 0;
 
 	src_nents = __sg_count(req->src, req->nbytes, &chained);
 	qm_sg_src_index = 2;
 	qm_sg_bytes = (qm_sg_src_index + src_nents) *
-			 sizeof(struct dpaa_sg_entry);
+			 sizeof(struct dpaa2_sg_entry);
 
 	/* allocate space for base edesc and link tables */
 	edesc = qi_cache_zalloc(GFP_DMA | flags);
@@ -4291,9 +4291,9 @@ static int ahash_finup_no_ctx(struct ahash_request *req)
 
 	memset(&req_ctx->fd_flt, 0, sizeof(req_ctx->fd_flt));
 	dpaa2_fl_set_final(in_fle, true);
-	dpaa2_fl_set_format(in_fle, dpaa_fl_sg);
+	dpaa2_fl_set_format(in_fle, dpaa2_fl_sg);
 	dpaa2_fl_set_addr(in_fle, edesc->qm_sg_dma);
-	dpaa2_fl_set_format(out_fle, dpaa_fl_single);
+	dpaa2_fl_set_format(out_fle, dpaa2_fl_single);
 	dpaa2_fl_set_addr(out_fle, edesc->dst_dma);
 
 	/* TODO: Is this really needed? */
@@ -4325,8 +4325,8 @@ static int ahash_update_first(struct ahash_request *req)
 	struct caam_hash_state *state = ahash_request_ctx(req);
 	struct caam_request *req_ctx = &state->caam_req;
 	struct device *dev = ctx->priv->dev;
-	struct dpaa_fl_entry *in_fle = &req_ctx->fd_flt[1];
-	struct dpaa_fl_entry *out_fle = &req_ctx->fd_flt[0];
+	struct dpaa2_fl_entry *in_fle = &req_ctx->fd_flt[1];
+	struct dpaa2_fl_entry *out_fle = &req_ctx->fd_flt[0];
 	gfp_t flags = (req->base.flags & (CRYPTO_TFM_REQ_MAY_BACKLOG |
 		       CRYPTO_TFM_REQ_MAY_SLEEP)) ? GFP_KERNEL : GFP_ATOMIC;
 	u8 *next_buf = state->current_buf ? state->buf_1 : state->buf_0;
@@ -4335,7 +4335,7 @@ static int ahash_update_first(struct ahash_request *req)
 	int to_hash;
 	int qm_sg_bytes, src_nents;
 	struct ahash_edesc *edesc;
-	struct dpaa_sg_entry *sg_table;
+	struct dpaa2_sg_entry *sg_table;
 	bool chained = false;
 	int ret = 0;
 
@@ -4348,7 +4348,7 @@ static int ahash_update_first(struct ahash_request *req)
 				     &chained);
 		dma_map_sg_chained(dev, req->src, src_nents ? : 1,
 				   DMA_TO_DEVICE, chained);
-		qm_sg_bytes = src_nents * sizeof(struct dpaa_sg_entry);
+		qm_sg_bytes = src_nents * sizeof(struct dpaa2_sg_entry);
 
 		/* allocate space for base edesc and link tables */
 		edesc = qi_cache_zalloc(GFP_DMA | flags);
@@ -4374,10 +4374,10 @@ static int ahash_update_first(struct ahash_request *req)
 				dev_err(dev, "unable to map S/G table\n");
 				return -ENOMEM;
 			}
-			dpaa2_fl_set_format(in_fle, dpaa_fl_sg);
+			dpaa2_fl_set_format(in_fle, dpaa2_fl_sg);
 			dpaa2_fl_set_addr(in_fle, edesc->qm_sg_dma);
 		} else {
-			dpaa2_fl_set_format(in_fle, dpaa_fl_single);
+			dpaa2_fl_set_format(in_fle, dpaa2_fl_single);
 			dpaa2_fl_set_addr(in_fle, sg_dma_address(req->src));
 		}
 
@@ -4392,7 +4392,7 @@ static int ahash_update_first(struct ahash_request *req)
 			return -ENOMEM;
 		}
 
-		dpaa2_fl_set_format(out_fle, dpaa_fl_single);
+		dpaa2_fl_set_format(out_fle, dpaa2_fl_single);
 		dpaa2_fl_set_addr(out_fle, state->ctx_dma);
 
 		dpaa2_fl_set_len(out_fle, ctx->ctx_len);
@@ -4849,13 +4849,13 @@ static void dpaa2_dpseci_free(struct dpaa2_caam_priv *priv)
 }
 
 static void dpaa2_caam_process_fd(struct dpaa2_caam_priv *priv,
-				  const struct dpaa_fd *fd)
+				  const struct dpaa2_fd *fd)
 {
 	struct caam_request *req;
 	dma_addr_t rflc_dma;
 	u32 err;
 
-	if (dpaa2_fd_get_format(fd) != dpaa_fd_list) {
+	if (dpaa2_fd_get_format(fd) != dpaa2_fd_list) {
 		dev_err(priv->dev, "Only Frame List FD format is supported!\n");
 		return;
 	}
@@ -5281,7 +5281,7 @@ static int __cold dpaa2_caam_remove(struct fsl_mc_device *ls_dev)
 int dpaa2_caam_enqueue(struct device *dev, struct caam_request *req)
 {
 	size_t size;
-	struct dpaa_fd fd;
+	struct dpaa2_fd fd;
 	struct dpaa2_caam_priv *priv = dev_get_drvdata(dev);
 	dma_addr_t rflc_dma;
 	int err, i;
@@ -5300,7 +5300,7 @@ int dpaa2_caam_enqueue(struct device *dev, struct caam_request *req)
 	}
 
 	memset(&fd, 0, sizeof(fd));
-	dpaa2_fd_set_format(&fd, dpaa_fd_list);
+	dpaa2_fd_set_format(&fd, dpaa2_fd_list);
 	dpaa2_fd_set_addr(&fd, req->fd_flt_dma);
 	dpaa2_fd_set_len(&fd, req->fd_flt[1].len);
 	dpaa2_fd_set_flc(&fd, req->flc_dma);
