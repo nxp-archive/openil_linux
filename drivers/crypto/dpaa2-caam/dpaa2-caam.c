@@ -1093,6 +1093,9 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 		return ERR_PTR(-ENOMEM);
 	}
 
+	memset(&req_ctx->fd_flt, 0, sizeof(req_ctx->fd_flt));
+	dpaa2_fl_set_final(in_fle, true);
+
 	if (!(contig & GIV_SRC_CONTIG)) {
 		dpaa2_fl_set_format(in_fle, dpaa_fl_sg);
 		dpaa2_fl_set_addr(in_fle, edesc->qm_sg_dma);
