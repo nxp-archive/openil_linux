@@ -601,7 +601,7 @@ EXPORT_SYMBOL(dpaa2_io_service_pull_channel);
 
 int dpaa2_io_service_enqueue_fq(struct dpaa2_io *d,
 			       uint32_t fqid,
-			       const struct dpaa_fd *fd)
+			       const struct dpaa2_fd *fd)
 {
 	struct qbman_eq_desc ed;
 
@@ -618,7 +618,7 @@ EXPORT_SYMBOL(dpaa2_io_service_enqueue_fq);
 
 int dpaa2_io_service_enqueue_qd(struct dpaa2_io *d,
 			       uint32_t qdid, uint8_t prio, uint16_t qdbin,
-			       const struct dpaa_fd *fd)
+			       const struct dpaa2_fd *fd)
 {
 	struct qbman_eq_desc ed;
 

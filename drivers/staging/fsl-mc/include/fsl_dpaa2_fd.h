@@ -32,7 +32,7 @@
 #define __FSL_DPAA2_FD_H
 
 /**
- * struct dpaa_fd - Place-holder for FDs.
+ * struct dpaa2_fd - Place-holder for FDs.
  *
  * We represent it via the simplest form that we need for now. Different
  * overlays may be needed to support different options, etc. (It is impractical
@@ -40,10 +40,10 @@
  * read-modify-writes) would be worst-case performance whether or not
  * circumstances required them.)
  */
-struct dpaa_fd {
+struct dpaa2_fd {
 	union {
 		u32 words[8];
-		struct dpaa_fd_simple {
+		struct dpaa2_fd_simple {
 			u32 addr_lo;
 			u32 addr_hi;
 			u32 len;
@@ -59,10 +59,10 @@ struct dpaa_fd {
 	};
 };
 
-enum dpaa_fd_format {
-	dpaa_fd_single = 0,
-	dpaa_fd_list,
-	dpaa_fd_sg
+enum dpaa2_fd_format {
+	dpaa2_fd_single = 0,
+	dpaa2_fd_list,
+	dpaa2_fd_sg
 };
 
 /* Accessors for SG entry fields
@@ -79,7 +79,7 @@ enum dpaa_fd_format {
  *
  * Return the address in the frame descritpor.
  */
-static inline dma_addr_t dpaa2_fd_get_addr(const struct dpaa_fd *fd)
+static inline dma_addr_t dpaa2_fd_get_addr(const struct dpaa2_fd *fd)
 {
 	return (dma_addr_t)((((uint64_t)fd->simple.addr_hi) << 32)
 				+ fd->simple.addr_lo);
@@ -90,7 +90,7 @@ static inline dma_addr_t dpaa2_fd_get_addr(const struct dpaa_fd *fd)
  * @fd: the given frame descriptor.
  * @addr: the address needs to be set in frame descriptor.
  */
-static inline void dpaa2_fd_set_addr(struct dpaa_fd *fd, dma_addr_t addr)
+static inline void dpaa2_fd_set_addr(struct dpaa2_fd *fd, dma_addr_t addr)
 {
 	fd->simple.addr_hi = upper_32_bits(addr);
 	fd->simple.addr_lo = lower_32_bits(addr);
@@ -102,7 +102,7 @@ static inline void dpaa2_fd_set_addr(struct dpaa_fd *fd, dma_addr_t addr)
  *
  * Return the frame context field in the frame descriptor.
  */
-static inline u32 dpaa2_fd_get_frc(const struct dpaa_fd *fd)
+static inline u32 dpaa2_fd_get_frc(const struct dpaa2_fd *fd)
 {
 	return fd->simple.frc;
 }
@@ -112,7 +112,7 @@ static inline u32 dpaa2_fd_get_frc(const struct dpaa_fd *fd)
  * @fd: the given frame descriptor.
  * @frc: the frame context needs to be set in frame descriptor.
  */
-static inline void dpaa2_fd_set_frc(struct dpaa_fd *fd, u32 frc)
+static inline void dpaa2_fd_set_frc(struct dpaa2_fd *fd, u32 frc)
 {
 	fd->simple.frc = frc;
 }
@@ -123,7 +123,7 @@ static inline void dpaa2_fd_set_frc(struct dpaa_fd *fd, u32 frc)
  *
  * Return the flow context in the frame descriptor.
  */
-static inline dma_addr_t dpaa2_fd_get_flc(const struct dpaa_fd *fd)
+static inline dma_addr_t dpaa2_fd_get_flc(const struct dpaa2_fd *fd)
 {
 	return (dma_addr_t)((((uint64_t)fd->simple.flc_hi) << 32) +
 			    fd->simple.flc_lo);
@@ -134,7 +134,7 @@ static inline dma_addr_t dpaa2_fd_get_flc(const struct dpaa_fd *fd)
  * @fd: the given frame descriptor.
  * @flc_addr: the flow context needs to be set in frame descriptor.
  */
-static inline void dpaa2_fd_set_flc(struct dpaa_fd *fd,  dma_addr_t flc_addr)
+static inline void dpaa2_fd_set_flc(struct dpaa2_fd *fd,  dma_addr_t flc_addr)
 {
 	fd->simple.flc_hi = upper_32_bits(flc_addr);
 	fd->simple.flc_lo = lower_32_bits(flc_addr);
@@ -146,7 +146,7 @@ static inline void dpaa2_fd_set_flc(struct dpaa_fd *fd,  dma_addr_t flc_addr)
  *
  * Return the length field in the frame descriptor.
  */
-static inline u32 dpaa2_fd_get_len(const struct dpaa_fd *fd)
+static inline u32 dpaa2_fd_get_len(const struct dpaa2_fd *fd)
 {
 	return fd->simple.len;
 }
@@ -156,7 +156,7 @@ static inline u32 dpaa2_fd_get_len(const struct dpaa_fd *fd)
  * @fd: the given frame descriptor.
  * @len: the length needs to be set in frame descriptor.
  */
-static inline void dpaa2_fd_set_len(struct dpaa_fd *fd, u32 len)
+static inline void dpaa2_fd_set_len(struct dpaa2_fd *fd, u32 len)
 {
 	fd->simple.len = len;
 }
@@ -167,7 +167,7 @@ static inline void dpaa2_fd_set_len(struct dpaa_fd *fd, u32 len)
  *
  * Return the offset.
  */
-static inline uint16_t dpaa2_fd_get_offset(const struct dpaa_fd *fd)
+static inline uint16_t dpaa2_fd_get_offset(const struct dpaa2_fd *fd)
 {
 	return (uint16_t)(fd->simple.bpid_offset >> 16) & 0x0FFF;
 }
@@ -178,7 +178,7 @@ static inline uint16_t dpaa2_fd_get_offset(const struct dpaa_fd *fd)
  * @fd: the given frame descriptor.
  * @offset: the offset needs to be set in frame descriptor.
  */
-static inline void dpaa2_fd_set_offset(struct dpaa_fd *fd, uint16_t offset)
+static inline void dpaa2_fd_set_offset(struct dpaa2_fd *fd, uint16_t offset)
 {
 	fd->simple.bpid_offset &= 0xF000FFFF;
 	fd->simple.bpid_offset |= (u32)offset << 16;
@@ -190,9 +190,10 @@ static inline void dpaa2_fd_set_offset(struct dpaa_fd *fd, uint16_t offset)
  *
  * Return the format.
  */
-static inline enum dpaa_fd_format dpaa2_fd_get_format(const struct dpaa_fd *fd)
+static inline enum dpaa2_fd_format dpaa2_fd_get_format(
+						const struct dpaa2_fd *fd)
 {
-	return (enum dpaa_fd_format)((fd->simple.bpid_offset >> 28) & 0x3);
+	return (enum dpaa2_fd_format)((fd->simple.bpid_offset >> 28) & 0x3);
 }
 
 /**
@@ -201,8 +202,8 @@ static inline enum dpaa_fd_format dpaa2_fd_get_format(const struct dpaa_fd *fd)
  * @fd: the given frame descriptor.
  * @format: the format needs to be set in frame descriptor.
  */
-static inline void dpaa2_fd_set_format(struct dpaa_fd *fd,
-				       enum dpaa_fd_format format)
+static inline void dpaa2_fd_set_format(struct dpaa2_fd *fd,
+				       enum dpaa2_fd_format format)
 {
 	fd->simple.bpid_offset &= 0xCFFFFFFF;
 	fd->simple.bpid_offset |= (u32)format << 28;
@@ -214,7 +215,7 @@ static inline void dpaa2_fd_set_format(struct dpaa_fd *fd,
  *
  * Return the bpid.
  */
-static inline uint16_t dpaa2_fd_get_bpid(const struct dpaa_fd *fd)
+static inline uint16_t dpaa2_fd_get_bpid(const struct dpaa2_fd *fd)
 {
 	return (uint16_t)(fd->simple.bpid_offset & 0xFFFF);
 }
@@ -225,26 +226,26 @@ static inline uint16_t dpaa2_fd_get_bpid(const struct dpaa_fd *fd)
  * @fd: the given frame descriptor.
  * @bpid: the bpid needs to be set in frame descriptor.
  */
-static inline void dpaa2_fd_set_bpid(struct dpaa_fd *fd, uint16_t bpid)
+static inline void dpaa2_fd_set_bpid(struct dpaa2_fd *fd, uint16_t bpid)
 {
 	fd->simple.bpid_offset &= 0xFFFF0000;
 	fd->simple.bpid_offset |= (u32)bpid;
 }
 
 /**
- * struct dpaa_sg_entry - the scatter-gathering structure
+ * struct dpaa2_sg_entry - the scatter-gathering structure
  */
-struct dpaa_sg_entry {
+struct dpaa2_sg_entry {
 	u32 addr_lo;
 	u32 addr_hi;
 	u32 len;
 	u32 bpid_offset;
 };
 
-enum dpaa_sg_format {
-	dpaa_sg_single = 0,
-	dpaa_sg_frame_data,
-	dpaa_sg_sgt_ext
+enum dpaa2_sg_format {
+	dpaa2_sg_single = 0,
+	dpaa2_sg_frame_data,
+	dpaa2_sg_sgt_ext
 };
 
 /**
@@ -253,7 +254,7 @@ enum dpaa_sg_format {
  *
  * Return the address.
  */
-static inline dma_addr_t dpaa2_sg_get_addr(const struct dpaa_sg_entry *sg)
+static inline dma_addr_t dpaa2_sg_get_addr(const struct dpaa2_sg_entry *sg)
 {
 	return (dma_addr_t)((((u64)sg->addr_hi) << 32) + sg->addr_lo);
 }
@@ -263,14 +264,14 @@ static inline dma_addr_t dpaa2_sg_get_addr(const struct dpaa_sg_entry *sg)
  * @sg: the given scatter-gathering object.
  * @addr: the address to be set.
  */
-static inline void dpaa2_sg_set_addr(struct dpaa_sg_entry *sg, dma_addr_t addr)
+static inline void dpaa2_sg_set_addr(struct dpaa2_sg_entry *sg, dma_addr_t addr)
 {
 	sg->addr_hi = upper_32_bits(addr);
 	sg->addr_lo = lower_32_bits(addr);
 }
 
 
-static inline bool dpaa2_sg_short_len(const struct dpaa_sg_entry *sg)
+static inline bool dpaa2_sg_short_len(const struct dpaa2_sg_entry *sg)
 {
 	return (sg->bpid_offset >> 30) & 0x1;
 }
@@ -281,7 +282,7 @@ static inline bool dpaa2_sg_short_len(const struct dpaa_sg_entry *sg)
  *
  * Return the length.
  */
-static inline u32 dpaa2_sg_get_len(const struct dpaa_sg_entry *sg)
+static inline u32 dpaa2_sg_get_len(const struct dpaa2_sg_entry *sg)
 {
 	if (dpaa2_sg_short_len(sg))
 		return sg->len & 0x1FFFF;
@@ -293,7 +294,7 @@ static inline u32 dpaa2_sg_get_len(const struct dpaa_sg_entry *sg)
  * @sg: the given scatter-gathering object.
  * @len: the length to be set.
  */
-static inline void dpaa2_sg_set_len(struct dpaa_sg_entry *sg, u32 len)
+static inline void dpaa2_sg_set_len(struct dpaa2_sg_entry *sg, u32 len)
 {
 	sg->len = len;
 }
@@ -304,7 +305,7 @@ static inline void dpaa2_sg_set_len(struct dpaa_sg_entry *sg, u32 len)
  *
  * Return the offset.
  */
-static inline u16 dpaa2_sg_get_offset(const struct dpaa_sg_entry *sg)
+static inline u16 dpaa2_sg_get_offset(const struct dpaa2_sg_entry *sg)
 {
 	return (u16)(sg->bpid_offset >> 16) & 0x0FFF;
 }
@@ -314,7 +315,7 @@ static inline u16 dpaa2_sg_get_offset(const struct dpaa_sg_entry *sg)
  * @sg: the given scatter-gathering object.
  * @offset: the offset to be set.
  */
-static inline void dpaa2_sg_set_offset(struct dpaa_sg_entry *sg,
+static inline void dpaa2_sg_set_offset(struct dpaa2_sg_entry *sg,
 				       u16 offset)
 {
 	sg->bpid_offset &= 0xF000FFFF;
@@ -327,10 +328,10 @@ static inline void dpaa2_sg_set_offset(struct dpaa_sg_entry *sg,
  *
  * Return the format.
  */
-static inline enum dpaa_sg_format
-	dpaa2_sg_get_format(const struct dpaa_sg_entry *sg)
+static inline enum dpaa2_sg_format
+	dpaa2_sg_get_format(const struct dpaa2_sg_entry *sg)
 {
-	return (enum dpaa_sg_format)((sg->bpid_offset >> 28) & 0x3);
+	return (enum dpaa2_sg_format)((sg->bpid_offset >> 28) & 0x3);
 }
 
 /**
@@ -338,8 +339,8 @@ static inline enum dpaa_sg_format
  * @sg: the given scatter-gathering object.
  * @format: the format to be set.
  */
-static inline void dpaa2_sg_set_format(struct dpaa_sg_entry *sg,
-				       enum dpaa_sg_format format)
+static inline void dpaa2_sg_set_format(struct dpaa2_sg_entry *sg,
+				       enum dpaa2_sg_format format)
 {
 	sg->bpid_offset &= 0xCFFFFFFF;
 	sg->bpid_offset |= (u32)format << 28;
@@ -351,7 +352,7 @@ static inline void dpaa2_sg_set_format(struct dpaa_sg_entry *sg,
  *
  * Return the bpid.
  */
-static inline u16 dpaa2_sg_get_bpid(const struct dpaa_sg_entry *sg)
+static inline u16 dpaa2_sg_get_bpid(const struct dpaa2_sg_entry *sg)
 {
 	return (u16)(sg->bpid_offset & 0x3FFF);
 }
@@ -361,7 +362,7 @@ static inline u16 dpaa2_sg_get_bpid(const struct dpaa_sg_entry *sg)
  * @sg: the given scatter-gathering object.
  * @bpid: the bpid to be set.
  */
-static inline void dpaa2_sg_set_bpid(struct dpaa_sg_entry *sg, u16 bpid)
+static inline void dpaa2_sg_set_bpid(struct dpaa2_sg_entry *sg, u16 bpid)
 {
 	sg->bpid_offset &= 0xFFFFC000;
 	sg->bpid_offset |= (u32)bpid;
@@ -373,7 +374,7 @@ static inline void dpaa2_sg_set_bpid(struct dpaa_sg_entry *sg, u16 bpid)
  *
  * Return bool.
  */
-static inline bool dpaa2_sg_is_final(const struct dpaa_sg_entry *sg)
+static inline bool dpaa2_sg_is_final(const struct dpaa2_sg_entry *sg)
 {
 	return !!(sg->bpid_offset >> 31);
 }
@@ -383,7 +384,7 @@ static inline bool dpaa2_sg_is_final(const struct dpaa_sg_entry *sg)
  * @sg: the given scatter-gathering object.
  * @final: the final boolean to be set.
  */
-static inline void dpaa2_sg_set_final(struct dpaa_sg_entry *sg, bool final)
+static inline void dpaa2_sg_set_final(struct dpaa2_sg_entry *sg, bool final)
 {
 	sg->bpid_offset &= 0x7FFFFFFF;
 	sg->bpid_offset |= (u32)final << 31;
@@ -395,7 +396,7 @@ static inline void dpaa2_sg_set_final(struct dpaa_sg_entry *sg, bool final)
  * hardware and cpu
  */
 #ifdef __BIG_ENDIAN
-static inline void dpaa2_sg_cpu_to_le(struct dpaa_sg_entry *sg)
+static inline void dpaa2_sg_cpu_to_le(struct dpaa2_sg_entry *sg)
 {
 	uint32_t *p = (uint32_t *)sg;
 	int i;
@@ -404,7 +405,7 @@ static inline void dpaa2_sg_cpu_to_le(struct dpaa_sg_entry *sg)
 		cpu_to_le32s(p++);
 }
 
-static inline void dpaa2_sg_le_to_cpu(struct dpaa_sg_entry *sg)
+static inline void dpaa2_sg_le_to_cpu(struct dpaa2_sg_entry *sg)
 {
 	uint32_t *p = (uint32_t *)sg;
 	int i;
@@ -419,12 +420,12 @@ static inline void dpaa2_sg_le_to_cpu(struct dpaa_sg_entry *sg)
 
 
 /**
- * struct dpaa_fl_entry - structure for frame list entry.
+ * struct dpaa2_fl_entry - structure for frame list entry.
  *
  * Frame List Entry (FLE)
- * Identical to dpaa_fd.simple layout, but some bits are different
+ * Identical to dpaa2_fd.simple layout, but some bits are different
  */
-struct dpaa_fl_entry {
+struct dpaa2_fl_entry {
 	u32 addr_lo;
 	u32 addr_hi;
 	u32 len;
@@ -435,10 +436,10 @@ struct dpaa_fl_entry {
 	u32 flc_hi;
 };
 
-enum dpaa_fl_format {
-	dpaa_fl_single = 0,
-	dpaa_fl_res,
-	dpaa_fl_sg
+enum dpaa2_fl_format {
+	dpaa2_fl_single = 0,
+	dpaa2_fl_res,
+	dpaa2_fl_sg
 };
 
 /**
@@ -449,11 +450,13 @@ enum dpaa_fl_format {
  *
  * Return address for the get function.
  */
-static inline dma_addr_t dpaa2_fl_get_addr(const struct dpaa_fl_entry *fle)
+static inline dma_addr_t dpaa2_fl_get_addr(const struct dpaa2_fl_entry *fle)
 {
 	return (dma_addr_t)((((uint64_t)fle->addr_hi) << 32) + fle->addr_lo);
 }
-static inline void dpaa2_fl_set_addr(struct dpaa_fl_entry *fle, dma_addr_t addr)
+
+static inline void dpaa2_fl_set_addr(struct dpaa2_fl_entry *fle,
+				     dma_addr_t addr)
 {
 	fle->addr_hi = upper_32_bits(addr);
 	fle->addr_lo = lower_32_bits(addr);
@@ -467,11 +470,12 @@ static inline void dpaa2_fl_set_addr(struct dpaa_fl_entry *fle, dma_addr_t addr)
  *
  * Return flow context for the get function.
  */
-static inline dma_addr_t dpaa2_fl_get_flc(const struct dpaa_fl_entry *fle)
+static inline dma_addr_t dpaa2_fl_get_flc(const struct dpaa2_fl_entry *fle)
 {
 	return (dma_addr_t)((((uint64_t)fle->flc_hi) << 32) + fle->flc_lo);
 }
-static inline void dpaa2_fl_set_flc(struct dpaa_fl_entry *fle,
+
+static inline void dpaa2_fl_set_flc(struct dpaa2_fl_entry *fle,
 				    dma_addr_t flc_addr)
 {
 	fle->flc_hi = upper_32_bits(flc_addr);
@@ -486,11 +490,12 @@ static inline void dpaa2_fl_set_flc(struct dpaa_fl_entry *fle,
  *
  * Return length for the get function.
  */
-static inline u32 dpaa2_fl_get_len(const struct dpaa_fl_entry *fle)
+static inline u32 dpaa2_fl_get_len(const struct dpaa2_fl_entry *fle)
 {
 	return fle->len;
 }
-static inline void dpaa2_fl_set_len(struct dpaa_fl_entry *fle, u32 len)
+
+static inline void dpaa2_fl_set_len(struct dpaa2_fl_entry *fle, u32 len)
 {
 	fle->len = len;
 }
@@ -503,12 +508,12 @@ static inline void dpaa2_fl_set_len(struct dpaa_fl_entry *fle, u32 len)
  *
  * Return offset for the get function.
  */
-static inline uint16_t dpaa2_fl_get_offset(const struct dpaa_fl_entry *fle)
+static inline uint16_t dpaa2_fl_get_offset(const struct dpaa2_fl_entry *fle)
 {
 	return (uint16_t)(fle->bpid_offset >> 16) & 0x0FFF;
 }
 
-static inline void dpaa2_fl_set_offset(struct dpaa_fl_entry *fle,
+static inline void dpaa2_fl_set_offset(struct dpaa2_fl_entry *fle,
 				       uint16_t offset)
 {
 	fle->bpid_offset &= 0xF000FFFF;
@@ -523,13 +528,14 @@ static inline void dpaa2_fl_set_offset(struct dpaa_fl_entry *fle,
  *
  * Return frame list format for the get function.
  */
-static inline enum dpaa_fl_format dpaa2_fl_get_format(
-	const struct dpaa_fl_entry *fle)
+static inline enum dpaa2_fl_format dpaa2_fl_get_format(
+	const struct dpaa2_fl_entry *fle)
 {
-	return (enum dpaa_fl_format)((fle->bpid_offset >> 28) & 0x3);
+	return (enum dpaa2_fl_format)((fle->bpid_offset >> 28) & 0x3);
 }
-static inline void dpaa2_fl_set_format(struct dpaa_fl_entry *fle,
-				       enum dpaa_fl_format format)
+
+static inline void dpaa2_fl_set_format(struct dpaa2_fl_entry *fle,
+				       enum dpaa2_fl_format format)
 {
 	fle->bpid_offset &= 0xCFFFFFFF;
 	fle->bpid_offset |= (u32)(format & 0x3) << 28;
@@ -543,22 +549,23 @@ static inline void dpaa2_fl_set_format(struct dpaa_fl_entry *fle,
  *
  * Return bpid for the get function.
  */
-static inline uint16_t dpaa2_fl_get_bpid(const struct dpaa_fl_entry *fle)
+static inline uint16_t dpaa2_fl_get_bpid(const struct dpaa2_fl_entry *fle)
 {
 	return (uint16_t)(fle->bpid_offset & 0x3FFF);
 }
-static inline void dpaa2_fl_set_bpid(struct dpaa_fl_entry *fle, uint16_t bpid)
+
+static inline void dpaa2_fl_set_bpid(struct dpaa2_fl_entry *fle, uint16_t bpid)
 {
 	fle->bpid_offset &= 0xFFFFC000;
 	fle->bpid_offset |= (u32)bpid;
 }
 
-/** dpaa_fl_is_final() - check the final bit is set or not in the frame list.
+/** dpaa2_fl_is_final() - check the final bit is set or not in the frame list.
  * @fle: the given frame list entry.
  *
  * Return final bit settting.
  */
-static inline bool dpaa2_fl_is_final(const struct dpaa_fl_entry *fle)
+static inline bool dpaa2_fl_is_final(const struct dpaa2_fl_entry *fle)
 {
 	return !!(fle->bpid_offset >> 31);
 }
@@ -569,7 +576,7 @@ static inline bool dpaa2_fl_is_final(const struct dpaa_fl_entry *fle)
  * @final: the final bit needs to be set.
  *
  */
-static inline void dpaa2_fl_set_final(struct dpaa_fl_entry *fle, bool final)
+static inline void dpaa2_fl_set_final(struct dpaa2_fl_entry *fle, bool final)
 {
 	fle->bpid_offset &= 0x7FFFFFFF;
 	fle->bpid_offset |= (u32)final << 31;
@@ -668,6 +675,6 @@ uint64_t dpaa2_dq_fqd_ctx(const struct dpaa2_dq *dq);
  *
  * Return the frame descriptor.
  */
-const struct dpaa_fd *dpaa2_dq_fd(const struct dpaa2_dq *);
+const struct dpaa2_fd *dpaa2_dq_fd(const struct dpaa2_dq *);
 
 #endif /* __FSL_DPAA2_FD_H */

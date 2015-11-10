@@ -432,10 +432,10 @@ int dpaa2_io_service_pull_channel(struct dpaa2_io *d, uint32_t channelid,
  */
 int dpaa2_io_service_enqueue_fq(struct dpaa2_io *d,
 			       uint32_t fqid,
-			       const struct dpaa_fd *fd);
+			       const struct dpaa2_fd *fd);
 int dpaa2_io_service_enqueue_qd(struct dpaa2_io *d,
 			       uint32_t qdid, uint8_t prio, uint16_t qdbin,
-			       const struct dpaa_fd *fd);
+			       const struct dpaa2_fd *fd);
 
 /*******************/
 /* Buffer handling */
@@ -510,7 +510,7 @@ void dpaa2_io_store_destroy(struct dpaa2_io_store *s);
  * @is_last: indicate whether this is the last frame in the pull command.
  *
  * Once dpaa2_io_store has been passed to a function that performs dequeues to
- * it, like dpaa_ni_rx(), this function can be used to determine when the next
+ * it, like dpaa2_ni_rx(), this function can be used to determine when the next
  * frame result is available. Once this function returns non-NULL, a subsequent
  * call to it will try to find the *next* dequeue result.
  *
