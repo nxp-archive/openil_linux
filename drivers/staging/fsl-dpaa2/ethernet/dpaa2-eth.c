@@ -100,15 +100,15 @@ static void dpaa2_eth_rx_csum(struct dpaa2_eth_priv *priv,
  * Not to be used for Tx conf FDs or on any other paths.
  */
 static void dpaa2_eth_free_rx_fd(struct dpaa2_eth_priv *priv,
-				 const struct dpaa_fd *fd,
+				 const struct dpaa2_fd *fd,
 				 void *vaddr)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	dma_addr_t addr = dpaa2_fd_get_addr(fd);
 	uint8_t fd_format = dpaa2_fd_get_format(fd);
 
-	if (fd_format == dpaa_fd_sg) {
-		struct dpaa_sg_entry *sgt = vaddr + dpaa2_fd_get_offset(fd);
+	if (fd_format == dpaa2_fd_sg) {
+		struct dpaa2_sg_entry *sgt = vaddr + dpaa2_fd_get_offset(fd);
 		void *sg_vaddr;
 		int i;
 
@@ -132,7 +132,7 @@ static void dpaa2_eth_free_rx_fd(struct dpaa2_eth_priv *priv,
 
 /* Build a linear skb based on a single-buffer frame descriptor */
 static struct sk_buff *dpaa2_eth_build_linear_skb(struct dpaa2_eth_priv *priv,
-						  const struct dpaa_fd *fd,
+						  const struct dpaa2_fd *fd,
 						  void *fd_vaddr)
 {
 	struct sk_buff *skb = NULL;
@@ -159,7 +159,7 @@ static struct sk_buff *dpaa2_eth_build_linear_skb(struct dpaa2_eth_priv *priv,
 
 /* Build a non linear (fragmented) skb based on a S/G table */
 static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
-						struct dpaa_sg_entry *sgt)
+						struct dpaa2_sg_entry *sgt)
 {
 	struct sk_buff *skb = NULL;
 	struct device *dev = priv->net_dev->dev.parent;
@@ -173,12 +173,12 @@ static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
 	int i;
 
 	for (i = 0; i < DPAA2_ETH_MAX_SG_ENTRIES; i++) {
-		struct dpaa_sg_entry *sge = &sgt[i];
+		struct dpaa2_sg_entry *sge = &sgt[i];
 
 		dpaa2_sg_le_to_cpu(sge);
 
 		/* We don't support anything else yet! */
-		BUG_ON(dpaa2_sg_get_format(sge) != dpaa_sg_single);
+		BUG_ON(dpaa2_sg_get_format(sge) != dpaa2_sg_single);
 
 		/* Get the address, offset and length from the S/G entry */
 		sg_addr = dpaa2_sg_get_addr(sge);
@@ -235,7 +235,7 @@ static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
 }
 
 static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
-			 const struct dpaa_fd *fd,
+			 const struct dpaa2_fd *fd,
 			 struct napi_struct *napi)
 {
 	dma_addr_t addr = dpaa2_fd_get_addr(fd);
@@ -260,10 +260,10 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 	percpu_stats = this_cpu_ptr(priv->percpu_stats);
 	percpu_extras = this_cpu_ptr(priv->percpu_extras);
 
-	if (fd_format == dpaa_fd_single) {
+	if (fd_format == dpaa2_fd_single) {
 		skb = dpaa2_eth_build_linear_skb(priv, fd, vaddr);
-	} else if (fd_format == dpaa_fd_sg) {
-		struct dpaa_sg_entry *sgt =
+	} else if (fd_format == dpaa2_fd_sg) {
+		struct dpaa2_sg_entry *sgt =
 				vaddr + dpaa2_fd_get_offset(fd);
 		skb = dpaa2_eth_build_frag_skb(priv, sgt);
 		put_page(virt_to_head_page(vaddr));
@@ -309,7 +309,7 @@ err_build_skb:
 
 #ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
 static void dpaa2_eth_rx_err(struct dpaa2_eth_priv *priv,
-			     const struct dpaa_fd *fd,
+			     const struct dpaa2_fd *fd,
 			     struct napi_struct *napi __always_unused)
 {
 	struct device *dev = priv->net_dev->dev.parent;
@@ -351,7 +351,7 @@ static int dpaa2_eth_store_consume(struct dpaa2_eth_channel *ch)
 	struct dpaa2_eth_priv *priv = ch->priv;
 	struct dpaa2_eth_fq *fq;
 	struct dpaa2_dq *dq;
-	const struct dpaa_fd *fd;
+	const struct dpaa2_fd *fd;
 	int cleaned = 0;
 	int is_last;
 
@@ -385,13 +385,13 @@ static int dpaa2_eth_store_consume(struct dpaa2_eth_channel *ch)
 
 static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
 				 struct sk_buff *skb,
-				 struct dpaa_fd *fd)
+				 struct dpaa2_fd *fd)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	void *sgt_buf = NULL;
 	dma_addr_t addr;
 	int nr_frags = skb_shinfo(skb)->nr_frags;
-	struct dpaa_sg_entry *sgt;
+	struct dpaa2_sg_entry *sgt;
 	int i, j, err;
 	int sgt_buf_size;
 	struct scatterlist *scl, *crt_scl;
@@ -421,7 +421,7 @@ static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
 
 	/* Prepare the HW SGT structure */
 	sgt_buf_size = priv->tx_data_offset +
-		       sizeof(struct dpaa_sg_entry) * (1 + num_dma_bufs);
+		       sizeof(struct dpaa2_sg_entry) * (1 + num_dma_bufs);
 	sgt_buf = kzalloc(sgt_buf_size + DPAA2_ETH_TX_BUF_ALIGN, GFP_ATOMIC);
 	if (unlikely(!sgt_buf)) {
 		netdev_err(priv->net_dev, "failed to allocate SGT buffer\n");
@@ -437,14 +437,14 @@ static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
 	 */
 	memset(sgt_buf + priv->buf_layout.private_data_size, 0, 8);
 
-	sgt = (struct dpaa_sg_entry *)(sgt_buf + priv->tx_data_offset);
+	sgt = (struct dpaa2_sg_entry *)(sgt_buf + priv->tx_data_offset);
 
 	/* Fill in the HW SGT structure.
 	 *
 	 * sgt_buf is zeroed out, so the following fields are implicit
 	 * in all sgt entries:
 	 *   - offset is 0
-	 *   - format is 'dpaa_sg_single'
+	 *   - format is 'dpaa2_sg_single'
 	 */
 	for_each_sg(scl, crt_scl, num_dma_bufs, i) {
 		dpaa2_sg_set_addr(&sgt[i], sg_dma_address(crt_scl));
@@ -474,7 +474,7 @@ static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
 	}
 	dpaa2_fd_set_offset(fd, priv->tx_data_offset);
 	dpaa2_fd_set_bpid(fd, priv->dpbp_attrs.bpid);
-	dpaa2_fd_set_format(fd, dpaa_fd_sg);
+	dpaa2_fd_set_format(fd, dpaa2_fd_sg);
 	dpaa2_fd_set_addr(fd, addr);
 	dpaa2_fd_set_len(fd, skb->len);
 
@@ -494,7 +494,7 @@ dma_map_sg_failed:
 
 static int dpaa2_eth_build_single_fd(struct dpaa2_eth_priv *priv,
 				     struct sk_buff *skb,
-				     struct dpaa_fd *fd)
+				     struct dpaa2_fd *fd)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	uint8_t *buffer_start;
@@ -532,7 +532,7 @@ static int dpaa2_eth_build_single_fd(struct dpaa2_eth_priv *priv,
 	dpaa2_fd_set_offset(fd, (uint16_t)(skb->data - buffer_start));
 	dpaa2_fd_set_bpid(fd, priv->dpbp_attrs.bpid);
 	dpaa2_fd_set_len(fd, skb->len);
-	dpaa2_fd_set_format(fd, dpaa_fd_single);
+	dpaa2_fd_set_format(fd, dpaa2_fd_single);
 
 	fd->simple.ctrl = DPAA2_FD_CTRL_ASAL | DPAA2_FD_CTRL_PTA |
 			 DPAA2_FD_CTRL_PTV1;
@@ -548,7 +548,7 @@ static int dpaa2_eth_build_single_fd(struct dpaa2_eth_priv *priv,
  * to be checked if we're on the confirmation path.
  */
 static void dpaa2_eth_free_fd(const struct dpaa2_eth_priv *priv,
-			       const struct dpaa_fd *fd,
+			       const struct dpaa2_fd *fd,
 			       uint32_t *status)
 {
 	struct device *dev = priv->net_dev->dev.parent;
@@ -564,7 +564,7 @@ static void dpaa2_eth_free_fd(const struct dpaa2_eth_priv *priv,
 
 	fd_addr = dpaa2_fd_get_addr(fd);
 	skbh = phys_to_virt(fd_addr);
-	fd_single = (dpaa2_fd_get_format(fd) == dpaa_fd_single);
+	fd_single = (dpaa2_fd_get_format(fd) == dpaa2_fd_single);
 
 	if (fd_single) {
 		skb = *skbh;
@@ -589,7 +589,7 @@ static void dpaa2_eth_free_fd(const struct dpaa2_eth_priv *priv,
 		/* Unmap the SGT buffer */
 		nr_frags = skb_shinfo(skb)->nr_frags;
 		unmap_size = priv->tx_data_offset +
-		       sizeof(struct dpaa_sg_entry) * (1 + num_dma_bufs);
+		       sizeof(struct dpaa2_sg_entry) * (1 + num_dma_bufs);
 		dma_unmap_single(dev, fd_addr, unmap_size, DMA_TO_DEVICE);
 	}
 
@@ -613,7 +613,7 @@ static void dpaa2_eth_free_fd(const struct dpaa2_eth_priv *priv,
 static int dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 {
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
-	struct dpaa_fd fd;
+	struct dpaa2_fd fd;
 	struct rtnl_link_stats64 *percpu_stats;
 	struct dpaa2_eth_stats *percpu_extras;
 	int err, i;
@@ -695,7 +695,7 @@ err_alloc_headroom:
 }
 
 static void dpaa2_eth_tx_conf(struct dpaa2_eth_priv *priv,
-			      const struct dpaa_fd *fd,
+			      const struct dpaa2_fd *fd,
 			      struct napi_struct *napi __always_unused)
 {
 	struct rtnl_link_stats64 *percpu_stats;

@@ -229,7 +229,7 @@ struct dpaa2_eth_fq {
 	enum dpaa2_eth_fq_type type;
 
 	void (*consume)(struct dpaa2_eth_priv *,
-			const struct dpaa_fd *,
+			const struct dpaa2_fd *,
 			struct napi_struct *);
 	struct dpaa2_eth_priv *netdev_priv;	/* backpointer */
 	struct dpaa2_eth_fq_stats stats;

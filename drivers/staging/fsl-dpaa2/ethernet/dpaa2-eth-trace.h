@@ -52,7 +52,7 @@
 DECLARE_EVENT_CLASS(dpaa2_eth_fd,
 		    /* Trace function prototype */
 		    TP_PROTO(struct net_device *netdev,
-			     const struct dpaa_fd *fd),
+			     const struct dpaa2_fd *fd),
 
 		    /* Repeat argument list here */
 		    TP_ARGS(netdev, fd),
@@ -97,7 +97,7 @@ DECLARE_EVENT_CLASS(dpaa2_eth_fd,
 /* Tx (egress) fd */
 DEFINE_EVENT(dpaa2_eth_fd, dpaa2_tx_fd,
 	     TP_PROTO(struct net_device *netdev,
-		      const struct dpaa_fd *fd),
+		      const struct dpaa2_fd *fd),
 
 	     TP_ARGS(netdev, fd)
 );
@@ -105,7 +105,7 @@ DEFINE_EVENT(dpaa2_eth_fd, dpaa2_tx_fd,
 /* Rx fd */
 DEFINE_EVENT(dpaa2_eth_fd, dpaa2_rx_fd,
 	     TP_PROTO(struct net_device *netdev,
-		      const struct dpaa_fd *fd),
+		      const struct dpaa2_fd *fd),
 
 	     TP_ARGS(netdev, fd)
 );
@@ -113,7 +113,7 @@ DEFINE_EVENT(dpaa2_eth_fd, dpaa2_rx_fd,
 /* Tx confirmation fd */
 DEFINE_EVENT(dpaa2_eth_fd, dpaa2_tx_conf_fd,
 	     TP_PROTO(struct net_device *netdev,
-		      const struct dpaa_fd *fd),
+		      const struct dpaa2_fd *fd),
 
 	     TP_ARGS(netdev, fd)
 );
