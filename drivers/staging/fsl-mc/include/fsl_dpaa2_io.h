@@ -42,6 +42,15 @@ struct dpaa2_io_store;
 
 /**
  * struct dpaa2_io_desc - The DPIO descriptor.
+ * @receives_notifications: Use notificaton mode.
+ * @has_irq: use irq-based proessing.
+ * @will_poll: use poll processing.
+ * @has_8prio: set for channel with 8 priority WQs.
+ * @cpu: the cpu index that at least interrupt handlers will execute on.
+ * @stash_affinity: the stash affinity for this portal favour 'cpu'
+ * @regs_cena: the cache enabled regs.
+ * @regs_cinh: the cache inhibited regs.
+ * @dpio_id: The dpio index.
  *
  * Describe the attributes and features of the DPIO object.
  */
@@ -229,6 +238,16 @@ int dpaa2_io_service_has_nonaffine(struct dpaa2_io *s);
 
 /**
  * struct dpaa2_io_notification_ctx - The DPIO notification context structure.
+ * @cb: the callback to be invoked when the notification arrives.
+ * @is_cdan: Zero/FALSE for FQDAN, non-zero/TRUE for CDAN.
+ * @id: FQID or channel ID, needed for rearm.
+ * @desired_cpu: the cpu on which the notifications will show up.
+ * @actual_cpu: the cpu the notification actually shows up.
+ * @migration_cb: callback function used for migration.
+ * @dpio_id: the dpio index.
+ * @qman64: the 64-bit context value shows up in the FQDAN/CDAN.
+ * @node: the list node.
+ * @dpio_private: the dpio object internal to dpio_service.
  *
  * When a FQDAN/CDAN registration is made (eg. by DPNI/DPCON/DPAI code), a
  * context of the following type is used. The caller can embed it within a
@@ -237,11 +256,9 @@ int dpaa2_io_service_has_nonaffine(struct dpaa2_io *s);
  * notification context as a parameter).
  */
 struct dpaa2_io_notification_ctx {
-	/* the callback to be invoked when the notification arrives */
 	void (*cb)(struct dpaa2_io_notification_ctx *);
-	/* Zero/FALSE for FQDAN, non-zero/TRUE for CDAN */
 	int is_cdan;
-	uint32_t id; /* FQID or channel ID, needed for rearm */
+	uint32_t id;
 	/* This specifies which cpu the user wants notifications to show up on
 	 * (ie. to execute 'cb'). If notification-handling on that cpu is not
 	 * available at the time of notification registration, the registration
@@ -283,7 +300,7 @@ struct dpaa2_io_notification_ctx {
  * dpaa2_io_service_register() - Prepare for servicing of FQDAN or CDAN
  * notifications on the given DPIO service.
  * @service: the given DPIO service.
- * @ctx: the notificaiton context.
+ * @ctx: the notification context.
  *
  * The MC command to attach the caller's DPNI/DPCON/DPAI device to a
  * DPIO object is performed after this function is called. In that way, (a) the
@@ -302,7 +319,7 @@ int dpaa2_io_service_register(struct dpaa2_io *service,
 /**
  * dpaa2_io_service_deregister - The opposite of 'register'.
  * @service: the given DPIO service.
- * @ctx: the notificaiton context.
+ * @ctx: the notification context.
  *
  * Note that 'register' should be called *before*
  * making the MC call to attach the notification-producing device to the
@@ -318,7 +335,7 @@ int dpaa2_io_service_deregister(struct dpaa2_io *service,
 /**
  * dpaa2_io_service_rearm() - Rearm the notification for the given DPIO service.
  * @service: the given DPIO service.
- * @ctx: the notificaiton context.
+ * @ctx: the notification context.
  *
  * Once a FQDAN/CDAN has been produced, the corresponding FQ/channel is
  * considered "disarmed". Ie. the user can issue pull dequeue operations on that

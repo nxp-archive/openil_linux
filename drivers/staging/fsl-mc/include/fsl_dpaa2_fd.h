@@ -33,6 +33,15 @@
 
 /**
  * struct dpaa2_fd - Place-holder for FDs.
+ * @words: for easier/faster copying the whole FD structure.
+ * @addr_lo: the lower 32 bits of the address in FD.
+ * @addr_hi: the upper 32 bits of the address in FD.
+ * @len: the length field in FD.
+ * @bpid_offset: represent the bpid and offset fields in FD
+ * @frc: frame context
+ * @ctrl: the 32bit control bits including dd, sc,... va, err.
+ * @flc_lo: the lower 32bit of flow context.
+ * @flc_hi: the upper 32bits of flow context.
  *
  * We represent it via the simplest form that we need for now. Different
  * overlays may be needed to support different options, etc. (It is impractical
@@ -77,7 +86,7 @@ enum dpaa2_fd_format {
  * dpaa2_fd_get_addr() - get the addr field of frame descriptor
  * @fd: the given frame descriptor.
  *
- * Return the address in the frame descritpor.
+ * Return the address in the frame descriptor.
  */
 static inline dma_addr_t dpaa2_fd_get_addr(const struct dpaa2_fd *fd)
 {
@@ -234,6 +243,10 @@ static inline void dpaa2_fd_set_bpid(struct dpaa2_fd *fd, uint16_t bpid)
 
 /**
  * struct dpaa2_sg_entry - the scatter-gathering structure
+ * @addr_lo: the lower 32bit of address
+ * @addr_hi: the upper 32bit of address
+ * @len: the length in this sg entry.
+ * @bpid_ofset: offset in the MS 16 bits, BPID in the LS 16 bits.
  */
 struct dpaa2_sg_entry {
 	u32 addr_lo;
@@ -396,6 +409,11 @@ static inline void dpaa2_sg_set_final(struct dpaa2_sg_entry *sg, bool final)
  * hardware and cpu
  */
 #ifdef __BIG_ENDIAN
+/**
+ * dpaa2_sg_cpu_to_le() - convert scatter gather entry from native cpu
+ * format little endian format.
+ * @sg: the given scatter gather entry.
+ */
 static inline void dpaa2_sg_cpu_to_le(struct dpaa2_sg_entry *sg)
 {
 	uint32_t *p = (uint32_t *)sg;
@@ -405,6 +423,11 @@ static inline void dpaa2_sg_cpu_to_le(struct dpaa2_sg_entry *sg)
 		cpu_to_le32s(p++);
 }
 
+/**
+ * dpaa2_sg_le_to_cpu() - convert scatter gather entry from little endian
+ * format to native cpu format.
+ * @sg: the given scatter gather entry.
+ */
 static inline void dpaa2_sg_le_to_cpu(struct dpaa2_sg_entry *sg)
 {
 	uint32_t *p = (uint32_t *)sg;
@@ -421,6 +444,14 @@ static inline void dpaa2_sg_le_to_cpu(struct dpaa2_sg_entry *sg)
 
 /**
  * struct dpaa2_fl_entry - structure for frame list entry.
+ * @addr_lo: the lower 32bit of address
+ * @addr_hi: the upper 32bit of address
+ * @len: the length in this sg entry.
+ * @bpid_ofset: offset in the MS 16 bits, BPID in the LS 16 bits.
+ * @frc: frame context
+ * @ctrl: the 32bit control bits including dd, sc,... va, err.
+ * @flc_lo: the lower 32bit of flow context.
+ * @flc_hi: the upper 32bits of flow context.
  *
  * Frame List Entry (FLE)
  * Identical to dpaa2_fd.simple layout, but some bits are different
@@ -584,6 +615,8 @@ static inline void dpaa2_fl_set_final(struct dpaa2_fl_entry *fle, bool final)
 
 /**
  * struct dpaa2_dq - the qman result structure
+ * @dont_manipulate_directly: the 16 32bit data to represent the whole
+ * possible qman dequeue result.
  *
  * When frames are dequeued, the FDs show up inside "dequeue" result structures
  * (if at all, not all dequeue results contain valid FDs). This structure type
@@ -596,13 +629,21 @@ struct dpaa2_dq {
 };
 
 /* Parsing frame dequeue results */
+/* FQ empty */
 #define DPAA2_DQ_STAT_FQEMPTY       0x80
+/* FQ held active */
 #define DPAA2_DQ_STAT_HELDACTIVE    0x40
+/* FQ force eligible */
 #define DPAA2_DQ_STAT_FORCEELIGIBLE 0x20
+/* Valid frame */
 #define DPAA2_DQ_STAT_VALIDFRAME    0x10
+/* FQ ODP enable */
 #define DPAA2_DQ_STAT_ODPVALID      0x04
+/* Volatile dequeue */
 #define DPAA2_DQ_STAT_VOLATILE      0x02
+/* volatile dequeue command is expired */
 #define DPAA2_DQ_STAT_EXPIRED       0x01
+
 /**
  * dpaa2_dq_flags() - Get the stat field of dequeue response
  */
