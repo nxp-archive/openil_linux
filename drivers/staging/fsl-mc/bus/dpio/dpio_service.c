@@ -640,7 +640,7 @@ int dpaa2_io_service_release(struct dpaa2_io *d,
 {
 	struct qbman_release_desc rd;
 
-	d = service_select_any(d);
+	d = _service_select(d);
 	if (!d)
 		return -ENODEV;
 	qbman_release_desc_clear(&rd);
@@ -657,7 +657,7 @@ int dpaa2_io_service_acquire(struct dpaa2_io *d,
 	unsigned long irqflags;
 	int err;
 
-	d = service_select_any(d);
+	d = _service_select(d);
 	if (!d)
 		return -ENODEV;
 	spin_lock_irqsave(&d->object.lock_mgmt_cmd, irqflags);
