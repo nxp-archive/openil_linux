@@ -63,7 +63,7 @@
  */
 #define DBG_POLL_START(loopvar) (loopvar = 10)
 #define DBG_POLL_CHECK(loopvar) \
-	do {if (!(loopvar--)) BUG_ON(NULL == "DBG_POLL_CHECK"); } while (0)
+	do {if (!(loopvar--)) BUG_ON(1); } while (0)
 
 /* For CCSR or portal-CINH registers that contain fields at arbitrary offsets
  * and widths, these macro-generated encode/decode/isolate/remove inlines can

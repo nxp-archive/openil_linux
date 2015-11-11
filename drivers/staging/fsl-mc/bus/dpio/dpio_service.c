@@ -472,7 +472,7 @@ int dpaa2_io_service_register(struct dpaa2_io *d,
 	if (ctx->is_cdan)
 		/* Enable the generation of CDAN notifications */
 		qbman_swp_CDAN_set_context_enable(d->object.swp,
-						  ctx->id,
+						  (uint16_t)ctx->id,
 						  ctx->qman64);
 	return 0;
 }
@@ -489,7 +489,7 @@ int dpaa2_io_service_deregister(struct dpaa2_io *service,
 	BUG_ON((service != d) && (service != d->object.service));
 	if (ctx->is_cdan)
 		qbman_swp_CDAN_disable(d->object.swp,
-				       ctx->id);
+				       (uint16_t)ctx->id);
 	spin_lock_irqsave(&d->object.lock_notifications, irqflags);
 	list_del(&ctx->node);
 	spin_unlock_irqrestore(&d->object.lock_notifications, irqflags);
@@ -508,7 +508,7 @@ int dpaa2_io_service_rearm(struct dpaa2_io *d,
 		return -ENODEV;
 	spin_lock_irqsave(&d->object.lock_mgmt_cmd, irqflags);
 	if (ctx->is_cdan)
-		err = qbman_swp_CDAN_enable(d->object.swp, ctx->id);
+		err = qbman_swp_CDAN_enable(d->object.swp, (uint16_t)ctx->id);
 	else
 		err = qbman_swp_fq_schedule(d->object.swp, ctx->id);
 	spin_unlock_irqrestore(&d->object.lock_mgmt_cmd, irqflags);
@@ -565,7 +565,7 @@ int dpaa2_io_service_pull_fq(struct dpaa2_io *d, uint32_t fqid,
 
 	qbman_pull_desc_clear(&pd);
 	qbman_pull_desc_set_storage(&pd, s->vaddr, s->paddr, 1);
-	qbman_pull_desc_set_numframes(&pd, s->max);
+	qbman_pull_desc_set_numframes(&pd, (uint8_t)s->max);
 	qbman_pull_desc_set_fq(&pd, fqid);
 	d = _service_select(d);
 	if (!d)
@@ -586,7 +586,7 @@ int dpaa2_io_service_pull_channel(struct dpaa2_io *d, uint32_t channelid,
 
 	qbman_pull_desc_clear(&pd);
 	qbman_pull_desc_set_storage(&pd, s->vaddr, s->paddr, 1);
-	qbman_pull_desc_set_numframes(&pd, s->max);
+	qbman_pull_desc_set_numframes(&pd, (uint8_t)s->max);
 	qbman_pull_desc_set_channel(&pd, channelid, qbman_pull_type_active);
 	d = _service_select(d);
 	if (!d)

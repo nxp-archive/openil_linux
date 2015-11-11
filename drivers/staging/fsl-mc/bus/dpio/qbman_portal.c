@@ -459,7 +459,7 @@ void qbman_swp_push_set(struct qbman_swp *s, uint8_t channel_idx, int enable)
 	qb_attr_code_encode(&code, &s->sdq, !!enable);
 	/* Read make the complete src map.  If no channels are enabled
 	   the SDQCR must be 0 or else QMan will assert errors */
-	dqsrc = qb_attr_code_decode(&code_sdqcr_dqsrc, &s->sdq);
+	dqsrc = (uint16_t)qb_attr_code_decode(&code_sdqcr_dqsrc, &s->sdq);
 	if (dqsrc != 0)
 		qbman_cinh_write(&s->sys, QBMAN_CINH_SWP_SDQCR, s->sdq);
 	else
