@@ -4852,7 +4852,6 @@ static void dpaa2_caam_process_fd(struct dpaa2_caam_priv *priv,
 				  const struct dpaa2_fd *fd)
 {
 	struct caam_request *req;
-	dma_addr_t rflc_dma;
 	u32 err;
 
 	if (dpaa2_fd_get_format(fd) != dpaa2_fd_list) {
@@ -4870,11 +4869,9 @@ static void dpaa2_caam_process_fd(struct dpaa2_caam_priv *priv,
 		caam_jr_strstatus(priv->dev, err);
 	}
 
-	rflc_dma = dpaa2_fd_get_flc(fd);
-	req = phys_to_virt(dma_to_phys(priv->dev, rflc_dma));
-	dma_unmap_single(priv->dev, rflc_dma, sizeof(*req), DMA_TO_DEVICE);
+	req = phys_to_virt(dma_to_phys(priv->dev, dpaa2_fd_get_addr(fd)));
 	dma_unmap_single(priv->dev, req->fd_flt_dma, sizeof(req->fd_flt),
-			 DMA_BIDIRECTIONAL);
+			 DMA_TO_DEVICE);
 	req->cbk(req->ctx, err);
 }
 
@@ -5280,10 +5277,8 @@ static int __cold dpaa2_caam_remove(struct fsl_mc_device *ls_dev)
 
 int dpaa2_caam_enqueue(struct device *dev, struct caam_request *req)
 {
-	size_t size;
 	struct dpaa2_fd fd;
 	struct dpaa2_caam_priv *priv = dev_get_drvdata(dev);
-	dma_addr_t rflc_dma;
 	int err, i;
 
 	if (IS_ERR(req))
@@ -5291,12 +5286,11 @@ int dpaa2_caam_enqueue(struct device *dev, struct caam_request *req)
 
 	dpaa2_fl_set_flc(&req->fd_flt[1], req->flc_dma);
 
-	size = sizeof(req->fd_flt);
-	req->fd_flt_dma = dma_map_single(dev, req->fd_flt, size,
-					 DMA_BIDIRECTIONAL);
+	req->fd_flt_dma = dma_map_single(dev, req->fd_flt, sizeof(req->fd_flt),
+					 DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, req->fd_flt_dma)) {
 		dev_err(dev, "DMA mapping error for QI enqueue request\n");
-		return -EIO;
+		goto err_out;
 	}
 
 	memset(&fd, 0, sizeof(fd));
@@ -5305,14 +5299,7 @@ int dpaa2_caam_enqueue(struct device *dev, struct caam_request *req)
 	dpaa2_fd_set_len(&fd, req->fd_flt[1].len);
 	dpaa2_fd_set_flc(&fd, req->flc_dma);
 
-	rflc_dma = dma_map_single(dev, req, sizeof(*req), DMA_TO_DEVICE);
-	if (dma_mapping_error(dev, rflc_dma)) {
-		dev_err(dev, "DMA mapping error for response FLC\n");
-		goto err_rflc_dma;
-	}
 	req->flc->flc[1] = desc_len(req->flc->sh_desc); /* SDL */
-	req->flc->flc[2] = lower_32_bits(rflc_dma); /* RFLC_LO */
-	req->flc->flc[3] = upper_32_bits(rflc_dma); /* RFLC_HI */
 	dma_sync_single_for_device(dev, req->flc_dma,
 				   sizeof(req->flc->flc) +
 				   desc_bytes(req->flc->sh_desc),
@@ -5329,15 +5316,14 @@ int dpaa2_caam_enqueue(struct device *dev, struct caam_request *req)
 
 	if (unlikely(err < 0)) {
 		dev_err(dev, "Error enqueuing frame\n");
-		goto err_enq;
+		goto err_out;
 	}
 
 	return -EINPROGRESS;
 
-err_enq:
-	dma_unmap_single(dev, rflc_dma, sizeof(*req), DMA_TO_DEVICE);
-err_rflc_dma:
-	dma_unmap_single(dev, req->fd_flt_dma, size, DMA_BIDIRECTIONAL);
+err_out:
+	dma_unmap_single(dev, req->fd_flt_dma, sizeof(req->fd_flt),
+			 DMA_TO_DEVICE);
 	return -EIO;
 }
 EXPORT_SYMBOL(dpaa2_caam_enqueue);
