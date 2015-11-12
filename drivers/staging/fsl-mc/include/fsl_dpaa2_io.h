@@ -36,9 +36,16 @@
 struct dpaa2_io;
 struct dpaa2_io_store;
 
-/***************************/
-/* DPIO Service management */
-/***************************/
+/**
+ * DOC: DPIO Service Management
+ *
+ * The DPIO service provides APIs for users to interact with the datapath
+ * by enqueueing and dequeing frame descriptors.
+ *
+ * The following set of APIs can be used to enqueue and dequeue frames
+ * as well as producing notification callbacks when data is available
+ * for dequeue.
+ */
 
 /**
  * struct dpaa2_io_desc - The DPIO descriptor.
@@ -374,7 +381,7 @@ int dpaa2_io_from_registration(struct dpaa2_io_notification_ctx *ctx,
 /**
  * dpaa2_io_service_get_persistent() - Get the DPIO resource from the given
  * notification context and cpu.
- * @ctx: the given notifiation context.
+ * @service: the DPIO service.
  * @cpu: the cpu that the DPIO resource has stashing affinity to.
  * @ret: the returned DPIO resource.
  *
@@ -398,11 +405,9 @@ int dpaa2_io_service_get_persistent(struct dpaa2_io *service, int cpu,
 /*****************/
 
 /**
- * dpaa2_io_service_pull_fq()
- * dpaa2_io_service_pull_channel() - pull dequeue functions from fq or channel.
+ * dpaa2_io_service_pull_fq() - pull dequeue functions from a fq.
  * @d: the given DPIO service.
  * @fqid: the given frame queue id.
- * @channelid: the given channel id.
  * @s: the dpaa2_io_store object for the result.
  *
  * To support DCA/order-preservation, it will be necessary to support an
@@ -417,6 +422,23 @@ int dpaa2_io_service_get_persistent(struct dpaa2_io *service, int cpu,
  */
 int dpaa2_io_service_pull_fq(struct dpaa2_io *d, uint32_t fqid,
 			    struct dpaa2_io_store *s);
+
+/**
+ * dpaa2_io_service_pull_channel() - pull dequeue functions from a channel.
+ * @d: the given DPIO service.
+ * @channelid: the given channel id.
+ * @s: the dpaa2_io_store object for the result.
+ *
+ * To support DCA/order-preservation, it will be necessary to support an
+ * alternative form, because they must ultimately dequeue to DQRR rather than a
+ * user-supplied dpaa2_io_store. Furthermore, those dequeue results will
+ * "complete" using a caller-provided callback (from DQRR processing) rather
+ * than the caller explicitly looking at their dpaa2_io_store for results. Eg.
+ * the alternative form will likely take a callback parameter rather than a
+ * store parameter. Ignoring it for now to keep the picture clearer.
+ *
+ * Return 0 for success, or error code for failure.
+ */
 int dpaa2_io_service_pull_channel(struct dpaa2_io *d, uint32_t channelid,
 				 struct dpaa2_io_store *s);
 
@@ -425,13 +447,9 @@ int dpaa2_io_service_pull_channel(struct dpaa2_io *d, uint32_t channelid,
 /************/
 
 /**
- * dpaa2_io_service_enqueue_fq()
- * dpaa2_io_service_enqueue_qd() - The enqueue functions to FQ or QD
+ * dpaa2_io_service_enqueue_fq() - Enqueue a frame to a frame queue.
  * @d: the given DPIO service.
  * @fqid: the given frame queue id.
- * @qdid: the given queuing destination id.
- * @prio: the given queuing priority.
- * @qdbin: the given queuing destination bin.
  * @fd: the frame descriptor which is enqueued.
  *
  * This definition bypasses some features that are not expected to be priority-1
@@ -450,6 +468,28 @@ int dpaa2_io_service_pull_channel(struct dpaa2_io *d, uint32_t channelid,
 int dpaa2_io_service_enqueue_fq(struct dpaa2_io *d,
 			       uint32_t fqid,
 			       const struct dpaa2_fd *fd);
+
+/**
+ * dpaa2_io_service_enqueue_qd() - Enqueue a frame to a QD.
+ * @d: the given DPIO service.
+ * @qdid: the given queuing destination id.
+ * @prio: the given queuing priority.
+ * @qdbin: the given queuing destination bin.
+ * @fd: the frame descriptor which is enqueued.
+ *
+ * This definition bypasses some features that are not expected to be priority-1
+ * features, and may not be needed at all via current assumptions (QBMan's
+ * feature set is wider than the MC object model is intendeding to support,
+ * initially at least). Plus, keeping them out (for now) keeps the API view
+ * simpler. Missing features are;
+ *  - enqueue confirmation (results DMA'd back to the user)
+ *  - ORP
+ *  - DCA/order-preservation (see note in "pull dequeues")
+ *  - enqueue consumption interrupts
+ *
+ * Return 0 for successful enqueue, or -EBUSY if the enqueue ring is not ready,
+ * or -ENODEV if there is no dpio service.
+ */
 int dpaa2_io_service_enqueue_qd(struct dpaa2_io *d,
 			       uint32_t qdid, uint8_t prio, uint16_t qdbin,
 			       const struct dpaa2_fd *fd);
@@ -483,7 +523,7 @@ int dpaa2_io_service_release(struct dpaa2_io *d,
  * the number of buffers acquired, which may be less than the number requested.
  * Eg. if the buffer pool is empty, this will return zero.
  */
-int dpaa2_io_service_acquire(struct dpaa2_io *,
+int dpaa2_io_service_acquire(struct dpaa2_io *d,
 			    uint32_t bpid,
 			    uint64_t *buffers,
 			    unsigned int num_buffers);
@@ -500,14 +540,12 @@ int dpaa2_io_service_acquire(struct dpaa2_io *,
  */
 
 /**
- * dpaa2_io_store_create()
- * dpaa2_io_store_destroy() - Create/destroy the dma memory storage for dequeue
+ * dpaa2_io_store_create() - Create the dma memory storage for dequeue
  * result.
  * @max_frames: the maximum number of dequeued result for frames, must be <= 16.
  * @dev: the device to allow mapping/unmapping the DMAable region.
- * @s: the storage memory to be destroyed.
  *
- * Constructor/destructor - max_frames must be <= 16. The user provides the
+ * Constructor - max_frames must be <= 16. The user provides the
  * device struct to allow mapping/unmapping of the DMAable region. Area for
  * storage will be allocated during create. The size of this storage is
  * "max_frames*sizeof(struct dpaa2_dq)". The 'dpaa2_io_store' returned is a
@@ -519,6 +557,14 @@ int dpaa2_io_service_acquire(struct dpaa2_io *,
  */
 struct dpaa2_io_store *dpaa2_io_store_create(unsigned int max_frames,
 					   struct device *dev);
+
+/**
+ * dpaa2_io_store_destroy() - Destroy the dma memory storage for dequeue
+ * result.
+ * @s: the storage memory to be destroyed.
+ *
+ * Frees to specified storage memory.
+ */
 void dpaa2_io_store_destroy(struct dpaa2_io_store *s);
 
 /**

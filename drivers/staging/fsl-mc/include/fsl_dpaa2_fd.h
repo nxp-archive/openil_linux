@@ -32,6 +32,20 @@
 #define __FSL_DPAA2_FD_H
 
 /**
+ * DOC: DPAA2 FD - Frame Descriptor APIs for DPAA2
+ *
+ * Frame Descriptors (FDs) are used to describe frame data in the DPAA2.
+ * Frames can be enqueued and dequeued to Frame Queues which are consumed
+ * by the various DPAA accelerators (WRIOP, SEC, PME, DCE)
+ *
+ * There are three types of frames: Single, Scatter Gather and Frame Lists.
+ *
+ * The set of APIs in this file must be used to create, manipulate and
+ * query Frame Descriptor.
+ *
+ */
+
+/**
  * struct dpaa2_fd - Place-holder for FDs.
  * @words: for easier/faster copying the whole FD structure.
  * @addr_lo: the lower 32 bits of the address in FD.
@@ -43,6 +57,7 @@
  * @flc_lo: the lower 32bit of flow context.
  * @flc_hi: the upper 32bits of flow context.
  *
+ * This structure represents the basic Frame Descriptor used in the system.
  * We represent it via the simplest form that we need for now. Different
  * overlays may be needed to support different options, etc. (It is impractical
  * to define One True Struct, because the resulting encoding routines (lots of
@@ -246,7 +261,7 @@ static inline void dpaa2_fd_set_bpid(struct dpaa2_fd *fd, uint16_t bpid)
  * @addr_lo: the lower 32bit of address
  * @addr_hi: the upper 32bit of address
  * @len: the length in this sg entry.
- * @bpid_ofset: offset in the MS 16 bits, BPID in the LS 16 bits.
+ * @bpid_offset: offset in the MS 16 bits, BPID in the LS 16 bits.
  */
 struct dpaa2_sg_entry {
 	u32 addr_lo;
@@ -447,7 +462,7 @@ static inline void dpaa2_sg_le_to_cpu(struct dpaa2_sg_entry *sg)
  * @addr_lo: the lower 32bit of address
  * @addr_hi: the upper 32bit of address
  * @len: the length in this sg entry.
- * @bpid_ofset: offset in the MS 16 bits, BPID in the LS 16 bits.
+ * @bpid_offset: offset in the MS 16 bits, BPID in the LS 16 bits.
  * @frc: frame context
  * @ctrl: the 32bit control bits including dd, sc,... va, err.
  * @flc_lo: the lower 32bit of flow context.
@@ -474,10 +489,8 @@ enum dpaa2_fl_format {
 };
 
 /**
- * dpaa2_fl_get_addr()
- * dpaa2_fl_set_addr() - Get/Set the address in the frame list entry
+ * dpaa2_fl_get_addr() - Get address in the frame list entry
  * @fle: the given frame list entry.
- * @addr: the address needs to be set.
  *
  * Return address for the get function.
  */
@@ -486,6 +499,12 @@ static inline dma_addr_t dpaa2_fl_get_addr(const struct dpaa2_fl_entry *fle)
 	return (dma_addr_t)((((uint64_t)fle->addr_hi) << 32) + fle->addr_lo);
 }
 
+/**
+ * dpaa2_fl_set_addr() - Set the address in the frame list entry
+ * @fle: the given frame list entry.
+ * @addr: the address needs to be set.
+ *
+ */
 static inline void dpaa2_fl_set_addr(struct dpaa2_fl_entry *fle,
 				     dma_addr_t addr)
 {
@@ -494,10 +513,8 @@ static inline void dpaa2_fl_set_addr(struct dpaa2_fl_entry *fle,
 }
 
 /**
- * dpaa2_fl_get_flc()
- * dpaa2_fl_set_flc() - Get/Set the flow context in the frame list entry
+ * dpaa2_fl_get_flc() - Get the flow context in the frame list entry
  * @fle: the given frame list entry.
- * @flc_addr: the flow context address needs to be set.
  *
  * Return flow context for the get function.
  */
@@ -506,6 +523,12 @@ static inline dma_addr_t dpaa2_fl_get_flc(const struct dpaa2_fl_entry *fle)
 	return (dma_addr_t)((((uint64_t)fle->flc_hi) << 32) + fle->flc_lo);
 }
 
+/**
+ * dpaa2_fl_set_flc() - Set the flow context in the frame list entry
+ * @fle: the given frame list entry.
+ * @flc_addr: the flow context address needs to be set.
+ *
+ */
 static inline void dpaa2_fl_set_flc(struct dpaa2_fl_entry *fle,
 				    dma_addr_t flc_addr)
 {
@@ -514,10 +537,8 @@ static inline void dpaa2_fl_set_flc(struct dpaa2_fl_entry *fle,
 }
 
 /**
- * dpaa2_fl_get_len()
- * dpaa2_fl_set_len() - Get/Set the length in the frame list entry
+ * dpaa2_fl_get_len() - Get the length in the frame list entry
  * @fle: the given frame list entry.
- * @len: the length needs to be set.
  *
  * Return length for the get function.
  */
@@ -526,16 +547,20 @@ static inline u32 dpaa2_fl_get_len(const struct dpaa2_fl_entry *fle)
 	return fle->len;
 }
 
+/**
+ * dpaa2_fl_set_len() - Set the length in the frame list entry
+ * @fle: the given frame list entry.
+ * @len: the length needs to be set.
+ *
+ */
 static inline void dpaa2_fl_set_len(struct dpaa2_fl_entry *fle, u32 len)
 {
 	fle->len = len;
 }
 
 /**
- * dpaa2_fl_get_offset()
- * dpaa2_fl_set_offset() - Get/Set the offset in the frame list entry
+ * dpaa2_fl_get_offset() - Get/Set the offset in the frame list entry
  * @fle: the given frame list entry.
- * @offset: the offset needs to be set.
  *
  * Return offset for the get function.
  */
@@ -544,6 +569,12 @@ static inline uint16_t dpaa2_fl_get_offset(const struct dpaa2_fl_entry *fle)
 	return (uint16_t)(fle->bpid_offset >> 16) & 0x0FFF;
 }
 
+/**
+ * dpaa2_fl_set_offset() - Set the offset in the frame list entry
+ * @fle: the given frame list entry.
+ * @offset: the offset needs to be set.
+ *
+ */
 static inline void dpaa2_fl_set_offset(struct dpaa2_fl_entry *fle,
 				       uint16_t offset)
 {
@@ -552,10 +583,8 @@ static inline void dpaa2_fl_set_offset(struct dpaa2_fl_entry *fle,
 }
 
 /**
- * dpaa2_fl_get_format()
- * dpaa2_fl_set_format() - Get/Set the format in the frame list entry
+ * dpaa2_fl_get_format() - Get the format in the frame list entry
  * @fle: the given frame list entry.
- * @format: the frame list format needs to be set.
  *
  * Return frame list format for the get function.
  */
@@ -565,6 +594,12 @@ static inline enum dpaa2_fl_format dpaa2_fl_get_format(
 	return (enum dpaa2_fl_format)((fle->bpid_offset >> 28) & 0x3);
 }
 
+/**
+ * dpaa2_fl_set_format() - Set the format in the frame list entry
+ * @fle: the given frame list entry.
+ * @format: the frame list format needs to be set.
+ *
+ */
 static inline void dpaa2_fl_set_format(struct dpaa2_fl_entry *fle,
 				       enum dpaa2_fl_format format)
 {
@@ -573,10 +608,8 @@ static inline void dpaa2_fl_set_format(struct dpaa2_fl_entry *fle,
 }
 
 /**
- * dpaa2_fl_get_bpid()
- * dpaa2_fl_set_bpid() - Get/Set the buffer pool id in the frame list entry
+ * dpaa2_fl_get_bpid() - Get the buffer pool id in the frame list entry
  * @fle: the given frame list entry.
- * @bpid: the buffer pool id needs to be set.
  *
  * Return bpid for the get function.
  */
@@ -585,6 +618,12 @@ static inline uint16_t dpaa2_fl_get_bpid(const struct dpaa2_fl_entry *fle)
 	return (uint16_t)(fle->bpid_offset & 0x3FFF);
 }
 
+/**
+ * dpaa2_fl_set_bpid() - Set the buffer pool id in the frame list entry
+ * @fle: the given frame list entry.
+ * @bpid: the buffer pool id needs to be set.
+ *
+ */
 static inline void dpaa2_fl_set_bpid(struct dpaa2_fl_entry *fle, uint16_t bpid)
 {
 	fle->bpid_offset &= 0xFFFFC000;
@@ -646,8 +685,9 @@ struct dpaa2_dq {
 
 /**
  * dpaa2_dq_flags() - Get the stat field of dequeue response
+ * @dq: the dequeue result.
  */
-uint32_t dpaa2_dq_flags(const struct dpaa2_dq *);
+uint32_t dpaa2_dq_flags(const struct dpaa2_dq *dq);
 
 /**
  * dpaa2_dq_is_pull() - Check whether the dq response is from a pull
@@ -676,46 +716,59 @@ static inline int dpaa2_dq_is_pull_complete(
 /**
  * dpaa2_dq_seqnum() - Get the seqnum field in dequeue response
  * seqnum is valid only if VALIDFRAME flag is TRUE
+ * @dq: the dequeue result.
  *
  * Return seqnum.
  */
-uint16_t dpaa2_dq_seqnum(const struct dpaa2_dq *);
+uint16_t dpaa2_dq_seqnum(const struct dpaa2_dq *dq);
+
 /**
  * dpaa2_dq_odpid() - Get the seqnum field in dequeue response
  * odpid is valid only if ODPVAILD flag is TRUE.
+ * @dq: the dequeue result.
  *
  * Return odpid.
  */
-uint16_t dpaa2_dq_odpid(const struct dpaa2_dq *);
+uint16_t dpaa2_dq_odpid(const struct dpaa2_dq *dq);
+
 /**
  * dpaa2_dq_fqid() - Get the fqid in dequeue response
+ * @dq: the dequeue result.
  *
  * Return fqid.
  */
-uint32_t dpaa2_dq_fqid(const struct dpaa2_dq *);
+uint32_t dpaa2_dq_fqid(const struct dpaa2_dq *dq);
+
 /**
  * dpaa2_dq_byte_count() - Get the byte count in dequeue response
+ * @dq: the dequeue result.
  *
  * Return the byte count remaining in the FQ.
  */
-uint32_t dpaa2_dq_byte_count(const struct dpaa2_dq *);
+uint32_t dpaa2_dq_byte_count(const struct dpaa2_dq *dq);
+
 /**
  * dpaa2_dq_frame_count() - Get the frame count in dequeue response
+ * @dq: the dequeue result.
  *
  * Return the frame count remaining in the FQ.
  */
-uint32_t dpaa2_dq_frame_count(const struct dpaa2_dq *);
+uint32_t dpaa2_dq_frame_count(const struct dpaa2_dq *dq);
+
 /**
  * dpaa2_dq_fd_ctx() - Get the frame queue context in dequeue response
+ * @dq: the dequeue result.
  *
  * Return the frame queue context.
  */
 uint64_t dpaa2_dq_fqd_ctx(const struct dpaa2_dq *dq);
+
 /**
  * dpaa2_dq_fd() - Get the frame descriptor in dequeue response
+ * @dq: the dequeue result.
  *
  * Return the frame descriptor.
  */
-const struct dpaa2_fd *dpaa2_dq_fd(const struct dpaa2_dq *);
+const struct dpaa2_fd *dpaa2_dq_fd(const struct dpaa2_dq *dq);
 
 #endif /* __FSL_DPAA2_FD_H */
