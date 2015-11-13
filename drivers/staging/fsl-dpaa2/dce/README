@@ -1,0 +1,8 @@
+Decompression Compression Engine (DCE)
+	The DCE is a freescale hardware acceelrator that can be used to offload
+	compression and decompression operations that use the DEFLATE algorithm
+
+	The DCE is represented by objects called DPDCEI. All modules that do
+	compression or decompression must get a handle to a dpdcei. All work
+	necessary to get access and share DPDCEI objects is simplified in the
+	DCE API docuemented in dce.h

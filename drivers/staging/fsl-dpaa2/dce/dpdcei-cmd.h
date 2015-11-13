@@ -34,7 +34,7 @@
 
 /* DPDCEI Version */
 #define DPDCEI_VER_MAJOR				1
-#define DPDCEI_VER_MINOR				0
+#define DPDCEI_VER_MINOR				1
 
 /* Command IDs */
 #define DPDCEI_CMDID_CLOSE				0x800
