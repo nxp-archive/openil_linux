@@ -395,6 +395,7 @@ static int aead_set_sh_desc(struct crypto_aead *aead)
 	append_seq_store(desc, ctx->authsize, LDST_CLASS_2_CCB |
 			 LDST_SRCDST_BYTE_CONTEXT);
 
+	flc->flc[1] = desc_len(desc); /* SDL */
 	*flc_dma = dma_map_single(dev, flc, sizeof(flc->flc) +
 				  desc_bytes(desc), DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, *flc_dma)) {
@@ -467,6 +468,7 @@ static int aead_set_sh_desc(struct crypto_aead *aead)
 	append_seq_fifo_load(desc, ctx->authsize, FIFOLD_CLASS_CLASS2 |
 			     FIFOLD_TYPE_LAST2 | FIFOLD_TYPE_ICV);
 
+	flc->flc[1] = desc_len(desc); /* SDL */
 	*flc_dma = dma_map_single(dev, flc, sizeof(flc->flc) +
 				  desc_bytes(desc), DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, *flc_dma)) {
@@ -565,6 +567,7 @@ static int aead_set_sh_desc(struct crypto_aead *aead)
 	append_seq_store(desc, ctx->authsize, LDST_CLASS_2_CCB |
 			 LDST_SRCDST_BYTE_CONTEXT);
 
+	flc->flc[1] = desc_len(desc); /* SDL */
 	*flc_dma = dma_map_single(dev, flc, sizeof(flc->flc) +
 				  desc_bytes(desc), DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, *flc_dma)) {
@@ -671,6 +674,7 @@ int gen_split_key(struct device *dev, u8 *key_out, int split_key_len,
 	append_fifo_store(desc, dma_addr_out, split_key_len,
 			  LDST_CLASS_2_CCB | FIFOST_TYPE_SPLIT_KEK);
 
+	flc->flc[1] = desc_len(desc); /* SDL */
 	flc_dma = dma_map_single(dev, flc, sizeof(flc->flc) + desc_bytes(desc),
 				 DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, flc_dma)) {
@@ -1278,6 +1282,7 @@ static int gcm_set_sh_desc(struct crypto_aead *aead)
 	append_seq_store(desc, ctx->authsize, LDST_CLASS_1_CCB |
 			 LDST_SRCDST_BYTE_CONTEXT);
 
+	flc->flc[1] = desc_len(desc); /* SDL */
 	*flc_dma = dma_map_single(dev, flc, sizeof(flc->flc) +
 				  desc_bytes(desc), DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, *flc_dma)) {
@@ -1375,6 +1380,7 @@ static int gcm_set_sh_desc(struct crypto_aead *aead)
 	append_seq_fifo_load(desc, ctx->authsize, FIFOLD_CLASS_CLASS1 |
 			     FIFOLD_TYPE_ICV | FIFOLD_TYPE_LAST1);
 
+	flc->flc[1] = desc_len(desc); /* SDL */
 	*flc_dma = dma_map_single(dev, flc, sizeof(flc->flc) +
 				  desc_bytes(desc), DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, *flc_dma)) {
@@ -1526,6 +1532,7 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 	/* Perform operation */
 	ablkcipher_append_src_dst(desc);
 
+	flc->flc[1] = desc_len(desc); /* SDL */
 	*flc_dma = dma_map_single(dev, flc, sizeof(flc->flc) +
 				  desc_bytes(desc), DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, *flc_dma)) {
@@ -1590,6 +1597,7 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 	/* Perform operation */
 	ablkcipher_append_src_dst(desc);
 
+	flc->flc[1] = desc_len(desc); /* SDL */
 	*flc_dma = dma_map_single(dev, flc, sizeof(flc->flc) +
 				  desc_bytes(desc), DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, *flc_dma)) {
@@ -1669,6 +1677,7 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 	/* Perform operation */
 	ablkcipher_append_src_dst(desc);
 
+	flc->flc[1] = desc_len(desc); /* SDL */
 	*flc_dma = dma_map_single(dev, flc, sizeof(flc->flc) +
 				  desc_bytes(desc), DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, *flc_dma)) {
@@ -3258,6 +3267,7 @@ static int hash_digest_key(struct caam_hash_ctx *ctx, const u8 *key_in,
 	append_seq_store(desc, digestsize, LDST_CLASS_2_CCB |
 			 LDST_SRCDST_BYTE_CONTEXT);
 
+	flc->flc[1] = desc_len(desc); /* SDL */
 	flc_dma = dma_map_single(dev, flc, sizeof(flc->flc) + desc_bytes(desc),
 				 DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, flc_dma)) {
@@ -3348,6 +3358,7 @@ static int ahash_set_sh_desc(struct crypto_ahash *ahash)
 	/* Load data and write to result or context */
 	ahash_append_load_str(desc, ctx->ctx_len);
 
+	flc->flc[1] = desc_len(desc); /* SDL */
 	*flc_dma = dma_map_single(dev, flc, sizeof(flc->flc) +
 				  desc_bytes(desc), DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, *flc_dma)) {
@@ -3369,6 +3380,7 @@ static int ahash_set_sh_desc(struct crypto_ahash *ahash)
 	ahash_data_to_out(desc, have_key | ctx->alg_type, OP_ALG_AS_INIT,
 			  ctx->ctx_len, ctx);
 
+	flc->flc[1] = desc_len(desc); /* SDL */
 	*flc_dma = dma_map_single(dev, flc, sizeof(flc->flc) + desc_bytes(desc),
 				  DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, *flc_dma)) {
@@ -3389,6 +3401,7 @@ static int ahash_set_sh_desc(struct crypto_ahash *ahash)
 	ahash_ctx_data_to_out(desc, have_key | ctx->alg_type,
 			      OP_ALG_AS_FINALIZE, digestsize, ctx);
 
+	flc->flc[1] = desc_len(desc); /* SDL */
 	*flc_dma = dma_map_single(dev, flc, sizeof(flc->flc) + desc_bytes(desc),
 				  DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, *flc_dma)) {
@@ -3409,6 +3422,7 @@ static int ahash_set_sh_desc(struct crypto_ahash *ahash)
 	ahash_ctx_data_to_out(desc, have_key | ctx->alg_type,
 			      OP_ALG_AS_FINALIZE, digestsize, ctx);
 
+	flc->flc[1] = desc_len(desc); /* SDL */
 	*flc_dma = dma_map_single(dev, flc, sizeof(flc->flc) + desc_bytes(desc),
 				  DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, *flc_dma)) {
@@ -3429,6 +3443,7 @@ static int ahash_set_sh_desc(struct crypto_ahash *ahash)
 	ahash_data_to_out(desc, have_key | ctx->alg_type, OP_ALG_AS_INITFINAL,
 			  digestsize, ctx);
 
+	flc->flc[1] = desc_len(desc); /* SDL */
 	*flc_dma = dma_map_single(dev, flc, sizeof(flc->flc) + desc_bytes(desc),
 				  DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, *flc_dma)) {
@@ -5298,12 +5313,6 @@ int dpaa2_caam_enqueue(struct device *dev, struct caam_request *req)
 	dpaa2_fd_set_addr(&fd, req->fd_flt_dma);
 	dpaa2_fd_set_len(&fd, req->fd_flt[1].len);
 	dpaa2_fd_set_flc(&fd, req->flc_dma);
-
-	req->flc->flc[1] = desc_len(req->flc->sh_desc); /* SDL */
-	dma_sync_single_for_device(dev, req->flc_dma,
-				   sizeof(req->flc->flc) +
-				   desc_bytes(req->flc->sh_desc),
-				   DMA_TO_DEVICE);
 
 	for (i = 0; i < 100000; i++) {
 		/* TODO: priority hard-coded to zero */
