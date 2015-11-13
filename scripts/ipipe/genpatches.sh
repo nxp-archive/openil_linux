@@ -93,6 +93,9 @@ BEGIN {
     driver_arch["gpu/ipu-v3/ipu-prv.h"]="arm"
     driver_arch["memory/omap-gpmc.c"]="arm"
 
+    driver_arch["tty/serial/amba-pl011.c"]="arm64"
+    driver_arch["gpio/gpio-pl061.c"]="arm64"
+
     driver_arch["tty/serial/bfin_uart.c"]="blackfin"
 
     driver_arch["tty/serial/mpc52xx_uart.c"]="powerpc"
