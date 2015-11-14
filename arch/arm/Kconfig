@@ -90,11 +90,6 @@ config ARM
 	  Europe.  There is an ARM Linux project with a web page at
 	  <http://www.arm.linux.org.uk/>.
 
-if IPIPE
-config IPIPE_WANT_ACTIVE_MM
-       def_bool y
-endif
-
 config ARM_HAS_SG_CHAIN
 	select ARCH_HAS_SG_CHAIN
 	bool
