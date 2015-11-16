@@ -198,6 +198,13 @@ struct caam_flc {
 	u32 sh_desc[MAX_SDLEN];
 } ____cacheline_aligned;
 
+enum optype {
+	ENCRYPT = 0,
+	DECRYPT,
+	GIVENCRYPT,
+	NUM_OP
+};
+
 /**
  * caam_request - the request structure the driver application should fill while
  *                submitting a job to driver.
@@ -207,6 +214,7 @@ struct caam_flc {
  * @fd_flt_dma: DMA address for the frame list table
  * @flc: Flow Context
  * @flc_dma: DMA address of Flow Context
+ * @op_type: operation type
  * @cbk: Callback function to invoke when job is completed
  * @ctx: arbit context attached with request by the application
  * @edesc: extended descriptor; points to one of {ablkcipher,ahash,aead}_edesc
@@ -216,6 +224,7 @@ struct caam_request {
 	dma_addr_t fd_flt_dma;
 	struct caam_flc *flc;
 	dma_addr_t flc_dma;
+	enum optype op_type;
 	void (*cbk)(void *ctx, u32 err);
 	void *ctx;
 	void *edesc;
