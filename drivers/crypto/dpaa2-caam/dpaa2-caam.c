@@ -4672,15 +4672,20 @@ static int caam_hash_cra_init(struct crypto_tfm *tfm)
 					 HASH_MSG_LEN + SHA256_DIGEST_SIZE,
 					 HASH_MSG_LEN + 64,
 					 HASH_MSG_LEN + SHA512_DIGEST_SIZE };
+	u8 op_id;
 
 	/* copy descriptor header template value */
 	ctx->alg_type = OP_TYPE_CLASS2_ALG | caam_hash->alg_type;
 	ctx->alg_op = OP_TYPE_CLASS2_ALG | caam_hash->alg_op;
-
-	ctx->ctx_len = runninglen[(ctx->alg_op & OP_ALG_ALGSEL_SUBMASK) >>
-				  OP_ALG_ALGSEL_SHIFT];
-
 	ctx->priv = caam_hash->priv;
+
+	op_id = (ctx->alg_op & OP_ALG_ALGSEL_SUBMASK) >> OP_ALG_ALGSEL_SHIFT;
+	if (unlikely(op_id >= ARRAY_SIZE(runninglen))) {
+		dev_err(ctx->priv->dev, "incorrect op_id %d; must be less than %zu\n",
+			op_id, ARRAY_SIZE(runninglen));
+		return -EINVAL;
+	}
+	ctx->ctx_len = runninglen[op_id];
 
 	crypto_ahash_set_reqsize(__crypto_ahash_cast(tfm),
 				 sizeof(struct caam_hash_state));
