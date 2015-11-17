@@ -54,6 +54,16 @@ u32 set_pcie_streamid_translation(struct pci_dev *pdev, u32 devid)
 	return streamid;
 }
 
+static bool ls_pcie_is_bridge(struct ls_pcie *pcie)
+{
+	u32 header_type;
+
+	header_type = ioread32(pcie->regs + (PCI_HEADER_TYPE & ~0x3));
+	header_type = (header_type >> (8 * (PCI_HEADER_TYPE & 0x3))) & 0x7f;
+
+	return header_type == PCI_HEADER_TYPE_BRIDGE;
+}
+
 static int ls1_pcie_link_up(struct dw_pcie_port *pp)
 {
 	struct ls_pcie *pcie = to_ls_pcie(pp);
@@ -213,6 +223,9 @@ static int __init ls_pcie_probe(struct platform_device *pdev)
 		} else
 			dev_err(&pdev->dev, "PCIe endpoint partitioning not possible\n");
 	}
+
+	if (!ls_pcie_is_bridge(pcie))
+		return -ENODEV;
 
 	ret = dw_pcie_port_init(&pcie->pp);
 	if (ret < 0)
