@@ -1,11 +1,11 @@
 Decompression Compression Engine (DCE)
-	The DCE is a freescale hardware acceelrator that can be used to offload
+	The DCE is a freescale hardware accelerator that can be used to offload
 	compression and decompression operations that use the DEFLATE algorithm
 
 	The DCE is represented by objects called DPDCEI. All modules that do
 	compression or decompression must get a handle to a dpdcei. All work
 	necessary to get access and share DPDCEI objects is simplified in the
-	DCE API docuemented in dce.h
+	DCE API documented in dce.h
 
 	An example application of the API is dce_api_time_trial.c. It performs
 	basic compression and decompression and prints performance metrics.
@@ -16,20 +16,23 @@ Decompression Compression Engine (DCE)
 	dpdcei objects, running an application and tearing down the setup.
 
 	Example:
-	$ restool dpdcei create
+
+	root@ls2080ardb:~# restool dpdcei create
 	--engine=DPDCEI_ENGINE_COMPRESSION --priority=1
-	$ dprc assign dprc.1 --object=dpdcei.1 --plugged=1
-	$ insmod fsl-dce-api.kodpdcei.0 is created under dprc.1
-	$ restool dpdcei create
+	dpdcei.0 is created under dprc.1
+	root@ls2080ardb:~#
+	root@ls2080ardb:~# restool dpdcei create
 	--engine=DPDCEI_ENGINE_DECOMPRESSION --priority=1
 	dpdcei.1 is created under dprc.1
-	$ restool dprc assign dprc.1 --object=dpdcei.0
+	root@ls2080ardb:~#
+	root@ls2080ardb:~# restool dprc assign dprc.1 --object=dpdcei.0
 	--plugged=1
-	$ restool dprc assign dprc.1 --object=dpdcei.1
+	root@ls2080ardb:~# restool dprc assign dprc.1 --object=dpdcei.1
 	--plugged=1
-	# In this example the DCE API was built as a module so it must be loaded before
-	# we can load the test which depends on it
-	$ insmod fsl-dce-api.ko
+	root@ls2080ardb:~#
+	# In this example the DCE API was built as a module so it must be loaded
+	# before we can load an application that uses it
+	root@ls2080ardb:~# insmod fsl-dce-api.ko
 	fsl_dce_api: module is from the staging directory, the
 	quality is unknown, you have been warned.
 	fsl_dce_api dpdcei.0: dpdcei probe
@@ -39,40 +42,43 @@ Decompression Compression Engine (DCE)
 	fsl_dce_api dpdcei.1: DPDCEI: id=1, engine=DECOMPRESSION
 	fsl_dce_api dpdcei.1: dpdcei: probed object 1
 	MC object device driver fsl_dce_api registered
-	$ insmod fsl-dce-api-time-trial.ko
-	fsl_dce_api_time_trial: module is from the staging
-	directory, the quality is unknown, you have been warned.
+	root@ls2080ardb:~#
+	root@ls2080ardb:~# insmod fsl-dce-api-time-trial.ko
+	fsl_dce_api_time_trial: module is from the staging directory, the
+	quality is unknown, you have been warned.
 	Running compression test for 30 seconds ...
-	random: nonblocking pool is initialized
-	Number of work units 2360000, work unit size 8192,
-	compression ratio (out/in) 44%
-	DCE Driver API & DCE performance = 5092688837 bit/s and
-	time is 30370 ms
+	Number of work units 2320000, work unit size 8192, compression
+	ratio (out/in) 31%
+	DCE Driver API & DCE performance = 5037889993 bit/s and time is
+	30180 ms
 	Running decompression test for 30 seconds ...
-	Number of work units 2400000, work unit size 3673,
-	decompression ratio (out/in) 223%
-	DCE Driver API & DCE performance = 5192684054 bit/s and
-	time is 30290 ms
+	Number of work units 2720000, work unit size 2612, decompression
+	ratio (out/in) 313%
+	DCE Driver API & DCE performance = 5881158693 bit/s and time is
+	30310 ms
 	Original input matches decompressed data
-	$ rmmod fsl-dce-api-time-trial.ko
+	root@ls2080ardb:~#
+	root@ls2080ardb:~# rmmod fsl-dce-api-time-trial.ko
 	dce_api_time_trial_exit
-	$ echo dpdcei.0 >
+	root@ls2080ardb:~#
+	root@ls2080ardb:~# echo dpdcei.0 >
 	/sys/bus/fsl-mc/drivers/fsl_dce_api/unbind
-	$ echo dpdcei.1 >
+	root@ls2080ardb:~# echo dpdcei.1 >
 	/sys/bus/fsl-mc/drivers/fsl_dce_api/unbind
-	$ restool dprc assign dprc.1 --object=dpdcei.1
+	root@ls2080ardb:~#
+	root@ls2080ardb:~# restool dprc assign dprc.1 --object=dpdcei.0
 	--plugged=0
-	$ restool dprc assign dprc.1 --object=dpdcei.1
+	root@ls2080ardb:~# restool dprc assign dprc.1 --object=dpdcei.1
 	--plugged=0
-	$ restool dprc assign dprc.1 --object=dpdcei.0
-	--plugged=0
-	$ rmmod fsl-dce-api
-	$ restool dpdcei destroy dpdcei.0
+	root@ls2080ardb:~#
+	root@ls2080ardb:~# rmmod fsl-dce-api.ko
+	root@ls2080ardb:~#
+	root@ls2080ardb:~# restool dpdcei destroy dpdcei.0
 	dpdcei.0 is destroyed
-	$ restool dpdcei destroy dpdcei.1
+	root@ls2080ardb:~#
+	root@ls2080ardb:~# restool dpdcei destroy dpdcei.1
 	dpdcei.1 is destroyed
-	$
-
+	root@ls2080ardb:~#
 
 dce_api_time_trial
 	A DCE performance test that sends as many work requests as possible in a
