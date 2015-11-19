@@ -29,8 +29,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __LDCE_FD_FRC_H
-#define __LDCE_FD_FRC_H
+#ifndef __DCE_FD_FRC_H
+#define __DCE_FD_FRC_H
 
 #include "dce-fd.h"
 #include "dce-fd-frc.h"

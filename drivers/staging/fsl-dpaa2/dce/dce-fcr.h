@@ -29,8 +29,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __LDCE_FCR_H
-#define __LDCE_FCR_H
+#ifndef __DCE_FCR_H
+#define __DCE_FCR_H
 
 #include "dce-private.h"
 

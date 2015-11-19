@@ -29,8 +29,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __LDCE_FD_H
-#define __LDCE_FD_H
+#ifndef __DCE_FD_H
+#define __DCE_FD_H
 
 #include "dce-fd.h"
 #include <linux/types.h>

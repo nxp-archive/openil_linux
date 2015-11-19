@@ -28,8 +28,8 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#ifndef __LDCE_PRIVATE_H
-#define __LDCE_PRIVATE_H
+#ifndef __DCE_PRIVATE_H
+#define __DCE_PRIVATE_H
 
 #include "dce-sys-decl.h"
 
@@ -109,4 +109,4 @@ static inline void hexdump(const void *ptr, size_t sz)
 	__hexdump(start, end, p, sz, c);
 }
 
-#endif /* LDCE_PRIVATE_H */
+#endif /* DCE_PRIVATE_H */
