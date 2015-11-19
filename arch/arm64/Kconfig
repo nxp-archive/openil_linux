@@ -178,6 +178,7 @@ config ARCH_EXYNOS7
 
 config ARCH_LAYERSCAPE
 	bool "Freescale Layerscape SoC family"
+	select PCI_LAYERSCAPE if PCI
 	help
 	  This enables support for Freescale Layerscape SoC family
 
