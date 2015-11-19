@@ -47,48 +47,76 @@
 #include "dce-fd-frc.h"
 
 
-/*
- * The DCE API - A reentrant simplified interface to DCE
+/**
+ * DOC: The DCE API - A reentrant simplified interface to DCE
  *
- * Goal:
+ * DOC: Goal:
  *  This API was designed to simplify interaction with DCE as much as possible
  *  without loss of flexibility and acceleration offered by DCE hardware
  *
- * Theory of operation:
+ * DOC: Theory of operation:
  *  A user creates a session object to process multiple pieces of similar data
  *  on DCE.  All subsequent interaction is done through this session. One
  *  session can be used concurrently, if order is not necessary. Multiple
  *  sessions can be used simultaneously
- *
+ */
+
+/* TODO: Must include this information in header file. Plan is not to rely on
+ * the block guide
  * Expected user knowledge:
- *  Users of the API must have a basic understanding of DCE interface to
- *  be able to select the correct flags and supply the right input/output based
- *  on DCE specific response codes. In addition to this header file, the user
- *  should have read the `System Interface' section of the DCE block guide.
- *  Special attention should be given to the following sections. `PROCESS
- *  command', `Frame Processing Modes', `Multiple Members Input
- *  Frames', `Status Code Enumeration', `zlib Flush Semantics'
+ * Users of the API must have a basic understanding of DCE interface to
+ * be able to select the correct flags and supply the right input/output based
+ * on DCE specific response codes. In addition to this header file, the user
+ * should have read the `System Interface' section of the DCE block guide.
+ * Special attention should be given to the following sections. `PROCESS
+ * command', `Frame Processing Modes', `Multiple Members Input
+ * Frames', `Status Code Enumeration', `zlib Flush Semantics'
  */
 
 
-/* enum dce_engine - The engine to use for session operations */
+/**
+ * enum dce_engine - The engine to use for session operations
+ * @DCE_COMPRESSION:	Compression engine
+ * @DCE_DECOMPRESSION:	Decompression engine
+ */
 enum dce_engine {
 	DCE_COMPRESSION,
 	DCE_DECOMPRESSION
 };
 
+/**
+  * enum dce_paradigm - The way to handle multi-frame requests
+  * @DCE_SESSION_STATELESS:	All requests will be self contained
+  * @DCE_SESSION_STATEFUL_TRUNCATION:	Requests resulting in exceptions will be
+  *					truncated
+  * @DCE_SESSION_STATEFUL_RECYCLE:	Requests resulting in exceptions will
+  *					cause suspension and allow recovery
+  */
 enum dce_paradigm {
 	DCE_SESSION_STATELESS = 0,
 	DCE_SESSION_STATEFUL_TRUNCATION = 1,
 	DCE_SESSION_STATEFUL_RECYCLE = 2
 };
 
+/**
+ * enum dce_compression_format - The compression formats supported by DCE
+ * @DCE_SESSION_CF_DEFLATE:	Raw deflate, see RFC 1951
+ * @DCE_SESSION_CF_ZLIB:	zlib, see RFC 1950
+ * @DCE_SESSION_CF_GZIP:	gzip, see RFC 1952
+ */
 enum dce_compression_format {
 	DCE_SESSION_CF_DEFLATE = 0,
 	DCE_SESSION_CF_ZLIB = 1,
 	DCE_SESSION_CF_GZIP = 2
 };
 
+/**
+ * enum dce_compression_effort - Level of compression to perform
+ * @DCE_SESSION_CE_NONE:	No compression, just add appropriate headers
+ * @DCE_SESSION_CE_STATIC_HUFF_STRMATCH:	Static Huffman & string matching
+ * @DCE_SESSION_CE_HUFF_ONLY:	Huffman only
+ * @DCE_SESSION_CE_BEST_POSSIBLE:	Best possible compression
+ */
 enum dce_compression_effort {
 	DCE_SESSION_CE_NONE = 0,
 	DCE_SESSION_CE_STATIC_HUFF_STRMATCH = 1,
@@ -96,7 +124,18 @@ enum dce_compression_effort {
 	DCE_SESSION_CE_BEST_POSSIBLE = 3,
 };
 
-/* These align with the ZLIB standard */
+/**
+ * enum dce_flush_parameter - Data flushing modes
+ * @DCE_Z_NO_FLUSH:	equivalent to Z_NO_FLUSH
+ * @DCE_Z_PARTIAL_FLUSH:	equivalent to Z_PARTIAL_FLUSH
+ * @DCE_Z_SYNC_FLUSH:	equivalent to Z_PARTIAL_FLUSH
+ * @DCE_Z_FULL_FLUSH:	equivalent to Z_SYNC_FLUSH
+ * @DCE_Z_FINISH:	equivalent to Z_FULL_FLUSH
+ * @DCE_Z_BLOCK:	equivalent to Z_BLOCK
+ * @DCE_Z_TREES:	equivalent to Z_TREES
+ *
+ * These flush parameters are parallel to the zlib standard
+ */
 enum dce_flush_parameter {
 	DCE_Z_NO_FLUSH = 0x0,
 	DCE_Z_PARTIAL_FLUSH = 0x1,
@@ -107,6 +146,24 @@ enum dce_flush_parameter {
 	DCE_Z_TREES = 0x6
 };
 
+/**
+ * struct dce_gz_header - gzip header and state for gzip streams
+ * @text:	True if compressed data is believed to be text
+ * @time:	Modification time
+ * @xflags:	Extra flags indicating compression level (not used when
+ *		writing a gzip file)
+ * @os:		operating system
+ * @meta_data:	Contiguous memory for storing meta data like name and comment
+ * @extra_len:	`extra' field length
+ * @name_len:	`name' field length
+ * @comment_len:	`comment' field length
+ * @meta_max:	Space available at meta_data
+ * @hcrc:	true if there was or will be a header crc
+ * @done:	true when done reading gzip header
+ *
+ * The gzip compression format documented in RFC 1952 includes a header for each
+ * gzip member.
+ */
 struct dce_gz_header {
 	int text; /* True if compressed data believed to be text */
 	unsigned long time; /* Modification time */
@@ -144,7 +201,7 @@ struct dce_session;
 
 /**
  * \typedef dce_callback_frame
- * \brief Return result of a (de)compress process_frame() call
+ * \brief Return result of a (de)compress dce_process_frame() call
  * @session:	Pointer to session struct for which response was received from
  *		DCE
  * @status:	The status returned by DCE
@@ -154,7 +211,8 @@ struct dce_session;
  * @output_fd:	Pointer to output FD. Same consideration as @input_fd
  * @input_consumed:	Number of bytes used in creating output
  * @output_produced:	Number of bytes produced
- * @context:	Pointer to user defined object received in process_frame() call
+ * @context:	Pointer to user defined object received in dce_process_frame()
+ *		call
  */
 typedef void (*dce_callback_frame)(struct dce_session *session,
 		uint8_t status,
@@ -165,15 +223,16 @@ typedef void (*dce_callback_frame)(struct dce_session *session,
 
 /**
  * \typedef dce_callback_data
- * \brief Return result of a (de)compress process_data() call
+ * \brief Return result of a (de)compress dce_process_data() call
  * @session:	Pointer to session struct for which response was received from
  *		DCE
  * @status:	The status returned by DCE
- * @input:	Input pointer as received by the API in process_data call
+ * @input:	Input pointer as received by the API in dce_process_data() call
  * @output:	Output pointer to resulting data
  * @input_consumed:	Number of bytes used in creating output
  * @output_produced:	Number of bytes produced
- * @context:	Pointer to user defined object received in process_data() call
+ * @context:	Pointer to user defined object received in dce_process_data()
+ *		call
  */
 typedef void (*dce_callback_data)(struct dce_session *session,
 		uint8_t status,
@@ -183,10 +242,19 @@ typedef void (*dce_callback_data)(struct dce_session *session,
 		size_t output_produced,
 		void *context);
 
-/* dce_params - parameters used in initialisation of dce_session
- * TODO: must figure out how buffer pool support works. Who populates it
- *  who frees buffers? Who knows the buffer size ... could cause a change in
- *  API */
+/**
+ * struct dce_session_params - parameters used in initialisation of dce_session
+ * @engine	: compression or decompression
+ * @paradigm	: statefull_recycle, statefull_truncate, or stateless
+ * @compression_format	: gzip, zlib, deflate
+ * @compression_effort	: compression effort from none to best possible
+ * @gz_header	: Pointer to gzip header. Valid in gzip mode only
+ * @callback_frame	: User defined callback function for receiving responses
+ *			  from dce_process_frame()
+ * @callback_data	: User defined callback function for receiving responses
+ *			  from dce_process_frame()
+ */
+
 struct dce_session_params {
 	enum dce_engine engine; /* compression or decompression */
 	enum dce_paradigm paradigm; /* statefull_recycle, statefull_truncate,
@@ -204,13 +272,16 @@ struct dce_session_params {
 					  * headers
 					  * NB: Header must be persistent until
 					  * session_destroy() */
+	/* TODO: must figure out how buffer pool support works. Who populates it
+	 * who frees buffers? Who knows the buffer size ... could cause a change
+	 * in API */
 	unsigned buffer_pool_id; /* Not supported in current hardware */
 	unsigned buffer_pool_id2; /* Not supported in current hardware */
 	bool release_buffers; /* Not supported in current hardware */
 	bool encode_base_64; /* session will handle 64 bit encoded data */
-	/* User defined callback function for process_frame() result */
+	/* User defined callback function for dce_process_frame() result */
 	dce_callback_frame callback_frame;
-	/* User defined callback function for process_data() result */
+	/* User defined callback function for dce_process_data() result */
 	dce_callback_data callback_data;
 };
 
@@ -252,10 +323,10 @@ struct dce_session {
  * @session:	Pointer to a session struct to be initialised
  * @params:	Pointer to a params struct to be used in configuring the session
  *
- * Contextual information is stored in the session object, such as the buffer
- * pool id to use for getting buffers, the gzip header pointer to info such as
- * the ID1 ID2 CM FLG MTIME XFL OS fields. A session is setup then used to send
- * many requests to DCE
+ * Contextual information is stored opaquely in the session object, such as the
+ * buffer pool id to use for getting buffers, the gzip header pointer to info
+ * such as the ID1 ID2 CM FLG MTIME XFL OS fields. A session is setup then used
+ * to send many requests to DCE
  *
  * Return:	0 on success, error otherwise
  */
@@ -360,7 +431,7 @@ int dce_process_data(struct dce_session *session,
  *	   -EINVAL if the session is not in gzip mode, is a decompression
  *	   session, or a stateless compression session. For stateless
  *	   compression sessions the gzip header will be updated automatically
- *	   with every call to process_frame or process_data
+ *	   with every call to dce_process_frame() or dce_process_data()
  */
 int dce_gz_header_update(struct dce_session *session);
 
