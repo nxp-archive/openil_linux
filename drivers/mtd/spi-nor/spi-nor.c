@@ -1179,6 +1179,26 @@ static int spi_nor_check(struct spi_nor *nor)
 	return 0;
 }
 
+/*
+ * Atmel, SST, Intel/Numonyx, and others serial NOR tend to power up
+ * with the software protection bits set
+ */
+static int spi_nor_unprotect_on_powerup(struct spi_nor *nor)
+{
+	const struct flash_info *info = NULL;
+	int ret = 0;
+
+	info = spi_nor_read_id(nor);
+	if (JEDEC_MFR(info) == SNOR_MFR_ATMEL ||
+	    JEDEC_MFR(info) == SNOR_MFR_INTEL ||
+	    JEDEC_MFR(info) == SNOR_MFR_SST) {
+		write_enable(nor);
+		ret = write_sr(nor, 0);
+	}
+
+	return ret;
+}
+
 int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 {
 	const struct flash_info *info = NULL;
@@ -1226,17 +1246,9 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 
 	mutex_init(&nor->lock);
 
-	/*
-	 * Atmel, SST, Intel/Numonyx, and others serial NOR tend to power up
-	 * with the software protection bits set
-	 */
-
-	if (JEDEC_MFR(info) == SNOR_MFR_ATMEL ||
-	    JEDEC_MFR(info) == SNOR_MFR_INTEL ||
-	    JEDEC_MFR(info) == SNOR_MFR_SST) {
-		write_enable(nor);
-		write_sr(nor, 0);
-	}
+	ret = spi_nor_unprotect_on_powerup(nor);
+	if (ret)
+		return ret;
 
 	if (!mtd->name)
 		mtd->name = dev_name(dev);
@@ -1401,6 +1413,45 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(spi_nor_scan);
+
+static int spi_nor_hw_reinit(struct spi_nor *nor)
+{
+	const struct flash_info *info = NULL;
+	struct device *dev = nor->dev;
+	int ret;
+
+	info = spi_nor_read_id(nor);
+
+	ret = spi_nor_unprotect_on_powerup(nor);
+	if (ret)
+		return ret;
+
+	if (nor->flash_read == SPI_NOR_QUAD) {
+		ret = set_quad_mode(nor, info);
+		if (ret) {
+			dev_err(dev, "quad mode not supported\n");
+			return ret;
+		}
+	}
+
+	if (nor->addr_width == 4 &&
+			JEDEC_MFR(info) != SNOR_MFR_SPANSION)
+		set_4byte(nor, info, 1);
+
+	return 0;
+}
+
+int spi_nor_suspend(struct spi_nor *nor)
+{
+	return 0;
+}
+EXPORT_SYMBOL_GPL(spi_nor_suspend);
+
+int spi_nor_resume(struct spi_nor *nor)
+{
+	return spi_nor_hw_reinit(nor);
+}
+EXPORT_SYMBOL_GPL(spi_nor_resume);
 
 static const struct flash_info *spi_nor_match_id(const char *name)
 {

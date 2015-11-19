@@ -210,4 +210,13 @@ static inline struct device_node *spi_nor_get_flash_node(struct spi_nor *nor)
  */
 int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode);
 
+/**
+ * spi_nor_suspend/resume() - the SPI NOR layer PM API
+ * @nor:	the spi_nor structure
+ *
+ * Return: 0 for success, others for failure.
+ */
+int spi_nor_suspend(struct spi_nor *nor);
+int spi_nor_resume(struct spi_nor *nor);
+
 #endif
