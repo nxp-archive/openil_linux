@@ -225,6 +225,7 @@ static const struct file_operations fsl_mc_restool_dev_fops = {
 	.open = fsl_mc_restool_dev_open,
 	.release = fsl_mc_restool_dev_release,
 	.unlocked_ioctl = fsl_mc_restool_dev_ioctl,
+	.compat_ioctl = fsl_mc_restool_dev_ioctl,
 };
 
 static struct miscdevice fsl_mc_restool_dev = {
