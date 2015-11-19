@@ -167,6 +167,32 @@ int dw_pcie_link_up(struct pcie_port *pp)
 		return 0;
 }
 
+static int dw_pcie_msi_ctrl_init(struct pcie_port *pp)
+{
+	struct device_node *msi_node;
+
+	if (!IS_ENABLED(CONFIG_PCI_MSI)) {
+		pp->msi = NULL;
+		return 0;
+	}
+
+	if (pp->msi)
+		return 0;
+
+	msi_node = of_parse_phandle(pp->dev->of_node, "msi-parent", 0);
+	if (msi_node) {
+		pp->msi = of_pci_find_msi_chip_by_node(msi_node);
+		if (!pp->msi) {
+			dev_err(pp->dev, "Cannot find msi chip of %s\n",
+				msi_node->full_name);
+			return -ENODEV;
+		} else
+			return 0;
+	}
+
+	return 0;
+}
+
 int dw_pcie_host_init(struct pcie_port *pp)
 {
 	struct device_node *np = pp->dev->of_node;
@@ -280,10 +306,25 @@ int dw_pcie_host_init(struct pcie_port *pp)
 	dw_pcie_wr_own_conf(pp, PCIE_LINK_WIDTH_SPEED_CONTROL, 4, val);
 
 	pp->root_bus_nr = pp->busn->start;
+#if 0
 	bus = pci_scan_root_bus(pp->dev, pp->root_bus_nr, &dw_pcie_ops,
 			pp, &res);
 	if (!bus)
 		return -ENOMEM;
+#else
+	bus = pci_create_root_bus(pp->dev, pp->root_bus_nr, &dw_pcie_ops,
+			pp, &res);
+	if (!bus)
+		return -ENODEV;
+
+	ret = dw_pcie_msi_ctrl_init(pp);
+	if (ret)
+		return ret;
+
+	bus->msi = pp->msi;
+
+	pci_scan_child_bus(bus);
+#endif
 
 	if (pp->ops->scan_bus)
 		pp->ops->scan_bus(pp);
