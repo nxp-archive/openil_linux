@@ -157,6 +157,21 @@
 		reg = <0x0>;
 		phy-connection-type = "xfi";
 	};
+	mdio2_phy2: emdio2_phy@2 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0x1>;
+		phy-connection-type = "xfi";
+	};
+	mdio2_phy3: emdio2_phy@3 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0x2>;
+		phy-connection-type = "xfi";
+	};
+	mdio2_phy4: emdio2_phy@4 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0x3>;
+		phy-connection-type = "xfi";
+	};
 };
 
 /* Update DPMAC connections to external PHYs, under the assumption of
@@ -176,4 +191,13 @@
 };
 &dpmac5 {
 	phy-handle = <&mdio2_phy1>;
+};
+&dpmac6 {
+	phy-handle = <&mdio2_phy2>;
+};
+&dpmac7 {
+	phy-handle = <&mdio2_phy3>;
+};
+&dpmac8 {
+	phy-handle = <&mdio2_phy4>;
 };
