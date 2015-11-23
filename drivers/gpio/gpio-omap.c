@@ -855,14 +855,14 @@ static void omap_gpio_mask_irq(struct irq_data *d)
 static void omap_gpio_mask_ack_irq(struct irq_data *d)
 {
 	struct gpio_bank *bank = omap_irq_data_get_bank(d);
-	unsigned int gpio = omap_irq_to_gpio(bank, d->hwirq);
+	unsigned offset = d->hwirq;
 	unsigned long flags;
 
 	spin_lock_irqsave(&bank->lock, flags);
-	omap_set_gpio_irqenable(bank, gpio, 0);
-	omap_set_gpio_triggering(bank, GPIO_INDEX(bank, gpio), IRQ_TYPE_NONE);
+	omap_set_gpio_irqenable(bank, offset, 0);
+	omap_set_gpio_triggering(bank, offset, IRQ_TYPE_NONE);
 	spin_unlock_irqrestore(&bank->lock, flags);
-	omap_clear_gpio_irqstatus(bank, gpio);
+	omap_clear_gpio_irqstatus(bank, offset);
 }
 
 static void omap_gpio_unmask_irq(struct irq_data *d)
