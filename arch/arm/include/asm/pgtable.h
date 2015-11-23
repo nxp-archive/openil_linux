@@ -182,7 +182,7 @@ extern pgprot_t phys_mem_access_prot(struct file *file, unsigned long pfn,
 	if (pte_present(_val) && _addr < TASK_SIZE) {		\
 		if (_addr >= FCSE_TASK_SIZE			\
 		    && 0 == --_mm->context.fcse.high_pages)	\
-			mm->context.fcse.highest_pid = 0;	\
+			_mm->context.fcse.highest_pid = 0;	\
 	}							\
 } while (0)
 
@@ -264,10 +264,13 @@ static inline pte_t *pmd_page_vaddr(pmd_t pmd)
 #define pte_page(pte)		pfn_to_page(pte_pfn(pte))
 #define mk_pte(page,prot)	pfn_pte(page_to_pfn(page), prot)
 
-#define pte_clear(mm,addr,ptep)	do {				\
-	fcse_account_page_removal(mm, addr, pte_val(*ptep));	\
-	set_pte_ext(ptep, __pte(0), 0);				\
-} while (0)
+#define pte_clear(mm,addr,ptep)	\
+	do {								\
+		struct mm_struct *_mm = (mm);				\
+		if (_mm)						\
+			fcse_account_page_removal(_mm, addr, pte_val(*ptep)); \
+		set_pte_ext(ptep, __pte(0), 0);				\
+	} while (0)
 
 #define pte_isset(pte, val)	((u32)(val) == (val) ? pte_val(pte) & (val) \
 						: !!(pte_val(pte) & (val)))
@@ -298,9 +301,11 @@ static inline void set_pte_at(struct mm_struct *mm, unsigned long addr,
 {
 	unsigned long ext = 0;
 
-	fcse_account_page_removal(mm, addr, pte_val(*ptep));
-	pte_val(pteval) =
-		fcse_account_page_addition(mm, addr, pte_val(pteval));
+	if (mm) {
+		fcse_account_page_removal(mm, addr, pte_val(*ptep));
+		pte_val(pteval) =
+			fcse_account_page_addition(mm, addr, pte_val(pteval));
+	}
 
 	if (addr < TASK_SIZE && pte_valid_user(pteval)) {
 		if (!pte_special(pteval))
