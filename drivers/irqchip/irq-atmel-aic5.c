@@ -86,6 +86,13 @@ aic5_handle(struct pt_regs *regs)
 	}
 }
 
+static void aic5_hard_mask(struct irq_chip_generic *gc, struct irq_data *d)
+{
+	/* Disable interrupt on AIC5 */
+	irq_reg_writel(gc, d->hwirq, AT91_AIC5_SSR);
+	irq_reg_writel(gc, 1, AT91_AIC5_IDCR);
+}
+
 static void aic5_mask(struct irq_data *d)
 {
 	struct irq_domain *domain = d->domain;
@@ -99,10 +106,17 @@ static void aic5_mask(struct irq_data *d)
 	 * first irq chip as all chips share the same registers.
 	 */
 	flags = irq_gc_lock(bgc);
-	irq_reg_writel(gc, d->hwirq, AT91_AIC5_SSR);
-	irq_reg_writel(gc, 1, AT91_AIC5_IDCR);
+	ipipe_lock_irq(d->irq);
+	aic5_hard_mask(gc, d);
 	gc->mask_cache &= ~d->mask;
 	irq_gc_unlock(bgc, flags);
+}
+
+static void aic5_hard_unmask(struct irq_chip_generic *gc, struct irq_data *d)
+{
+	/* Enable interrupt on AIC5 */
+	irq_reg_writel(gc, d->hwirq, AT91_AIC5_SSR);
+	irq_reg_writel(gc, 1, AT91_AIC5_IECR);
 }
 
 static void aic5_unmask(struct irq_data *d)
@@ -118,9 +132,9 @@ static void aic5_unmask(struct irq_data *d)
 	 * first irq chip as all chips share the same registers.
 	 */
 	flags = irq_gc_lock(bgc);
-	irq_reg_writel(gc, d->hwirq, AT91_AIC5_SSR);
-	irq_reg_writel(gc, 1, AT91_AIC5_IECR);
+	aic5_hard_unmask(gc, d);
 	gc->mask_cache |= d->mask;
+	ipipe_unlock_irq(d->irq);
 	irq_gc_unlock(bgc, flags);
 }
 
@@ -131,8 +145,8 @@ static void aic5_hold(struct irq_data *d)
 	struct irq_domain_chip_generic *dgc = domain->gc;
 	struct irq_chip_generic *gc = dgc->gc[0];
 
-	aic5_hard_mask(d, gc);
-	irq_reg_writel(0, gc->reg_base + AT91_AIC5_EOICR);
+	aic5_hard_mask(gc, d);
+	irq_reg_writel(gc, 0, AT91_AIC5_EOICR);
 }
 
 static void aic5_release(struct irq_data *d)
