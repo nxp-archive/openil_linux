@@ -46,6 +46,7 @@ extern unsigned long arm_return_addr(int level);
 #define IPIPE_CORE_RELEASE	1
 
 struct ipipe_domain;
+struct timekeeper;
 
 #define IPIPE_TSC_TYPE_NONE	   		0
 #define IPIPE_TSC_TYPE_FREERUNNING 		1
@@ -92,11 +93,13 @@ void __ipipe_mach_get_tscinfo(struct __ipipe_tscinfo *info);
 unsigned long long __ipipe_tsc_get(void) __attribute__((long_call));
 void __ipipe_tsc_register(struct __ipipe_tscinfo *info);
 void __ipipe_tsc_update(void);
+void __ipipe_update_vsyscall(struct timekeeper *tk);
 extern unsigned long __ipipe_kuser_tsc_freq;
 #define __ipipe_hrclock_freq __ipipe_kuser_tsc_freq
 #else /* ! generic tsc */
 unsigned long long __ipipe_mach_get_tsc(void);
 #define __ipipe_tsc_get() __ipipe_mach_get_tsc()
+static inline void __ipipe_update_vsyscall(struct timekeeper *tk) {}
 #ifndef __ipipe_hrclock_freq
 extern unsigned long __ipipe_hrtimer_freq;
 #define __ipipe_hrclock_freq __ipipe_hrtimer_freq

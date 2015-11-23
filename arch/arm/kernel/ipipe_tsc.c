@@ -192,12 +192,19 @@ void __ipipe_tsc_update(void)
 }
 EXPORT_SYMBOL(__ipipe_tsc_get);
 
-void update_vsyscall(struct timekeeper *tk)
+void __ipipe_update_vsyscall(struct timekeeper *tk)
 {
 	if (tk->tkr_mono.clock == &clksrc)
 		ipipe_update_hostrt(tk);
 }
 
+#if !IS_ENABLED(CONFIG_VDSO)
+void update_vsyscall(struct timekeeper *tk)
+{
+	__ipipe_update_vsyscall(tk);
+}
+
 void update_vsyscall_tz(void)
 {
 }
+#endif
