@@ -21,7 +21,6 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/slab.h>
-#include <mach/at91_ipipe.h>
 
 #define AT91_PIT_MR		0x00			/* Mode Register */
 #define AT91_PIT_PITIEN			BIT(25)			/* Timer Interrupt Enable */
@@ -232,8 +231,6 @@ static void __init at91sam926x_pit_common_init(struct pit_data *data)
 	data->clkevt.resume = at91sam926x_pit_resume;
 	data->clkevt.suspend = at91sam926x_pit_suspend;
 	clockevents_register_device(&data->clkevt);
-
-	at91_pic_muter_register();
 }
 
 static void __init at91sam926x_pit_dt_init(struct device_node *node)
