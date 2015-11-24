@@ -5307,7 +5307,7 @@ int dpaa2_caam_enqueue(struct device *dev, struct caam_request *req)
 {
 	struct dpaa2_fd fd;
 	struct dpaa2_caam_priv *priv = dev_get_drvdata(dev);
-	int err, i;
+	int err = 0, i, id;
 
 	if (IS_ERR(req))
 		return PTR_ERR(req);
@@ -5327,14 +5327,19 @@ int dpaa2_caam_enqueue(struct device *dev, struct caam_request *req)
 	dpaa2_fd_set_len(&fd, req->fd_flt[1].len);
 	dpaa2_fd_set_flc(&fd, req->flc_dma);
 
-	for (i = 0; i < 100000; i++) {
-		/* TODO: priority hard-coded to zero */
+	/*
+	 * There is no guarantee that preemption is disabled here, thus take action.
+	 */
+	preempt_disable();
+	id = smp_processor_id() % priv->dpseci_attr.num_tx_queues;
+	for (i = 0; i < (priv->dpseci_attr.num_tx_queues << 1); i++) {
 		err = dpaa2_io_service_enqueue_fq(NULL,
-						 priv->tx_queue_attr[0].fqid,
-						 &fd);
+						  priv->tx_queue_attr[id].fqid,
+						  &fd);
 		if (err != -EBUSY)
 			break;
 	}
+	preempt_enable();
 
 	if (unlikely(err < 0)) {
 		dev_err(dev, "Error enqueuing frame\n");
