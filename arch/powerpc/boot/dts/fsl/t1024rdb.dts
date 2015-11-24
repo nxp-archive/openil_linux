@@ -354,5 +354,5 @@
 	};
 };
 
-/include/ "t1024si-post.dtsi"
+#include "t1024si-post.dtsi"
 /include/ "qoriq-dpaa-res3.dtsi"
