@@ -485,7 +485,6 @@ static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
 		goto dma_map_single_failed;
 	}
 	dpaa2_fd_set_offset(fd, priv->tx_data_offset);
-	dpaa2_fd_set_bpid(fd, priv->dpbp_attrs.bpid);
 	dpaa2_fd_set_format(fd, dpaa2_fd_sg);
 	dpaa2_fd_set_addr(fd, addr);
 	dpaa2_fd_set_len(fd, skb->len);
@@ -542,7 +541,6 @@ static int dpaa2_eth_build_single_fd(struct dpaa2_eth_priv *priv,
 
 	dpaa2_fd_set_addr(fd, addr);
 	dpaa2_fd_set_offset(fd, (uint16_t)(skb->data - buffer_start));
-	dpaa2_fd_set_bpid(fd, priv->dpbp_attrs.bpid);
 	dpaa2_fd_set_len(fd, skb->len);
 	dpaa2_fd_set_format(fd, dpaa2_fd_single);
 
