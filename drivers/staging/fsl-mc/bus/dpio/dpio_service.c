@@ -605,7 +605,7 @@ int dpaa2_io_service_enqueue_fq(struct dpaa2_io *d,
 {
 	struct qbman_eq_desc ed;
 
-	d = service_select_any(d);
+	d = _service_select(d);
 	if (!d)
 		return -ENODEV;
 	qbman_eq_desc_clear(&ed);
