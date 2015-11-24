@@ -4759,7 +4759,7 @@ static int __cold dpaa2_dpseci_dpio_setup(struct dpaa2_caam_priv *priv)
 	struct device *dev = priv->dev;
 	struct dpaa2_io_notification_ctx *nctx;
 	struct dpaa2_caam_priv_per_cpu *ppriv;
-	int err, i;
+	int err, i, j = 0;
 
 	for_each_online_cpu(i) {
 		ppriv = per_cpu_ptr(priv->ppriv, i);
@@ -4784,6 +4784,10 @@ static int __cold dpaa2_dpseci_dpio_setup(struct dpaa2_caam_priv *priv)
 			dev_err(dev, "dpaa2_io_store_create() failed\n");
 			goto err;
 		}
+
+		j++;
+		if (j == priv->dpseci_attr.num_rx_queues)
+			break;
 	}
 
 	return 0;
@@ -4809,12 +4813,16 @@ err:
 static void __cold dpaa2_dpseci_dpio_free(struct dpaa2_caam_priv *priv)
 {
 	struct dpaa2_caam_priv_per_cpu *ppriv;
-	int i;
+	int i, j = 0;
 
 	for_each_online_cpu(i) {
 		ppriv = per_cpu_ptr(priv->ppriv, i);
 		dpaa2_io_service_deregister(NULL, &ppriv->nctx);
 		dpaa2_io_store_destroy(ppriv->store);
+
+		j++;
+		if (j == priv->dpseci_attr.num_rx_queues)
+			return;
 	}
 }
 
@@ -4886,6 +4894,7 @@ static void dpaa2_caam_process_fd(struct dpaa2_caam_priv *priv,
 	if (err) {
 		dev_err(priv->dev, "FD[FRC] err = %x\n", err);
 		caam_jr_strstatus(priv->dev, err);
+		return;
 	}
 
 	req = phys_to_virt(dma_to_phys(priv->dev, dpaa2_fd_get_addr(fd)));
