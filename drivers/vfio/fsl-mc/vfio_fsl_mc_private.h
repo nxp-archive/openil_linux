@@ -19,6 +19,7 @@ struct vfio_fsl_mc_irq {
 	unsigned int		hw_irq_num;
 	u32			flags;
 	u32			count;
+	char			*name;
 	bool			irq_initialized;
 	bool			irq_configured;
 };

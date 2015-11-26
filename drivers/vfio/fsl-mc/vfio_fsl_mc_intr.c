@@ -324,6 +324,7 @@ int vfio_fsl_mc_configure_irq(struct vfio_fsl_mc_device *vdev,
 	struct fsl_mc_device *mc_dev = vdev->mc_dev;
 	struct fsl_mc_device_irq *irq = mc_dev->irqs[irq_index];
 	struct vfio_fsl_mc_irq *mc_irq = &vdev->mc_irqs[irq_index];
+	struct device *dev = &mc_dev->dev;
 
 	if (WARN_ON(!mc_irq->irq_initialized))
 		return -EOPNOTSUPP;
@@ -331,11 +332,15 @@ int vfio_fsl_mc_configure_irq(struct vfio_fsl_mc_device *vdev,
 	if (WARN_ON(mc_irq->irq_configured))
 		return -EINVAL;
 
+	mc_irq->name = kasprintf(GFP_KERNEL, "%s-%s-%d", "vfio-fsl-mc",
+				 dev_name(dev), irq->irq_number);
+
 	error = request_irq(irq->irq_number, vfio_fsl_mc_irq_handler,
-			    0, "VFIO Handler", vdev);
+			    0, mc_irq->name, vdev);
 	if (error < 0) {
 		dev_err(&mc_dev->dev,
 			"IRQ registration fails with error: %d\n", error);
+		kfree(mc_irq->name);
 		return error;
 	}
 
@@ -353,6 +358,7 @@ static void vfio_fsl_mc_unconfigure_irq(struct vfio_fsl_mc_device *vdev,
 	if (!vdev->mc_irqs[irq_index].irq_configured)
 		return;
 
+	kfree(vdev->mc_irqs[irq_index].name);
 	free_irq(irq->irq_number, vdev);
 	vdev->mc_irqs[irq_index].irq_configured = false;
 }
