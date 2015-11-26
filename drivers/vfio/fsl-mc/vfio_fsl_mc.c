@@ -354,7 +354,7 @@ static int vfio_fsl_mc_probe(struct fsl_mc_device *mc_dev)
 	struct device *dev = &mc_dev->dev;
 	struct fsl_mc_bus *mc_bus;
 	unsigned int irq_count;
-	int ret, i;
+	int ret;
 
 	dev_info(dev, "Binding with vfio-fsl_mc driver\n");
 
@@ -436,15 +436,6 @@ static int vfio_fsl_mc_probe(struct fsl_mc_device *mc_dev)
 			vfio_del_group_dev(dev);
 			goto dprc_clean_scan_objects;
 		}
-
-		for (i = 0; i < mc_dev->obj_desc.irq_count; i++) {
-			ret = vfio_fsl_mc_configure_irq(vdev, i);
-			if (ret) {
-				dev_err(dev, "Fails (%d) to config irq\n", ret);
-				vfio_del_group_dev(dev);
-				goto dprc_clean_irqs;
-			}
-		}
 	} else {
 		vdev->mc_dev = mc_dev;
 
@@ -470,9 +461,6 @@ static int vfio_fsl_mc_probe(struct fsl_mc_device *mc_dev)
 	}
 
 	return 0;
-
-dprc_clean_irqs:
-	vfio_fsl_mc_free_irqs(vdev);
 
 dprc_clean_scan_objects:
 	fsl_mc_cleanup_irq_pool(mc_bus);
