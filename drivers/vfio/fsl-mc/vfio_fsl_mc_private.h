@@ -16,7 +16,6 @@
 
 struct vfio_fsl_mc_irq {
 	struct eventfd_ctx	*trigger;
-	unsigned int		hw_irq_num;
 	u32			flags;
 	u32			count;
 	char			*name;
