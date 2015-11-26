@@ -32,269 +32,6 @@
 #include "../../drivers/staging/fsl-dpaa2/ethernet/dpni.h"
 #include "../../drivers/staging/fsl-mc/bus/dpmcp.h"
 
-struct vfio_irq_cfg {
-	uint64_t	paddr;
-	uint32_t	val;
-	int		user_irq_id;
-};
-
-static int vfio_fsl_mc_set_irq_enable(struct fsl_mc_device *mc_dev,
-				      uint8_t irq_index, uint8_t enable)
-{
-	struct device *dev = &mc_dev->dev;
-	char buf[20];
-	char *device_type;
-	char *str = buf;
-
-	strcpy(str, dev_name(dev));
-	device_type = strsep(&str, ".");
-	if (!device_type)
-		return -EINVAL;
-
-	if (strncmp(device_type, "dprc", 4) == 0) {
-		return dprc_set_irq_enable(mc_dev->mc_io, 0, mc_dev->mc_handle,
-					   irq_index, enable);
-	} else if (strncmp(device_type, "dpmcp", 5) == 0) {
-		return dpmcp_set_irq_enable(mc_dev->mc_io, 0, mc_dev->mc_handle,
-					    irq_index, enable);
-	} else if (strncmp(device_type, "dpni", 4) == 0) {
-		return dpni_set_irq_enable(mc_dev->mc_io, 0, mc_dev->mc_handle,
-					   irq_index, enable);
-	} else if (strncmp(device_type, "dpbp", 4) == 0) {
-		return dpbp_set_irq_enable(mc_dev->mc_io, 0, mc_dev->mc_handle,
-					   irq_index, enable);
-	} else if (strncmp(device_type, "dpci", 4) == 0)
-		/* Workaround till we have flib available */
-		return 0;
-	else if (strncmp(device_type, "dpio", 4) == 0)
-		return 0;
-
-	return -ENODEV;
-}
-
-static int vfio_fsl_mc_clear_irq_status(struct fsl_mc_device *mc_dev,
-					uint8_t irq_index, uint32_t status)
-{
-	struct device *dev = &mc_dev->dev;
-	char buf[20];
-	char *device_type;
-	char *str = buf;
-
-	strcpy(str, dev_name(dev));
-	device_type = strsep(&str, ".");
-	if (!device_type)
-		return -EINVAL;
-
-	if (strncmp(device_type, "dprc", 4) == 0) {
-		return dprc_clear_irq_status(mc_dev->mc_io, 0,
-					     mc_dev->mc_handle,
-					     irq_index, status);
-	} else if (strncmp(device_type, "dpmcp", 5) == 0) {
-		return dpmcp_clear_irq_status(mc_dev->mc_io, 0,
-					      mc_dev->mc_handle,
-					      irq_index, status);
-	} else if (strncmp(device_type, "dpni", 4) == 0) {
-		return dpni_clear_irq_status(mc_dev->mc_io, 0,
-					     mc_dev->mc_handle,
-					     irq_index, status);
-	} else if (strncmp(device_type, "dpbp", 4) == 0) {
-		return dpbp_clear_irq_status(mc_dev->mc_io, 0,
-					     mc_dev->mc_handle,
-					     irq_index, status);
-	} else if (strncmp(device_type, "dpci", 4) == 0)
-		/* Workaround till we have flib available */
-		return 0;
-	else if (strncmp(device_type, "dpio", 4) == 0)
-		return 0;
-
-	return -ENODEV;
-}
-
-static int vfio_fsl_mc_set_irq_mask(struct fsl_mc_device *mc_dev,
-				    uint8_t irq_index, uint32_t mask)
-{
-	struct device *dev = &mc_dev->dev;
-	char buf[20];
-	char *device_type;
-	char *str = buf;
-
-	strcpy(str, dev_name(dev));
-	device_type = strsep(&str, ".");
-	if (!device_type)
-		return -EINVAL;
-
-	if (strncmp(device_type, "dprc", 4) == 0) {
-		return dprc_set_irq_mask(mc_dev->mc_io, 0, mc_dev->mc_handle,
-					irq_index, mask);
-	} else if (strncmp(device_type, "dpmcp", 5) == 0) {
-		return dpmcp_set_irq_mask(mc_dev->mc_io, 0, mc_dev->mc_handle,
-					irq_index, mask);
-	} else if (strncmp(device_type, "dpni", 4) == 0) {
-		return dpni_set_irq_mask(mc_dev->mc_io, 0, mc_dev->mc_handle,
-					irq_index, mask);
-	} else if (strncmp(device_type, "dpbp", 4) == 0) {
-		return dpbp_set_irq_mask(mc_dev->mc_io, 0, mc_dev->mc_handle,
-					irq_index, mask);
-	} else if (strncmp(device_type, "dpci", 4) == 0)
-		/* Workaround till we have flib available */
-		return 0;
-	else if (strncmp(device_type, "dpio", 4) == 0)
-		return 0;
-
-	return -ENODEV;
-}
-
-int vfio_fsl_mc_get_handle(struct fsl_mc_device *mc_dev)
-{
-	struct device *dev = &mc_dev->dev;
-	char buf[20];
-	char *device_type;
-	char *str = buf;
-	int ret;
-
-	strcpy(str, dev_name(dev));
-	device_type = strsep(&str, ".");
-	if (!device_type)
-		return -EINVAL;
-
-	if (strncmp(device_type, "dpio", 4) == 0) {
-		ret = dpio_open(mc_dev->mc_io, 0, mc_dev->obj_desc.id,
-				&mc_dev->mc_handle);
-		if (ret) {
-			dev_err(dev, "dpio_open() fails with error %d\n", ret);
-			return ret;
-		}
-		return 0;
-	}
-
-	if (strncmp(device_type, "dpni", 4) == 0) {
-		ret = dpni_open(mc_dev->mc_io, 0, mc_dev->obj_desc.id,
-				&mc_dev->mc_handle);
-		if (ret) {
-			dev_err(dev, "dpni_open() fails with error %d\n", ret);
-			return ret;
-		}
-		return 0;
-	}
-
-	if (strncmp(device_type, "dpbp", 4) == 0) {
-		ret = dpbp_open(mc_dev->mc_io, 0, mc_dev->obj_desc.id,
-				&mc_dev->mc_handle);
-		if (ret) {
-			dev_err(dev, "dpbp_open() fails with error %d\n", ret);
-			return ret;
-		}
-		return 0;
-	}
-
-	if (strncmp(device_type, "dpmcp", 5) == 0) {
-		ret = dpmcp_open(mc_dev->mc_io, 0, mc_dev->obj_desc.id,
-				&mc_dev->mc_handle);
-		if (ret) {
-			dev_err(dev, "dpbp_open() fails with error %d\n", ret);
-			return ret;
-		}
-		return 0;
-	}
-
-	if (strncmp(device_type, "dpci", 4) == 0)
-		return 0;
-
-	return -EINVAL;
-}
-
-int vfio_fsl_mc_put_handle(struct fsl_mc_device *mc_dev)
-{
-	struct device *dev = &mc_dev->dev;
-	char buf[20];
-	char *device_type;
-	char *str = buf;
-	int ret;
-
-	strcpy(str, dev_name(dev));
-	device_type = strsep(&str, ".");
-	if (!device_type)
-		return -EINVAL;
-
-	if (strncmp(device_type, "dpio", 4) == 0) {
-		ret = dpio_close(mc_dev->mc_io, 0, mc_dev->mc_handle);
-		if (ret) {
-			dev_err(dev, "dpio_close() fails with error %d\n", ret);
-			return ret;
-		}
-		return 0;
-	}
-
-	if (strncmp(device_type, "dpni", 4) == 0) {
-		ret = dpni_close(mc_dev->mc_io, 0, mc_dev->mc_handle);
-		if (ret) {
-			dev_err(dev, "dpni_close() fails with error %d\n", ret);
-			return ret;
-		}
-		return 0;
-	}
-
-	if (strncmp(device_type, "dpbp", 4) == 0) {
-		ret = dpbp_close(mc_dev->mc_io, 0, mc_dev->mc_handle);
-		if (ret) {
-			dev_err(dev, "dpbp_close() fails with error %d\n", ret);
-			return ret;
-		}
-		return 0;
-	}
-
-	if (strncmp(device_type, "dpmcp", 5) == 0) {
-		ret = dpmcp_close(mc_dev->mc_io, 0, mc_dev->mc_handle);
-		if (ret) {
-			dev_err(dev, "dpbp_close() fails with error %d\n", ret);
-			return ret;
-		}
-		return 0;
-	}
-
-	if (strncmp(device_type, "dpci", 4) == 0)
-		return 0;
-
-	return -EINVAL;
-}
-
-static int vfio_fsl_mc_disable_irq(struct fsl_mc_device *mc_dev, int irq_num)
-
-{
-	int error = 0;
-
-	/*
-	 * Disable generation of interrupt irq_num
-	 */
-	error = vfio_fsl_mc_set_irq_enable(mc_dev, irq_num, 0);
-	if (error < 0) {
-		dev_err(&mc_dev->dev, "set_irq_enable() failed: %d\n", error);
-		return error;
-	}
-
-	/*
-	 * Disable all interrupt causes for interrupt irq_num:
-	 */
-	error = vfio_fsl_mc_set_irq_mask(mc_dev, irq_num, 0);
-	if (error < 0) {
-		dev_err(&mc_dev->dev,
-			"mc_set_irq_mask() failed: %d\n", error);
-		return error;
-	}
-
-	/*
-	 * Clear any leftover interrupt irq_num:
-	 */
-	error = vfio_fsl_mc_clear_irq_status(mc_dev, irq_num, ~0x0U);
-	if (error < 0) {
-		dev_err(&mc_dev->dev,
-			"mc_clear_irq_status() failed: %d\n",
-			error);
-		return error;
-	}
-	return error;
-}
-
 static irqreturn_t vfio_fsl_mc_irq_handler(int irq_num, void *arg)
 {
 	struct vfio_fsl_mc_irq *mc_irq = (struct vfio_fsl_mc_irq *)arg;
@@ -352,6 +89,7 @@ static int vfio_fsl_mc_setup_irqs(struct fsl_mc_device *mc_dev)
 {
 	int ret;
 	int irq_count = mc_dev->obj_desc.irq_count;
+	int hwirq;
 	int i;
 
 	/* Allocate IRQs */
@@ -361,16 +99,11 @@ static int vfio_fsl_mc_setup_irqs(struct fsl_mc_device *mc_dev)
 
 	/* Disable IRQs */
 	for (i = 0; i < irq_count; i++) {
-		ret = vfio_fsl_mc_disable_irq(mc_dev, i);
-		if  (ret)
-			goto free_irq;
+		hwirq = mc_dev->irqs[i]->irq_number;
+		disable_irq_nosync(hwirq);
 	}
 
 	return 0;
-
-free_irq:
-	fsl_mc_free_irqs(mc_dev);
-	return ret;
 }
 
 int vfio_fsl_mc_init_irqs(struct vfio_fsl_mc_device *vdev)
@@ -385,21 +118,11 @@ int vfio_fsl_mc_init_irqs(struct vfio_fsl_mc_device *vdev)
 	if (mc_irq == NULL)
 		return -ENOMEM;
 
-	/* Open the device except dprc */
-	if (strncmp(vdev->mc_dev->obj_desc.type, "dprc", 10)) {
-		ret = vfio_fsl_mc_get_handle(mc_dev);
-		if (ret) {
-			kfree(mc_irq);
-			dev_err(dev, "Fails to get mc-handle (err %d)\n", ret);
-			return ret;
-		}
-	}
-
 	ret = vfio_fsl_mc_setup_irqs(mc_dev);
 	if (ret) {
 		kfree(mc_irq);
 		dev_err(dev, "vfio_fsl_mc_setup_irqs Fails  %d\n", ret);
-		goto free_device_handle;
+		return ret;
 	}
 
 	for (i = 0; i < irq_count; i++) {
@@ -410,10 +133,6 @@ int vfio_fsl_mc_init_irqs(struct vfio_fsl_mc_device *vdev)
 	}
 
 	vdev->mc_irqs = mc_irq;
-
-free_device_handle:
-	if (strncmp(vdev->mc_dev->obj_desc.type, "dprc", 10))
-		vfio_fsl_mc_put_handle(mc_dev);
 
 	return 0;
 }
@@ -448,7 +167,6 @@ static int vfio_fsl_mc_irq_mask(struct vfio_fsl_mc_device *vdev,
 				    unsigned count, uint32_t flags, void *data,
 				    uint32_t mask)
 {
-	struct fsl_mc_device *mc_dev = vdev->mc_dev;
 	uint8_t arr;
 
 	if (start != 0 || count != 1)
@@ -461,7 +179,7 @@ static int vfio_fsl_mc_irq_mask(struct vfio_fsl_mc_device *vdev,
 			return -EINVAL;
 
 	case VFIO_IRQ_SET_DATA_NONE:
-		return vfio_fsl_mc_set_irq_mask(mc_dev, index, 0);
+		return -ENOTTY; /* To be Implemented */
 	case VFIO_IRQ_SET_DATA_EVENTFD:
 		return -ENOTTY; /* To be Implemented */
 
@@ -510,27 +228,13 @@ static int vfio_fsl_mc_set_irq_trigger(struct vfio_fsl_mc_device *vdev,
 {
 	struct fsl_mc_device *mc_dev = vdev->mc_dev;
 	int32_t fd;
-	int ret;
+	int hwirq;
 
 	/* If count = 0 and DATA_NONE, disable interrupt */
 	if (!count && (flags & VFIO_IRQ_SET_DATA_NONE)) {
-		/* Open the device except dprc */
-		if (strncmp(vdev->mc_dev->obj_desc.type, "dprc", 10)) {
-			ret = vfio_fsl_mc_get_handle(mc_dev);
-			if (ret)
-				return ret;
-		}
-
-		/*
-		 * Disable generation of interrupt i:
-		 */
-		ret = vfio_fsl_mc_disable_irq(mc_dev, index);
-
-		/* Close the open handle */
-		if (strncmp(vdev->mc_dev->obj_desc.type, "dprc", 10))
-			vfio_fsl_mc_put_handle(mc_dev);
-
-		return ret;
+		hwirq = mc_dev->irqs[index]->irq_number;
+		disable_irq_nosync(hwirq);
+		return 0;
 	}
 
 	if (flags & VFIO_IRQ_SET_DATA_BOOL)
