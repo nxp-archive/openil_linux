@@ -295,7 +295,7 @@ static int vfio_fsl_mc_disable_irq(struct fsl_mc_device *mc_dev, int irq_num)
 	return error;
 }
 
-static irqreturn_t vfio_threaded_irq_handler(int irq_num, void *arg)
+static irqreturn_t vfio_fsl_mc_irq_handler(int irq_num, void *arg)
 {
 	struct vfio_fsl_mc_device *vdev;
 	int i;
@@ -331,15 +331,11 @@ int vfio_fsl_mc_configure_irq(struct vfio_fsl_mc_device *vdev,
 	if (WARN_ON(mc_irq->irq_configured))
 		return -EINVAL;
 
-	error = request_threaded_irq(irq->irq_number, NULL,
-				     vfio_threaded_irq_handler,
-				     IRQF_NO_SUSPEND | IRQF_ONESHOT,
-				     "VFIO Handler",
-				     vdev);
+	error = request_irq(irq->irq_number, vfio_fsl_mc_irq_handler,
+			    0, "VFIO Handler", vdev);
 	if (error < 0) {
 		dev_err(&mc_dev->dev,
-			"devm_request_threaded_irq() failed: %d\n",
-			error);
+			"IRQ registration fails with error: %d\n", error);
 		return error;
 	}
 
