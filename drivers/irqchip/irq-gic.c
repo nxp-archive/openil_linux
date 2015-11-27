@@ -179,7 +179,6 @@ static void gic_eoi_irq(struct irq_data *d)
 }
 
 #ifdef CONFIG_IPIPE
-
 static void gic_hold_irq(struct irq_data *d)
 {
 	gic_poke_irq(d, GIC_DIST_ENABLE_CLEAR);
@@ -298,7 +297,7 @@ static void __exception_irq_entry gic_handle_irq(struct pt_regs *regs)
 		irqnr = irqstat & GICC_IAR_INT_ID_MASK;
 
 		if (likely(irqnr > 15 && irqnr < 1021)) {
-			ipipe_handle_multi_irq(gic->domain, irqnr, regs);
+			ipipe_handle_domain_irq(gic->domain, irqnr, regs);
 			continue;
 		}
 		if (irqnr < 16) {
