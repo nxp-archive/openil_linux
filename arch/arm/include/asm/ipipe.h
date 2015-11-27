@@ -237,6 +237,7 @@ static inline unsigned long __ipipe_ffnz(unsigned long ul)
 
 #define __ipipe_root_tick_p(regs) (!arch_irqs_disabled_flags(regs->ARM_cpsr))
 
+#ifdef CONFIG_IRQ_DOMAIN
 static inline
 int ipipe_handle_domain_irq(struct irq_domain *domain,
 			    unsigned int hwirq, struct pt_regs *regs)
@@ -247,6 +248,7 @@ int ipipe_handle_domain_irq(struct irq_domain *domain,
 
 	return 0;
 }
+#endif /* irq domains */
 
 #else /* !CONFIG_IPIPE */
 
