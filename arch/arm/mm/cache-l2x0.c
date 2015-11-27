@@ -298,7 +298,7 @@ static void l2c220_op_way(void __iomem *base, unsigned reg)
 static unsigned long l2c220_op_pa_range(void __iomem *reg, unsigned long start,
 	unsigned long end, unsigned long flags)
 {
-	raw_spinlock_t *lock = &l2x0_lock;
+	typeof(l2x0_lock) *lock = &l2x0_lock;
 
 	while (start < end) {
 		unsigned long blk_end = start + min(end - start, CACHE_RANGE_ATOMIC_MAX);
@@ -504,7 +504,7 @@ static void l2c310_inv_range_erratum(unsigned long start, unsigned long end)
 
 static void l2c310_flush_range_erratum(unsigned long start, unsigned long end)
 {
-	raw_spinlock_t *lock = &l2x0_lock;
+	typeof(l2x0_lock) *lock = &l2x0_lock;
 	unsigned long flags;
 	void __iomem *base = l2x0_base;
 
