@@ -367,7 +367,7 @@ static void __init _mxc_timer_init(int irq,
 	/* init and register the timer to the framework */
 	mxc_clocksource_init(clk_per);
 #ifdef CONFIG_IPIPE
-	if (num_online_cpus() == 1) {
+	{
 		unsigned long phys = timer_base_phys;
 		unsigned long virt = (unsigned long)timer_base;
 

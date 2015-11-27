@@ -131,6 +131,7 @@
 			compatible = "arm,cortex-a9-global-timer";
 			reg = <0x00a00200 0x20>;
 			interrupts = <1 11 0xf01>;
+			interrupt-parent = <&intc>;
 			clocks = <&clks IMX6QDL_CLK_TWD>;
 		};
 
