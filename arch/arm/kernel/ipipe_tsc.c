@@ -71,6 +71,10 @@ void __init __ipipe_tsc_register(struct __ipipe_tscinfo *info)
 	tsc_addr = &__ipipe_tsc_addr;
 #endif
 	registered = ipipe_tsc_value != NULL;
+
+	if (registered && info->freq < tsc_info.freq)
+		return;
+
 	ipipe_tsc_value = (struct ipipe_tsc_value_t *)tsc_area;
 	vector_tsc_value = (struct ipipe_tsc_value_t *)__ipipe_tsc_area;
 
