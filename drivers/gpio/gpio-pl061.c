@@ -24,6 +24,7 @@
 #include <linux/slab.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/pm.h>
+#include <linux/ipipe.h>
 
 #define GPIODIR 0x400
 #define GPIOIS  0x404
