@@ -210,7 +210,7 @@ static void __init pxa_timer_common_init(int irq, unsigned long clock_tick_rate)
 
 #ifdef CONFIG_IPIPE
 	tsc_info.freq = clock_tick_rate;
-	tsc_info.counter_vaddr = timer_base + OSCR;
+	tsc_info.counter_vaddr = (unsigned long)timer_base + OSCR;
 
 	__ipipe_tsc_register(&tsc_info);
 
