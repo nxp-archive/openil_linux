@@ -25,6 +25,8 @@
 #ifndef __ARM_IPIPE_H
 #define __ARM_IPIPE_H
 
+#include <linux/irqdomain.h>
+
 #ifdef CONFIG_IPIPE
 
 #define BROKEN_BUILTIN_RETURN_ADDRESS
@@ -41,7 +43,6 @@ extern unsigned long arm_return_addr(int level);
 
 #include <linux/jump_label.h>
 #include <linux/ipipe_trace.h>
-#include <linux/irqdomain.h>
 
 #define IPIPE_CORE_RELEASE	1
 
@@ -252,6 +253,9 @@ int ipipe_handle_domain_irq(struct irq_domain *domain,
 
 #else /* !CONFIG_IPIPE */
 
+#include <linux/irq.h>
+#include <linux/irqdesc.h>
+
 #define __ipipe_tsc_update()	do { } while(0)
 
 #define hard_smp_processor_id()		smp_processor_id()
@@ -284,6 +288,9 @@ int ipipe_handle_domain_irq(struct irq_domain *domain,
 {
 	return handle_domain_irq(domain, hwirq, regs);
 }
+
+struct timekeeper;
+static inline void __ipipe_update_vsyscall(struct timekeeper *tk) {}
 
 #endif /* !CONFIG_IPIPE */
 
