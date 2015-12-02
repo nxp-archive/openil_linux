@@ -150,7 +150,7 @@ static ssize_t m25p80_read(struct spi_nor *nor, loff_t from, size_t len,
 
 	t[1].rx_buf = buf;
 	t[1].rx_nbits = m25p80_rx_nbits(nor);
-	t[1].len = len;
+	t[1].len = min_t(size_t, len, spi_max_transfer_size(spi));
 	spi_message_add_tail(&t[1], &m);
 
 	ret = spi_sync(spi, &m);
