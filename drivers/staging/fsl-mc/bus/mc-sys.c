@@ -60,32 +60,6 @@
 	((uint16_t)mc_dec((_hdr), MC_CMD_HDR_CMDID_O, MC_CMD_HDR_CMDID_S))
 
 /**
- * Global state variables for the DPMCP Command completion ISR
- *
- * @mc_io: Pointer to MC IO object to be used to send MC commands
- * from the DPMCP completion interrupt handler.
- * @dpmcp_count: Coun of of DPMCP objects for which fsl_mc_io_setup_dpmcp_irq()
- * has been called.
- *
- * NOTE: We use a common atomic MC portal for handling DPMCP completion
- * interrupts for all DPMCPs, for scalability. Otherwise, we would need
- * to have an additional MC portal per DPMCP.
- *
- * TODO: If needed, to avoid contention between DPMCP completion interrupts
- * that fired on different CPUs (for different DPMCPs), we should have
- * one dedicated MC portal per CPU, to be used for sending MC commands from
- * the DPMCP completion ISR.
- */
-struct fsl_mc_dpmcp_isr {
-	struct fsl_mc_io *mc_io;
-	atomic_t dpmcp_count;
-};
-
-static struct fsl_mc_dpmcp_isr fsl_mc_dpmcp_isr = {
-	.dpmcp_count = ATOMIC_INIT(0),
-};
-
-/**
  * dpmcp_irq0_handler - Regular ISR for DPMCP interrupt 0
  *
  * @irq: IRQ number of the interrupt being handled
@@ -93,7 +67,6 @@ static struct fsl_mc_dpmcp_isr fsl_mc_dpmcp_isr = {
  */
 static irqreturn_t dpmcp_irq0_handler(int irq_num, void *arg)
 {
-	int error;
 	struct device *dev = (struct device *)arg;
 	struct fsl_mc_device *dpmcp_dev = to_fsl_mc_device(dev);
 	struct fsl_mc_io *mc_io = dpmcp_dev->mc_io;
@@ -106,26 +79,6 @@ static irqreturn_t dpmcp_irq0_handler(int irq_num, void *arg)
 
 	if (WARN_ON(!mc_io))
 		goto out;
-
-	if (WARN_ON(!fsl_mc_dpmcp_isr.mc_io))
-		goto out;
-
-	/*
-	 * Clear interrupt source at the MC:
-	 *
-	 * NOTE: We clear all DPMCP IRQ events, rather than calling
-	 * dpmcp_get_irq_status() here to save one trip to the MC
-	 */
-	error = dpmcp_clear_irq_status(fsl_mc_dpmcp_isr.mc_io,
-				       MC_CMD_FLAG_INTR_DIS | MC_CMD_FLAG_PRI,
-				       mc_io->dpmcp_isr_mc_handle,
-				       DPMCP_IRQ_INDEX, ~0x0U);
-	if (error < 0) {
-		dev_err(&dpmcp_dev->dev,
-			"dpmcp_clear_irq_status() failed: %d\n",
-			error);
-		goto out;
-	}
 
 	complete(&mc_io->mc_command_done_completion);
 out:
@@ -164,20 +117,6 @@ static int disable_dpmcp_irq(struct fsl_mc_device *dpmcp_dev)
 		dev_err(&dpmcp_dev->dev,
 			"dpmcp_set_irq_mask() failed: %d\n", error);
 
-		return error;
-	}
-
-	/*
-	 * Clear any leftover interrupts:
-	 */
-	error = dpmcp_clear_irq_status(dpmcp_dev->mc_io,
-				       MC_CMD_FLAG_INTR_DIS,
-				       dpmcp_dev->mc_handle,
-				       DPMCP_IRQ_INDEX, ~0x0U);
-	if (error < 0) {
-		dev_err(&dpmcp_dev->dev,
-			"dpmcp_clear_irq_status() failed: %d\n",
-			error);
 		return error;
 	}
 
@@ -272,31 +211,9 @@ int fsl_mc_io_setup_dpmcp_irq(struct fsl_mc_io *mc_io)
 	if (WARN_ON(dpmcp_dev->mc_io != mc_io))
 		return -EINVAL;
 
-	if (WARN_ON(mc_io == fsl_mc_dpmcp_isr.mc_io))
-		return -EINVAL;
-
-	if (WARN_ON(atomic_read(&fsl_mc_dpmcp_isr.dpmcp_count) < 0))
-		return -EINVAL;
-
-	if (atomic_add_return(1, &fsl_mc_dpmcp_isr.dpmcp_count) == 1) {
-		/*
-		 * Create mc_io to be used to send MC commands from
-		 * the DPMCP command completion ISR (i.e. to clear the
-		 * DPMCP interrupt)
-		 */
-		error = fsl_mc_portal_allocate(NULL,
-					       FSL_MC_IO_ATOMIC_CONTEXT_PORTAL,
-					       &fsl_mc_dpmcp_isr.mc_io);
-		if (error < 0)
-			goto error_dec_dpmcp_count;
-
-		pr_info("fsl-mc: Allocated dpmcp.%d to DPMCP command completion ISR\n",
-			fsl_mc_dpmcp_isr.mc_io->dpmcp_dev->obj_desc.id);
-	}
-
 	error = fsl_mc_allocate_irqs(dpmcp_dev);
 	if (error < 0)
-		goto error_dec_dpmcp_count;
+		return error;
 
 	error = disable_dpmcp_irq(dpmcp_dev);
 	if (error < 0)
@@ -306,36 +223,18 @@ int fsl_mc_io_setup_dpmcp_irq(struct fsl_mc_io *mc_io)
 	if (error < 0)
 		goto error_free_irqs;
 
-	error = dpmcp_open(fsl_mc_dpmcp_isr.mc_io,
-			   MC_CMD_FLAG_INTR_DIS,
-			   dpmcp_dev->obj_desc.id,
-			   &mc_io->dpmcp_isr_mc_handle);
+	error = enable_dpmcp_irq(dpmcp_dev);
 	if (error < 0)
 		goto error_unregister_irq_handler;
 
-	error = enable_dpmcp_irq(dpmcp_dev);
-	if (error < 0)
-		goto error_close_dpmcp;
-
 	mc_io->mc_command_done_irq_armed = true;
 	return 0;
-
-error_close_dpmcp:
-	(void)dpmcp_close(fsl_mc_dpmcp_isr.mc_io,
-			  MC_CMD_FLAG_INTR_DIS,
-			  mc_io->dpmcp_isr_mc_handle);
 
 error_unregister_irq_handler:
 	unregister_dpmcp_irq_handler(dpmcp_dev);
 
 error_free_irqs:
 	fsl_mc_free_irqs(dpmcp_dev);
-
-error_dec_dpmcp_count:
-	if (atomic_sub_return(1, &fsl_mc_dpmcp_isr.dpmcp_count) == 0) {
-		fsl_mc_portal_free(fsl_mc_dpmcp_isr.mc_io);
-		fsl_mc_dpmcp_isr.mc_io = NULL;
-	}
 
 	return error;
 }
@@ -347,7 +246,6 @@ EXPORT_SYMBOL_GPL(fsl_mc_io_setup_dpmcp_irq);
  */
 static void teardown_dpmcp_irq(struct fsl_mc_io *mc_io)
 {
-	int error;
 	struct fsl_mc_device *dpmcp_dev = mc_io->dpmcp_dev;
 
 	if (WARN_ON(!dpmcp_dev))
@@ -357,25 +255,10 @@ static void teardown_dpmcp_irq(struct fsl_mc_io *mc_io)
 	if (WARN_ON(!dpmcp_dev->irqs))
 		return;
 
-	if (WARN_ON(atomic_read(&fsl_mc_dpmcp_isr.dpmcp_count) <= 0))
-		return;
-
 	mc_io->mc_command_done_irq_armed = false;
 	(void)disable_dpmcp_irq(dpmcp_dev);
 	unregister_dpmcp_irq_handler(dpmcp_dev);
 	fsl_mc_free_irqs(dpmcp_dev);
-	error = dpmcp_close(fsl_mc_dpmcp_isr.mc_io,
-			    MC_CMD_FLAG_INTR_DIS,
-			    mc_io->dpmcp_isr_mc_handle);
-	if (error < 0) {
-		dev_err(&dpmcp_dev->dev,
-			"dpmcp_close(dpmcp_isr_mc_handle) failed: %d\n", error);
-	}
-
-	if (atomic_sub_return(1, &fsl_mc_dpmcp_isr.dpmcp_count) == 0) {
-		fsl_mc_portal_free(fsl_mc_dpmcp_isr.mc_io);
-		fsl_mc_dpmcp_isr.mc_io = NULL;
-	}
 }
 
 /**

@@ -860,9 +860,7 @@ static int dprc_probe(struct fsl_mc_device *mc_dev)
 
 	if (fsl_mc_interrupts_supported()) {
 		/*
-		 * Create DPMCP for the DPRC's built-in portal, to have
-		 * DPMCP completion interrupts for MC commands sent on
-		 * the DPRC's built-in portal:
+		 * Create DPMCP for the DPRC's built-in portal:
 		 */
 		error = dprc_create_dpmcp(mc_dev);
 		if (error < 0)
