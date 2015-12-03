@@ -39,12 +39,6 @@
 struct fsl_mc_io;
 
 /**
- * Management Complex firmware version information
- */
-#define MC_VER_MAJOR 8
-#define MC_VER_MINOR 0
-
-/**
  * struct mc_version
  * @major: Major version number: incremented on API compatibility changes
  * @minor: Minor version number: incremented on API additions (that are
