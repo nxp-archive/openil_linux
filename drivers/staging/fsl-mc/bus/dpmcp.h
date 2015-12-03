@@ -147,12 +147,12 @@ int dpmcp_reset(struct fsl_mc_io	*mc_io,
  * struct dpmcp_irq_cfg - IRQ configuration
  * @paddr:	Address that must be written to signal a message-based interrupt
  * @val:	Value to write into irq_addr address
- * @user_irq_id: A user defined number associated with this IRQ
+ * @irq_num: A user defined number associated with this IRQ
  */
 struct dpmcp_irq_cfg {
 	     uint64_t		paddr;
 	     uint32_t		val;
-	     int		user_irq_id;
+	     int		irq_num;
 };
 
 /**
@@ -286,25 +286,6 @@ int dpmcp_get_irq_status(struct fsl_mc_io	*mc_io,
 			 uint16_t		token,
 			 uint8_t		irq_index,
 			 uint32_t		*status);
-
-/**
- * dpmcp_clear_irq_status() - Clear a pending interrupt's status
- *
- * @mc_io:	Pointer to MC portal's I/O object
- * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPMCP object
- * @irq_index:	The interrupt index to configure
- * @status:	Bits to clear (W1C) - one bit per cause:
- *					0 = don't change
- *					1 = clear status bit
- *
- * Return:	'0' on Success; Error code otherwise.
- */
-int dpmcp_clear_irq_status(struct fsl_mc_io	*mc_io,
-			   uint32_t		cmd_flags,
-			   uint16_t		token,
-			   uint8_t		irq_index,
-			   uint32_t		status);
 
 /**
  * struct dpmcp_attr - Structure representing DPMCP attributes
