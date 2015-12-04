@@ -175,12 +175,12 @@ int dpbp_reset(struct fsl_mc_io	*mc_io,
  * struct dpbp_irq_cfg - IRQ configuration
  * @addr:	Address that must be written to signal a message-based interrupt
  * @val:	Value to write into irq_addr address
- * @user_irq_id: A user defined number associated with this IRQ
+ * @irq_num: A user defined number associated with this IRQ
  */
 struct dpbp_irq_cfg {
 	     uint64_t		addr;
 	     uint32_t		val;
-	     int		user_irq_id;
+	     int		irq_num;
 };
 
 /**
@@ -370,6 +370,69 @@ int dpbp_get_attributes(struct fsl_mc_io	*mc_io,
 			uint16_t		token,
 			struct dpbp_attr	*attr);
 
-/** @} */
+/**
+ *  DPBP notifications options
+ */
+
+/**
+ * BPSCN write will attempt to allocate into a cache (coherent write)
+ */
+#define DPBP_NOTIF_OPT_COHERENT_WRITE	0x00000001
+
+/**
+ * struct dpbp_notification_cfg - Structure representing DPBP notifications
+ *	towards software
+ * @depletion_entry: below this threshold the pool is "depleted";
+ *	set it to '0' to disable it
+ * @depletion_exit: greater than or equal to this threshold the pool exit its
+ *	"depleted" state
+ * @surplus_entry: above this threshold the pool is in "surplus" state;
+ *	set it to '0' to disable it
+ * @surplus_exit: less than or equal to this threshold the pool exit its
+ *	"surplus" state
+ * @message_iova: MUST be given if either 'depletion_entry' or 'surplus_entry'
+ *	is not '0' (enable); I/O virtual address (must be in DMA-able memory),
+ *	must be 16B aligned.
+ * @message_ctx: The context that will be part of the BPSCN message and will
+ *	be written to 'message_iova'
+ * @options: Mask of available options; use 'DPBP_NOTIF_OPT_<X>' values
+ */
+struct dpbp_notification_cfg {
+	uint32_t	depletion_entry;
+	uint32_t	depletion_exit;
+	uint32_t	surplus_entry;
+	uint32_t	surplus_exit;
+	uint64_t	message_iova;
+	uint64_t	message_ctx;
+	uint16_t	options;
+};
+
+/**
+ * dpbp_set_notifications() - Set notifications towards software
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPBP object
+ * @cfg:	notifications configuration
+ *
+ * Return:	'0' on Success; Error code otherwise.
+ */
+int dpbp_set_notifications(struct fsl_mc_io	*mc_io,
+			   uint32_t		cmd_flags,
+			   uint16_t		token,
+			   struct dpbp_notification_cfg	*cfg);
+
+/**
+ * dpbp_get_notifications() - Get the notifications configuration
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPBP object
+ * @cfg:	notifications configuration
+ *
+ * Return:	'0' on Success; Error code otherwise.
+ */
+int dpbp_get_notifications(struct fsl_mc_io	*mc_io,
+			   uint32_t		cmd_flags,
+			      uint16_t		token,
+			      struct dpbp_notification_cfg	*cfg);
 
 #endif /* __FSL_DPBP_H */

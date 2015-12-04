@@ -201,7 +201,7 @@ int dpbp_set_irq(struct fsl_mc_io	*mc_io,
 	cmd.params[0] |= mc_enc(0, 8, irq_index);
 	cmd.params[0] |= mc_enc(32, 32, irq_cfg->val);
 	cmd.params[1] |= mc_enc(0, 64, irq_cfg->addr);
-	cmd.params[2] |= mc_enc(0, 32, irq_cfg->user_irq_id);
+	cmd.params[2] |= mc_enc(0, 32, irq_cfg->irq_num);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
@@ -232,7 +232,7 @@ int dpbp_get_irq(struct fsl_mc_io	*mc_io,
 	/* retrieve response parameters */
 	irq_cfg->val = (uint32_t)mc_dec(cmd.params[0], 0, 32);
 	irq_cfg->addr = (uint64_t)mc_dec(cmd.params[1], 0, 64);
-	irq_cfg->user_irq_id = (int)mc_dec(cmd.params[2], 0, 32);
+	irq_cfg->irq_num = (int)mc_dec(cmd.params[2], 0, 32);
 	*type = (int)mc_dec(cmd.params[2], 32, 32);
 
 	return 0;
@@ -344,6 +344,7 @@ int dpbp_get_irq_status(struct fsl_mc_io *mc_io,
 					  cmd_flags,
 					  token);
 
+	cmd.params[0] |= mc_enc(0, 32, *status);
 	cmd.params[0] |= mc_enc(32, 8, irq_index);
 
 	/* send command to mc*/
@@ -402,3 +403,57 @@ int dpbp_get_attributes(struct fsl_mc_io *mc_io,
 	return 0;
 }
 EXPORT_SYMBOL(dpbp_get_attributes);
+
+int dpbp_set_notifications(struct fsl_mc_io	*mc_io,
+			   uint32_t		cmd_flags,
+			   uint16_t		token,
+			   struct dpbp_notification_cfg	*cfg)
+{
+	struct mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPBP_CMDID_SET_NOTIFICATIONS,
+					  cmd_flags,
+					  token);
+
+	cmd.params[0] |= mc_enc(0, 32, cfg->depletion_entry);
+	cmd.params[0] |= mc_enc(32, 32, cfg->depletion_exit);
+	cmd.params[1] |= mc_enc(0, 32, cfg->surplus_entry);
+	cmd.params[1] |= mc_enc(32, 32, cfg->surplus_exit);
+	cmd.params[2] |= mc_enc(0, 16, cfg->options);
+	cmd.params[3] |= mc_enc(0, 64, cfg->message_ctx);
+	cmd.params[4] |= mc_enc(0, 64, cfg->message_iova);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
+
+int dpbp_get_notifications(struct fsl_mc_io	*mc_io,
+			   uint32_t		cmd_flags,
+			      uint16_t		token,
+			      struct dpbp_notification_cfg	*cfg)
+{
+	struct mc_command cmd = { 0 };
+	int err;
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPBP_CMDID_GET_NOTIFICATIONS,
+					  cmd_flags,
+					  token);
+
+	/* send command to mc*/
+	err = mc_send_command(mc_io, &cmd);
+	if (err)
+		return err;
+
+	/* retrieve response parameters */
+	cfg->depletion_entry = (uint32_t)mc_dec(cmd.params[0], 0, 32);
+	cfg->depletion_exit = (uint32_t)mc_dec(cmd.params[0], 32, 32);
+	cfg->surplus_entry = (uint32_t)mc_dec(cmd.params[1], 0, 32);
+	cfg->surplus_exit = (uint32_t)mc_dec(cmd.params[1], 32, 32);
+	cfg->options = (uint16_t)mc_dec(cmd.params[2], 0, 16);
+	cfg->message_ctx = (uint64_t)mc_dec(cmd.params[3], 0, 64);
+	cfg->message_iova = (uint64_t)mc_dec(cmd.params[4], 0, 64);
+
+	return 0;
+}
