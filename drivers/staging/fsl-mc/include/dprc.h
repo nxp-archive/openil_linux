@@ -116,11 +116,6 @@ int dprc_close(struct fsl_mc_io	*mc_io,
  */
 #define DPRC_CFG_OPT_TOPOLOGY_CHANGES_ALLOWED	0x00000008
 
-/* IOMMU bypass - indicates whether objects of this container are permitted
- * to bypass the IOMMU.
- */
-#define DPRC_CFG_OPT_IOMMU_BYPASS		0x00000010
-
 /* AIOP - Indicates that container belongs to AIOP.  */
 #define DPRC_CFG_OPT_AIOP			0x00000020
 
@@ -254,12 +249,12 @@ int dprc_reset_container(struct fsl_mc_io	*mc_io,
  * struct dprc_irq_cfg - IRQ configuration
  * @paddr:	Address that must be written to signal a message-based interrupt
  * @val:	Value to write into irq_addr address
- * @user_irq_id: A user defined number associated with this IRQ
+ * @irq_num:	A user defined number associated with this IRQ
  */
 struct dprc_irq_cfg {
 	     uint64_t		paddr;
 	     uint32_t		val;
-	     int		user_irq_id;
+	     int		irq_num;
 };
 
 /**
@@ -663,6 +658,14 @@ int dprc_get_obj_count(struct fsl_mc_io	*mc_io,
 #define DPRC_OBJ_STATE_PLUGGED		0x00000002
 
 /**
+ * Shareability flag - Object flag indicating no memory shareability.
+ * the object generates memory accesses that are non coherent with other
+ * masters;
+ * user is responsible for proper memory handling through IOMMU configuration.
+ */
+#define DPRC_OBJ_FLAG_NO_MEM_SHAREABILITY		0x0001
+
+/**
  * struct dprc_obj_desc - Object descriptor, returned from dprc_get_obj()
  * @type: Type of object: NULL terminated string
  * @id: ID of logical object resource
@@ -673,6 +676,7 @@ int dprc_get_obj_count(struct fsl_mc_io	*mc_io,
  * @region_count: Number of mappable regions supported by the object
  * @state: Object state: combination of DPRC_OBJ_STATE_ states
  * @label: Object label
+ * @flags: Object's flags
  */
 struct dprc_obj_desc {
 	char type[16];
@@ -684,6 +688,7 @@ struct dprc_obj_desc {
 	uint8_t region_count;
 	uint32_t state;
 	char label[16];
+	uint16_t flags;
 };
 
 /**
@@ -933,14 +938,8 @@ struct dprc_connection_cfg {
  * @endpoint1:	Endpoint 1 configuration parameters
  * @endpoint2:	Endpoint 2 configuration parameters
  * @cfg: Connection configuration. The connection configuration is ignored for
- *	connections made to DPMAC objects, where rate is set according to
- *	MAC configuration.
- *	The committed rate is the guaranteed rate for the connection.
- *	The maximum rate is an upper limit allowed for the connection; it is 
- *	expected to be equal or higher than the committed rate.
- *	When committed and maximum rates are both zero, the connection is set 
- *	to "best effort" mode, having lower priority compared to connections 
- *	with committed or maximum rates.
+ * 	 connections made to DPMAC objects, where rate is retrieved from the
+ *	 MAC configuration.
  *
  * Return:	'0' on Success; Error code otherwise.
  */
@@ -973,7 +972,10 @@ int dprc_disconnect(struct fsl_mc_io		*mc_io,
 * @token:	Token of DPRC object
 * @endpoint1:	Endpoint 1 configuration parameters
 * @endpoint2:	Returned endpoint 2 configuration parameters
-* @state:	Returned link state: 1 - link is up, 0 - link is down
+* @state:	Returned link state:
+*		1 - link is up;
+*		0 - link is down;
+*		-1 - no connection (endpoint2 information is irrelevant)
 *
 * Return:     '0' on Success; -ENAVAIL if connection does not exist.
 */

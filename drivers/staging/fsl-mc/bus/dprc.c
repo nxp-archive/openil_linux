@@ -182,7 +182,7 @@ int dprc_get_irq(struct fsl_mc_io *mc_io,
 	/* retrieve response parameters */
 	irq_cfg->val = mc_dec(cmd.params[0], 0, 32);
 	irq_cfg->paddr = mc_dec(cmd.params[1], 0, 64);
-	irq_cfg->user_irq_id = mc_dec(cmd.params[2], 0, 32);
+	irq_cfg->irq_num = mc_dec(cmd.params[2], 0, 32);
 	*type = mc_dec(cmd.params[2], 32, 32);
 
 	return 0;
@@ -204,7 +204,7 @@ int dprc_set_irq(struct fsl_mc_io *mc_io,
 	cmd.params[0] |= mc_enc(32, 8, irq_index);
 	cmd.params[0] |= mc_enc(0, 32, irq_cfg->val);
 	cmd.params[1] |= mc_enc(0, 64, irq_cfg->paddr);
-	cmd.params[2] |= mc_enc(0, 32, irq_cfg->user_irq_id);
+	cmd.params[2] |= mc_enc(0, 32, irq_cfg->irq_num);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
@@ -659,6 +659,7 @@ int dprc_get_obj(struct fsl_mc_io *mc_io,
 	obj_desc->state = mc_dec(cmd.params[1], 32, 32);
 	obj_desc->ver_major = mc_dec(cmd.params[2], 0, 16);
 	obj_desc->ver_minor = mc_dec(cmd.params[2], 16, 16);
+	obj_desc->flags = mc_dec(cmd.params[2], 32, 16);
 	obj_desc->type[0] = mc_dec(cmd.params[3], 0, 8);
 	obj_desc->type[1] = mc_dec(cmd.params[3], 8, 8);
 	obj_desc->type[2] = mc_dec(cmd.params[3], 16, 8);
@@ -740,6 +741,7 @@ int dprc_get_obj_desc(struct fsl_mc_io *mc_io,
 	obj_desc->state = (uint32_t)mc_dec(cmd.params[1], 32, 32);
 	obj_desc->ver_major = (uint16_t)mc_dec(cmd.params[2], 0, 16);
 	obj_desc->ver_minor = (uint16_t)mc_dec(cmd.params[2], 16, 16);
+	obj_desc->flags = mc_dec(cmd.params[2], 32, 16);
 	obj_desc->type[0] = (char)mc_dec(cmd.params[3], 0, 8);
 	obj_desc->type[1] = (char)mc_dec(cmd.params[3], 8, 8);
 	obj_desc->type[2] = (char)mc_dec(cmd.params[3], 16, 8);
@@ -794,7 +796,7 @@ int dprc_set_obj_irq(struct fsl_mc_io *mc_io,
 	cmd.params[0] |= mc_enc(32, 8, irq_index);
 	cmd.params[0] |= mc_enc(0, 32, irq_cfg->val);
 	cmd.params[1] |= mc_enc(0, 64, irq_cfg->paddr);
-	cmd.params[2] |= mc_enc(0, 32, irq_cfg->user_irq_id);
+	cmd.params[2] |= mc_enc(0, 32, irq_cfg->irq_num);
 	cmd.params[2] |= mc_enc(32, 32, obj_id);
 	cmd.params[3] |= mc_enc(0, 8, obj_type[0]);
 	cmd.params[3] |= mc_enc(8, 8, obj_type[1]);
@@ -861,7 +863,7 @@ int dprc_get_obj_irq(struct fsl_mc_io *mc_io,
 	/* retrieve response parameters */
 	irq_cfg->val = (uint32_t)mc_dec(cmd.params[0], 0, 32);
 	irq_cfg->paddr = (uint64_t)mc_dec(cmd.params[1], 0, 64);
-	irq_cfg->user_irq_id = (int)mc_dec(cmd.params[2], 0, 32);
+	irq_cfg->irq_num = (int)mc_dec(cmd.params[2], 0, 32);
 	*type = (int)mc_dec(cmd.params[2], 32, 32);
 
 	return 0;

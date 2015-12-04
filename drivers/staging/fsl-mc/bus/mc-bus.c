@@ -729,7 +729,7 @@ static int mc_bus_msi_prepare(struct irq_domain *domain, struct device *dev,
 		return -ERANGE;
 	}
 
-	if (dprc_attr.options & DPRC_CFG_OPT_IOMMU_BYPASS)
+	if (dprc_attr.options & DPRC_CFG_OPT_AIOP)
 		its_dev_id |= STREAM_ID_PL_MASK | STREAM_ID_BMT_MASK;
 
 	return __its_msi_prepare(domain, its_dev_id, dev, nvec, info);
@@ -772,7 +772,7 @@ static void program_msi_at_mc(struct fsl_mc_device *mc_bus_dev,
 
 	irq_cfg.paddr = irq->msi_paddr;
 	irq_cfg.val = irq->msi_value;
-	irq_cfg.user_irq_id = irq->irq_number;
+	irq_cfg.irq_num = irq->irq_number;
 
 	if (owner_mc_dev == mc_bus_dev) {
 		/*
