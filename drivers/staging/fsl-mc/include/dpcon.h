@@ -38,9 +38,11 @@
 
 struct fsl_mc_io;
 
-/* General DPCON macros */
+/** General DPCON macros */
 
-/* Use it to disable notifications; see dpcon_set_notification() */
+/**
+ * Use it to disable notifications; see dpcon_set_notification()
+ */
 #define DPCON_INVALID_DPIO_ID		(int)(-1)
 
 /**
@@ -181,12 +183,12 @@ int dpcon_reset(struct fsl_mc_io	*mc_io,
  * struct dpcon_irq_cfg - IRQ configuration
  * @addr:	Address that must be written to signal a message-based interrupt
  * @val:	Value to write into irq_addr address
- * @user_irq_id: A user defined number associated with this IRQ
+ * @irq_num: A user defined number associated with this IRQ
  */
 struct dpcon_irq_cfg {
 	     uint64_t		addr;
 	     uint32_t		val;
-	     int		user_irq_id;
+	     int		irq_num;
 };
 
 /**
@@ -270,7 +272,7 @@ int dpcon_get_irq_enable(struct fsl_mc_io	*mc_io,
  * @mask:	Event mask to trigger interrupt;
  *				each bit:
  *					0 = ignore event
- *					1 = consider event for asserting irq
+ *					1 = consider event for asserting IRQ
  *
  * Every interrupt can have up to 32 causes and the interrupt model supports
  * masking/unmasking each cause independently
