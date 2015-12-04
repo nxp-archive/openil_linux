@@ -275,12 +275,12 @@ static int gic_set_affinity(struct irq_data *d, const struct cpumask *mask_val,
 	if (cpu >= NR_GIC_CPU_IF || cpu >= nr_cpu_ids)
 		return -EINVAL;
 
-	raw_spin_lock_irqsave_cond(&irq_controller_lock, flags);
+	raw_spin_lock_irqsave(&irq_controller_lock, flags);
 	mask = 0xff << shift;
 	bit = gic_cpu_map[cpu] << shift;
 	val = readl_relaxed(reg) & ~mask;
 	writel_relaxed(val | bit, reg);
-	raw_spin_unlock_irqrestore_cond(&irq_controller_lock, flags);
+	raw_spin_unlock_irqrestore(&irq_controller_lock, flags);
 
 	return IRQ_SET_MASK_OK;
 }
