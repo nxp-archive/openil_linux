@@ -53,23 +53,6 @@
 #define CLKDVDR_PXCKDLY		0x06000000
 #define CLKDVDR_PXCLK_MASK	0x00FF0000
 
-/* Some ngPIXIS register definitions */
-#define PX_CTL		3
-#define PX_BRDCFG0	8
-#define PX_BRDCFG1	9
-
-#define PX_BRDCFG0_ELBC_SPI_MASK	0xc0
-#define PX_BRDCFG0_ELBC_SPI_ELBC	0x00
-#define PX_BRDCFG0_ELBC_SPI_NULL	0xc0
-#define PX_BRDCFG0_ELBC_DIU		0x02
-
-#define PX_BRDCFG1_DVIEN	0x80
-#define PX_BRDCFG1_DFPEN	0x40
-#define PX_BRDCFG1_BACKLIGHT	0x20
-#define PX_BRDCFG1_DDCEN	0x10
-
-#define PX_CTL_ALTACC		0x80
-
 /*
  * DIU Area Descriptor
  *
@@ -106,6 +89,28 @@
 	(c2 << AD_COMP_2_SHIFT) | (c1 << AD_COMP_1_SHIFT) | \
 	(c0 << AD_COMP_0_SHIFT) | (size << AD_PIXEL_S_SHIFT))
 
+#endif
+
+/* Some ngPIXIS register definitions */
+#define PX_CTL		3
+#define PX_BRDCFG0	8
+#define PX_BRDCFG1	9
+
+#define PX_RST		0x4
+#define PX_RST_PCIE	0x8
+
+#define PX_BRDCFG0_ELBC_SPI_MASK	0xc0
+#define PX_BRDCFG0_ELBC_SPI_ELBC	0x00
+#define PX_BRDCFG0_ELBC_SPI_NULL	0xc0
+#define PX_BRDCFG0_ELBC_DIU		0x02
+
+#define PX_BRDCFG1_DVIEN	0x80
+#define PX_BRDCFG1_DFPEN	0x40
+#define PX_BRDCFG1_BACKLIGHT	0x20
+#define PX_BRDCFG1_DDCEN	0x10
+
+#define PX_CTL_ALTACC		0x80
+
 struct fsl_law {
 	u32	lawbar;
 	u32	reserved1;
@@ -124,6 +129,8 @@ struct fsl_law {
 #define LAWAR_MATCH	(LAWAR_EN | LAW_TRGT_IF_LBC)
 
 #define BR_BA		0xFFFF8000
+
+static int px_ctl_altacc_flag;
 
 /*
  * Map a BRx value to a physical address
@@ -157,48 +164,40 @@ static phys_addr_t lbc_br_to_phys(const void *ecm, unsigned int count, u32 br)
 #endif
 }
 
-/**
- * p1022ds_set_monitor_port: switch the output to a different monitor port
- */
-static void p1022ds_set_monitor_port(enum fsl_diu_monitor_port port)
+static u8 __iomem *lbc_lcs0_ba;
+static u8 __iomem *lbc_lcs1_ba;
+
+static inline bool verify_pixis_indirect_access_address(void)
 {
-	struct device_node *guts_node;
-	struct device_node *lbc_node = NULL;
-	struct device_node *law_node = NULL;
-	struct ccsr_guts __iomem *guts;
-	struct fsl_lbc_regs *lbc = NULL;
+	if (lbc_lcs0_ba && lbc_lcs1_ba)
+		return true;
+
+	return false;
+}
+
+static void indirect_access_pixis_probe(void)
+{
+	struct device_node *lbc_node;
+	struct device_node *law_node;
+	struct fsl_lbc_regs *lbc;
 	void *ecm = NULL;
-	u8 __iomem *lbc_lcs0_ba = NULL;
-	u8 __iomem *lbc_lcs1_ba = NULL;
+
 	phys_addr_t cs0_addr, cs1_addr;
 	u32 br0, or0, br1, or1;
 	const __be32 *iprop;
 	unsigned int num_laws;
-	u8 b;
-
-	/* Map the global utilities registers. */
-	guts_node = of_find_compatible_node(NULL, NULL, "fsl,p1022-guts");
-	if (!guts_node) {
-		pr_err("p1022ds: missing global utilities device node\n");
-		return;
-	}
-
-	guts = of_iomap(guts_node, 0);
-	if (!guts) {
-		pr_err("p1022ds: could not map global utilities device\n");
-		goto exit;
-	}
 
 	lbc_node = of_find_compatible_node(NULL, NULL, "fsl,p1022-elbc");
 	if (!lbc_node) {
 		pr_err("p1022ds: missing localbus node\n");
-		goto exit;
+		return;
 	}
 
 	lbc = of_iomap(lbc_node, 0);
+	of_node_put(lbc_node);
 	if (!lbc) {
 		pr_err("p1022ds: could not map localbus node\n");
-		goto exit;
+		return;
 	}
 
 	law_node = of_find_compatible_node(NULL, NULL, "fsl,ecm-law");
@@ -282,7 +281,103 @@ static void p1022ds_set_monitor_port(enum fsl_diu_monitor_port port)
 	if (!lbc_lcs1_ba) {
 		pr_err("p1022ds: could not ioremap CS1 address %llx\n",
 		       (unsigned long long)cs1_addr);
-		goto exit;
+
+		iounmap(lbc_lcs0_ba);
+	}
+
+exit:
+	if (ecm)
+		iounmap(ecm);
+	if (lbc)
+		iounmap(lbc);
+
+	if (law_node)
+		of_node_put(law_node);
+}
+
+static void indirect_access_pixis_reset_pcie_slot(void)
+{
+	if (!verify_pixis_indirect_access_address()) {
+		WARN_ON(1);
+		return;
+	}
+
+	/* Set FPGA access address */
+	out_8(lbc_lcs0_ba, PX_RST);
+
+	/* power down pcie slot */
+	clrbits8(lbc_lcs1_ba, PX_RST_PCIE);
+
+	/* power up pcie slot */
+	setbits8(lbc_lcs1_ba, PX_RST_PCIE);
+}
+
+static void direct_access_pixis_reset_pcie_slot(void)
+{
+	struct device_node *pixis_node;
+	void __iomem *pixis;
+
+	/* Map the pixis registers. */
+	pixis_node =
+		of_find_compatible_node(NULL, NULL, "fsl,p1022ds-fpga");
+	if (!pixis_node) {
+		pr_err("p1022ds: missing pixis node\n");
+		return;
+	}
+
+	pixis = of_iomap(pixis_node, 0);
+	of_node_put(pixis_node);
+	if (!pixis) {
+		pr_err("p1022ds: could not map pixis registers\n");
+		return;
+	}
+
+	/* Rset PCIE slot */
+	/* power down pcie slot */
+	clrbits8(pixis + PX_RST, PX_RST_PCIE);
+
+	/* power up pcie slot */
+	setbits8(pixis + PX_RST, PX_RST_PCIE);
+
+	iounmap(pixis);
+}
+
+void p1022ds_reset_pcie_slot(void)
+{
+	if (px_ctl_altacc_flag)
+		indirect_access_pixis_reset_pcie_slot();
+	else
+		direct_access_pixis_reset_pcie_slot();
+}
+
+#if defined(CONFIG_FB_FSL_DIU) || defined(CONFIG_FB_FSL_DIU_MODULE)
+
+/**
+ * p1022ds_set_monitor_port: switch the output to a different monitor port
+ */
+static void p1022ds_set_monitor_port(enum fsl_diu_monitor_port port)
+{
+	struct device_node *guts_node;
+	struct ccsr_guts __iomem *guts;
+	u8 b;
+
+	if (!verify_pixis_indirect_access_address()) {
+		WARN_ON(1);
+		return;
+	}
+
+	/* Map the global utilities registers. */
+	guts_node = of_find_compatible_node(NULL, NULL, "fsl,p1022-guts");
+	if (!guts_node) {
+		pr_err("p1022ds: missing global utilities device node\n");
+		return;
+	}
+
+	guts = of_iomap(guts_node, 0);
+	of_node_put(guts_node);
+	if (!guts) {
+		pr_err("p1022ds: could not map global utilities device\n");
+		return;
 	}
 
 	/* Make sure we're in indirect mode first. */
@@ -307,6 +402,7 @@ static void p1022ds_set_monitor_port(enum fsl_diu_monitor_port port)
 
 		/* Enable indirect PIXIS mode.  */
 		setbits8(pixis + PX_CTL, PX_CTL_ALTACC);
+		px_ctl_altacc_flag = 1;
 		iounmap(pixis);
 
 		/* Switch the board mux to the DIU */
@@ -348,20 +444,7 @@ static void p1022ds_set_monitor_port(enum fsl_diu_monitor_port port)
 	}
 
 exit:
-	if (lbc_lcs1_ba)
-		iounmap(lbc_lcs1_ba);
-	if (lbc_lcs0_ba)
-		iounmap(lbc_lcs0_ba);
-	if (lbc)
-		iounmap(lbc);
-	if (ecm)
-		iounmap(ecm);
-	if (guts)
-		iounmap(guts);
-
-	of_node_put(law_node);
-	of_node_put(lbc_node);
-	of_node_put(guts_node);
+	iounmap(guts);
 }
 
 /**
@@ -542,6 +625,8 @@ static void __init p1022_ds_setup_arch(void)
 	fsl_pci_assign_primary();
 
 	swiotlb_detect_4g();
+
+	indirect_access_pixis_probe();
 
 	pr_info("Freescale P1022 DS reference board\n");
 }
