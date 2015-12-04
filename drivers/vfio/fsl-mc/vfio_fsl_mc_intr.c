@@ -24,13 +24,9 @@
 #include "../../staging/fsl-mc/include/mc.h"
 #include "../../staging/fsl-mc/include/mc-sys.h"
 #include "../../staging/fsl-mc/include/mc-private.h"
-#include "../../staging/fsl-mc/include/dpbp.h"
 #include <linux/fs.h>
 
 #include "vfio_fsl_mc_private.h"
-#include "../../drivers/staging/fsl-mc/bus/dpio/fsl_dpio.h"
-#include "../../drivers/staging/fsl-dpaa2/ethernet/dpni.h"
-#include "../../drivers/staging/fsl-mc/bus/dpmcp.h"
 
 static irqreturn_t vfio_fsl_mc_irq_handler(int irq_num, void *arg)
 {
