@@ -1,6 +1,7 @@
 config IPIPE_DEBUG
 	bool "I-pipe debugging"
 	depends on IPIPE
+	select RAW_PRINTK
 
 config IPIPE_DEBUG_CONTEXT
 	bool "Check for illicit cross-domain calls"
