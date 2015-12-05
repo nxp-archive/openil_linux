@@ -120,6 +120,17 @@ static inline __printf(1, 2) __cold
 void early_printk(const char *s, ...) { }
 #endif
 
+#ifdef CONFIG_RAW_PRINTK
+void raw_vprintk(const char *fmt, va_list ap);
+asmlinkage __printf(1, 2)
+void raw_printk(const char *fmt, ...);
+#else
+static inline __cold
+void raw_vprintk(const char *s, va_list ap) { }
+static inline __printf(1, 2) __cold
+void raw_printk(const char *s, ...) { }
+#endif
+
 typedef int(*printk_func_t)(const char *fmt, va_list args);
 
 #ifdef CONFIG_PRINTK
