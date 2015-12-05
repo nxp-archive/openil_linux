@@ -2019,6 +2019,62 @@ asmlinkage __visible void early_printk(const char *fmt, ...)
 }
 #endif
 
+#ifdef CONFIG_RAW_PRINTK
+static struct console *raw_console;
+static IPIPE_DEFINE_RAW_SPINLOCK(raw_console_lock);
+
+void raw_vprintk(const char *fmt, va_list ap)
+{
+	unsigned long flags;
+	char buf[256];
+	int n;
+	
+	if (raw_console == NULL || console_suspended)
+		return;
+
+	n = vscnprintf(buf, sizeof(buf), fmt, ap);
+        touch_nmi_watchdog();
+	raw_spin_lock_irqsave(&raw_console_lock, flags);
+	if (raw_console)
+		raw_console->write_raw(raw_console, buf, n);
+	raw_spin_unlock_irqrestore(&raw_console_lock, flags);
+}
+
+asmlinkage __visible void raw_printk(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	raw_vprintk(fmt, ap);
+	va_end(ap);
+}
+
+static inline void register_raw_console(struct console *newcon)
+{
+	if ((newcon->flags & CON_RAW) != 0 && newcon->write_raw)
+		raw_console = newcon;
+}
+
+static inline void unregister_raw_console(struct console *oldcon)
+{
+	unsigned long flags;
+
+	raw_spin_lock_irqsave(&raw_console_lock, flags);
+	if (oldcon == raw_console)
+		raw_console = NULL;
+	raw_spin_unlock_irqrestore(&raw_console_lock, flags);
+}
+
+#else
+
+static inline void register_raw_console(struct console *newcon)
+{ }
+
+static inline void unregister_raw_console(struct console *oldcon)
+{ }
+
+#endif
+
 static int __add_preferred_console(char *name, int idx, char *options,
 				   char *brl_options)
 {
@@ -2624,6 +2680,10 @@ void register_console(struct console *newcon)
 		newcon->next = console_drivers->next;
 		console_drivers->next = newcon;
 	}
+
+	/* The latest raw console to register is current. */
+	register_raw_console(newcon);
+
 	if (newcon->flags & CON_PRINTBUFFER) {
 		/*
 		 * console_unlock(); will print out the buffered messages
@@ -2675,6 +2735,8 @@ int unregister_console(struct console *console)
 	pr_info("%sconsole [%s%d] disabled\n",
 		(console->flags & CON_BOOT) ? "boot" : "" ,
 		console->name, console->index);
+
+	unregister_raw_console(console);
 
 	res = _braille_unregister_console(console);
 	if (res)
