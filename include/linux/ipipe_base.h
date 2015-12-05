@@ -283,6 +283,8 @@ static inline void __ipipe_init_taskinfo(struct task_struct *p) { }
 
 #endif /* !CONFIG_IPIPE_LEGACY */
 
+#define __ipipe_serial_debug(__fmt, __args...)	raw_printk(__fmt, ##__args)
+
 #else /* !CONFIG_IPIPE */
 
 struct task_struct;
@@ -325,8 +327,6 @@ static inline void __ipipe_init_taskinfo(struct task_struct *p) { }
 
 #define ipipe_handle_demuxed_irq(irq)		generic_handle_irq(irq)
 
-#define __ipipe_serial_debug(fmt, args...)	do { } while (0)
-
 #define __ipipe_enter_vm(vmf)	do { } while (0)
 
 static inline void __ipipe_exit_vm(void) { }
@@ -334,6 +334,8 @@ static inline void __ipipe_exit_vm(void) { }
 static inline void __ipipe_notify_vm_preemption(void) { }
 
 static inline void ipipe_root_only(void) { }
+
+#define __ipipe_serial_debug(__fmt, __args...)	do { } while (0)
 
 #endif	/* !CONFIG_IPIPE */
 
