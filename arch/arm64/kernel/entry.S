@@ -60,7 +60,7 @@
 #ifdef CONFIG_IPIPE
 #define PREEMPT_SCHEDULE_IRQ	__ipipe_preempt_schedule_irq
 #else /* !CONFIG_IPIPE */
-#ifdef ret_from_exception	ret_to_user
+#define ret_from_exception	ret_to_user
 #define PREEMPT_SCHEDULE_IRQ	preempt_schedule_irq
 #endif /* CONFIG_IPIPE */
 

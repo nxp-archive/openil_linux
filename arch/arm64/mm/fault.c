@@ -39,6 +39,15 @@
 
 static const char *fault_name(unsigned int esr);
 
+#define cpu_get_pgd()					\
+({							\
+	unsigned long pg;				\
+	asm("mrs	%0, ttbr0_el1\n"		\
+	    : "=r" (pg));				\
+	pg &= ~0xffff000000003ffful;			\
+	(pgd_t *)phys_to_virt(pg);			\
+})
+
 /*
  * Dump out the page tables associated with 'addr' in mm 'mm'.
  */
