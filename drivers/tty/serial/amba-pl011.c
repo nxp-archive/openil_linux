@@ -1980,20 +1980,6 @@ static struct uart_amba_port *amba_ports[UART_NR];
 
 #ifdef CONFIG_SERIAL_AMBA_PL011_CONSOLE
 
-#ifdef CONFIG_IPIPE_DEBUG
-
-#define ipipe_clk_setup(clk)	clk_prepare_enable(clk)
-#define ipipe_clk_enable(clk)	do { } while (0)
-#define ipipe_clk_disable(clk)	do { } while (0)
-
-#else /* !CONFIG_IPIPE_DEBUG */
-
-#define ipipe_clk_setup(clk)	clk_prepare(clk)
-#define ipipe_clk_enable(clk)	clk_enable(clk)
-#define ipipe_clk_disable(clk)	clk_disable(clk)
-
-#endif /* !CONFIG_IPIPE_DEBUG */
-
 static void pl011_console_putchar(struct uart_port *port, int ch)
 {
 	struct uart_amba_port *uap =
@@ -2012,7 +1998,7 @@ pl011_console_write(struct console *co, const char *s, unsigned int count)
 	unsigned long flags;
 	int locked = 1;
 
-	ipipe_clk_enable(uap->clk);
+	pl011_clk_enable(uap->clk);
 
 	local_irq_save(flags);
 	if (uap->port.sysrq)
@@ -2045,8 +2031,45 @@ pl011_console_write(struct console *co, const char *s, unsigned int count)
 		spin_unlock(&uap->port.lock);
 	local_irq_restore(flags);
 
-	ipipe_clk_disable(uap->clk);
+	pl011_clk_disable(uap->clk);
 }
+
+#ifdef CONFIG_RAW_PRINTK
+
+#define pl011_clk_setup(clk)	clk_prepare_enable(clk)
+#define pl011_clk_enable(clk)	do { } while (0)
+#define pl011_clk_disable(clk)	do { } while (0)
+
+static void
+pl011_console_write_raw(struct console *co, const char *s, unsigned int count)
+{
+	struct uart_amba_port *uap = amba_ports[co->index];
+	unsigned int old_cr, new_cr;
+
+	old_cr = readw(uap->port.membase + UART011_CR);
+	new_cr = old_cr & ~UART011_CR_CTSEN;
+	new_cr |= UART01x_CR_UARTEN | UART011_CR_TXE;
+	writew(new_cr, uap->port.membase + UART011_CR);
+	/*
+	 * Absolutely no congestion control, debug output is supposed
+	 * to be terse enough to cope with low latency at the selected
+	 * serial speed.
+	 */
+	while (count-- > 0) {
+		if (*s == '\n')
+			writeb('\r', uap->port.membase + UART01x_DR);
+		writeb(*s++, uap->port.membase + UART01x_DR);
+	}
+	writew(old_cr, uap->port.membase + UART011_CR);
+}
+
+#else  /* !CONFIG_RAW_PRINTK */
+
+#define pl011_clk_setup(clk)	clk_prepare(clk)
+#define pl011_clk_enable(clk)	clk_enable(clk)
+#define pl011_clk_disable(clk)	clk_disable(clk)
+
+#endif  /* !CONFIG_RAW_PRINTK */
 
 static void __init
 pl011_console_get_options(struct uart_amba_port *uap, int *baud,
@@ -2106,7 +2129,7 @@ static int __init pl011_console_setup(struct console *co, char *options)
 	/* Allow pins to be muxed in and configured */
 	pinctrl_pm_select_default_state(uap->port.dev);
 
-	ret = ipipe_clk_setup(uap->clk);
+	ret = pl011_clk_setup(uap->clk);
 	if (ret)
 		return ret;
 
@@ -2134,7 +2157,12 @@ static struct console amba_console = {
 	.write		= pl011_console_write,
 	.device		= uart_console_device,
 	.setup		= pl011_console_setup,
+#ifdef CONFIG_RAW_PRINTK
+	.write_raw	= pl011_console_write_raw,
+	.flags		= CON_PRINTBUFFER | CON_RAW,
+#else
 	.flags		= CON_PRINTBUFFER,
+#endif
 	.index		= -1,
 	.data		= &amba_reg,
 };
@@ -2168,61 +2196,6 @@ static int __init pl011_early_console_setup(struct earlycon_device *device,
 }
 EARLYCON_DECLARE(pl011, pl011_early_console_setup);
 OF_EARLYCON_DECLARE(pl011, "arm,pl011", pl011_early_console_setup);
-
-#ifdef CONFIG_IPIPE_DEBUG
-
-static IPIPE_DEFINE_SPINLOCK(ipipe_amba_lock);
-
-#include <linux/nmi.h>
-#include <stdarg.h>
-
-static struct console amba_console;
-
-static void __ipipe_putchar(struct uart_port *port, int c)
-{
-	writeb(c, port->membase + UART01x_DR);
-}
-
-void __ipipe_serial_debug(const char *fmt, ...)
-{
-	unsigned int old_cr, new_cr, count;
-	struct uart_amba_port *uap;
-	unsigned long flags;
-        char buf[128];
-        va_list ap;
-
-	if (amba_console.index < 0)
-		return;
-	
-	uap = amba_ports[amba_console.index];
-	if (uap == NULL || uap->port.membase == NULL)
-		return;
-
-        va_start(ap, fmt);
-        vsnprintf(buf, sizeof(buf), fmt, ap);
-        va_end(ap);
-        count = strlen(buf);
-
-        touch_nmi_watchdog();
-
-        spin_lock_irqsave(&ipipe_amba_lock, flags);
-
-	old_cr = readw(uap->port.membase + UART011_CR);
-	new_cr = old_cr & ~UART011_CR_CTSEN;
-	new_cr |= UART01x_CR_UARTEN | UART011_CR_TXE;
-	writew(new_cr, uap->port.membase + UART011_CR);
-	/*
-	 * Absolutely no congestion control, debug output is supposed
-	 * to be terse enough to cope with low latency at the selected
-	 * serial speed.
-	 */
-	uart_console_write(&uap->port, buf, count, __ipipe_putchar);
-	writew(old_cr, uap->port.membase + UART011_CR);
-
-        spin_unlock_irqrestore(&ipipe_amba_lock, flags);
-}
-
-#endif /* CONFIG_IPIPE_DEBUG */
 
 #else
 #define AMBA_CONSOLE	NULL
