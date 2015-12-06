@@ -25,7 +25,7 @@
 #ifndef __ARM_IPIPE_H
 #define __ARM_IPIPE_H
 
-struct irq_domain;
+#include <linux/irqdomain.h>
 
 #ifdef CONFIG_IPIPE
 
@@ -214,10 +214,15 @@ void __ipipe_grab_irq(int irq, struct pt_regs *regs);
 
 void __ipipe_exit_irq(struct pt_regs *regs);
 
-static inline int ipipe_handle_multi_irq(struct irq_domain *domain,
-					 unsigned int irq, struct pt_regs *regs)
+static inline
+int ipipe_handle_domain_irq(struct irq_domain *domain,
+			    unsigned int hwirq, struct pt_regs *regs)
 {
+	unsigned int irq;
+
+	irq = irq_find_mapping(domain, hwirq);
 	__ipipe_grab_irq(irq, regs);
+
 	return 0;
 }
 
@@ -259,18 +264,20 @@ struct task_struct *ipipe_switch_to(struct task_struct *prev,
 		(void) (flags);			\
 	} while(0)
 
-static inline int ipipe_handle_multi_irq(struct irq_domain *domain,
-					 unsigned int irq, struct pt_regs *regs)
-{
-	return handle_domain_irq(domain, irq, regs);
-}
-
 #ifdef CONFIG_SMP
 static inline void ipipe_handle_multi_ipi(int irq, struct pt_regs *regs)
 {
 	handle_IPI(irq, regs);
 }
 #endif /* CONFIG_SMP */
+
+static inline
+int ipipe_handle_domain_irq(struct irq_domain *domain,
+			    unsigned int hwirq, struct pt_regs *regs)
+{
+	return handle_domain_irq(domain, hwirq, regs);
+}
+
 #endif /* CONFIG_IPIPE */
 
 #endif	/* !__ARM_IPIPE_H */

@@ -128,7 +128,7 @@ void __ipipe_do_vnmi(unsigned int irq, void *cookie)
 	data = __ipipe_vnmi.data;
 	if (likely(data && cpumask_test_cpu(cpu, &data->cpumask))) {
 		data->fn(data->arg);
-		cpu_clear(cpu, data->cpumask);
+		cpumask_clear_cpu(cpu, &data->cpumask);
 	}
 
 	read_unlock(&__ipipe_vnmi.data_lock);
@@ -157,8 +157,8 @@ void ipipe_set_irq_affinity(unsigned int irq, cpumask_t cpumask)
 	if (WARN_ON_ONCE(irq_get_chip(irq)->irq_set_affinity == NULL))
 		return;
 
-	cpus_and(cpumask, cpumask, *cpu_online_mask);
-	if (WARN_ON_ONCE(cpus_empty(cpumask)))
+	cpumask_and(&cpumask, &cpumask, cpu_online_mask);
+	if (WARN_ON_ONCE(cpumask_empty(&cpumask)))
 		return;
 
 	irq_get_chip(irq)->irq_set_affinity(irq_get_irq_data(irq), &cpumask, true);
@@ -182,8 +182,8 @@ void __ipipe_send_vnmi(void (*fn)(void *), cpumask_t cpumask, void *arg)
 	}
 
 	cpu = ipipe_processor_id();
-	cpu_clear(cpu, data.cpumask);
-	if (cpus_empty(data.cpumask)) {
+	cpumask_clear_cpu(cpu, &data.cpumask);
+	if (cpumask_empty(&data.cpumask)) {
 		spin_unlock_irqrestore(&__ipipe_vnmi.lock, flags);
 		return;
 	}
@@ -193,7 +193,7 @@ void __ipipe_send_vnmi(void (*fn)(void *), cpumask_t cpumask, void *arg)
 	write_unlock(&__ipipe_vnmi.data_lock);
 
 	ipipe_send_ipi(IPIPE_SERVICE_VNMI, data.cpumask);
-	while (!cpus_empty(data.cpumask))
+	while (!cpumask_empty(&data.cpumask))
 		cpu_relax();
 
 	write_lock(&__ipipe_vnmi.data_lock);
