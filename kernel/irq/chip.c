@@ -1125,6 +1125,20 @@ void irq_chip_eoi_parent(struct irq_data *data)
 	data->chip->irq_eoi(data);
 }
 
+#ifdef CONFIG_IPIPE
+void irq_chip_hold_parent(struct irq_data *data)
+{
+	data = data->parent_data;
+	data->chip->irq_hold(data);
+}
+
+void irq_chip_release_parent(struct irq_data *data)
+{
+	data = data->parent_data;
+	data->chip->irq_release(data);
+}
+#endif
+
 /**
  * irq_chip_set_affinity_parent - Set affinity on the parent interrupt
  * @data:	Pointer to interrupt specific data
