@@ -273,10 +273,4 @@ static inline void ipipe_handle_multi_ipi(int irq, struct pt_regs *regs)
 #endif /* CONFIG_SMP */
 #endif /* CONFIG_IPIPE */
 
-#ifdef CONFIG_IPIPE_DEBUG
-void __ipipe_serial_debug(const char *fmt, ...);
-#else
-#define __ipipe_serial_debug(fmt, args...)	do { } while (0)
-#endif
-
 #endif	/* !__ARM_IPIPE_H */
