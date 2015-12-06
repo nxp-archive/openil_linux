@@ -123,7 +123,6 @@ static void wakeupgen_mask(struct irq_data *d)
 	unsigned long flags;
 
 	raw_spin_lock_irqsave(&wakeupgen_lock, flags);
-	ipipe_lock_irq(d->hwirq);
 	_wakeupgen_clear(d->hwirq, irq_target_cpu[d->hwirq]);
 	raw_spin_unlock_irqrestore(&wakeupgen_lock, flags);
 	irq_chip_mask_parent(d);
@@ -139,7 +138,6 @@ static void wakeupgen_unmask(struct irq_data *d)
 	raw_spin_lock_irqsave(&wakeupgen_lock, flags);
 	_wakeupgen_set(d->hwirq, irq_target_cpu[d->hwirq]);
 	raw_spin_unlock_irqrestore(&wakeupgen_lock, flags);
-	ipipe_unlock_irq(d->hwirq);
 	irq_chip_unmask_parent(d);
 }
 
@@ -149,8 +147,7 @@ static void wakeupgen_hold(struct irq_data *d)
 	raw_spin_lock(&wakeupgen_lock);
 	_wakeupgen_clear(d->hwirq, irq_target_cpu[d->hwirq]);
 	raw_spin_unlock(&wakeupgen_lock);
-	irq_chip_mask_parent(d);
-	irq_chip_eoi_parent(d);
+	irq_chip_hold_parent(d);
 }
 
 static void wakeupgen_release(struct irq_data *d)
@@ -160,7 +157,7 @@ static void wakeupgen_release(struct irq_data *d)
 	raw_spin_lock_irqsave(&wakeupgen_lock, flags);
 	_wakeupgen_set(d->hwirq, irq_target_cpu[d->hwirq]);
 	raw_spin_unlock_irqrestore(&wakeupgen_lock, flags);
-	irq_chip_unmask_parent(d);
+	irq_chip_release_parent(d);
 }
 #endif
 
