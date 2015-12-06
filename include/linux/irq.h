@@ -468,6 +468,11 @@ extern int irq_chip_retrigger_hierarchy(struct irq_data *data);
 extern void irq_chip_mask_parent(struct irq_data *data);
 extern void irq_chip_unmask_parent(struct irq_data *data);
 extern void irq_chip_eoi_parent(struct irq_data *data);
+#ifdef CONFIG_IPIPE
+extern void irq_chip_hold_parent(struct irq_data *data);
+extern void irq_chip_release_parent(struct irq_data *data);
+#endif
+
 extern int irq_chip_set_affinity_parent(struct irq_data *data,
 					const struct cpumask *dest,
 					bool force);
