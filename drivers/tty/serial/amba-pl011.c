@@ -1990,6 +1990,42 @@ static void pl011_console_putchar(struct uart_port *port, int ch)
 	writew(ch, uap->port.membase + UART01x_DR);
 }
 
+#ifdef CONFIG_RAW_PRINTK
+
+#define pl011_clk_setup(clk)	clk_prepare_enable(clk)
+#define pl011_clk_enable(clk)	do { } while (0)
+#define pl011_clk_disable(clk)	do { } while (0)
+
+static void
+pl011_console_write_raw(struct console *co, const char *s, unsigned int count)
+{
+	struct uart_amba_port *uap = amba_ports[co->index];
+	unsigned int old_cr, new_cr, status;
+
+	old_cr = readw(uap->port.membase + UART011_CR);
+	new_cr = old_cr & ~UART011_CR_CTSEN;
+	new_cr |= UART01x_CR_UARTEN | UART011_CR_TXE;
+	writew(new_cr, uap->port.membase + UART011_CR);
+
+	while (count-- > 0) {
+		if (*s == '\n')
+			pl011_console_putchar(&uap->port, '\r');
+		pl011_console_putchar(&uap->port, *s++);
+	}
+	do
+		status = readw(uap->port.membase + UART01x_FR);
+	while (status & UART01x_FR_BUSY);
+	writew(old_cr, uap->port.membase + UART011_CR);
+}
+
+#else  /* !CONFIG_RAW_PRINTK */
+
+#define pl011_clk_setup(clk)	clk_prepare(clk)
+#define pl011_clk_enable(clk)	clk_enable(clk)
+#define pl011_clk_disable(clk)	clk_disable(clk)
+
+#endif  /* !CONFIG_RAW_PRINTK */
+
 static void
 pl011_console_write(struct console *co, const char *s, unsigned int count)
 {
@@ -2033,43 +2069,6 @@ pl011_console_write(struct console *co, const char *s, unsigned int count)
 
 	pl011_clk_disable(uap->clk);
 }
-
-#ifdef CONFIG_RAW_PRINTK
-
-#define pl011_clk_setup(clk)	clk_prepare_enable(clk)
-#define pl011_clk_enable(clk)	do { } while (0)
-#define pl011_clk_disable(clk)	do { } while (0)
-
-static void
-pl011_console_write_raw(struct console *co, const char *s, unsigned int count)
-{
-	struct uart_amba_port *uap = amba_ports[co->index];
-	unsigned int old_cr, new_cr;
-
-	old_cr = readw(uap->port.membase + UART011_CR);
-	new_cr = old_cr & ~UART011_CR_CTSEN;
-	new_cr |= UART01x_CR_UARTEN | UART011_CR_TXE;
-	writew(new_cr, uap->port.membase + UART011_CR);
-	/*
-	 * Absolutely no congestion control, debug output is supposed
-	 * to be terse enough to cope with low latency at the selected
-	 * serial speed.
-	 */
-	while (count-- > 0) {
-		if (*s == '\n')
-			writeb('\r', uap->port.membase + UART01x_DR);
-		writeb(*s++, uap->port.membase + UART01x_DR);
-	}
-	writew(old_cr, uap->port.membase + UART011_CR);
-}
-
-#else  /* !CONFIG_RAW_PRINTK */
-
-#define pl011_clk_setup(clk)	clk_prepare(clk)
-#define pl011_clk_enable(clk)	clk_enable(clk)
-#define pl011_clk_disable(clk)	clk_disable(clk)
-
-#endif  /* !CONFIG_RAW_PRINTK */
 
 static void __init
 pl011_console_get_options(struct uart_amba_port *uap, int *baud,
