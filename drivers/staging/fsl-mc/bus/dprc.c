@@ -318,6 +318,7 @@ int dprc_get_irq_status(struct fsl_mc_io *mc_io,
 	cmd.header = mc_encode_cmd_header(DPRC_CMDID_GET_IRQ_STATUS,
 					  cmd_flags,
 					  token);
+	cmd.params[0] |= mc_enc(0, 32, *status);
 	cmd.params[0] |= mc_enc(32, 8, irq_index);
 
 	/* send command to mc*/

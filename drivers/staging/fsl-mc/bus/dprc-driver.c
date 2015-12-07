@@ -436,6 +436,7 @@ static irqreturn_t dprc_irq0_handler_thread(int irq_num, void *arg)
 	if (WARN_ON(mc_dev->irqs[irq_index]->irq_number != (uint32_t)irq_num))
 		goto out;
 
+	status = 0;
 	error = dprc_get_irq_status(mc_io, 0, mc_dev->mc_handle, irq_index,
 				    &status);
 	if (error < 0) {
