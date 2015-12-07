@@ -34,7 +34,7 @@
 
 /* DPSECI Version */
 #define DPSECI_VER_MAJOR				3
-#define DPSECI_VER_MINOR				0
+#define DPSECI_VER_MINOR				1
 
 /* Command IDs */
 #define DPSECI_CMDID_CLOSE				0x800
@@ -60,6 +60,8 @@
 #define DPSECI_CMDID_SET_RX_QUEUE			0x194
 #define DPSECI_CMDID_GET_RX_QUEUE			0x196
 #define DPSECI_CMDID_GET_TX_QUEUE			0x197
+#define DPSECI_CMDID_GET_SEC_ATTR			0x198
+#define DPSECI_CMDID_GET_SEC_COUNTERS			0x199
 
 /*                cmd, param, offset, width, type, arg_name */
 #define DPSECI_CMD_OPEN(cmd, dpseci_id) \
@@ -90,7 +92,7 @@ do { \
 	MC_CMD_OP(cmd, 0, 0,  8,  uint8_t,  irq_index);\
 	MC_CMD_OP(cmd, 0, 32, 32, uint32_t, irq_cfg->val);\
 	MC_CMD_OP(cmd, 1, 0,  64, uint64_t, irq_cfg->addr);\
-	MC_CMD_OP(cmd, 2, 0,  32, int,	    irq_cfg->user_irq_id); \
+	MC_CMD_OP(cmd, 2, 0,  32, int,	    irq_cfg->irq_num); \
 } while (0)
 
 /*                cmd, param, offset, width, type, arg_name */
@@ -102,7 +104,7 @@ do { \
 do { \
 	MC_RSP_OP(cmd, 0, 0,  32, uint32_t, irq_cfg->val); \
 	MC_RSP_OP(cmd, 1, 0,  64, uint64_t, irq_cfg->addr);\
-	MC_RSP_OP(cmd, 2, 0,  32, int,	    irq_cfg->user_irq_id); \
+	MC_RSP_OP(cmd, 2, 0,  32, int,	    irq_cfg->irq_num); \
 	MC_RSP_OP(cmd, 2, 32, 32, int,	    type); \
 } while (0)
 
@@ -137,8 +139,11 @@ do { \
 	MC_RSP_OP(cmd, 0, 0,  32, uint32_t, mask)
 
 /*                cmd, param, offset, width, type, arg_name */
-#define DPSECI_CMD_GET_IRQ_STATUS(cmd, irq_index) \
-	MC_CMD_OP(cmd, 0, 32, 8,  uint8_t,  irq_index)
+#define DPSECI_CMD_GET_IRQ_STATUS(cmd, irq_index, status) \
+do { \
+	MC_CMD_OP(cmd, 0, 0,  32, uint32_t, status);\
+	MC_CMD_OP(cmd, 0, 32, 8,  uint8_t,  irq_index);\
+} while (0)
 
 /*                cmd, param, offset, width, type, arg_name */
 #define DPSECI_RSP_GET_IRQ_STATUS(cmd, status) \
@@ -197,6 +202,40 @@ do { \
 do { \
 	MC_RSP_OP(cmd, 0, 32, 32, uint32_t,  attr->fqid);\
 	MC_RSP_OP(cmd, 1, 0,  32, uint32_t,  attr->priority);\
+} while (0)
+
+/*                cmd, param, offset, width, type, arg_name */
+#define DPSECI_RSP_GET_SEC_ATTR(cmd, attr) \
+do { \
+	MC_RSP_OP(cmd, 0,  0, 16, uint16_t,  attr->ip_id);\
+	MC_RSP_OP(cmd, 0, 16,  8,  uint8_t,  attr->major_rev);\
+	MC_RSP_OP(cmd, 0, 24,  8,  uint8_t,  attr->minor_rev);\
+	MC_RSP_OP(cmd, 0, 32,  8,  uint8_t,  attr->era);\
+	MC_RSP_OP(cmd, 1,  0,  8,  uint8_t,  attr->deco_num);\
+	MC_RSP_OP(cmd, 1,  8,  8,  uint8_t,  attr->zuc_auth_acc_num);\
+	MC_RSP_OP(cmd, 1, 16,  8,  uint8_t,  attr->zuc_enc_acc_num);\
+	MC_RSP_OP(cmd, 1, 32,  8,  uint8_t,  attr->snow_f8_acc_num);\
+	MC_RSP_OP(cmd, 1, 40,  8,  uint8_t,  attr->snow_f9_acc_num);\
+	MC_RSP_OP(cmd, 1, 48,  8,  uint8_t,  attr->crc_acc_num);\
+	MC_RSP_OP(cmd, 2,  0,  8,  uint8_t,  attr->pk_acc_num);\
+	MC_RSP_OP(cmd, 2,  8,  8,  uint8_t,  attr->kasumi_acc_num);\
+	MC_RSP_OP(cmd, 2, 16,  8,  uint8_t,  attr->rng_acc_num);\
+	MC_RSP_OP(cmd, 2, 32,  8,  uint8_t,  attr->md_acc_num);\
+	MC_RSP_OP(cmd, 2, 40,  8,  uint8_t,  attr->arc4_acc_num);\
+	MC_RSP_OP(cmd, 2, 48,  8,  uint8_t,  attr->des_acc_num);\
+	MC_RSP_OP(cmd, 2, 56,  8,  uint8_t,  attr->aes_acc_num);\
+} while (0)
+
+/*                cmd, param, offset, width, type, arg_name */
+#define DPSECI_RSP_GET_SEC_COUNTERS(cmd, counters) \
+do { \
+	MC_RSP_OP(cmd, 0,  0, 64, uint64_t,  counters->dequeued_requests);\
+	MC_RSP_OP(cmd, 1,  0, 64, uint64_t,  counters->ob_enc_requests);\
+	MC_RSP_OP(cmd, 2,  0, 64, uint64_t,  counters->ib_dec_requests);\
+	MC_RSP_OP(cmd, 3,  0, 64, uint64_t,  counters->ob_enc_bytes);\
+	MC_RSP_OP(cmd, 4,  0, 64, uint64_t,  counters->ob_prot_bytes);\
+	MC_RSP_OP(cmd, 5,  0, 64, uint64_t,  counters->ib_dec_bytes);\
+	MC_RSP_OP(cmd, 6,  0, 64, uint64_t,  counters->ib_valid_bytes);\
 } while (0)
 
 #endif /* _FSL_DPSECI_CMD_H */

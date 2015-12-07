@@ -38,12 +38,18 @@
 
 struct fsl_mc_io;
 
-/* General DPSECI macros */
+/**
+ * General DPSECI macros
+ */
 
-/* Maximum number of Tx/Rx priorities per DPSECI object */
+/**
+ * Maximum number of Tx/Rx priorities per DPSECI object
+ */
 #define DPSECI_PRIO_NUM		8
 
-/* All queues considered; see dpseci_set_rx_queue() */
+/**
+ * All queues considered; see dpseci_set_rx_queue()
+ */
 #define DPSECI_ALL_QUEUES	(uint8_t)(-1)
 
 /**
@@ -85,9 +91,9 @@ int dpseci_close(struct fsl_mc_io	*mc_io,
 
 /**
  * struct dpseci_cfg - Structure representing DPSECI configuration
- *	@num_tx_queues: num of queues towards the SEC
- *	@num_rx_queues: num of queues back from the SEC
- *  @priorities: Priorities for the SEC hardware processing;
+ * @num_tx_queues: num of queues towards the SEC
+ * @num_rx_queues: num of queues back from the SEC
+ * @priorities: Priorities for the SEC hardware processing;
  *		each place in the array is the priority of the tx queue
  *		towards the SEC,
  *		valid priorities are configured with values 1-8;
@@ -191,16 +197,16 @@ int dpseci_reset(struct fsl_mc_io	*mc_io,
  * struct dpseci_irq_cfg - IRQ configuration
  * @addr:	Address that must be written to signal a message-based interrupt
  * @val:	Value to write into irq_addr address
- * @user_irq_id: A user defined number associated with this IRQ
+ * @irq_num: A user defined number associated with this IRQ
  */
 struct dpseci_irq_cfg {
 	     uint64_t		addr;
 	     uint32_t		val;
-	     int		user_irq_id;
+	     int		irq_num;
 };
 
 /**
- * dpseci_set_irq() - Set IRQ information for the DPSECI to trigger an interrupt.
+ * dpseci_set_irq() - Set IRQ information for the DPSECI to trigger an interrupt
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPSECI object
@@ -281,7 +287,7 @@ int dpseci_get_irq_enable(struct fsl_mc_io	*mc_io,
  * @mask:		event mask to trigger interrupt;
  *				each bit:
  *					0 = ignore event
- *					1 = consider event for asserting irq
+ *					1 = consider event for asserting IRQ
  *
  * Every interrupt can have up to 32 causes and the interrupt model supports
  * masking/unmasking each cause independently
@@ -418,15 +424,23 @@ struct dpseci_dest_cfg {
 	uint8_t		priority;
 };
 
-/* DPSECI queue modification options */
+/**
+ * DPSECI queue modification options
+ */
 
-/* Select to modify the user's context associated with the queue */
+/**
+ * Select to modify the user's context associated with the queue
+ */
 #define DPSECI_QUEUE_OPT_USER_CTX	0x00000001
 
-/* Select to modify the queue's destination */
+/**
+ * Select to modify the queue's destination
+ */
 #define DPSECI_QUEUE_OPT_DEST		0x00000002
 
-/* Select to modify the queue's order preservation */
+/**
+ * Select to modify the queue's order preservation
+ */
 #define DPSECI_QUEUE_OPT_ORDER_PRESERVATION    0x00000004
 
 /**
@@ -525,5 +539,109 @@ int dpseci_get_tx_queue(struct fsl_mc_io		*mc_io,
 			uint16_t			token,
 			uint8_t				queue,
 			struct dpseci_tx_queue_attr	*attr);
+
+/**
+ * struct dpseci_sec_attr - Structure representing attributes of the SEC
+ *			hardware accelerator
+ * @ip_id:	ID for SEC.
+ * @major_rev: Major revision number for SEC.
+ * @minor_rev: Minor revision number for SEC.
+ * @era: SEC Era.
+ * @deco_num: The number of copies of the DECO that are implemented in
+ * this version of SEC.
+ * @zuc_auth_acc_num: The number of copies of ZUCA that are implemented
+ * in this version of SEC.
+ * @zuc_enc_acc_num: The number of copies of ZUCE that are implemented
+ * in this version of SEC.
+ * @snow_f8_acc_num: The number of copies of the SNOW-f8 module that are
+ * implemented in this version of SEC.
+ * @snow_f9_acc_num: The number of copies of the SNOW-f9 module that are
+ * implemented in this version of SEC.
+ * @crc_acc_num: The number of copies of the CRC module that are implemented
+ * in this version of SEC.
+ * @pk_acc_num:  The number of copies of the Public Key module that are
+ * implemented in this version of SEC.
+ * @kasumi_acc_num: The number of copies of the Kasumi module that are
+ * implemented in this version of SEC.
+ * @rng_acc_num: The number of copies of the Random Number Generator that are
+ * implemented in this version of SEC.
+ * @md_acc_num: The number of copies of the MDHA (Hashing module) that are
+ * implemented in this version of SEC.
+ * @arc4_acc_num: The number of copies of the ARC4 module that are implemented
+ * in this version of SEC.
+ * @des_acc_num: The number of copies of the DES module that are implemented
+ * in this version of SEC.
+ * @aes_acc_num: The number of copies of the AES module that are implemented
+ * in this version of SEC.
+ */
+
+struct dpseci_sec_attr {
+	uint16_t	ip_id;
+	uint8_t	major_rev;
+	uint8_t	minor_rev;
+	uint8_t     era;
+	uint8_t     deco_num;
+	uint8_t     zuc_auth_acc_num;
+	uint8_t     zuc_enc_acc_num;
+	uint8_t     snow_f8_acc_num;
+	uint8_t     snow_f9_acc_num;
+	uint8_t     crc_acc_num;
+	uint8_t     pk_acc_num;
+	uint8_t     kasumi_acc_num;
+	uint8_t     rng_acc_num;
+	uint8_t     md_acc_num;
+	uint8_t     arc4_acc_num;
+	uint8_t     des_acc_num;
+	uint8_t     aes_acc_num;
+};
+
+/**
+ * dpseci_get_sec_attr() - Retrieve SEC accelerator attributes.
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPSECI object
+ * @attr:	Returned SEC attributes
+ *
+ * Return:	'0' on Success; Error code otherwise.
+ */
+int dpseci_get_sec_attr(struct fsl_mc_io		*mc_io,
+			uint32_t			cmd_flags,
+			uint16_t			token,
+			struct dpseci_sec_attr *attr);
+
+/**
+ * struct dpseci_sec_counters - Structure representing global SEC counters and
+ *				not per dpseci counters
+ * @dequeued_requests:	Number of Requests Dequeued
+ * @ob_enc_requests:	Number of Outbound Encrypt Requests
+ * @ib_dec_requests:	Number of Inbound Decrypt Requests
+ * @ob_enc_bytes:		Number of Outbound Bytes Encrypted
+ * @ob_prot_bytes:		Number of Outbound Bytes Protected
+ * @ib_dec_bytes:		Number of Inbound Bytes Decrypted
+ * @ib_valid_bytes:		Number of Inbound Bytes Validated
+ */
+struct dpseci_sec_counters {
+	uint64_t	dequeued_requests;
+	uint64_t	ob_enc_requests;
+	uint64_t	ib_dec_requests;
+	uint64_t	ob_enc_bytes;
+	uint64_t	ob_prot_bytes;
+	uint64_t	ib_dec_bytes;
+	uint64_t	ib_valid_bytes;
+};
+
+/**
+ * dpseci_get_sec_counters() - Retrieve SEC accelerator counters.
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPSECI object
+ * @counters:	Returned SEC counters
+ *
+ * Return:	'0' on Success; Error code otherwise.
+ */
+int dpseci_get_sec_counters(struct fsl_mc_io		*mc_io,
+			    uint32_t			cmd_flags,
+		uint16_t			token,
+		struct dpseci_sec_counters *counters);
 
 #endif /* __FSL_DPSECI_H */

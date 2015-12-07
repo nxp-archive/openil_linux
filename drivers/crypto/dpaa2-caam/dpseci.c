@@ -329,7 +329,7 @@ int dpseci_get_irq_status(struct fsl_mc_io *mc_io,
 	cmd.header = mc_encode_cmd_header(DPSECI_CMDID_GET_IRQ_STATUS,
 					  cmd_flags,
 					  token);
-	DPSECI_CMD_GET_IRQ_STATUS(cmd, irq_index);
+	DPSECI_CMD_GET_IRQ_STATUS(cmd, irq_index, *status);
 
 	/* send command to mc*/
 	err = mc_send_command(mc_io, &cmd);
@@ -450,6 +450,54 @@ int dpseci_get_tx_queue(struct fsl_mc_io *mc_io,
 
 	/* retrieve response parameters */
 	DPSECI_RSP_GET_TX_QUEUE(cmd, attr);
+
+	return 0;
+}
+
+int dpseci_get_sec_attr(struct fsl_mc_io		*mc_io,
+			uint32_t			cmd_flags,
+			uint16_t			token,
+			struct dpseci_sec_attr *attr)
+{
+	struct mc_command cmd = { 0 };
+	int err;
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPSECI_CMDID_GET_SEC_ATTR,
+					  cmd_flags,
+					  token);
+
+	/* send command to mc*/
+	err = mc_send_command(mc_io, &cmd);
+	if (err)
+		return err;
+
+	/* retrieve response parameters */
+	DPSECI_RSP_GET_SEC_ATTR(cmd, attr);
+
+	return 0;
+}
+
+int dpseci_get_sec_counters(struct fsl_mc_io		*mc_io,
+			    uint32_t			cmd_flags,
+		uint16_t			token,
+		struct dpseci_sec_counters *counters)
+{
+	struct mc_command cmd = { 0 };
+	int err;
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPSECI_CMDID_GET_SEC_COUNTERS,
+					  cmd_flags,
+					  token);
+
+	/* send command to mc*/
+	err = mc_send_command(mc_io, &cmd);
+	if (err)
+		return err;
+
+	/* retrieve response parameters */
+	DPSECI_RSP_GET_SEC_COUNTERS(cmd, counters);
 
 	return 0;
 }
