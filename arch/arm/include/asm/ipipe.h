@@ -294,11 +294,4 @@ static inline void __ipipe_update_vsyscall(struct timekeeper *tk) {}
 
 #endif /* !CONFIG_IPIPE */
 
-#if defined (CONFIG_IPIPE_DEBUG) &&		\
-	(defined(CONFIG_DEBUG_LL) || defined(CONFIG_SERIAL_8250_CONSOLE))
-void __ipipe_serial_debug(const char *fmt, ...);
-#else
-#define __ipipe_serial_debug(fmt, args...)	do { } while (0)
-#endif
-
 #endif	/* !__ARM_IPIPE_H */

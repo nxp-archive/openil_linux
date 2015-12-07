@@ -64,7 +64,7 @@ void twd_hrtimer_debug(unsigned int irq) /* hw interrupt off */
 
 	if ((++per_cpu(irqs, cpu) % HZ) == 0) {
 #if 0
-		__ipipe_serial_debug("%c", 'A' + cpu);
+		raw_printk("%c", 'A' + cpu);
 #else
 		do { } while (0);
 #endif
