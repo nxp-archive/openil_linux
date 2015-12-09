@@ -34,85 +34,104 @@
 #include "dpni.h"
 #include "dpni-cmd.h"
 
-int dpni_prepare_key_cfg(struct dpkg_profile_cfg *cfg,
+int dpni_prepare_key_cfg(const struct dpkg_profile_cfg *cfg,
 			 uint8_t *key_cfg_buf)
 {
 	int i, j;
 	int offset = 0;
 	int param = 1;
 	uint64_t *params = (uint64_t *)key_cfg_buf;
-	struct {
-		uint32_t field;
-		uint8_t size;
-		uint8_t offset;
-		uint8_t hdr_index;
-		uint8_t constant;
-		uint8_t num_of_repeats;
-		enum net_prot prot;
-		enum dpkg_extract_from_hdr_type type;
-	} u_cfg[DPKG_MAX_NUM_OF_EXTRACTS] = { {0} };
 
 	if (!key_cfg_buf || !cfg)
 			return -EINVAL;
 
+	params[0] |= mc_enc(0, 8, cfg->num_extracts);
+	params[0] = cpu_to_le64(params[0]);
+
+	if (cfg->num_extracts >= DPKG_MAX_NUM_OF_EXTRACTS)
+		return -EINVAL;
+
 	for (i = 0; i < cfg->num_extracts; i++) {
 		switch (cfg->extracts[i].type) {
 		case DPKG_EXTRACT_FROM_HDR:
-			u_cfg[i].prot = cfg->extracts[i].extract.from_hdr.prot;
-			u_cfg[i].type = cfg->extracts[i].extract.from_hdr.type;
-			u_cfg[i].field =
-				cfg->extracts[i].extract.from_hdr.field;
-			u_cfg[i].size = cfg->extracts[i].extract.from_hdr.size;
-			u_cfg[i].offset =
-				cfg->extracts[i].extract.from_hdr.offset;
-			u_cfg[i].hdr_index =
-				cfg->extracts[i].extract.from_hdr.hdr_index;
+			params[param] |= mc_enc(0, 8,
+					cfg->extracts[i].extract.from_hdr.prot);
+			params[param] |= mc_enc(8, 4,
+					cfg->extracts[i].extract.from_hdr.type);
+			params[param] |= mc_enc(16, 8,
+					cfg->extracts[i].extract.from_hdr.size);
+			params[param] |= mc_enc(24, 8,
+					cfg->extracts[i].extract.
+					from_hdr.offset);
+			params[param] |= mc_enc(32, 32,
+					cfg->extracts[i].extract.
+					from_hdr.field);
+			params[param] = cpu_to_le64(params[param]);
+			param++;
+			params[param] |= mc_enc(0, 8,
+					cfg->extracts[i].extract.
+					from_hdr.hdr_index);
 			break;
 		case DPKG_EXTRACT_FROM_DATA:
-			u_cfg[i].size = cfg->extracts[i].extract.from_data.size;
-			u_cfg[i].offset =
-				cfg->extracts[i].extract.from_data.offset;
+			params[param] |= mc_enc(16, 8,
+					cfg->extracts[i].extract.
+					from_data.size);
+			params[param] |= mc_enc(24, 8,
+					cfg->extracts[i].extract.
+					from_data.offset);
+			params[param] = cpu_to_le64(params[param]);
+			param++;
 			break;
-		case DPKG_EXTRACT_CONSTANT:
-			u_cfg[i].constant =
-				cfg->extracts[i].extract.constant.constant;
-			u_cfg[i].num_of_repeats =
-			       cfg->extracts[i].extract.constant.num_of_repeats;
+		case DPKG_EXTRACT_FROM_PARSE:
+			params[param] |= mc_enc(16, 8,
+					cfg->extracts[i].extract.
+					from_parse.size);
+			params[param] |= mc_enc(24, 8,
+					cfg->extracts[i].extract.
+					from_parse.offset);
+			params[param] = cpu_to_le64(params[param]);
+			param++;
 			break;
 		default:
 			return -EINVAL;
 		}
-	}
-	params[0] |= mc_enc(0, 8, cfg->num_extracts);
-	params[0] = cpu_to_le64(params[0]);
-
-	for (i = 0; i < DPKG_MAX_NUM_OF_EXTRACTS; i++) {
-		params[param] |= mc_enc(0, 8, u_cfg[i].prot);
-		params[param] |= mc_enc(8, 4, u_cfg[i].type);
-		params[param] |= mc_enc(16, 8, u_cfg[i].size);
-		params[param] |= mc_enc(24, 8, u_cfg[i].offset);
-		params[param] |= mc_enc(32, 32, u_cfg[i].field);
-		params[param] = cpu_to_le64(params[param]);
-		param++;
-		params[param] |= mc_enc(0, 8, u_cfg[i].hdr_index);
-		params[param] |= mc_enc(8, 8, u_cfg[i].constant);
-		params[param] |= mc_enc(16, 8, u_cfg[i].num_of_repeats);
 		params[param] |= mc_enc(
 			24, 8, cfg->extracts[i].num_of_byte_masks);
 		params[param] |= mc_enc(32, 4, cfg->extracts[i].type);
 		params[param] = cpu_to_le64(params[param]);
 		param++;
-		for (j = 0; j < 4; j++) {
+		for (offset = 0, j = 0;
+			j < DPKG_NUM_OF_MASKS;
+			offset += 16, j++) {
 			params[param] |= mc_enc(
 				(offset), 8, cfg->extracts[i].masks[j].mask);
 			params[param] |= mc_enc(
 				(offset + 8), 8,
 				cfg->extracts[i].masks[j].offset);
-			offset += 16;
 		}
 		params[param] = cpu_to_le64(params[param]);
 		param++;
 	}
+	return 0;
+}
+
+int dpni_prepare_extended_cfg(const struct dpni_extended_cfg	*cfg,
+			      uint8_t			*ext_cfg_buf)
+{
+	uint64_t *ext_params = (uint64_t *)ext_cfg_buf;
+
+	DPNI_PREP_EXTENDED_CFG(ext_params, cfg);
+
+	return 0;
+}
+
+int dpni_extract_extended_cfg(struct dpni_extended_cfg	*cfg,
+			      const uint8_t		*ext_cfg_buf)
+{
+	uint64_t *ext_params = (uint64_t *)ext_cfg_buf;
+
+	DPNI_EXT_EXTENDED_CFG(ext_params, cfg);
+
 	return 0;
 }
 
@@ -426,7 +445,7 @@ int dpni_get_irq_status(struct fsl_mc_io *mc_io,
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_IRQ_STATUS,
 					  cmd_flags,
 					  token);
-	DPNI_CMD_GET_IRQ_STATUS(cmd, irq_index);
+	DPNI_CMD_GET_IRQ_STATUS(cmd, irq_index, *status);
 
 	/* send command to mc*/
 	err = mc_send_command(mc_io, &cmd);
@@ -469,6 +488,7 @@ int dpni_get_attributes(struct fsl_mc_io *mc_io,
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_ATTR,
 					  cmd_flags,
 					  token);
+	DPNI_CMD_GET_ATTR(cmd, attr);
 
 	/* send command to mc*/
 	err = mc_send_command(mc_io, &cmd);
@@ -1200,24 +1220,6 @@ int dpni_clear_vlan_filters(struct fsl_mc_io *mc_io,
 	return mc_send_command(mc_io, &cmd);
 }
 
-int dpni_set_tx_tc(struct fsl_mc_io *mc_io,
-		   uint32_t cmd_flags,
-		   uint16_t token,
-		   uint8_t tc_id,
-		   const struct dpni_tx_tc_cfg *cfg)
-{
-	struct mc_command cmd = { 0 };
-
-	/* prepare command */
-	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_TX_TC,
-					  cmd_flags,
-					  token);
-	DPNI_CMD_SET_TX_TC(cmd, tc_id, cfg);
-
-	/* send command to mc*/
-	return mc_send_command(mc_io, &cmd);
-}
-
 int dpni_set_tx_selection(struct fsl_mc_io			*mc_io,
 			  uint32_t				cmd_flags,
 			  uint16_t				token,
@@ -1387,47 +1389,6 @@ int dpni_get_rx_err_queue(struct fsl_mc_io *mc_io,
 
 	/* retrieve response parameters */
 	DPNI_RSP_GET_RX_ERR_QUEUE(cmd, attr);
-
-	return 0;
-}
-
-int dpni_set_tx_conf_err_queue(struct fsl_mc_io *mc_io,
-			       uint32_t cmd_flags,
-			       uint16_t token,
-			       const struct dpni_queue_cfg *cfg)
-{
-	struct mc_command cmd = { 0 };
-
-	/* prepare command */
-	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_TX_CONF_ERR_QUEUE,
-					  cmd_flags,
-					  token);
-	DPNI_CMD_SET_TX_CONF_ERR_QUEUE(cmd, cfg);
-
-	/* send command to mc*/
-	return mc_send_command(mc_io, &cmd);
-}
-
-int dpni_get_tx_conf_err_queue(struct fsl_mc_io *mc_io,
-			       uint32_t cmd_flags,
-			       uint16_t token,
-			       struct dpni_queue_attr *attr)
-{
-	struct mc_command cmd = { 0 };
-	int err;
-
-	/* prepare command */
-	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_TX_CONF_ERR_QUEUE,
-					  cmd_flags,
-					  token);
-
-	/* send command to mc*/
-	err = mc_send_command(mc_io, &cmd);
-	if (err)
-		return err;
-
-	/* retrieve response parameters */
-	DPNI_RSP_GET_TX_CONF_ERR_QUEUE(cmd, attr);
 
 	return 0;
 }
@@ -1654,12 +1615,45 @@ int dpni_set_rx_tc_policing(struct fsl_mc_io	*mc_io,
 	return mc_send_command(mc_io, &cmd);
 }
 
-void dpni_prepare_rx_tc_early_drop(const struct dpni_rx_tc_early_drop_cfg *cfg,
-				   uint8_t *early_drop_buf)
+int dpni_get_rx_tc_policing(struct fsl_mc_io			*mc_io,
+			    uint32_t				cmd_flags,
+			    uint16_t				token,
+			    uint8_t				tc_id,
+			    struct dpni_rx_tc_policing_cfg	*cfg)
+{
+	struct mc_command cmd = { 0 };
+	int err;
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_RX_TC_POLICING,
+					  cmd_flags,
+					  token);
+	DPNI_CMD_GET_RX_TC_POLICING(cmd, tc_id);
+
+	/* send command to mc*/
+	err =  mc_send_command(mc_io, &cmd);
+	if (err)
+		return err;
+
+	DPNI_RSP_GET_RX_TC_POLICING(cmd, cfg);
+
+	return 0;
+}
+
+void dpni_prepare_early_drop(const struct dpni_early_drop_cfg *cfg,
+			     uint8_t *early_drop_buf)
 {
 	uint64_t *ext_params = (uint64_t *)early_drop_buf;
 
-	DPNI_EXT_SET_RX_TC_EARLY_DROP(ext_params, cfg);
+	DPNI_PREP_EARLY_DROP(ext_params, cfg);
+}
+
+void dpni_extract_early_drop(struct dpni_early_drop_cfg *cfg,
+			     const uint8_t *early_drop_buf)
+{
+	uint64_t *ext_params = (uint64_t *)early_drop_buf;
+
+	DPNI_EXT_EARLY_DROP(ext_params, cfg);
 }
 
 int dpni_set_rx_tc_early_drop(struct fsl_mc_io	*mc_io,
@@ -1678,4 +1672,236 @@ int dpni_set_rx_tc_early_drop(struct fsl_mc_io	*mc_io,
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
+}
+
+int dpni_get_rx_tc_early_drop(struct fsl_mc_io	*mc_io,
+			      uint32_t		cmd_flags,
+			      uint16_t		token,
+			      uint8_t		tc_id,
+			      uint64_t		early_drop_iova)
+{
+	struct mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_RX_TC_EARLY_DROP,
+					  cmd_flags,
+					  token);
+	DPNI_CMD_GET_RX_TC_EARLY_DROP(cmd, tc_id, early_drop_iova);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
+
+int dpni_set_tx_tc_early_drop(struct fsl_mc_io	*mc_io,
+			      uint32_t		cmd_flags,
+			      uint16_t		token,
+			      uint8_t		tc_id,
+			      uint64_t		early_drop_iova)
+{
+	struct mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_TX_TC_EARLY_DROP,
+					  cmd_flags,
+					  token);
+	DPNI_CMD_SET_TX_TC_EARLY_DROP(cmd, tc_id, early_drop_iova);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
+
+int dpni_get_tx_tc_early_drop(struct fsl_mc_io	*mc_io,
+			      uint32_t		cmd_flags,
+			      uint16_t		token,
+			      uint8_t		tc_id,
+			      uint64_t		early_drop_iova)
+{
+	struct mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_TX_TC_EARLY_DROP,
+					  cmd_flags,
+					  token);
+	DPNI_CMD_GET_TX_TC_EARLY_DROP(cmd, tc_id, early_drop_iova);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
+
+int dpni_set_rx_tc_congestion_notification(struct fsl_mc_io	*mc_io,
+					   uint32_t		cmd_flags,
+					   uint16_t		token,
+					   uint8_t		tc_id,
+			const struct dpni_congestion_notification_cfg *cfg)
+{
+	struct mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(
+			DPNI_CMDID_SET_RX_TC_CONGESTION_NOTIFICATION,
+			cmd_flags,
+			token);
+	DPNI_CMD_SET_RX_TC_CONGESTION_NOTIFICATION(cmd, tc_id, cfg);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
+
+int dpni_get_rx_tc_congestion_notification(struct fsl_mc_io	*mc_io,
+					   uint32_t		cmd_flags,
+					   uint16_t		token,
+					   uint8_t		tc_id,
+				struct dpni_congestion_notification_cfg *cfg)
+{
+	struct mc_command cmd = { 0 };
+	int err;
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(
+			DPNI_CMDID_GET_RX_TC_CONGESTION_NOTIFICATION,
+			cmd_flags,
+			token);
+	DPNI_CMD_GET_RX_TC_CONGESTION_NOTIFICATION(cmd, tc_id);
+
+	/* send command to mc*/
+	err = mc_send_command(mc_io, &cmd);
+	if (err)
+		return err;
+
+	DPNI_RSP_GET_RX_TC_CONGESTION_NOTIFICATION(cmd, cfg);
+
+	return 0;
+}
+
+int dpni_set_tx_tc_congestion_notification(struct fsl_mc_io	*mc_io,
+					   uint32_t		cmd_flags,
+					   uint16_t		token,
+					   uint8_t		tc_id,
+			const struct dpni_congestion_notification_cfg *cfg)
+{
+	struct mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(
+			DPNI_CMDID_SET_TX_TC_CONGESTION_NOTIFICATION,
+			cmd_flags,
+			token);
+	DPNI_CMD_SET_TX_TC_CONGESTION_NOTIFICATION(cmd, tc_id, cfg);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
+
+int dpni_get_tx_tc_congestion_notification(struct fsl_mc_io	*mc_io,
+					   uint32_t		cmd_flags,
+					   uint16_t		token,
+					   uint8_t		tc_id,
+				struct dpni_congestion_notification_cfg *cfg)
+{
+	struct mc_command cmd = { 0 };
+	int err;
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(
+			DPNI_CMDID_GET_TX_TC_CONGESTION_NOTIFICATION,
+			cmd_flags,
+			token);
+	DPNI_CMD_GET_TX_TC_CONGESTION_NOTIFICATION(cmd, tc_id);
+
+	/* send command to mc*/
+	err = mc_send_command(mc_io, &cmd);
+	if (err)
+		return err;
+
+	DPNI_RSP_GET_TX_TC_CONGESTION_NOTIFICATION(cmd, cfg);
+
+	return 0;
+}
+
+int dpni_set_tx_conf(struct fsl_mc_io	*mc_io,
+		     uint32_t		cmd_flags,
+		     uint16_t		token,
+		     uint16_t		flow_id,
+		     const struct dpni_tx_conf_cfg	*cfg)
+{
+	struct mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_TX_CONF,
+					  cmd_flags,
+					  token);
+	DPNI_CMD_SET_TX_CONF(cmd, flow_id, cfg);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
+
+int dpni_get_tx_conf(struct fsl_mc_io		*mc_io,
+		     uint32_t			cmd_flags,
+		     uint16_t			token,
+		     uint16_t			flow_id,
+		     struct dpni_tx_conf_attr	*attr)
+{
+	struct mc_command cmd = { 0 };
+	int err;
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_TX_CONF,
+					  cmd_flags,
+					  token);
+	DPNI_CMD_GET_TX_CONF(cmd, flow_id);
+
+	/* send command to mc*/
+	err = mc_send_command(mc_io, &cmd);
+	if (err)
+		return err;
+
+	DPNI_RSP_GET_TX_CONF(cmd, attr);
+
+	return 0;
+}
+
+int dpni_set_tx_conf_congestion_notification(struct fsl_mc_io	*mc_io,
+					     uint32_t		cmd_flags,
+					     uint16_t		token,
+					     uint16_t		flow_id,
+			 const struct dpni_congestion_notification_cfg *cfg)
+{
+	struct mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(
+			DPNI_CMDID_SET_TX_CONF_CONGESTION_NOTIFICATION,
+			cmd_flags,
+			token);
+	DPNI_CMD_SET_TX_CONF_CONGESTION_NOTIFICATION(cmd, flow_id, cfg);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
+
+int dpni_get_tx_conf_congestion_notification(struct fsl_mc_io	*mc_io,
+					     uint32_t		cmd_flags,
+					     uint16_t		token,
+					     uint16_t		flow_id,
+				 struct dpni_congestion_notification_cfg *cfg)
+{
+	struct mc_command cmd = { 0 };
+	int err;
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(
+				DPNI_CMDID_GET_TX_CONF_CONGESTION_NOTIFICATION,
+				cmd_flags,
+				token);
+	DPNI_CMD_GET_TX_CONF_CONGESTION_NOTIFICATION(cmd, flow_id);
+
+	/* send command to mc*/
+	err = mc_send_command(mc_io, &cmd);
+	if (err)
+		return err;
+
+	DPNI_RSP_GET_TX_CONF_CONGESTION_NOTIFICATION(cmd, cfg);
+
+	return 0;
 }

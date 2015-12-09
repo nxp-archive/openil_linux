@@ -264,6 +264,7 @@ struct dpaa2_eth_priv {
 
 	int dpni_id;
 	struct dpni_attr dpni_attrs;
+	struct dpni_extended_cfg dpni_ext_cfg;
 	/* Insofar as the MC is concerned, we're using one layout on all 3 types
 	 * of buffers (Rx, Tx, Tx-Conf).
 	 */
@@ -325,6 +326,9 @@ struct dpaa2_eth_priv {
 /*TODO: this should be taken from DPNI attributes */
 #define DPAA2_CLASSIFIER_ENTRY_COUNT 16
 
+/* Required by struct dpni_attr::ext_cfg_iova */
+#define DPAA2_EXT_CFG_SIZE	256
+
 extern const struct ethtool_ops dpaa2_ethtool_ops;
 
 /* Set RX hash options
@@ -338,7 +342,7 @@ static inline int dpaa2_queue_count(struct dpaa2_eth_priv *priv)
 		return 1;
 
 	/* TODO: fix for multiple TCs */
-	return priv->dpni_attrs.max_dist_per_tc[0];
+	return priv->dpni_ext_cfg.tc_cfg[0].max_dist;
 }
 
 static inline int dpaa2_max_channels(struct dpaa2_eth_priv *priv)

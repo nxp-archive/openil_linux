@@ -41,21 +41,35 @@ struct fsl_mc_io;
  * Contains initialization APIs and runtime control APIs for DPNI
  */
 
-/* General DPNI macros */
+/** General DPNI macros */
 
-/* Maximum number of traffic classes */
+/**
+ * Maximum number of traffic classes
+ */
 #define DPNI_MAX_TC				8
-/* Maximum number of buffer pools per DPNI */
+/**
+ * Maximum number of buffer pools per DPNI
+ */
 #define DPNI_MAX_DPBP				8
-/* Maximum number of storage-profiles per DPNI */
+/**
+ * Maximum number of storage-profiles per DPNI
+ */
 #define DPNI_MAX_SP				2
 
-/* All traffic classes considered; see dpni_set_rx_flow() */
+/**
+ * All traffic classes considered; see dpni_set_rx_flow()
+ */
 #define DPNI_ALL_TCS				(uint8_t)(-1)
-/* All flows within traffic class considered; see dpni_set_rx_flow() */
+/**
+ * All flows within traffic class considered; see dpni_set_rx_flow()
+ */
 #define DPNI_ALL_TC_FLOWS			(uint16_t)(-1)
-/* Generate new flow ID; see dpni_set_tx_flow() */
+/**
+ * Generate new flow ID; see dpni_set_tx_flow()
+ */
 #define DPNI_NEW_FLOW_ID			(uint16_t)(-1)
+/* use for common tx-conf queue; see dpni_set_tx_conf_<x>() */
+#define DPNI_COMMON_TX_CONF			(uint16_t)(-1)
 
 /**
  * dpni_open() - Open a control session for the specified object
@@ -108,7 +122,9 @@ int dpni_close(struct fsl_mc_io	*mc_io,
  */
 #define DPNI_OPT_TX_CONF_DISABLED		0x00000002
 
-/* Disable per-sender private Tx confirmation/error queue */
+/**
+ * Disable per-sender private Tx confirmation/error queue
+ */
 #define DPNI_OPT_PRIVATE_TX_CONF_ERROR_DISABLED	0x00000004
 
 /**
@@ -118,44 +134,96 @@ int dpni_close(struct fsl_mc_io	*mc_io,
 #define DPNI_OPT_DIST_HASH			0x00000010
 
 /**
+ * DEPRECATED - if this flag is selected and and all new 'max_fs_entries' are
+ * '0' then backward compatibility is preserved;
  * Support distribution based on flow steering;
  * allows explicit control of distribution over receive queues in a traffic
  * class
  */
 #define DPNI_OPT_DIST_FS			0x00000020
 
-/* Unicast filtering support */
+/**
+ * Unicast filtering support
+ */
 #define DPNI_OPT_UNICAST_FILTER			0x00000080
-/* Multicast filtering support */
+/**
+ * Multicast filtering support
+ */
 #define DPNI_OPT_MULTICAST_FILTER		0x00000100
-/* VLAN filtering support */
+/**
+ * VLAN filtering support
+ */
 #define DPNI_OPT_VLAN_FILTER			0x00000200
-/* Support IP reassembly on received packets */
+/**
+ * Support IP reassembly on received packets
+ */
 #define DPNI_OPT_IPR				0x00000800
-/* Support IP fragmentation on transmitted packets */
+/**
+ * Support IP fragmentation on transmitted packets
+ */
 #define DPNI_OPT_IPF				0x00001000
-/* VLAN manipulation support */
+/**
+ * VLAN manipulation support
+ */
 #define DPNI_OPT_VLAN_MANIPULATION		0x00010000
-/* Support masking of QoS lookup keys */
+/**
+ * Support masking of QoS lookup keys
+ */
 #define DPNI_OPT_QOS_MASK_SUPPORT		0x00020000
-/* Support masking of Flow Steering lookup keys */
+/**
+ * Support masking of Flow Steering lookup keys
+ */
 #define DPNI_OPT_FS_MASK_SUPPORT		0x00040000
 
 /**
- * struct dpni_ipr_cfg - Structure representing IP reassembly configuration
- * @max_reass_frm_size: Maximum size of the reassembled frame
- * @min_frag_size_ipv4: Minimum fragment size of IPv4 fragments
- * @min_frag_size_ipv6: Minimum fragment size of IPv6 fragments
- * @max_open_frames_ipv4: Maximum concurrent IPv4 packets in reassembly process
- * @max_open_frames_ipv6: Maximum concurrent IPv6 packets in reassembly process
+ * struct dpni_extended_cfg - Structure representing extended DPNI configuration
+ * @tc_cfg: TCs configuration
+ * @ipr_cfg: IP reassembly configuration
  */
-struct dpni_ipr_cfg {
-	uint16_t max_reass_frm_size;
-	uint16_t min_frag_size_ipv4;
-	uint16_t min_frag_size_ipv6;
-	uint16_t max_open_frames_ipv4;
-	uint16_t max_open_frames_ipv6;
+struct dpni_extended_cfg {
+	/**
+	 * struct tc_cfg - TC configuration
+	 * @max_dist: Maximum distribution size for Rx traffic class;
+	 *	supported values: 1,2,3,4,6,7,8,12,14,16,24,28,32,48,56,64,96,
+	 *	112,128,192,224,256,384,448,512,768,896,1024;
+	 *	value '0' will be treated as '1'.
+	 *	other unsupported values will be round down to the nearest
+	 *	supported value.
+	 * @max_fs_entries: Maximum FS entries for Rx traffic class;
+	 *	'0' means no support for this TC;
+	 */
+	struct {
+		uint16_t	max_dist;
+		uint16_t	max_fs_entries;
+	} tc_cfg[DPNI_MAX_TC];
+	/**
+	 * struct ipr_cfg - Structure representing IP reassembly configuration
+	 * @max_reass_frm_size: Maximum size of the reassembled frame
+	 * @min_frag_size_ipv4: Minimum fragment size of IPv4 fragments
+	 * @min_frag_size_ipv6: Minimum fragment size of IPv6 fragments
+	 * @max_open_frames_ipv4: Maximum concurrent IPv4 packets in reassembly
+	 *		process
+	 * @max_open_frames_ipv6: Maximum concurrent IPv6 packets in reassembly
+	 *		process
+	 */
+	struct {
+		uint16_t max_reass_frm_size;
+		uint16_t min_frag_size_ipv4;
+		uint16_t min_frag_size_ipv6;
+		uint16_t max_open_frames_ipv4;
+		uint16_t max_open_frames_ipv6;
+	} ipr_cfg;
 };
+
+/**
+ * dpni_prepare_extended_cfg() - function prepare extended parameters
+ * @cfg: extended structure
+ * @ext_cfg_buf: Zeroed 256 bytes of memory before mapping it to DMA
+ *
+ * This function has to be called before dpni_create()
+ */
+int dpni_prepare_extended_cfg(const struct dpni_extended_cfg	*cfg,
+			      uint8_t			*ext_cfg_buf);
 
 /**
  * struct dpni_cfg - Structure representing DPNI configuration
@@ -176,9 +244,6 @@ struct dpni_cfg {
 	 *		'0' will be treated as '1'
 	 * @max_tcs: Maximum number of traffic classes (for both Tx and Rx);
 	 *		'0' will e treated as '1'
-	 * @max_dist_per_tc: Maximum distribution size per Rx traffic class;
-	 *			Non-power-of-2 values are rounded up to the next
-	 *			power-of-2 value as hardware demands it
 	 * @max_unicast_filters: Maximum number of unicast filters;
 	 *			'0' is treated	as '16'
 	 * @max_multicast_filters: Maximum number of multicast filters;
@@ -194,25 +259,26 @@ struct dpni_cfg {
 	 *		should be between '0' and max_tcs
 	 * @max_congestion_ctrl: Maximum number of congestion control groups
 	 *		(CGs); covers early drop and congestion notification
-	 *		requirements for traffic classes;
-	 *		should be between '0' and max_tcs
-	 * @ipr_cfg: IP reassembly configuration
+	 *		requirements;
+	 *		should be between '0' and ('max_tcs' + 'max_senders')
+	 * @ext_cfg_iova: I/O virtual address of 256 bytes DMA-able memory
+	 *		filled with the extended configuration by calling
+	 *		dpni_prepare_extended_cfg()
 	 */
 	struct {
-		uint32_t		options;
-		enum net_prot		start_hdr;
+		uint32_t	options;
+		enum net_prot	start_hdr;
 		uint8_t		max_senders;
 		uint8_t		max_tcs;
-		uint8_t		max_dist_per_tc[DPNI_MAX_TC];
 		uint8_t		max_unicast_filters;
 		uint8_t		max_multicast_filters;
-		uint8_t			max_vlan_filters;
+		uint8_t		max_vlan_filters;
 		uint8_t		max_qos_entries;
 		uint8_t		max_qos_key_size;
 		uint8_t		max_dist_key_size;
 		uint8_t		max_policers;
 		uint8_t		max_congestion_ctrl;
-		struct dpni_ipr_cfg	ipr_cfg;
+		uint64_t	ext_cfg_iova;
 	} adv;
 };
 
@@ -343,23 +409,29 @@ int dpni_reset(struct fsl_mc_io	*mc_io,
 	       uint32_t		cmd_flags,
 	       uint16_t		token);
 
-/* DPNI IRQ Index and Events */
+/**
+ * DPNI IRQ Index and Events
+ */
 
-/* IRQ index */
+/**
+ * IRQ index
+ */
 #define DPNI_IRQ_INDEX				0
-/* IRQ event - indicates a change in link state */
+/**
+ * IRQ event - indicates a change in link state
+ */
 #define DPNI_IRQ_EVENT_LINK_CHANGED		0x00000001
 
 /**
  * struct dpni_irq_cfg - IRQ configuration
  * @addr:	Address that must be written to signal a message-based interrupt
  * @val:	Value to write into irq_addr address
- * @user_irq_id: A user defined number associated with this IRQ
+ * @irq_num: A user defined number associated with this IRQ
  */
 struct dpni_irq_cfg {
 	     uint64_t		addr;
 	     uint32_t		val;
-	     int		user_irq_id;
+	     int		irq_num;
 };
 
 /**
@@ -521,8 +593,6 @@ int dpni_clear_irq_status(struct fsl_mc_io	*mc_io,
  * @max_senders: Maximum number of different senders; used as the number
  *		of dedicated Tx flows;
  * @max_tcs: Maximum number of traffic classes (for both Tx and Rx)
- * @max_dist_per_tc: Maximum distribution size per Rx traffic class;
- *			Set to the required value minus 1
  * @max_unicast_filters: Maximum number of unicast filters
  * @max_multicast_filters: Maximum number of multicast filters
  * @max_vlan_filters: Maximum number of VLAN filters
@@ -531,10 +601,11 @@ int dpni_clear_irq_status(struct fsl_mc_io	*mc_io,
  * @max_dist_key_size: Maximum key size for the distribution look-up
  * @max_policers: Maximum number of policers;
  * @max_congestion_ctrl: Maximum number of congestion control groups (CGs);
- * @ipr_cfg: IP reassembly configuration
+ * @ext_cfg_iova: I/O virtual address of 256 bytes DMA-able memory;
+ *	call dpni_extract_extended_cfg() to extract the extended configuration
  */
 struct dpni_attr {
-	int			id;
+	int		id;
 	/**
 	 * struct version - DPNI version
 	 * @major: DPNI major version
@@ -544,20 +615,19 @@ struct dpni_attr {
 		uint16_t major;
 		uint16_t minor;
 	} version;
-	enum net_prot		start_hdr;
-	uint32_t		options;
-	uint8_t			max_senders;
+	enum net_prot	start_hdr;
+	uint32_t	options;
+	uint8_t		max_senders;
 	uint8_t		max_tcs;
-	uint8_t		max_dist_per_tc[DPNI_MAX_TC];
 	uint8_t		max_unicast_filters;
 	uint8_t		max_multicast_filters;
 	uint8_t		max_vlan_filters;
 	uint8_t		max_qos_entries;
 	uint8_t		max_qos_key_size;
 	uint8_t		max_dist_key_size;
-	uint8_t			max_policers;
+	uint8_t		max_policers;
 	uint8_t		max_congestion_ctrl;
-	struct dpni_ipr_cfg	ipr_cfg;
+	uint64_t	ext_cfg_iova;
 };
 
 /**
@@ -565,7 +635,7 @@ struct dpni_attr {
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPNI object
- * @attr:	Returned object's attributes
+ * @attr:	Object's attributes
  *
  * Return:	'0' on Success; Error code otherwise.
  */
@@ -574,26 +644,50 @@ int dpni_get_attributes(struct fsl_mc_io	*mc_io,
 			uint16_t		token,
 			struct dpni_attr	*attr);
 
-/* DPNI errors */
+/**
+ * dpni_extract_extended_cfg() - extract the extended parameters
+ * @cfg: extended structure
+ * @ext_cfg_buf: 256 bytes of DMA-able memory
+ *
+ * This function has to be called after dpni_get_attributes()
+ */
+int dpni_extract_extended_cfg(struct dpni_extended_cfg	*cfg,
+			      const uint8_t		*ext_cfg_buf);
 
-/* Extract out of frame header error */
+/**
+ * DPNI errors
+ */
+
+/**
+ * Extract out of frame header error
+ */
 #define DPNI_ERROR_EOFHE	0x00020000
-/* Frame length error */
+/**
+ * Frame length error
+ */
 #define DPNI_ERROR_FLE		0x00002000
-/* Frame physical error */
+/**
+ * Frame physical error
+ */
 #define DPNI_ERROR_FPE		0x00001000
-/* Parsing header error */
+/**
+ * Parsing header error
+ */
 #define DPNI_ERROR_PHE		0x00000020
-/* Parser L3 checksum error */
+/**
+ * Parser L3 checksum error
+ */
 #define DPNI_ERROR_L3CE		0x00000004
-/* Parser L3 checksum error */
+/**
+ * Parser L3 checksum error
+ */
 #define DPNI_ERROR_L4CE		0x00000001
 
 /**
- *  enum dpni_error_action - Defines DPNI behavior for errors
- *  @DPNI_ERROR_ACTION_DISCARD: Discard the frame
- *  @DPNI_ERROR_ACTION_CONTINUE: Continue with the normal flow
- *  @DPNI_ERROR_ACTION_SEND_TO_ERROR_QUEUE: Send the frame to the error queue
+ * enum dpni_error_action - Defines DPNI behavior for errors
+ * @DPNI_ERROR_ACTION_DISCARD: Discard the frame
+ * @DPNI_ERROR_ACTION_CONTINUE: Continue with the normal flow
+ * @DPNI_ERROR_ACTION_SEND_TO_ERROR_QUEUE: Send the frame to the error queue
  */
 enum dpni_error_action {
 	DPNI_ERROR_ACTION_DISCARD = 0,
@@ -631,21 +725,37 @@ int dpni_set_errors_behavior(struct fsl_mc_io		*mc_io,
 			     uint16_t			token,
 			     struct dpni_error_cfg	*cfg);
 
-/* DPNI buffer layout modification options */
+/**
+ * DPNI buffer layout modification options
+ */
 
-/* Select to modify the time-stamp setting */
+/**
+ * Select to modify the time-stamp setting
+ */
 #define DPNI_BUF_LAYOUT_OPT_TIMESTAMP		0x00000001
-/* Select to modify the parser-result setting; not applicable for Tx */
+/**
+ * Select to modify the parser-result setting; not applicable for Tx
+ */
 #define DPNI_BUF_LAYOUT_OPT_PARSER_RESULT	0x00000002
-/* Select to modify the frame-status setting */
+/**
+ * Select to modify the frame-status setting
+ */
 #define DPNI_BUF_LAYOUT_OPT_FRAME_STATUS	0x00000004
-/* Select to modify the private-data-size setting */
+/**
+ * Select to modify the private-data-size setting
+ */
 #define DPNI_BUF_LAYOUT_OPT_PRIVATE_DATA_SIZE	0x00000008
-/* Select to modify the data-alignment setting */
+/**
+ * Select to modify the data-alignment setting
+ */
 #define DPNI_BUF_LAYOUT_OPT_DATA_ALIGN		0x00000010
-/* Select to modify the data-head-room setting */
+/**
+ * Select to modify the data-head-room setting
+ */
 #define DPNI_BUF_LAYOUT_OPT_DATA_HEAD_ROOM	0x00000020
-/*!< Select to modify the data-tail-room setting */
+/**
+ * Select to modify the data-tail-room setting
+ */
 #define DPNI_BUF_LAYOUT_OPT_DATA_TAIL_ROOM	0x00000040
 
 /**
@@ -936,13 +1046,21 @@ int dpni_set_counter(struct fsl_mc_io	*mc_io,
 		     enum dpni_counter	counter,
 		     uint64_t		value);
 
-/* Enable auto-negotiation */
+/**
+ * Enable auto-negotiation
+ */
 #define DPNI_LINK_OPT_AUTONEG		0x0000000000000001ULL
-/* Enable half-duplex mode */
+/**
+ * Enable half-duplex mode
+ */
 #define DPNI_LINK_OPT_HALF_DUPLEX	0x0000000000000002ULL
-/* Enable pause frames */
+/**
+ * Enable pause frames
+ */
 #define DPNI_LINK_OPT_PAUSE		0x0000000000000004ULL
-/* Enable a-symmetric pause frames */
+/**
+ * Enable a-symmetric pause frames
+ */
 #define DPNI_LINK_OPT_ASYM_PAUSE	0x0000000000000008ULL
 
 /**
@@ -1266,32 +1384,6 @@ int dpni_clear_vlan_filters(struct fsl_mc_io	*mc_io,
 			    uint16_t		token);
 
 /**
- * struct dpni_tx_tc_cfg - Structure representing Tx traffic class configuration
- * @depth_limit: Limit the depth of a queue to the given value; note, that this
- *		may result in frames being rejected from the queue;
- *		set to '0' to remove any limitation
- */
-struct dpni_tx_tc_cfg {
-	uint16_t depth_limit;
-};
-
-/**
- * dpni_set_tx_tc() - Set Tx traffic class configuration
- * @mc_io:	Pointer to MC portal's I/O object
- * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPNI object
- * @tc_id:	Traffic class selection (0-7)
- * @cfg:	Traffic class configuration
- *
- * Return:	'0' on Success; Error code otherwise.
- */
-int dpni_set_tx_tc(struct fsl_mc_io		*mc_io,
-		   uint32_t			cmd_flags,
-		   uint16_t			token,
-		   uint8_t			tc_id,
-		   const struct dpni_tx_tc_cfg	*cfg);
-
-/**
  * enum dpni_tx_schedule_mode - DPNI Tx scheduling mode
  * @DPNI_TX_SCHED_STRICT_PRIORITY: strict priority
  * @DPNI_TX_SCHED_WEIGHTED: weighted based scheduling
@@ -1383,13 +1475,14 @@ struct dpni_fs_tbl_cfg {
  *	- dpni_set_rx_tc_dist()
  *		- dpni_set_qos_table()
  */
-int dpni_prepare_key_cfg(struct dpkg_profile_cfg	*cfg,
+int dpni_prepare_key_cfg(const struct dpkg_profile_cfg	*cfg,
 			 uint8_t			*key_cfg_buf);
 
 /**
  * struct dpni_rx_tc_dist_cfg - Rx traffic class distribution configuration
- * @dist_size: Set the distribution size; Non-power-of-2 values are rounded
- *	up to the next power-of-2 value as HW demands it
+ * @dist_size: Set the distribution size;
+ *	supported values: 1,2,3,4,6,7,8,12,14,16,24,28,32,48,56,64,96,
+ *	112,128,192,224,256,384,448,512,768,896,1024
  * @dist_mode: Distribution mode
  * @key_cfg_iova: I/O virtual address of 256 bytes DMA-able memory filled with
  *		the extractions to be used for the distribution key by calling
@@ -1399,7 +1492,7 @@ int dpni_prepare_key_cfg(struct dpkg_profile_cfg	*cfg,
  *		'dist_mode = DPNI_DIST_MODE_FS'
  */
 struct dpni_rx_tc_dist_cfg {
-	uint8_t		dist_size;
+	uint16_t		dist_size;
 	enum dpni_dist_mode	dist_mode;
 	uint64_t		key_cfg_iova;
 	struct dpni_fs_tbl_cfg	fs_cfg;
@@ -1424,17 +1517,21 @@ int dpni_set_rx_tc_dist(struct fsl_mc_io			*mc_io,
 			uint8_t					tc_id,
 			const struct dpni_rx_tc_dist_cfg	*cfg);
 
-/* Set to select color aware mode (otherwise - color blind) */
+/**
+ * Set to select color aware mode (otherwise - color blind)
+ */
 #define DPNI_POLICER_OPT_COLOR_AWARE	0x00000001
-/* Set to discard frame with RED color */
+/**
+ * Set to discard frame with RED color
+ */
 #define DPNI_POLICER_OPT_DISCARD_RED	0x00000002
 
 /**
- *  enum dpni_policer_mode - selecting the policer mode
- *  @DPNI_POLICER_MODE_NONE: Policer is disabled
- *  @DPNI_POLICER_MODE_PASS_THROUGH: Policer pass through
- *  @DPNI_POLICER_MODE_RFC_2698: Policer algorithm RFC 2698
- *  @DPNI_POLICER_MODE_RFC_4115: Policer algorithm RFC 4115
+ * enum dpni_policer_mode - selecting the policer mode
+ * @DPNI_POLICER_MODE_NONE: Policer is disabled
+ * @DPNI_POLICER_MODE_PASS_THROUGH: Policer pass through
+ * @DPNI_POLICER_MODE_RFC_2698: Policer algorithm RFC 2698
+ * @DPNI_POLICER_MODE_RFC_4115: Policer algorithm RFC 4115
  */
 enum dpni_policer_mode {
 	DPNI_POLICER_MODE_NONE = 0,
@@ -1444,20 +1541,20 @@ enum dpni_policer_mode {
 };
 
 /**
- *  enum dpni_policer_unit - DPNI policer units
- *  @DPNI_POLICER_UNIT_BYTES: bytes units
- *  @DPNI_POLICER_UNIT_PACKETS: packets units
+ * enum dpni_policer_unit - DPNI policer units
+ * @DPNI_POLICER_UNIT_BYTES: bytes units
+ * @DPNI_POLICER_UNIT_FRAMES: frames units
  */
 enum dpni_policer_unit {
 	DPNI_POLICER_UNIT_BYTES = 0,
-	DPNI_POLICER_UNIT_PACKETS
+	DPNI_POLICER_UNIT_FRAMES
 };
 
 /**
- *  enum dpni_policer_color - selecting the policer color
- *  @DPNI_POLICER_COLOR_GREEN: Green color
- *  @DPNI_POLICER_COLOR_YELLOW: Yellow color
- *  @DPNI_POLICER_COLOR_RED: Red color
+ * enum dpni_policer_color - selecting the policer color
+ * @DPNI_POLICER_COLOR_GREEN: Green color
+ * @DPNI_POLICER_COLOR_YELLOW: Yellow color
+ * @DPNI_POLICER_COLOR_RED: Red color
  */
 enum dpni_policer_color {
 	DPNI_POLICER_COLOR_GREEN = 0,
@@ -1508,6 +1605,32 @@ int dpni_set_rx_tc_policing(struct fsl_mc_io			*mc_io,
 			    const struct dpni_rx_tc_policing_cfg *cfg);
 
 /**
+ * dpni_get_rx_tc_policing() - Get Rx traffic class policing configuration
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPNI object
+ * @tc_id:	Traffic class selection (0-7)
+ * @cfg:	Traffic class policing configuration
+ *
+ * Return:	'0' on Success; error code otherwise.
+ */
+int dpni_get_rx_tc_policing(struct fsl_mc_io			*mc_io,
+			    uint32_t				cmd_flags,
+			    uint16_t				token,
+			    uint8_t				tc_id,
+			    struct dpni_rx_tc_policing_cfg	*cfg);
+
+/**
+ * enum dpni_congestion_unit - DPNI congestion units
+ * @DPNI_CONGESTION_UNIT_BYTES: bytes units
+ * @DPNI_CONGESTION_UNIT_FRAMES: frames units
+ */
+enum dpni_congestion_unit {
+	DPNI_CONGESTION_UNIT_BYTES = 0,
+	DPNI_CONGESTION_UNIT_FRAMES
+};
+
+/**
  * enum dpni_early_drop_mode - DPNI early drop mode
  * @DPNI_EARLY_DROP_MODE_NONE: early drop is disabled
  * @DPNI_EARLY_DROP_MODE_TAIL: early drop in taildrop mode
@@ -1517,16 +1640,6 @@ enum dpni_early_drop_mode {
 	DPNI_EARLY_DROP_MODE_NONE = 0,
 	DPNI_EARLY_DROP_MODE_TAIL,
 	DPNI_EARLY_DROP_MODE_WRED
-};
-
-/**
- * enum dpni_early_drop_unit - DPNI early drop units
- * @DPNI_EARLY_DROP_UNIT_BYTES: bytes units
- * @DPNI_EARLY_DROP_UNIT_FRAMES: frames units
- */
-enum dpni_early_drop_unit {
-	DPNI_EARLY_DROP_UNIT_BYTES = 0,
-	DPNI_EARLY_DROP_UNIT_FRAMES
 };
 
 /**
@@ -1546,17 +1659,17 @@ struct dpni_wred_cfg {
 };
 
 /**
- * struct dpni_rx_tc_early_drop_cfg - early-drop configuration
+ * struct dpni_early_drop_cfg - early-drop configuration
  * @mode: drop mode
- * @units: untis type
+ * @units: units type
  * @green: WRED - 'green' configuration
  * @yellow: WRED - 'yellow' configuration
  * @red: WRED - 'red' configuration
  * @tail_drop_threshold: tail drop threshold
  */
-struct dpni_rx_tc_early_drop_cfg {
+struct dpni_early_drop_cfg {
 	enum dpni_early_drop_mode	mode;
-	enum dpni_early_drop_unit	units;
+	enum dpni_congestion_unit	units;
 
 	struct dpni_wred_cfg		green;
 	struct dpni_wred_cfg		yellow;
@@ -1566,15 +1679,28 @@ struct dpni_rx_tc_early_drop_cfg {
 };
 
 /**
- * dpni_prepare_rx_tc_early_drop() - prepare an early drop.
+ * dpni_prepare_early_drop() - prepare an early drop.
  * @cfg: Early-drop configuration
  * @early_drop_buf: Zeroed 256 bytes of memory before mapping it to DMA
  *
- * This function has to be called before dpni_set_rx_tc_early_drop
+ * This function has to be called before dpni_set_rx_tc_early_drop or
+ * dpni_set_tx_tc_early_drop
  *
  */
-void dpni_prepare_rx_tc_early_drop(const struct dpni_rx_tc_early_drop_cfg *cfg,
-				   uint8_t		*early_drop_buf);
+void dpni_prepare_early_drop(const struct dpni_early_drop_cfg *cfg,
+			     uint8_t	*early_drop_buf);
+
+/**
+ * dpni_extract_early_drop() - extract the early drop configuration.
+ * @cfg: Early-drop configuration
+ * @early_drop_buf: Zeroed 256 bytes of memory before mapping it to DMA
+ *
+ * This function has to be called after dpni_get_rx_tc_early_drop or
+ * dpni_get_tx_tc_early_drop
+ *
+ */
+void dpni_extract_early_drop(struct dpni_early_drop_cfg *cfg,
+			     const uint8_t *early_drop_buf);
 
 /**
  * dpni_set_rx_tc_early_drop() - Set Rx traffic class early-drop configuration
@@ -1582,15 +1708,73 @@ void dpni_prepare_rx_tc_early_drop(const struct dpni_rx_tc_early_drop_cfg *cfg,
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPNI object
  * @tc_id:	Traffic class selection (0-7)
- * @early_drop_iova:  I/O virtual address of 64 bytes;
- * Must be cacheline-aligned and DMA-able memory
+ * @early_drop_iova:  I/O virtual address of 256 bytes DMA-able memory filled
+ *	with the early-drop configuration by calling dpni_prepare_early_drop()
  *
- * warning: Before calling this function, call dpni_prepare_rx_early_drop() to
+ * warning: Before calling this function, call dpni_prepare_early_drop() to
  *			prepare the early_drop_iova parameter
  *
  * Return:	'0' on Success; error code otherwise.
  */
 int dpni_set_rx_tc_early_drop(struct fsl_mc_io	*mc_io,
+			      uint32_t		cmd_flags,
+			      uint16_t		token,
+			      uint8_t		tc_id,
+			      uint64_t		early_drop_iova);
+
+/**
+ * dpni_get_rx_tc_early_drop() - Get Rx traffic class early-drop configuration
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPNI object
+ * @tc_id:	Traffic class selection (0-7)
+ * @early_drop_iova:  I/O virtual address of 256 bytes DMA-able memory
+ *
+ * warning: After calling this function, call dpni_extract_early_drop() to
+ *	get the early drop configuration
+ *
+ * Return:	'0' on Success; error code otherwise.
+ */
+int dpni_get_rx_tc_early_drop(struct fsl_mc_io	*mc_io,
+			      uint32_t		cmd_flags,
+			      uint16_t		token,
+			      uint8_t		tc_id,
+			      uint64_t		early_drop_iova);
+
+/**
+ * dpni_set_tx_tc_early_drop() - Set Tx traffic class early-drop configuration
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPNI object
+ * @tc_id:	Traffic class selection (0-7)
+ * @early_drop_iova:  I/O virtual address of 256 bytes DMA-able memory filled
+ *	with the early-drop configuration by calling dpni_prepare_early_drop()
+ *
+ * warning: Before calling this function, call dpni_prepare_early_drop() to
+ *			prepare the early_drop_iova parameter
+ *
+ * Return:	'0' on Success; error code otherwise.
+ */
+int dpni_set_tx_tc_early_drop(struct fsl_mc_io	*mc_io,
+			      uint32_t		cmd_flags,
+			      uint16_t		token,
+			      uint8_t		tc_id,
+			      uint64_t		early_drop_iova);
+
+/**
+ * dpni_get_tx_tc_early_drop() - Get Tx traffic class early-drop configuration
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPNI object
+ * @tc_id:	Traffic class selection (0-7)
+ * @early_drop_iova:  I/O virtual address of 256 bytes DMA-able memory
+ *
+ * warning: After calling this function, call dpni_extract_early_drop() to
+ *	get the early drop configuration
+ *
+ * Return:	'0' on Success; error code otherwise.
+ */
+int dpni_get_tx_tc_early_drop(struct fsl_mc_io	*mc_io,
 			      uint32_t		cmd_flags,
 			      uint16_t		token,
 			      uint8_t		tc_id,
@@ -1629,6 +1813,134 @@ struct dpni_dest_cfg {
 	uint8_t	priority;
 };
 
+/* DPNI congestion options */
+
+/**
+ * CSCN message is written to message_iova once entering a
+ * congestion state (see 'threshold_entry')
+ */
+#define DPNI_CONG_OPT_WRITE_MEM_ON_ENTER	0x00000001
+/**
+ * CSCN message is written to message_iova once exiting a
+ * congestion state (see 'threshold_exit')
+ */
+#define DPNI_CONG_OPT_WRITE_MEM_ON_EXIT		0x00000002
+/**
+ * CSCN write will attempt to allocate into a cache (coherent write);
+ * valid only if 'DPNI_CONG_OPT_WRITE_MEM_<X>' is selected
+ */
+#define DPNI_CONG_OPT_COHERENT_WRITE		0x00000004
+/**
+ * if 'dest_cfg.dest_type != DPNI_DEST_NONE' CSCN message is sent to
+ * DPIO/DPCON's WQ channel once entering a congestion state
+ * (see 'threshold_entry')
+ */
+#define DPNI_CONG_OPT_NOTIFY_DEST_ON_ENTER	0x00000008
+/**
+ * if 'dest_cfg.dest_type != DPNI_DEST_NONE' CSCN message is sent to
+ * DPIO/DPCON's WQ channel once exiting a congestion state
+ * (see 'threshold_exit')
+ */
+#define DPNI_CONG_OPT_NOTIFY_DEST_ON_EXIT	0x00000010
+/**
+ * if 'dest_cfg.dest_type != DPNI_DEST_NONE' when the CSCN is written to the
+ * sw-portal's DQRR, the DQRI interrupt is asserted immediately (if enabled)
+ */
+#define DPNI_CONG_OPT_INTR_COALESCING_DISABLED	0x00000020
+
+/**
+ * struct dpni_congestion_notification_cfg - congestion notification
+ *		configuration
+ * @units: units type
+ * @threshold_entry: above this threshold we enter a congestion state.
+ *	set it to '0' to disable it
+ * @threshold_exit: below this threshold we exit the congestion state.
+ * @message_ctx: The context that will be part of the CSCN message
+ * @message_iova: I/O virtual address (must be in DMA-able memory),
+ *	must be 16B aligned; valid only if 'DPNI_CONG_OPT_WRITE_MEM_<X>' is
+ *	contained in 'options'
+ * @dest_cfg: CSCN can be send to either DPIO or DPCON WQ channel
+ * @options: Mask of available options; use 'DPNI_CONG_OPT_<X>' values
+ */
+
+struct dpni_congestion_notification_cfg {
+	enum dpni_congestion_unit	units;
+	uint32_t	threshold_entry;
+	uint32_t	threshold_exit;
+	uint64_t	message_ctx;
+	uint64_t	message_iova;
+	struct dpni_dest_cfg dest_cfg;
+	uint16_t	options;
+};
+
+/**
+ * dpni_set_rx_tc_congestion_notification() - Set Rx traffic class congestion
+ *	notification configuration
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPNI object
+ * @tc_id:	Traffic class selection (0-7)
+ * @cfg:	congestion notification configuration
+ *
+ * Return:	'0' on Success; error code otherwise.
+ */
+int dpni_set_rx_tc_congestion_notification(struct fsl_mc_io	*mc_io,
+					   uint32_t		cmd_flags,
+					   uint16_t		token,
+					   uint8_t		tc_id,
+			const struct dpni_congestion_notification_cfg *cfg);
+
+/**
+ * dpni_get_rx_tc_congestion_notification() - Get Rx traffic class congestion
+ *	notification configuration
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPNI object
+ * @tc_id:	Traffic class selection (0-7)
+ * @cfg:	congestion notification configuration
+ *
+ * Return:	'0' on Success; error code otherwise.
+ */
+int dpni_get_rx_tc_congestion_notification(struct fsl_mc_io	*mc_io,
+					   uint32_t		cmd_flags,
+					   uint16_t		token,
+					   uint8_t		tc_id,
+				struct dpni_congestion_notification_cfg *cfg);
+
+/**
+ * dpni_set_tx_tc_congestion_notification() - Set Tx traffic class congestion
+ *	notification configuration
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPNI object
+ * @tc_id:	Traffic class selection (0-7)
+ * @cfg:	congestion notification configuration
+ *
+ * Return:	'0' on Success; error code otherwise.
+ */
+int dpni_set_tx_tc_congestion_notification(struct fsl_mc_io	*mc_io,
+					   uint32_t		cmd_flags,
+					   uint16_t		token,
+					   uint8_t		tc_id,
+			const struct dpni_congestion_notification_cfg *cfg);
+
+/**
+ * dpni_get_tx_tc_congestion_notification() - Get Tx traffic class congestion
+ *	notification configuration
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPNI object
+ * @tc_id:	Traffic class selection (0-7)
+ * @cfg:	congestion notification configuration
+ *
+ * Return:	'0' on Success; error code otherwise.
+ */
+int dpni_get_tx_tc_congestion_notification(struct fsl_mc_io	*mc_io,
+					   uint32_t		cmd_flags,
+					   uint16_t		token,
+					   uint8_t		tc_id,
+				struct dpni_congestion_notification_cfg *cfg);
+
 /**
  * enum dpni_flc_type - DPNI FLC types
  * @DPNI_FLC_USER_DEFINED: select the FLC to be used for user defined value
@@ -1655,7 +1967,9 @@ enum dpni_stash_size {
 
 /* DPNI FLC stash options */
 
-/* stashes the whole annotation area (up to 192 bytes) */
+/**
+ * stashes the whole annotation area (up to 192 bytes)
+ */
 #define DPNI_FLC_STASH_FRAME_ANNOTATION	0x00000001
 
 /**
@@ -1681,18 +1995,28 @@ struct dpni_flc_cfg {
 	uint64_t		flow_context;
 };
 
-/* DPNI queue modification options */
+/**
+ * DPNI queue modification options
+ */
 
-/* Select to modify the user's context associated with the queue */
+/**
+ * Select to modify the user's context associated with the queue
+ */
 #define DPNI_QUEUE_OPT_USER_CTX		0x00000001
-/* Select to modify the queue's destination */
+/**
+ * Select to modify the queue's destination
+ */
 #define DPNI_QUEUE_OPT_DEST		0x00000002
 /** Select to modify the flow-context parameters;
  * not applicable for Tx-conf/Err queues as the FD comes from the user
  */
 #define DPNI_QUEUE_OPT_FLC		0x00000004
-/* Select to modify the queue's order preservation */
+/**
+ * Select to modify the queue's order preservation
+ */
 #define DPNI_QUEUE_OPT_ORDER_PRESERVATION 0x00000008
+/* Select to modify the queue's tail-drop threshold */
+#define DPNI_QUEUE_OPT_TAILDROP_THRESHOLD 0x00000010
 
 /**
  * struct dpni_queue_cfg - Structure representing queue configuration
@@ -1711,6 +2035,10 @@ struct dpni_flc_cfg {
  * @order_preservation_en: enable/disable order preservation;
  *		valid only if 'DPNI_QUEUE_OPT_ORDER_PRESERVATION' is contained
  *		in 'options'
+ * @tail_drop_threshold: set the queue's tail drop threshold in bytes;
+ *		'0' value disable the threshold; maximum value is 0xE000000;
+ *		valid only if 'DPNI_QUEUE_OPT_TAILDROP_THRESHOLD' is contained
+ *		in 'options'
  */
 struct dpni_queue_cfg {
 	uint32_t		options;
@@ -1718,6 +2046,7 @@ struct dpni_queue_cfg {
 	struct dpni_dest_cfg	dest_cfg;
 	struct dpni_flc_cfg	flc_cfg;
 	int			order_preservation_en;
+	uint32_t		tail_drop_threshold;
 };
 
 /**
@@ -1727,6 +2056,7 @@ struct dpni_queue_cfg {
  * @dest_cfg: Queue destination configuration
  * @flc_cfg: Flow context configuration
  * @order_preservation_en: enable/disable order preservation
+ * @tail_drop_threshold: queue's tail drop threshold in bytes;
  * @fqid: Virtual fqid value to be used for dequeue operations
  */
 struct dpni_queue_attr {
@@ -1734,61 +2064,47 @@ struct dpni_queue_attr {
 	struct dpni_dest_cfg	dest_cfg;
 	struct dpni_flc_cfg	flc_cfg;
 	int			order_preservation_en;
+	uint32_t		tail_drop_threshold;
 
 	uint32_t		fqid;
 };
 
-/* DPNI Tx flow modification options */
+/**
+ * DPNI Tx flow modification options
+ */
 
-/* Select to modify the settings for dedicate Tx confirmation/error */
+/**
+ * Select to modify the settings for dedicate Tx confirmation/error
+ */
 #define DPNI_TX_FLOW_OPT_TX_CONF_ERROR	0x00000001
-/*!< Select to modify the Tx confirmation and/or error setting */
-#define DPNI_TX_FLOW_OPT_ONLY_TX_ERROR	0x00000002
-/*!< Select to modify the queue configuration */
-#define DPNI_TX_FLOW_OPT_QUEUE		0x00000004
-/*!< Select to modify the L3 checksum generation setting */
+/**
+ * Select to modify the L3 checksum generation setting
+ */
 #define DPNI_TX_FLOW_OPT_L3_CHKSUM_GEN	0x00000010
-/*!< Select to modify the L4 checksum generation setting */
+/**
+ * Select to modify the L4 checksum generation setting
+ */
 #define DPNI_TX_FLOW_OPT_L4_CHKSUM_GEN	0x00000020
 
 /**
  * struct dpni_tx_flow_cfg - Structure representing Tx flow configuration
  * @options: Flags representing the suggested modifications to the Tx flow;
- *		Use any combination 'DPNI_TX_FLOW_OPT_<X>' flags
- * @conf_err_cfg: Tx confirmation and error configuration; these settings are
- *		ignored if 'DPNI_OPT_PRIVATE_TX_CONF_ERROR_DISABLED' was set at
- *		DPNI creation
+ *	Use any combination 'DPNI_TX_FLOW_OPT_<X>' flags
+ * @use_common_tx_conf_queue: Set to '1' to use the common (default) Tx
+ *	confirmation and error queue; Set to '0' to use the private
+ *	Tx confirmation and error queue; valid only if
+ *	'DPNI_OPT_PRIVATE_TX_CONF_ERROR_DISABLED' wasn't set at DPNI creation
+ *	and 'DPNI_TX_FLOW_OPT_TX_CONF_ERROR' is contained in 'options'
  * @l3_chksum_gen: Set to '1' to enable L3 checksum generation; '0' to disable;
- *		valid only if 'DPNI_TX_FLOW_OPT_L3_CHKSUM_GEN' is contained in
- *		'options'
+ *	valid only if 'DPNI_TX_FLOW_OPT_L3_CHKSUM_GEN' is contained in 'options'
  * @l4_chksum_gen: Set to '1' to enable L4 checksum generation; '0' to disable;
- *		valid only if 'DPNI_TX_FLOW_OPT_L4_CHKSUM_GEN' is contained in
- *		'options'
+ *	valid only if 'DPNI_TX_FLOW_OPT_L4_CHKSUM_GEN' is contained in 'options'
  */
 struct dpni_tx_flow_cfg {
-	uint32_t			options;
-	/**
-	 * struct cnf_err_cfg - Tx confirmation and error configuration
-	 * @use_default_queue: Set to '1' to use the common (default) Tx
-	 *		confirmation and error queue; Set to '0' to use the
-	 *		private Tx confirmation and error queue; valid only if
-	 *		'DPNI_TX_FLOW_OPT_TX_CONF_ERROR' is contained in
-	 *		'options'
-	 * @errors_only: Set to '1' to report back only error frames;
-	 *		Set to '0' to confirm transmission/error for all
-	 *		transmitted frames;
-	 *		valid only if 'DPNI_TX_FLOW_OPT_ONLY_TX_ERROR' is
-	 *		contained in 'options' and 'use_default_queue = 0';
-	 * @queue_cfg: Queue configuration; valid only if
-	 *		'DPNI_TX_FLOW_OPT_QUEUE' is contained in 'options'
-	 */
-	struct {
-		int			use_default_queue;
-		int			errors_only;
-		struct dpni_queue_cfg	queue_cfg;
-	} conf_err_cfg;
-	int				l3_chksum_gen;
-	int				l4_chksum_gen;
+	uint32_t	options;
+	int		use_common_tx_conf_queue;
+	int		l3_chksum_gen;
+	int		l4_chksum_gen;
 };
 
 /**
@@ -1797,10 +2113,9 @@ struct dpni_tx_flow_cfg {
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPNI object
  * @flow_id:	Provides (or returns) the sender's flow ID;
- *				for each new sender set (*flow_id) to
- *				'DPNI_NEW_FLOW_ID' to generate a new flow_id;
- *				this ID should be used as the QDBIN argument
- *				in enqueue operations
+ *	for each new sender set (*flow_id) to 'DPNI_NEW_FLOW_ID' to generate
+ *	a new flow_id;	this ID should be used as the QDBIN argument
+ *	in enqueue operations
  * @cfg:	Tx flow configuration
  *
  * Return:	'0' on Success; Error code otherwise.
@@ -1813,28 +2128,15 @@ int dpni_set_tx_flow(struct fsl_mc_io			*mc_io,
 
 /**
  * struct dpni_tx_flow_attr - Structure representing Tx flow attributes
- * @conf_err_attr: Tx confirmation and error attributes
+ * @use_common_tx_conf_queue: '1' if using common (default) Tx confirmation and
+ *	error queue; '0' if using private Tx confirmation and error queue
  * @l3_chksum_gen: '1' if L3 checksum generation is enabled; '0' if disabled
  * @l4_chksum_gen: '1' if L4 checksum generation is enabled; '0' if disabled
  */
 struct dpni_tx_flow_attr {
-	/**
-	 * struct conf_err_attr - Tx confirmation and error attributes
-	 * @use_default_queue: '1' if using common (default) Tx confirmation and
-	 *			error queue;
-	 *			'0' if using private Tx confirmation and error
-	 *			queue
-	 * @errors_only: '1' if only error frames are reported back; '0' if all
-	 *		transmitted frames are confirmed
-	 * @queue_attr: Queue attributes
-	 */
-	struct {
-		int			use_default_queue;
-		int			errors_only;
-		struct dpni_queue_attr	queue_attr;
-	} conf_err_attr;
-	int				l3_chksum_gen;
-	int				l4_chksum_gen;
+	int	use_common_tx_conf_queue;
+	int	l3_chksum_gen;
+	int	l4_chksum_gen;
 };
 
 /**
@@ -1843,7 +2145,7 @@ struct dpni_tx_flow_attr {
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPNI object
  * @flow_id:	The sender's flow ID, as returned by the
- *			dpni_set_tx_flow() function
+ *	dpni_set_tx_flow() function
  * @attr:	Returned Tx flow attributes
  *
  * Return:	'0' on Success; Error code otherwise.
@@ -1853,6 +2155,148 @@ int dpni_get_tx_flow(struct fsl_mc_io		*mc_io,
 		     uint16_t			token,
 		     uint16_t			flow_id,
 		     struct dpni_tx_flow_attr	*attr);
+
+/**
+ * struct dpni_tx_conf_cfg - Structure representing Tx conf configuration
+ * @errors_only: Set to '1' to report back only error frames;
+ *	Set to '0' to confirm transmission/error for all transmitted frames;
+ * @queue_cfg: Queue configuration
+ */
+struct dpni_tx_conf_cfg {
+	int			errors_only;
+	struct dpni_queue_cfg	queue_cfg;
+};
+
+/**
+ * dpni_set_tx_conf() - Set Tx confirmation and error queue configuration
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPNI object
+ * @flow_id:	The sender's flow ID, as returned by the
+ *	dpni_set_tx_flow() function;
+ *	use 'DPNI_COMMON_TX_CONF' for common tx-conf
+ * @cfg:	Queue configuration
+ *
+ * If either 'DPNI_OPT_TX_CONF_DISABLED' or
+ * 'DPNI_OPT_PRIVATE_TX_CONF_ERROR_DISABLED' were selected at DPNI creation,
+ * this function can ONLY be used with 'flow_id == DPNI_COMMON_TX_CONF';
+ * i.e. only serve the common tx-conf-err queue;
+ * if 'DPNI_OPT_TX_CONF_DISABLED' was selected, only error frames are reported
+ * back - successfully transmitted frames are not confirmed. Otherwise, all
+ * transmitted frames are sent for confirmation.
+ *
+ * Return:	'0' on Success; Error code otherwise.
+ */
+int dpni_set_tx_conf(struct fsl_mc_io	*mc_io,
+		     uint32_t		cmd_flags,
+		     uint16_t		token,
+		     uint16_t		flow_id,
+		     const struct dpni_tx_conf_cfg	*cfg);
+
+/**
+ * struct dpni_tx_conf_attr - Structure representing Tx conf attributes
+ * @errors_only: '1' if only error frames are reported back; '0' if all
+ *		transmitted frames are confirmed
+ * @queue_attr: Queue attributes
+ */
+struct dpni_tx_conf_attr {
+	int			errors_only;
+	struct dpni_queue_attr	queue_attr;
+};
+
+/**
+ * dpni_get_tx_conf() - Get Tx confirmation and error queue attributes
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPNI object
+ * @flow_id:	The sender's flow ID, as returned by the
+ *	dpni_set_tx_flow() function;
+ *	use 'DPNI_COMMON_TX_CONF' for common tx-conf
+ * @attr:	Returned tx-conf attributes
+ *
+ * If either 'DPNI_OPT_TX_CONF_DISABLED' or
+ * 'DPNI_OPT_PRIVATE_TX_CONF_ERROR_DISABLED' were selected at DPNI creation,
+ * this function can ONLY be used with 'flow_id == DPNI_COMMON_TX_CONF';
+ * i.e. only serve the common tx-conf-err queue;
+ *
+ * Return:	'0' on Success; Error code otherwise.
+ */
+int dpni_get_tx_conf(struct fsl_mc_io	*mc_io,
+		     uint32_t		cmd_flags,
+		     uint16_t		token,
+		     uint16_t		flow_id,
+		     struct dpni_tx_conf_attr	*attr);
+
+/**
+ * dpni_set_tx_conf_congestion_notification() - Set Tx conf congestion
+ *	notification configuration
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPNI object
+ * @flow_id:	The sender's flow ID, as returned by the
+ *	dpni_set_tx_flow() function;
+ *	use 'DPNI_COMMON_TX_CONF' for common tx-conf
+ * @cfg:	congestion notification configuration
+ *
+ * If either 'DPNI_OPT_TX_CONF_DISABLED' or
+ * 'DPNI_OPT_PRIVATE_TX_CONF_ERROR_DISABLED' were selected at DPNI creation,
+ * this function can ONLY be used with 'flow_id == DPNI_COMMON_TX_CONF';
+ * i.e. only serve the common tx-conf-err queue;
+ *
+ * Return:	'0' on Success; error code otherwise.
+ */
+int dpni_set_tx_conf_congestion_notification(struct fsl_mc_io	*mc_io,
+					     uint32_t		cmd_flags,
+					     uint16_t		token,
+					     uint16_t		flow_id,
+			const struct dpni_congestion_notification_cfg *cfg);
+
+/**
+ * dpni_get_tx_conf_congestion_notification() - Get Tx conf congestion
+ *	notification configuration
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPNI object
+ * @flow_id:	The sender's flow ID, as returned by the
+ *	dpni_set_tx_flow() function;
+ *	use 'DPNI_COMMON_TX_CONF' for common tx-conf
+ * @cfg:	congestion notification
+ *
+ * If either 'DPNI_OPT_TX_CONF_DISABLED' or
+ * 'DPNI_OPT_PRIVATE_TX_CONF_ERROR_DISABLED' were selected at DPNI creation,
+ * this function can ONLY be used with 'flow_id == DPNI_COMMON_TX_CONF';
+ * i.e. only serve the common tx-conf-err queue;
+ *
+ * Return:	'0' on Success; error code otherwise.
+ */
+int dpni_get_tx_conf_congestion_notification(struct fsl_mc_io	*mc_io,
+					     uint32_t		cmd_flags,
+					     uint16_t		token,
+					     uint16_t		flow_id,
+				struct dpni_congestion_notification_cfg *cfg);
+
+/**
+ * dpni_set_tx_conf_revoke() - Tx confirmation revocation
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPNI object
+ * @revoke:	revoke or not
+ *
+ * This function is useful only when 'DPNI_OPT_TX_CONF_DISABLED' is not
+ * selected at DPNI creation.
+ * Calling this function with 'revoke' set to '1' disables all transmit
+ * confirmation (including the private confirmation queues), regardless of
+ * previous settings; Note that in this case, Tx error frames are still
+ * enqueued to the general transmit errors queue.
+ * Calling this function with 'revoke' set to '0' restores the previous
+ * settings for both general and private transmit confirmation.
+ *
+ * Return:	'0' on Success; Error code otherwise.
+ */
+int dpni_set_tx_conf_revoke(struct fsl_mc_io		*mc_io,
+			    uint32_t			cmd_flags,
+			    uint16_t			token,
+			    int			revoke);
 
 /**
  * dpni_set_rx_flow() - Set Rx flow configuration
@@ -1921,76 +2365,6 @@ int dpni_get_rx_err_queue(struct fsl_mc_io		*mc_io,
 			  uint32_t			cmd_flags,
 			  uint16_t			token,
 			  struct dpni_queue_attr	*attr);
-
-/**
- * dpni_set_tx_conf_err_queue() - Set Tx confirmation and error queue
- *			configuration
- * @mc_io:	Pointer to MC portal's I/O object
- * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPNI object
- * @cfg:	Queue configuration
- *
- * If 'DPNI_OPT_TX_CONF_DISABLED' was selected at DPNI creation,
- * only error frames are reported back - successfully transmitted
- * frames are not confirmed. Otherwise, all transmitted frames
- * are sent for confirmation.
- *
- * If private Tx confirmation and error queues are used with this
- * DPNI, then this queue serves all Tx flows that are configured
- * with 'use_default_queue' option (see dpni_tx_flow_cfg).
- *
- * Return:	'0' on Success; Error code otherwise.
- */
-int dpni_set_tx_conf_err_queue(struct fsl_mc_io		*mc_io,
-			       uint32_t			cmd_flags,
-			       uint16_t				token,
-			       const struct dpni_queue_cfg	*cfg);
-
-/**
- * dpni_get_tx_conf_err_queue() - Get Tx confirmation and error queue attributes
- * @mc_io:	Pointer to MC portal's I/O object
- * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPNI object
- * @attr:	Returned queue attributes
- *
- * If 'DPNI_OPT_TX_CONF_DISABLED' was selected at DPNI creation,
- * only error frames are reported back - successfully transmitted
- * frames are not confirmed. Otherwise, all transmitted frames
- * are sent for confirmation.
- *
- * If private Tx confirmation and error queues are used with this
- * DPNI, then this queue serves all Tx flows that are configured
- * with 'use_default_queue' option (see dpni_tx_flow_cfg).
- *
- * Return:	'0' on Success; Error code otherwise.
- */
-int dpni_get_tx_conf_err_queue(struct fsl_mc_io	*mc_io,
-			       uint32_t		cmd_flags,
-			       uint16_t			token,
-			       struct dpni_queue_attr	*attr);
-
-/**
- * dpni_set_tx_conf_revoke() - Tx confirmation revocation
- * @mc_io:	Pointer to MC portal's I/O object
- * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPNI object
- * @revoke:	revoke or not
- *
- * This function is useful only when 'DPNI_OPT_TX_CONF_DISABLED' is not
- * selected at DPNI creation.
- * Calling this function with 'revoke' set to '1' disables all transmit
- * confirmation (including the private confirmation queues), regardless of
- * previous settings; Note that in this case, Tx error frames are still
- * enqueued to the general transmit errors queue.
- * Calling this function with 'revoke' set to '0' restores the previous
- * settings for both general and private transmit confirmation.
- *
- * Return:	'0' on Success; Error code otherwise.
- */
-int dpni_set_tx_conf_revoke(struct fsl_mc_io		*mc_io,
-			    uint32_t			cmd_flags,
-			    uint16_t			token,
-			    int			revoke);
 
 /**
  * struct dpni_qos_tbl_cfg - Structure representing QOS table configuration

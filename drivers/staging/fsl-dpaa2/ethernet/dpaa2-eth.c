@@ -1734,6 +1734,7 @@ static int __cold dpaa2_dpni_setup(struct fsl_mc_device *ls_dev)
 	struct device *dev = &ls_dev->dev;
 	struct dpaa2_eth_priv *priv;
 	struct net_device *net_dev;
+	void *dma_mem;
 	int err;
 
 	net_dev = dev_get_drvdata(dev);
@@ -1751,11 +1752,36 @@ static int __cold dpaa2_dpni_setup(struct fsl_mc_device *ls_dev)
 	/* FIXME Alex's moral compass says this must be done */
 	ls_dev->mc_io = priv->mc_io;
 	ls_dev->mc_handle = priv->mc_token;
+
+	dma_mem =  kzalloc(DPAA2_EXT_CFG_SIZE, GFP_DMA | GFP_KERNEL);
+	if (!dma_mem)
+		goto err_alloc;
+
+	priv->dpni_attrs.ext_cfg_iova = dma_map_single(dev, dma_mem,
+						       DPAA2_EXT_CFG_SIZE,
+						       DMA_FROM_DEVICE);
+	if (dma_mapping_error(dev, priv->dpni_attrs.ext_cfg_iova)) {
+		dev_err(dev, "dma mapping for dpni_ext_cfg failed\n");
+		goto err_dma_map;
+	}
+
 	err = dpni_get_attributes(priv->mc_io, 0, priv->mc_token,
 				  &priv->dpni_attrs);
 	if (err) {
 		dev_err(dev, "dpni_get_attributes() failed (err=%d)\n", err);
+		dma_unmap_single(dev, priv->dpni_attrs.ext_cfg_iova,
+				 DPAA2_EXT_CFG_SIZE, DMA_FROM_DEVICE);
 		goto err_get_attr;
+	}
+
+	dma_unmap_single(dev, priv->dpni_attrs.ext_cfg_iova,
+			 DPAA2_EXT_CFG_SIZE, DMA_FROM_DEVICE);
+
+	memset(&priv->dpni_ext_cfg, 0, sizeof(priv->dpni_ext_cfg));
+	err = dpni_extract_extended_cfg(&priv->dpni_ext_cfg, dma_mem);
+	if (err) {
+		dev_err(dev, "dpni_extract_extended_cfg() failed\n");
+		goto err_extract;
 	}
 
 	/* Configure our buffers' layout */
@@ -1813,13 +1839,20 @@ static int __cold dpaa2_dpni_setup(struct fsl_mc_device *ls_dev)
 	priv->cls_rule = kzalloc(sizeof(struct dpaa2_cls_rule)
 				 * DPAA2_CLASSIFIER_ENTRY_COUNT, GFP_KERNEL);
 	if (!priv->cls_rule)
-		return -ENOMEM;
+		goto err_cls_rule;
+
+	kfree(dma_mem);
 
 	return 0;
 
+err_cls_rule:
 err_data_offset:
 err_buf_layout:
+err_extract:
 err_get_attr:
+err_dma_map:
+	kfree(dma_mem);
+err_alloc:
 	dpni_close(priv->mc_io, 0, priv->mc_token);
 err_open:
 	return err;
@@ -1872,19 +1905,15 @@ static int dpaa2_rx_flow_setup(struct dpaa2_eth_priv *priv,
 static int dpaa2_tx_flow_setup(struct dpaa2_eth_priv *priv,
 			       struct dpaa2_eth_fq *fq)
 {
+
 	struct dpni_tx_flow_cfg tx_flow_cfg;
-	struct dpni_queue_cfg queue_cfg;
-	struct dpni_tx_flow_attr tx_flow_attr;
+	struct dpni_tx_conf_cfg tx_conf_cfg;
+	struct dpni_tx_conf_attr tx_conf_attr;
 	int err;
 
 	memset(&tx_flow_cfg, 0, sizeof(tx_flow_cfg));
-	tx_flow_cfg.options = DPNI_TX_FLOW_OPT_QUEUE;
-	queue_cfg.options = DPNI_QUEUE_OPT_USER_CTX | DPNI_QUEUE_OPT_DEST;
-	queue_cfg.user_ctx = (uint64_t)fq;
-	queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPCON;
-	queue_cfg.dest_cfg.dest_id = fq->channel->dpcon_id;
-	queue_cfg.dest_cfg.priority = 0;
-	tx_flow_cfg.conf_err_cfg.queue_cfg = queue_cfg;
+	tx_flow_cfg.options = DPNI_TX_FLOW_OPT_TX_CONF_ERROR;
+	tx_flow_cfg.use_common_tx_conf_queue = 0;
 	err = dpni_set_tx_flow(priv->mc_io, 0, priv->mc_token,
 			       &fq->flowid, &tx_flow_cfg);
 	if (unlikely(err)) {
@@ -1892,13 +1921,29 @@ static int dpaa2_tx_flow_setup(struct dpaa2_eth_priv *priv,
 		return err;
 	}
 
-	err = dpni_get_tx_flow(priv->mc_io, 0, priv->mc_token,
-			       fq->flowid, &tx_flow_attr);
-	if (unlikely(err)) {
-		netdev_err(priv->net_dev, "dpni_get_tx_flow() failed\n");
+	tx_conf_cfg.errors_only = 0;
+	tx_conf_cfg.queue_cfg.options = DPNI_QUEUE_OPT_USER_CTX |
+					DPNI_QUEUE_OPT_DEST;
+	tx_conf_cfg.queue_cfg.user_ctx = (uint64_t)fq;
+	tx_conf_cfg.queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPCON;
+	tx_conf_cfg.queue_cfg.dest_cfg.dest_id = fq->channel->dpcon_id;
+	tx_conf_cfg.queue_cfg.dest_cfg.priority = 0;
+
+	err = dpni_set_tx_conf(priv->mc_io, 0, priv->mc_token, fq->flowid,
+			       &tx_conf_cfg);
+	if (err) {
+		netdev_err(priv->net_dev, "dpni_set_tx_conf() failed\n");
 		return err;
 	}
-	fq->fqid = tx_flow_attr.conf_err_attr.queue_attr.fqid;
+
+	err = dpni_get_tx_conf(priv->mc_io, 0, priv->mc_token, fq->flowid,
+			       &tx_conf_attr);
+	if (err) {
+		netdev_err(priv->net_dev, "dpni_get_tx_conf() failed\n");
+		return err;
+	}
+
+	fq->fqid = tx_conf_attr.queue_attr.fqid;
 
 	return 0;
 }
