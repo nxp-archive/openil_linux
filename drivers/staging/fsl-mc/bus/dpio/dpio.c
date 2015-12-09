@@ -327,7 +327,7 @@ int dpio_get_irq_status(struct fsl_mc_io *mc_io,
 	cmd.header = mc_encode_cmd_header(DPIO_CMDID_GET_IRQ_STATUS,
 					  cmd_flags,
 					  token);
-	DPIO_CMD_GET_IRQ_STATUS(cmd, irq_index);
+	DPIO_CMD_GET_IRQ_STATUS(cmd, irq_index, *status);
 
 	/* send command to mc*/
 	err = mc_send_command(mc_io, &cmd);

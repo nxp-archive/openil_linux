@@ -242,21 +242,25 @@ int dpio_remove_static_dequeue_channel(struct fsl_mc_io	*mc_io,
 				       uint16_t		token,
 				       int			dpcon_id);
 
-/* DPIO IRQ Index and Events */
+/**
+ * DPIO IRQ Index and Events
+ */
 
-/* Irq software-portal index */
+/**
+ * Irq software-portal index
+ */
 #define DPIO_IRQ_SWP_INDEX				0
 
 /**
  * struct dpio_irq_cfg - IRQ configuration
  * @addr:	Address that must be written to signal a message-based interrupt
  * @val:	Value to write into irq_addr address
- * @user_irq_id: A user defined number associated with this IRQ
+ * @irq_num: A user defined number associated with this IRQ
  */
 struct dpio_irq_cfg {
 	     uint64_t		addr;
 	     uint32_t		val;
-	     int		user_irq_id;
+	     int		irq_num;
 };
 
 /**
@@ -419,6 +423,7 @@ int dpio_clear_irq_status(struct fsl_mc_io	*mc_io,
  * @channel_mode: Notification channel mode
  * @num_priorities: Number of priorities for the notification channel (1-8);
  *			relevant only if 'channel_mode = DPIO_LOCAL_CHANNEL'
+ * @qbman_version: QBMAN version
  */
 struct dpio_attr {
 	int			id;
@@ -435,7 +440,8 @@ struct dpio_attr {
 	uint64_t		qbman_portal_ci_offset;
 	uint16_t		qbman_portal_id;
 	enum dpio_channel_mode	channel_mode;
-	uint8_t		num_priorities;
+	uint8_t			num_priorities;
+	uint32_t		qbman_version;
 };
 
 /**
