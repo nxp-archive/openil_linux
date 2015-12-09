@@ -30,6 +30,7 @@
  */
 
 #include "dce-scf-compression.h"
+#include "dce-scf-decompression.h"
 #include "dce.h"
 /* #define debug */
 
@@ -178,24 +179,28 @@ static void cleanup_caches(struct dce_session *session)
 static int setup_caches(struct dce_session *session)
 {
 	if (session->engine == DCE_COMPRESSION) {
+		session->pending_output.len = 8202;
 		session->pending_cache =
 			kmem_cache_create("pending_compression_output",
-				8202, 64, 0, NULL);
+				session->pending_output.len, 64, 0, NULL);
+		session->history.len = 4096;
 		session->history_cache =
 			kmem_cache_create("compression_history",
-				4096, 64, 0, NULL);
+				session->history.len, 64, 0, NULL);
 		session->context_cache = NULL;
-
 	} else if (session->engine == DCE_DECOMPRESSION) {
+		session->pending_output.len = 1024 * 28;
 		session->pending_cache =
 			kmem_cache_create("pending_decompression_output",
-				1024 * 28, 64, 0, NULL);
+				session->pending_output.len, 64, 0, NULL);
+		session->history.len = 1024 * 32;
 		session->history_cache =
 			kmem_cache_create("decompression_history",
-				1024 * 32, 64, 0, NULL);
+				session->history.len, 64, 0, NULL);
+		session->decomp_context.len = 256;
 		session->context_cache =
 			kmem_cache_create("decompression_context",
-				256, 0, 0, NULL);
+				session->decomp_context.len, 0, 0, NULL);
 	} else {
 		return -EINVAL;
 	}
@@ -215,6 +220,22 @@ static int setup_caches(struct dce_session *session)
 
 static void free_dce_internals(struct dce_session *session)
 {
+	if (session->pending_output.paddr)
+		dma_unmap_single(&session->device->dev,
+				session->pending_output.paddr,
+				session->pending_output.len,
+				DMA_BIDIRECTIONAL);
+	if (session->history.paddr)
+		dma_unmap_single(&session->device->dev,
+				session->history.paddr,
+				session->history.len,
+				DMA_BIDIRECTIONAL);
+	if (session->decomp_context.paddr)
+		dma_unmap_single(&session->device->dev,
+				session->decomp_context.paddr,
+				session->decomp_context.len,
+				DMA_BIDIRECTIONAL);
+
 	if (session->pending_output.vaddr)
 		kmem_cache_free(session->pending_cache,
 				session->pending_output.vaddr);
@@ -223,9 +244,11 @@ static void free_dce_internals(struct dce_session *session)
 	if (session->decomp_context.vaddr)
 		kmem_cache_free(session->context_cache,
 				session->decomp_context.vaddr);
+
 	session->pending_output.vaddr = session->history.vaddr =
 		session->decomp_context.vaddr = NULL;
-
+	session->pending_output.paddr = session->history.paddr =
+		session->decomp_context.paddr = 0;
 }
 
 static int alloc_dce_internals(struct dce_session *session)
@@ -242,6 +265,25 @@ static int alloc_dce_internals(struct dce_session *session)
 			 session->context_cache)) {
 		free_dce_internals(session);
 		return -ENOMEM;
+	}
+	session->pending_output.paddr = dma_map_single(&session->device->dev,
+			session->pending_output.vaddr,
+			session->pending_output.len,
+			DMA_BIDIRECTIONAL);
+	session->history.paddr = dma_map_single(&session->device->dev,
+			session->history.vaddr,
+			session->history.len,
+			DMA_BIDIRECTIONAL);
+	if (session->context_cache)
+		session->decomp_context.paddr = dma_map_single(&session->device->dev,
+				session->decomp_context.vaddr,
+				session->decomp_context.len,
+				DMA_BIDIRECTIONAL);
+	if (!session->pending_output.paddr || !session->history.paddr ||
+			(!session->decomp_context.paddr &&
+			 session->context_cache)) {
+		free_dce_internals(session);
+		return -EIO;
 	}
 	return 0;
 }
@@ -413,9 +455,55 @@ int dce_process_frame(struct dce_session *session,
 	/* hardware bug requires the SCR flush to occur every time */
 	fd_frc_set_scrf((struct fd_attr *)fd_list, true);
 	fd_frc_set_sf((struct fd_attr *)fd_list, !!session->paradigm);
+	fd_frc_set_cf((struct fd_attr *)fd_list, (enum dce_comp_fmt)
+			session->compression_format);
 	fd_frc_set_recycle((struct fd_attr *)fd_list, recycled_frame);
 	fd_frc_set_initial((struct fd_attr *)fd_list, initial_frame);
 	fd_frc_set_z_flush((struct fd_attr *)fd_list, flush);
+	if (initial_frame) {
+		/* FIXME: CM and FLG should be setup differently for GZIP */
+		u8 CM, FLG;
+		fd_frc_set_uspc((struct fd_attr *)fd_list, true);
+		fd_frc_set_uhc((struct fd_attr *)fd_list, true);
+
+		CM = 0x48; /* 8 means Deflate and 4 means a 4 KB compression
+			      window these are the only values allowed in DCE */
+
+		FLG = 0x4B; /* 0b_01_0_01011, 01 is the approximate compression
+			       effort, the 0 after indicates no dictionary, the
+			       01011 is the checksum for CM and FLG and must
+			       make CM_FLG a 16 bit number divisible by 31 */
+		scf_c_cfg_set_cm((struct scf_c_cfg *)&work_unit->scf_result, CM);
+		scf_c_cfg_set_flg((struct scf_c_cfg *)&work_unit->scf_result,
+				FLG);
+		scf_c_cfg_set_next_flc(
+			(struct scf_c_cfg*)&work_unit->scf_result,
+			(uint64_t)flow);
+		if (session->engine == DCE_COMPRESSION) {
+			scf_c_cfg_set_pending_output_ptr(
+				(struct scf_c_cfg*)&work_unit->scf_result,
+				session->pending_output.paddr);
+			scf_c_cfg_set_history_ptr(
+				(struct scf_c_cfg*)&work_unit->scf_result,
+				session->history.paddr);
+		} else if (session->engine == DCE_DECOMPRESSION) {
+			scf_d_cfg_set_pending_output_ptr(
+				(struct scf_d_cfg*)&work_unit->scf_result,
+				session->pending_output.paddr);
+			scf_d_cfg_set_history_ptr(
+				(struct scf_d_cfg*)&work_unit->scf_result,
+				session->history.paddr);
+			scf_d_cfg_set_decomp_ctx_ptr(
+				(struct scf_d_cfg*)&work_unit->scf_result,
+				session->decomp_context.paddr);
+		} else {
+			ret = -EINVAL;
+			goto fail;
+		}
+	} else {
+		fd_frc_set_uspc((struct fd_attr *)fd_list, false);
+		fd_frc_set_uhc((struct fd_attr *)fd_list, false);
+	}
 
 	/* Set caller context */
 	work_unit->store.context = context;

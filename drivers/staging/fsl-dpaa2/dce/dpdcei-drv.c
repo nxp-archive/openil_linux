@@ -199,8 +199,6 @@ int enqueue_fd(struct dce_flow *flow, struct dpaa2_fd *fd)
 		fd_frc_set_cic_token((struct fd_attr *)fd, flow->key);
 		break;
 	case DCE_CMD_PROCESS:
-		/* ensure that SCRF is set, hw bug */
-		fd->simple.frc |= (1 << 22);
 		break;
 	default:
 		dev_err(dev, "Unsupported dce command %d\n", cmd);
@@ -486,11 +484,11 @@ static int __cold dpaa2_dpdcei_probe(struct fsl_mc_device *ls_dev)
 	atomic_set(&priv->frames_in_flight, 0);
 
 	/*
-	 * Create work queue to defer work when asynchronous reponses are
+	 * Create work queue to defer work when asynchronous responses are
 	 * received
 	 */
 
-	/* TODO: confirm valueis of wq flags being used */
+	/* TODO: confirm value is of wq flags being used */
 	priv->async_resp_wq = alloc_workqueue("dce_async_resp_wq",
 			WQ_UNBOUND | WQ_MEM_RECLAIM, WQ_MAX_ACTIVE);
 	if (!priv->async_resp_wq) {
@@ -514,7 +512,7 @@ static int __cold dpaa2_dpdcei_probe(struct fsl_mc_device *ls_dev)
 		goto err_mcportal;
 	}
 
-	/* get a handle for the DPDCEI this interface is associate with */
+	/* get a handle for the DPDCEI this interface is associated with */
 	err = dpdcei_open(ls_dev->mc_io, ls_dev->obj_desc.id,
 			&ls_dev->mc_handle);
 	if (err) {
