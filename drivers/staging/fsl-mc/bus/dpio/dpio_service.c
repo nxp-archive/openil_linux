@@ -256,6 +256,7 @@ struct dpaa2_io *dpaa2_io_create(const struct dpaa2_io_desc *desc)
 	o->dpio_desc = *desc;
 	o->swp_desc.cena_bar = o->dpio_desc.regs_cena;
 	o->swp_desc.cinh_bar = o->dpio_desc.regs_cinh;
+	o->swp_desc.qman_version = o->dpio_desc.qman_version;
 	o->swp = qbman_swp_init(&o->swp_desc);
 	o->service = NULL;
 	if (!o->swp) {

@@ -58,6 +58,7 @@ struct dpaa2_io_store;
  * @regs_cena: the cache enabled regs.
  * @regs_cinh: the cache inhibited regs.
  * @dpio_id: The dpio index.
+ * @qman_version: the qman version
  *
  * Describe the attributes and features of the DPIO object.
  */
@@ -89,6 +90,7 @@ struct dpaa2_io_desc {
 	void *regs_cena;
 	void *regs_cinh;
 	int dpio_id;
+	uint32_t qman_version;
 };
 
 /**

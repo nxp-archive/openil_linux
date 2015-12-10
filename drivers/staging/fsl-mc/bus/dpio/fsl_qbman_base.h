@@ -59,6 +59,7 @@ struct qbman_swp_desc {
 	const struct qbman_block_desc *block; /* The QBMan instance */
 	void *cena_bar; /* Cache-enabled portal register map */
 	void *cinh_bar; /* Cache-inhibited portal register map */
+	uint32_t qman_version;
 };
 
 /* Driver object for managing a QBMan portal */

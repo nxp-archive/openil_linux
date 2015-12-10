@@ -202,6 +202,7 @@ dpaa2_dpio_probe(struct fsl_mc_device *ls_dev)
 		resource_size(&ls_dev->regions[0]),
 		resource_size(&ls_dev->regions[1]));
 
+	desc.qman_version = dpio_attrs.qbman_version;
 	/* Build DPIO driver object out of raw MC object */
 	desc.receives_notifications = dpio_attrs.num_priorities ? 1 : 0;
 	desc.has_irq = 1;
