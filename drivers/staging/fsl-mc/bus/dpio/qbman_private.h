@@ -47,6 +47,10 @@
 
 #include "qbman_sys_decl.h"
 
+#define QMAN_REV_4000   0x04000000
+#define QMAN_REV_4100   0x04010000
+#define QMAN_REV_4101   0x04010001
+
 /* When things go wrong, it is a convenient trick to insert a few FOO()
  * statements in the code to trace progress. TODO: remove this once we are
  * hacking the code less actively.

@@ -94,6 +94,7 @@ struct qbman_swp {
 	struct {
 		uint32_t next_idx;
 		uint32_t valid_bit;
+		uint8_t dqrr_size;
 #ifdef WORKAROUND_DQRR_RESET_BUG
 		int reset_bug;
 #endif
