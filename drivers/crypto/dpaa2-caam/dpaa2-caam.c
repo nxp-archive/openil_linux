@@ -5003,16 +5003,18 @@ static int __cold dpaa2_dpseci_setup(struct fsl_mc_device *ls_dev)
 
 	/* Get a handle for the DPSECI this interface is associate with */
 	err = dpseci_open(priv->mc_io, 0, priv->dpsec_id, &ls_dev->mc_handle);
-	if (err)
+	if (err) {
 		dev_err(dev, "dpsec_open() failed\n");
-	else
-		dev_info(dev, "Opened dpseci object successfully\n");
+		goto err_open;
+	}
+
+	dev_info(dev, "Opened dpseci object successfully\n");
 
 	err = dpseci_get_attributes(priv->mc_io, 0, ls_dev->mc_handle,
 				    &priv->dpseci_attr);
 	if (err) {
 		dev_err(dev, "dpseci_get_attributes() failed\n");
-		return err;
+		goto err_get_attr;
 	}
 
 	priv->num_pairs = min(priv->dpseci_attr.num_rx_queues,
@@ -5023,7 +5025,7 @@ static int __cold dpaa2_dpseci_setup(struct fsl_mc_device *ls_dev)
 					  &priv->rx_queue_attr[i]);
 		if (err) {
 			dev_err(dev, "dpseci_get_rx_queue() failed\n");
-			return err;
+			goto err_get_attr;
 		}
 	}
 
@@ -5032,7 +5034,7 @@ static int __cold dpaa2_dpseci_setup(struct fsl_mc_device *ls_dev)
 					  &priv->tx_queue_attr[i]);
 		if (err) {
 			dev_err(dev, "dpseci_get_tx_queue() failed\n");
-			return err;
+			goto err_get_attr;
 		}
 	}
 
@@ -5054,6 +5056,11 @@ static int __cold dpaa2_dpseci_setup(struct fsl_mc_device *ls_dev)
 	}
 
 	return 0;
+
+err_get_attr:
+	dpseci_close(priv->mc_io, 0, ls_dev->mc_handle);
+err_open:
+	return err;
 }
 
 static int dpaa2_dpseci_enable(struct dpaa2_caam_priv *priv)
@@ -5147,7 +5154,7 @@ static int dpaa2_caam_probe(struct fsl_mc_device *dpseci_dev)
 	err = fsl_mc_portal_allocate(dpseci_dev, 0, &priv->mc_io);
 	if (err) {
 		dev_err(dev, "MC portal allocation failed\n");
-		goto err_portal_alloc;
+		goto err_dma_mask;
 	}
 
 	priv->ppriv = alloc_percpu(*priv->ppriv);
@@ -5261,11 +5268,11 @@ err_bind:
 err_dpio_setup:
 	dpaa2_dpseci_free(priv);
 err_dpseci_setup:
-	fsl_mc_portal_free(priv->mc_io);
+	free_percpu(priv->ppriv);
 err_alloc_ppriv:
-	dpseci_close(priv->mc_io, 0, dpseci_dev->mc_handle);
-err_portal_alloc:
+	fsl_mc_portal_free(priv->mc_io);
 err_dma_mask:
+	kmem_cache_destroy(qi_cache);
 err_qicache:
 	dev_set_drvdata(dev, NULL);
 
@@ -5299,6 +5306,7 @@ static int __cold dpaa2_caam_remove(struct fsl_mc_device *ls_dev)
 	dpaa2_dpseci_disable(priv);
 	dpaa2_dpseci_dpio_free(priv);
 	dpaa2_dpseci_free(priv);
+	free_percpu(priv->ppriv);
 	fsl_mc_portal_free(priv->mc_io);
 	dev_set_drvdata(dev, NULL);
 
