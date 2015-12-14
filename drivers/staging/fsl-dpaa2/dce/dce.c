@@ -94,8 +94,8 @@ static void trigger_user_callback(struct dce_session *session,
 	case OUTPUT_BLOCKED_SUSPEND:
 	case ACQUIRE_DATA_BUFFER_DENIED_SUSPEND:
 	case ACQUIRE_TABLE_BUFFER_DENIED_SUSPEND:
-	case MEMBER_END_SUSPENDED:
-	case Z_BLOCK_SUSPENDED:
+	case MEMBER_END_SUSPEND:
+	case Z_BLOCK_SUSPEND:
 	case OLL_REACHED_DISCARD:
 		input_consumed = scf_c_result_get_bytes_processed(
 				(struct scf_c_result *)
