@@ -1648,8 +1648,13 @@ static int dpaa2_bp_add_7(struct dpaa2_eth_priv *priv, uint16_t bpid)
 
 release_bufs:
 	/* In case the portal is busy, retry until successful.
-	 * This function is guaranteed to succeed in a reasonable amount
-	 * of time.
+	 * The buffer release function would only fail if the QBMan portal
+	 * was busy, which implies portal contention (i.e. more CPUs than
+	 * portals, i.e. GPPs w/o affine DPIOs). For all practical purposes,
+	 * there is little we can realistically do, short of giving up -
+	 * in which case we'd risk depleting the buffer pool and never again
+	 * receiving the Rx interrupt which would kick-start the refill logic.
+	 * So just keep retrying, at the risk of being moved to ksoftirqd.
 	 */
 	while (dpaa2_io_service_release(NULL, bpid, buf_array, i))
 		cpu_relax();
