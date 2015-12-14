@@ -4837,7 +4837,8 @@ static int dpaa2_dpseci_bind(struct dpaa2_caam_priv *priv)
 	struct device *dev = priv->dev;
 	struct fsl_mc_device *ls_dev = to_fsl_mc_device(dev);
 	struct dpaa2_caam_priv_per_cpu *ppriv;
-	int err = 0, i, j = 0;
+	int err = 0, i;
+	u8 j = 0;
 
 	/*
 	 * Configure Rx queues
@@ -4994,7 +4995,8 @@ static int __cold dpaa2_dpseci_setup(struct fsl_mc_device *ls_dev)
 	struct device *dev = &ls_dev->dev;
 	struct dpaa2_caam_priv *priv;
 	struct dpaa2_caam_priv_per_cpu *ppriv;
-	int i, err;
+	int err;
+	u8 i;
 
 	priv = dev_get_drvdata(dev);
 
