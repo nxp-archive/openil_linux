@@ -5202,8 +5202,8 @@ static int dpaa2_caam_probe(struct fsl_mc_device *dpseci_dev)
 		t_alg = caam_alg_alloc(priv, &driver_algs[i]);
 		if (IS_ERR(t_alg)) {
 			err = PTR_ERR(t_alg);
-			dev_warn(dev, "%s alg allocation failed\n",
-				 driver_algs[i].driver_name);
+			dev_warn(dev, "%s alg allocation failed: %d\n",
+				 driver_algs[i].driver_name, err);
 			continue;
 		}
 
@@ -5228,8 +5228,8 @@ static int dpaa2_caam_probe(struct fsl_mc_device *dpseci_dev)
 		t_hash_alg = caam_hash_alloc(priv, &driver_hash[i], true);
 		if (IS_ERR(t_hash_alg)) {
 			err = PTR_ERR(t_hash_alg);
-			dev_warn(dev, "%s hash alg allocation failed\n",
-				 driver_hash[i].driver_name);
+			dev_warn(dev, "%s hash alg allocation failed: %d\n",
+				 driver_hash[i].driver_name, err);
 			continue;
 		}
 
@@ -5246,8 +5246,8 @@ static int dpaa2_caam_probe(struct fsl_mc_device *dpseci_dev)
 		t_hash_alg = caam_hash_alloc(priv, &driver_hash[i], false);
 		if (IS_ERR(t_hash_alg)) {
 			err = PTR_ERR(t_hash_alg);
-			dev_warn(dev, "%s alg allocation failed\n",
-				 driver_hash[i].driver_name);
+			dev_warn(dev, "%s alg allocation failed: %d\n",
+				 driver_hash[i].driver_name, err);
 			continue;
 		}
 
