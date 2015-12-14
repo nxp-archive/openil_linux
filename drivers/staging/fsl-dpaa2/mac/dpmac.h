@@ -163,25 +163,33 @@ int dpmac_destroy(struct fsl_mc_io	*mc_io,
 		  uint32_t		cmd_flags,
 		  uint16_t		token);
 
-/* DPMAC IRQ Index and Events */
+/**
+ * DPMAC IRQ Index and Events
+ */
 
-/* IRQ index */
+/**
+ * IRQ index
+ */
 #define DPMAC_IRQ_INDEX						0
-/* IRQ event - indicates a change in link state */
+/**
+ * IRQ event - indicates a change in link state
+ */
 #define DPMAC_IRQ_EVENT_LINK_CFG_REQ		0x00000001
-/* irq event - Indicates that the link state changed */
+/**
+ * IRQ event - Indicates that the link state changed
+ */
 #define DPMAC_IRQ_EVENT_LINK_CHANGED		0x00000002
 
 /**
  * struct dpmac_irq_cfg - IRQ configuration
  * @addr:	Address that must be written to signal a message-based interrupt
  * @val:	Value to write into irq_addr address
- * @user_irq_id: A user defined number associated with this IRQ
+ * @irq_num: A user defined number associated with this IRQ
  */
 struct dpmac_irq_cfg {
 	     uint64_t		addr;
 	     uint32_t		val;
-	     int		user_irq_id;
+	     int		irq_num;
 };
 
 /**
@@ -417,15 +425,25 @@ int dpmac_mdio_write(struct fsl_mc_io		*mc_io,
 		     uint16_t			token,
 		     struct dpmac_mdio_cfg	*cfg);
 
-/* DPMAC link configuration/state options */
+/**
+ * DPMAC link configuration/state options
+ */
 
-/* Enable auto-negotiation */
+/**
+ * Enable auto-negotiation
+ */
 #define DPMAC_LINK_OPT_AUTONEG		0x0000000000000001ULL
-/* Enable half-duplex mode */
+/**
+ * Enable half-duplex mode
+ */
 #define DPMAC_LINK_OPT_HALF_DUPLEX	0x0000000000000002ULL
-/* Enable pause frames */
+/**
+ * Enable pause frames
+ */
 #define DPMAC_LINK_OPT_PAUSE		0x0000000000000004ULL
-/* Enable a-symmetric pause frames */
+/**
+ * Enable a-symmetric pause frames
+ */
 #define DPMAC_LINK_OPT_ASYM_PAUSE	0x0000000000000008ULL
 
 /**

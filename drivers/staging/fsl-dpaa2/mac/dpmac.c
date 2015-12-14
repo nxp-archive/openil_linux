@@ -259,7 +259,7 @@ int dpmac_get_irq_status(struct fsl_mc_io *mc_io,
 	cmd.header = mc_encode_cmd_header(DPMAC_CMDID_GET_IRQ_STATUS,
 					  cmd_flags,
 					  token);
-	DPMAC_CMD_GET_IRQ_STATUS(cmd, irq_index);
+	DPMAC_CMD_GET_IRQ_STATUS(cmd, irq_index, *status);
 
 	/* send command to mc*/
 	err = mc_send_command(mc_io, &cmd);
