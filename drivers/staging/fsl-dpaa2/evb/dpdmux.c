@@ -328,7 +328,7 @@ int dpdmux_get_irq_status(struct fsl_mc_io *mc_io,
 	cmd.header = mc_encode_cmd_header(DPDMUX_CMDID_GET_IRQ_STATUS,
 					  cmd_flags,
 					  token);
-	DPDMUX_CMD_GET_IRQ_STATUS(cmd, irq_index);
+	DPDMUX_CMD_GET_IRQ_STATUS(cmd, irq_index, *status);
 
 	/* send command to mc*/
 	err = mc_send_command(mc_io, &cmd);
@@ -398,48 +398,6 @@ int dpdmux_ul_set_max_frame_length(struct fsl_mc_io *mc_io,
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
-}
-
-int dpdmux_set_default_if(struct fsl_mc_io *mc_io,
-			  uint32_t cmd_flags,
-			  uint16_t token,
-			  uint16_t if_id,
-			  int no_default_if)
-{
-	struct mc_command cmd = { 0 };
-
-	/* prepare command */
-	cmd.header = mc_encode_cmd_header(DPDMUX_CMDID_SET_DEFAULT_IF,
-					  cmd_flags,
-					  token);
-	DPDMUX_CMD_SET_DEFAULT_IF(cmd, if_id, no_default_if);
-
-	/* send command to mc*/
-	return mc_send_command(mc_io, &cmd);
-}
-
-int dpdmux_get_default_if(struct fsl_mc_io *mc_io,
-			  uint32_t cmd_flags,
-			  uint16_t token,
-			  uint16_t *if_id)
-{
-	struct mc_command cmd = { 0 };
-	int err;
-
-	/* prepare command */
-	cmd.header = mc_encode_cmd_header(DPDMUX_CMDID_GET_DEFAULT_IF,
-						  cmd_flags,
-						  token);
-
-	/* send command to mc*/
-	err = mc_send_command(mc_io, &cmd);
-	if (err)
-		return err;
-
-	/* retrieve response parameters */
-	DPDMUX_RSP_GET_DEFAULT_IF(cmd, *if_id);
-
-	return 0;
 }
 
 int dpdmux_ul_reset_counters(struct fsl_mc_io *mc_io,

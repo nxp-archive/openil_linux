@@ -77,17 +77,21 @@ int dpdmux_close(struct fsl_mc_io	*mc_io,
 		 uint32_t		cmd_flags,
 		 uint16_t		token);
 
-/*!
- * @name DPDMUX general options
+/**
+ * DPDMUX general options
+ */
+
+/**
+ * Enable bridging between internal interfaces
  */
 #define DPDMUX_OPT_BRIDGE_EN		0x0000000000000002ULL
-/*!< Enable bridging between internal interfaces */
-/* @} */
 
 #define DPDMUX_IRQ_INDEX_IF			0x0000
 #define DPDMUX_IRQ_INDEX		0x0001
 
-/*!< IRQ event - Indicates that the link state changed */
+/**
+ * IRQ event - Indicates that the link state changed
+ */
 #define DPDMUX_IRQ_EVENT_LINK_CHANGED	0x0001
 
 /**
@@ -120,7 +124,6 @@ enum dpdmux_method {
  * struct dpdmux_cfg - DPDMUX configuration parameters
  * @method: Defines the operation method for the DPDMUX address table
  * @manip: Required manipulation operation
- * @control_if: The initial control interface
  * @num_ifs: Number of interfaces (excluding the uplink interface)
  * @adv: Advanced parameters; default is all zeros;
  *	 use this structure to change default settings
@@ -128,7 +131,6 @@ enum dpdmux_method {
 struct dpdmux_cfg {
 	enum dpdmux_method	method;
 	enum dpdmux_manip	manip;
-	int			control_if;
 	uint16_t		num_ifs;
 	/**
 	 * struct adv - Advanced parameters
@@ -242,12 +244,12 @@ int dpdmux_reset(struct fsl_mc_io	*mc_io,
  * struct dpdmux_irq_cfg - IRQ configuration
  * @addr:	Address that must be written to signal a message-based interrupt
  * @val:	Value to write into irq_addr address
- * @user_irq_id: A user defined number associated with this IRQ
+ * @irq_num: A user defined number associated with this IRQ
  */
 struct dpdmux_irq_cfg {
 	     uint64_t		addr;
 	     uint32_t		val;
-	     int		user_irq_id;
+	     int		irq_num;
 };
 
 /**
@@ -331,7 +333,7 @@ int dpdmux_get_irq_enable(struct fsl_mc_io	*mc_io,
  * @mask:	event mask to trigger interrupt;
  *		each bit:
  *			0 = ignore event
- *			1 = consider event for asserting irq
+ *			1 = consider event for asserting IRQ
  *
  * Every interrupt can have up to 32 causes and the interrupt model supports
  * masking/unmasking each cause independently
@@ -408,7 +410,6 @@ int dpdmux_clear_irq_status(struct fsl_mc_io	*mc_io,
  * @manip: DPDMUX manipulation type
  * @num_ifs: Number of interfaces (excluding the uplink interface)
  * @mem_size: DPDMUX frame storage memory size
- * @control_if: Control interface ID
  */
 struct dpdmux_attr {
 	int			id;
@@ -426,7 +427,6 @@ struct dpdmux_attr {
 	enum dpdmux_manip	manip;
 	uint16_t		num_ifs;
 	uint16_t		mem_size;
-	int			control_if;
 };
 
 /**
@@ -456,44 +456,6 @@ int dpdmux_ul_set_max_frame_length(struct fsl_mc_io	*mc_io,
 				   uint32_t		cmd_flags,
 				   uint16_t		token,
 				   uint16_t		max_frame_length);
-
-/**
- * dpdmux_set_default_if() - Set the interface to be the default interface
- * @mc_io:	Pointer to MC portal's I/O object
- * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPDMUX object
- * @if_id:	Interface ID (0 for uplink, or 1-num_ifs);
- *		Ignored if 'no_default_if = 1'
- * @no_default_if: Set to '1' to clear default interface setting -
- *		   consequently, frames with no match in the
- *		   Demux address table are dropped;
- *
- * Default interface is selected when the frame does not match
- * any entry in the Demux address table. This function can also
- * clear the default interface selection by passing 'set = 0'.
- *
- * Return:	'0' on Success; Error code otherwise.
- */
-int dpdmux_set_default_if(struct fsl_mc_io	*mc_io,
-			  uint32_t		cmd_flags,
-			  uint16_t		token,
-			  uint16_t		if_id,
-			  int			no_default_if);
-
-/**
- * dpdmux_get_default_if() - Get the default interface
- * @mc_io:	Pointer to MC portal's I/O object
- * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPDMUX object
- * @if_id:	Returns default interface ID (0 for uplink,
- *		or 1-num_ifs);
- *
- * Return:	'0' on Success; Error code otherwise.
- */
-int dpdmux_get_default_if(struct fsl_mc_io	*mc_io,
-			  uint32_t		cmd_flags,
-			  uint16_t		token,
-			  uint16_t		*if_id);
 
 /**
  * enum dpdmux_counter_type - Counter types
@@ -588,13 +550,11 @@ int dpdmux_if_set_accepted_frames(struct fsl_mc_io		      *mc_io,
  * @rate: Configured interface rate (in bits per second)
  * @enabled: Indicates if interface is enabled
  * @accept_frame_type: Indicates type of accepted frames for the interface
- * @is_default: Indicates if configured as default interface
  */
 struct dpdmux_if_attr {
 	uint32_t				rate;
 	int					enabled;
 	enum dpdmux_accepted_frames_type	accept_frame_type;
-	int					is_default;
 };
 
 /**
@@ -691,13 +651,21 @@ int dpdmux_ul_reset_counters(struct fsl_mc_io	*mc_io,
 			     uint32_t		cmd_flags,
 			     uint16_t		token);
 
-/* Enable auto-negotiation */
+/**
+ * Enable auto-negotiation
+ */
 #define DPDMUX_LINK_OPT_AUTONEG		0x0000000000000001ULL
-/* Enable half-duplex mode */
+/**
+ * Enable half-duplex mode
+ */
 #define DPDMUX_LINK_OPT_HALF_DUPLEX	0x0000000000000002ULL
-/* Enable pause frames */
+/**
+ * Enable pause frames
+ */
 #define DPDMUX_LINK_OPT_PAUSE		0x0000000000000004ULL
-/* Enable a-symmetric pause frames */
+/**
+ * Enable a-symmetric pause frames
+ */
 #define DPDMUX_LINK_OPT_ASYM_PAUSE	0x0000000000000008ULL
 
 /**
