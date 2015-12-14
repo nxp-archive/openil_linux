@@ -34,17 +34,23 @@
 
 #include "../../fsl-mc/include/net.h"
 
-/* Data Path DPSW API
+/* Data Path L2-Switch API
  * Contains API for handling DPSW topology and functionality
  */
 
 struct fsl_mc_io;
 
-/* DPSW general definitions */
+/**
+ * DPSW general definitions
+ */
 
-/*!< Maximum number of traffic class priorities */
+/**
+ * Maximum number of traffic class priorities
+ */
 #define DPSW_MAX_PRIORITIES	8
-/*!< Maximum number of interfaces */
+/**
+ * Maximum number of interfaces
+ */
 #define DPSW_MAX_IF		64
 
 /**
@@ -84,18 +90,44 @@ int dpsw_close(struct fsl_mc_io *mc_io,
 	       uint32_t	cmd_flags,
 	       uint16_t	token);
 
-/* DPSW options */
+/**
+ * DPSW options
+ */
 
-/* Disable flooding */
+/**
+ * Disable flooding
+ */
 #define DPSW_OPT_FLOODING_DIS		0x0000000000000001ULL
-/* Disable Multicast */
+/**
+ * Disable Multicast
+ */
 #define DPSW_OPT_MULTICAST_DIS		0x0000000000000004ULL
-/* Support control interface */
+/**
+ * Support control interface
+ */
 #define DPSW_OPT_CTRL_IF_DIS		0x0000000000000010ULL
-/* Disable flooding metering */
+/**
+ * Disable flooding metering
+ */
 #define DPSW_OPT_FLOODING_METERING_DIS  0x0000000000000020ULL
-/* Enable metering */
+/**
+ * Enable metering
+ */
 #define DPSW_OPT_METERING_EN            0x0000000000000040ULL
+
+/**
+ * enum dpsw_component_type - component type of a bridge
+ * @DPSW_COMPONENT_TYPE_C_VLAN: A C-VLAN component of an
+ *   enterprise VLAN bridge or of a Provider Bridge used
+ *   to process C-tagged frames
+ * @DPSW_COMPONENT_TYPE_S_VLAN: An S-VLAN component of a
+ *   Provider Bridge
+ *
+ */
+enum dpsw_component_type {
+	DPSW_COMPONENT_TYPE_C_VLAN = 0,
+	DPSW_COMPONENT_TYPE_S_VLAN
+};
 
 /**
  * struct dpsw_cfg - DPSW configuration
@@ -117,6 +149,7 @@ struct dpsw_cfg {
 	 *			0 - indicates default 300 seconds
 	 * @max_fdb_mc_groups: Number of multicast groups in each FDB table;
 	 *			0 - indicates default 32
+	 * @component_type: Indicates the component type of this bridge
 	 */
 	struct {
 		uint64_t	options;
@@ -126,6 +159,7 @@ struct dpsw_cfg {
 		uint16_t	max_fdb_entries;
 		uint16_t	fdb_aging_time;
 		uint16_t	max_fdb_mc_groups;
+		enum dpsw_component_type component_type;
 	} adv;
 };
 
@@ -219,24 +253,28 @@ int dpsw_reset(struct fsl_mc_io *mc_io,
 	       uint32_t	cmd_flags,
 	       uint16_t	token);
 
-/* DPSW IRQ Index and Events */
+/**
+ * DPSW IRQ Index and Events
+ */
 
 #define DPSW_IRQ_INDEX_IF		0x0000
 #define DPSW_IRQ_INDEX_L2SW		0x0001
 
-/*!< IRQ event - Indicates that the link state changed */
+/**
+ * IRQ event - Indicates that the link state changed
+ */
 #define DPSW_IRQ_EVENT_LINK_CHANGED	0x0001
 
 /**
  * struct dpsw_irq_cfg - IRQ configuration
  * @addr:	Address that must be written to signal a message-based interrupt
  * @val:	Value to write into irq_addr address
- * @user_irq_id: A user defined number associated with this IRQ
+ * @irq_num: A user defined number associated with this IRQ
  */
 struct dpsw_irq_cfg {
 	     uint64_t		addr;
 	     uint32_t		val;
-	     int		user_irq_id;
+	     int		irq_num;
 };
 
 /**
@@ -321,7 +359,7 @@ int dpsw_get_irq_enable(struct fsl_mc_io	*mc_io,
  * @mask:		event mask to trigger interrupt;
  *				each bit:
  *					0 = ignore event
- *					1 = consider event for asserting irq
+ *					1 = consider event for asserting IRQ
  *
  * Every interrupt can have up to 32 causes and the interrupt model supports
  * masking/unmasking each cause independently
@@ -406,6 +444,7 @@ int dpsw_clear_irq_status(struct fsl_mc_io	*mc_io,
  * @num_ifs: Number of interfaces
  * @num_vlans: Current number of VLANs
  * @num_fdbs: Current number of FDBs
+ * @component_type: Component type of this bridge
  */
 struct dpsw_attr {
 	int		id;
@@ -429,6 +468,7 @@ struct dpsw_attr {
 	uint16_t	mem_size;
 	uint16_t	num_vlans;
 	uint8_t		num_fdbs;
+	enum dpsw_component_type component_type;
 };
 
 /**
@@ -471,13 +511,21 @@ enum dpsw_action {
 	DPSW_ACTION_REDIRECT = 1
 };
 
-/* Enable auto-negotiation */
+/**
+ * Enable auto-negotiation
+ */
 #define DPSW_LINK_OPT_AUTONEG		0x0000000000000001ULL
-/* Enable half-duplex mode */
+/**
+ * Enable half-duplex mode
+ */
 #define DPSW_LINK_OPT_HALF_DUPLEX	0x0000000000000002ULL
-/* Enable pause frames */
+/**
+ * Enable pause frames
+ */
 #define DPSW_LINK_OPT_PAUSE		0x0000000000000004ULL
-/* Enable a-symmetric pause frames */
+/**
+ * Enable a-symmetric pause frames
+ */
 #define DPSW_LINK_OPT_ASYM_PAUSE	0x0000000000000008ULL
 
 /**
@@ -811,7 +859,9 @@ int dpsw_if_set_counter(struct fsl_mc_io	*mc_io,
 			enum dpsw_counter	type,
 			uint64_t		counter);
 
-/* Maximum number of TC */
+/**
+ * Maximum number of TC
+ */
 #define DPSW_MAX_TC             8
 
 /**
@@ -951,12 +1001,12 @@ enum dpsw_metering_mode {
 
 /**
  * enum dpsw_metering_unit - Metering count
- * @DPSW_METERING_UNIT_BYTES: bytes units
- * @DPSW_METERING_UNIT_PACKETS: packets units
+ * @DPSW_METERING_UNIT_BYTES: count bytes
+ * @DPSW_METERING_UNIT_FRAMES: count frames
  */
 enum dpsw_metering_unit {
 	DPSW_METERING_UNIT_BYTES = 0,
-	DPSW_METERING_UNIT_PACKETS
+	DPSW_METERING_UNIT_FRAMES
 };
 
 /**
@@ -1017,11 +1067,11 @@ int dpsw_if_set_metering(struct fsl_mc_io			*mc_io,
 /**
  * enum dpsw_early_drop_unit - DPSW early drop unit
  * @DPSW_EARLY_DROP_UNIT_BYTE: count bytes
- * @DPSW_EARLY_DROP_UNIT_PACKETS: count frames
+ * @DPSW_EARLY_DROP_UNIT_FRAMES: count frames
  */
 enum dpsw_early_drop_unit {
 	DPSW_EARLY_DROP_UNIT_BYTE = 0,
-	DPSW_EARLY_DROP_UNIT_PACKETS
+	DPSW_EARLY_DROP_UNIT_FRAMES
 };
 
 /**
@@ -1172,22 +1222,6 @@ int dpsw_if_disable(struct fsl_mc_io	*mc_io,
 		    uint16_t		if_id);
 
 /**
- * dpsw_if_get_token - Obtains interface token
- * @mc_io:	Pointer to MC portal's I/O object
- * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPSW object
- * @if_id:	Interface id
- * @if_token:	Interface token
- *
- * @returns      Completion status. '0' on Success; Error code otherwise.
- */
-int dpsw_if_get_token(struct fsl_mc_io	*mc_io,
-		      uint32_t		cmd_flags,
-		      uint16_t		token,
-		      uint16_t		if_id,
-		      uint16_t		*if_token);
-
-/**
  * struct dpsw_if_attr - Structure representing DPSW interface attributes
  * @num_tcs: Number of traffic classes
  * @rate: Transmit rate in bits per second
@@ -1200,7 +1234,7 @@ int dpsw_if_get_token(struct fsl_mc_io	*mc_io,
  *		this interface;
  *		When set to 'DPSW_ADMIT_ALL', untagged frames or priority-
  *		tagged frames received on this interface are accepted
- * @tx_fqid Transmit FQID
+ * @qdid: control frames transmit qdid
  */
 struct dpsw_if_attr {
 	uint8_t				num_tcs;
@@ -1209,7 +1243,7 @@ struct dpsw_if_attr {
 	int				enabled;
 	int				accept_all_vlan;
 	enum dpsw_accepted_frames	admit_untagged;
-	uint32_t			tx_fqid;
+	uint16_t			qdid;
 };
 
 /**
@@ -2063,7 +2097,9 @@ int dpsw_ctrl_if_get_attributes(struct fsl_mc_io		*mc_io,
 				uint16_t			token,
 				struct dpsw_ctrl_if_attr	*attr);
 
-/* Maximum number of DPBP */
+/**
+ * Maximum number of DPBP
+ */
 #define DPSW_MAX_DPBP     8
 
 /**
@@ -2114,7 +2150,7 @@ int dpsw_ctrl_if_enable(struct fsl_mc_io	*mc_io,
 			uint16_t		token);
 
 /**
-* @brief    Function disables control interface
+* dpsw_ctrl_if_disable() - Function disables control interface
 * @mc_io:	Pointer to MC portal's I/O object
 * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
 * @token:	Token of DPSW object

@@ -32,11 +32,8 @@
 #ifndef __FSL_DPSW_CMD_H
 #define __FSL_DPSW_CMD_H
 
-#define DPSW_CMD_EXTRACT_EXT_PARAMS		10
-#define DPSW_CMD_EARLY_DROP_EXT_PARAMS		13
-
 /* DPSW Version */
-#define DPSW_VER_MAJOR				6
+#define DPSW_VER_MAJOR				7
 #define DPSW_VER_MINOR				0
 
 /* Command IDs */
@@ -91,7 +88,7 @@
 #define DPSW_CMDID_IF_SET_BROADCAST		0x048
 #define DPSW_CMDID_IF_SET_MULTICAST		0x049
 #define DPSW_CMDID_IF_GET_TCI			0x04A
-#define DPSW_CMDID_IF_GET_TOKEN			0x04B
+
 #define DPSW_CMDID_IF_SET_LINK_CFG		0x04C
 
 #define DPSW_CMDID_VLAN_ADD			0x060
@@ -141,6 +138,8 @@ do { \
 	MC_CMD_OP(cmd, 0, 0,  16, uint16_t, cfg->num_ifs);\
 	MC_CMD_OP(cmd, 0, 16,  8, uint8_t,  cfg->adv.max_fdbs);\
 	MC_CMD_OP(cmd, 0, 24,  8, uint8_t,  cfg->adv.max_meters_per_if);\
+	MC_CMD_OP(cmd, 0, 32,  4, enum dpsw_component_type,  \
+			cfg->adv.component_type);\
 	MC_CMD_OP(cmd, 1, 0,  16, uint16_t, cfg->adv.max_vlans);\
 	MC_CMD_OP(cmd, 1, 16, 16, uint16_t, cfg->adv.max_fdb_entries);\
 	MC_CMD_OP(cmd, 1, 32, 16, uint16_t, cfg->adv.fdb_aging_time);\
@@ -158,7 +157,7 @@ do { \
 	MC_CMD_OP(cmd, 0, 0,  8,  uint8_t,  irq_index);\
 	MC_CMD_OP(cmd, 0, 32, 32, uint32_t, irq_cfg->val);\
 	MC_CMD_OP(cmd, 1, 0,  64, uint64_t, irq_cfg->addr);\
-	MC_CMD_OP(cmd, 2, 0,  32, int,	    irq_cfg->user_irq_id); \
+	MC_CMD_OP(cmd, 2, 0,  32, int,	    irq_cfg->irq_num); \
 } while (0)
 
 /*                cmd, param, offset, width, type, arg_name */
@@ -170,7 +169,7 @@ do { \
 do { \
 	MC_RSP_OP(cmd, 0, 0,  32, uint32_t, irq_cfg->val); \
 	MC_RSP_OP(cmd, 1, 0,  64, uint64_t, irq_cfg->addr);\
-	MC_RSP_OP(cmd, 2, 0,  32, int,	    irq_cfg->user_irq_id); \
+	MC_RSP_OP(cmd, 2, 0,  32, int,	    irq_cfg->irq_num); \
 	MC_RSP_OP(cmd, 2, 32, 32, int,	    type); \
 } while (0)
 
@@ -205,8 +204,11 @@ do { \
 	MC_RSP_OP(cmd, 0, 0,  32, uint32_t, mask)
 
 /*                cmd, param, offset, width, type, arg_name */
-#define DPSW_CMD_GET_IRQ_STATUS(cmd, irq_index) \
-	MC_CMD_OP(cmd, 0, 32, 8,  uint8_t,  irq_index)
+#define DPSW_CMD_GET_IRQ_STATUS(cmd, irq_index, status) \
+do { \
+	MC_CMD_OP(cmd, 0, 0,  32, uint32_t, status);\
+	MC_CMD_OP(cmd, 0, 32, 8,  uint8_t,  irq_index);\
+} while (0)
 
 /*                cmd, param, offset, width, type, arg_name */
 #define DPSW_RSP_GET_IRQ_STATUS(cmd, status) \
@@ -236,6 +238,8 @@ do { \
 	MC_RSP_OP(cmd, 2, 48, 16, uint16_t, attr->max_fdb_mc_groups);\
 	MC_RSP_OP(cmd, 3, 0,  64, uint64_t, attr->options);\
 	MC_RSP_OP(cmd, 4, 0,  8,  uint8_t, attr->max_meters_per_if);\
+	MC_RSP_OP(cmd, 4, 8,  4,  enum dpsw_component_type, \
+			attr->component_type);\
 } while (0)
 
 /*                cmd, param, offset, width, type, arg_name */
@@ -408,6 +412,21 @@ do { \
 } while (0)
 
 /*                cmd, param, offset, width, type, arg_name */
+#define DPSW_PREP_EARLY_DROP(ext, cfg) \
+do { \
+	MC_PREP_OP(ext, 0, 0,  2, enum dpsw_early_drop_mode, cfg->drop_mode); \
+	MC_PREP_OP(ext, 0, 2,  2, \
+		  enum dpsw_early_drop_unit, cfg->units); \
+	MC_PREP_OP(ext, 0, 32, 32, uint32_t, cfg->tail_drop_threshold); \
+	MC_PREP_OP(ext, 1, 0,  8,  uint8_t,  cfg->green.drop_probability); \
+	MC_PREP_OP(ext, 2, 0,  64, uint64_t, cfg->green.max_threshold); \
+	MC_PREP_OP(ext, 3, 0,  64, uint64_t, cfg->green.min_threshold); \
+	MC_PREP_OP(ext, 5, 0,  8,  uint8_t,  cfg->yellow.drop_probability);\
+	MC_PREP_OP(ext, 6, 0,  64, uint64_t, cfg->yellow.max_threshold); \
+	MC_PREP_OP(ext, 7, 0,  64, uint64_t, cfg->yellow.min_threshold); \
+} while (0)
+
+/*                cmd, param, offset, width, type, arg_name */
 #define DPSW_EXT_EARLY_DROP(ext, cfg) \
 do { \
 	MC_EXT_OP(ext, 0, 0,  2, enum dpsw_early_drop_mode, cfg->drop_mode); \
@@ -447,14 +466,6 @@ do { \
 	MC_CMD_OP(cmd, 0, 0,  16, uint16_t, if_id)
 
 /*                cmd, param, offset, width, type, arg_name */
-#define DPSW_CMD_IF_GET_TOKEN(cmd, if_id) \
-	MC_CMD_OP(cmd, 0, 0,  16, uint16_t, if_id)
-
-/*                cmd, param, offset, width, type, arg_name */
-#define DPSW_RSP_IF_GET_TOKEN(cmd, if_token) \
-	MC_RSP_OP(cmd, 0, 32,  16, uint16_t, if_token)
-
-/*                cmd, param, offset, width, type, arg_name */
 #define DPSW_CMD_IF_GET_ATTR(cmd, if_id) \
 	MC_CMD_OP(cmd, 0, 0,  16, uint16_t, if_id)
 
@@ -466,7 +477,7 @@ do { \
 	MC_RSP_OP(cmd, 0, 5,  1,  int,      attr->enabled);\
 	MC_RSP_OP(cmd, 0, 6,  1,  int,      attr->accept_all_vlan);\
 	MC_RSP_OP(cmd, 0, 16, 8,  uint8_t,  attr->num_tcs);\
-	MC_RSP_OP(cmd, 0, 32, 32, uint32_t, attr->tx_fqid);\
+	MC_RSP_OP(cmd, 0, 32, 16, uint16_t,	attr->qdid);\
 	MC_RSP_OP(cmd, 1, 0,  32, uint32_t, attr->options);\
 	MC_RSP_OP(cmd, 2, 0,  32, uint32_t, attr->rate);\
 } while (0)
@@ -719,6 +730,55 @@ do { \
 /*                cmd, param, offset, width, type, arg_name */
 #define DPSW_CMD_ACL_REMOVE(cmd, acl_id) \
 	MC_CMD_OP(cmd, 0, 0,  16, uint16_t, acl_id)
+
+/*                cmd, param, offset, width, type, arg_name */
+#define DPSW_PREP_ACL_ENTRY(ext, key) \
+do { \
+	MC_PREP_OP(ext, 0, 0,  8,  uint8_t,  key->match.l2_dest_mac[5]);\
+	MC_PREP_OP(ext, 0, 8,  8,  uint8_t,  key->match.l2_dest_mac[4]);\
+	MC_PREP_OP(ext, 0, 16, 8,  uint8_t,  key->match.l2_dest_mac[3]);\
+	MC_PREP_OP(ext, 0, 24, 8,  uint8_t,  key->match.l2_dest_mac[2]);\
+	MC_PREP_OP(ext, 0, 32, 8,  uint8_t,  key->match.l2_dest_mac[1]);\
+	MC_PREP_OP(ext, 0, 40, 8,  uint8_t,  key->match.l2_dest_mac[0]);\
+	MC_PREP_OP(ext, 0, 48, 16, uint16_t, key->match.l2_tpid);\
+	MC_PREP_OP(ext, 1, 0,  8,  uint8_t,  key->match.l2_source_mac[5]);\
+	MC_PREP_OP(ext, 1, 8,  8,  uint8_t,  key->match.l2_source_mac[4]);\
+	MC_PREP_OP(ext, 1, 16, 8,  uint8_t,  key->match.l2_source_mac[3]);\
+	MC_PREP_OP(ext, 1, 24, 8,  uint8_t,  key->match.l2_source_mac[2]);\
+	MC_PREP_OP(ext, 1, 32, 8,  uint8_t,  key->match.l2_source_mac[1]);\
+	MC_PREP_OP(ext, 1, 40, 8,  uint8_t,  key->match.l2_source_mac[0]);\
+	MC_PREP_OP(ext, 1, 48, 16, uint16_t, key->match.l2_vlan_id);\
+	MC_PREP_OP(ext, 2, 0,  32, uint32_t, key->match.l3_dest_ip);\
+	MC_PREP_OP(ext, 2, 32, 32, uint32_t, key->match.l3_source_ip);\
+	MC_PREP_OP(ext, 3, 0,  16, uint16_t, key->match.l4_dest_port);\
+	MC_PREP_OP(ext, 3, 16, 16, uint16_t, key->match.l4_source_port);\
+	MC_PREP_OP(ext, 3, 32, 16, uint16_t, key->match.l2_ether_type);\
+	MC_PREP_OP(ext, 3, 48, 8,  uint8_t,  key->match.l2_pcp_dei);\
+	MC_PREP_OP(ext, 3, 56, 8,  uint8_t,  key->match.l3_dscp);\
+	MC_PREP_OP(ext, 4, 0,  8,  uint8_t,  key->mask.l2_dest_mac[5]);\
+	MC_PREP_OP(ext, 4, 8,  8,  uint8_t,  key->mask.l2_dest_mac[4]);\
+	MC_PREP_OP(ext, 4, 16, 8,  uint8_t,  key->mask.l2_dest_mac[3]);\
+	MC_PREP_OP(ext, 4, 24, 8,  uint8_t,  key->mask.l2_dest_mac[2]);\
+	MC_PREP_OP(ext, 4, 32, 8,  uint8_t,  key->mask.l2_dest_mac[1]);\
+	MC_PREP_OP(ext, 4, 40, 8,  uint8_t,  key->mask.l2_dest_mac[0]);\
+	MC_PREP_OP(ext, 4, 48, 16, uint16_t, key->mask.l2_tpid);\
+	MC_PREP_OP(ext, 5, 0,  8,  uint8_t,  key->mask.l2_source_mac[5]);\
+	MC_PREP_OP(ext, 5, 8,  8,  uint8_t,  key->mask.l2_source_mac[4]);\
+	MC_PREP_OP(ext, 5, 16, 8,  uint8_t,  key->mask.l2_source_mac[3]);\
+	MC_PREP_OP(ext, 5, 24, 8,  uint8_t,  key->mask.l2_source_mac[2]);\
+	MC_PREP_OP(ext, 5, 32, 8,  uint8_t,  key->mask.l2_source_mac[1]);\
+	MC_PREP_OP(ext, 5, 40, 8,  uint8_t,  key->mask.l2_source_mac[0]);\
+	MC_PREP_OP(ext, 5, 48, 16, uint16_t, key->mask.l2_vlan_id);\
+	MC_PREP_OP(ext, 6, 0,  32, uint32_t, key->mask.l3_dest_ip);\
+	MC_PREP_OP(ext, 6, 32, 32, uint32_t, key->mask.l3_source_ip);\
+	MC_PREP_OP(ext, 7, 0,  16, uint16_t, key->mask.l4_dest_port);\
+	MC_PREP_OP(ext, 7, 16, 16, uint16_t, key->mask.l4_source_port);\
+	MC_PREP_OP(ext, 7, 32, 16, uint16_t, key->mask.l2_ether_type);\
+	MC_PREP_OP(ext, 7, 48, 8,  uint8_t,  key->mask.l2_pcp_dei);\
+	MC_PREP_OP(ext, 7, 56, 8,  uint8_t,  key->mask.l3_dscp);\
+	MC_PREP_OP(ext, 8, 0,  8,  uint8_t,  key->match.l3_protocol);\
+	MC_PREP_OP(ext, 8, 8,  8,  uint8_t,  key->mask.l3_protocol);\
+} while (0)
 
 /*                cmd, param, offset, width, type, arg_name */
 #define DPSW_EXT_ACL_ENTRY(ext, key) \

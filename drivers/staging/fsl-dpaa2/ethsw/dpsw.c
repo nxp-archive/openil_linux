@@ -369,7 +369,7 @@ int dpsw_get_irq_status(struct fsl_mc_io *mc_io,
 	cmd.header = mc_encode_cmd_header(DPSW_CMDID_GET_IRQ_STATUS,
 					  cmd_flags,
 					  token);
-	DPSW_CMD_GET_IRQ_STATUS(cmd, irq_index);
+	DPSW_CMD_GET_IRQ_STATUS(cmd, irq_index, *status);
 
 	/* send command to mc*/
 	err = mc_send_command(mc_io, &cmd);
@@ -779,7 +779,7 @@ void dpsw_prepare_early_drop(const struct dpsw_early_drop_cfg *cfg,
 {
 	uint64_t *ext_params = (uint64_t *)early_drop_buf;
 
-	DPSW_EXT_EARLY_DROP(ext_params, cfg);
+	DPSW_PREP_EARLY_DROP(ext_params, cfg);
 }
 
 int dpsw_if_set_early_drop(struct fsl_mc_io	*mc_io,
@@ -867,32 +867,6 @@ int dpsw_if_disable(struct fsl_mc_io *mc_io,
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
-}
-
-int dpsw_if_get_token(struct fsl_mc_io *mc_io,
-		      uint32_t cmd_flags,
-		      uint16_t token,
-		      uint16_t if_id,
-		      uint16_t *if_token)
-{
-	struct mc_command cmd = { 0 };
-	int err;
-
-	/* prepare command */
-	cmd.header = mc_encode_cmd_header(DPSW_CMDID_IF_GET_TOKEN,
-					  cmd_flags,
-					  token);
-	DPSW_CMD_IF_GET_TOKEN(cmd, if_id);
-
-	/* send command to mc*/
-	err = mc_send_command(mc_io, &cmd);
-	if (err)
-		return err;
-
-	/* retrieve response parameters */
-	DPSW_RSP_IF_GET_TOKEN(cmd, *if_token);
-
-	return 0;
 }
 
 int dpsw_if_get_attributes(struct fsl_mc_io *mc_io,
@@ -1482,7 +1456,7 @@ void dpsw_acl_prepare_entry_cfg(const struct dpsw_acl_key *key,
 {
 	uint64_t *ext_params = (uint64_t *)entry_cfg_buf;
 
-	DPSW_EXT_ACL_ENTRY(ext_params, key);
+	DPSW_PREP_ACL_ENTRY(ext_params, key);
 }
 
 int dpsw_acl_add_entry(struct fsl_mc_io *mc_io,
