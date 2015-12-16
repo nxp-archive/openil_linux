@@ -470,7 +470,7 @@ static __init int parse_mem_property(struct device_node *node, const char *name,
 
 	if (zero) {
 		/* map as cacheable, non-guarded */
-#ifdef CONFIG_ARM64
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
 		void __iomem *tmpp = ioremap_cache(*addr, *sz);
 #else
 		void __iomem *tmpp = ioremap(*addr, *sz);
@@ -714,7 +714,7 @@ int qman_init_ccsr(struct device_node *node)
 		return 0;
 	if (node != qm_node)
 		return -EINVAL;
-#ifdef CONFIG_ARM64
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
 	/* TEMP for LS1043 : should be done in uboot */
 	qm_out(QCSP_BARE, 0x5);
 	qm_out(QCSP_BAR, 0x0);
