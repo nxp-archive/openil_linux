@@ -208,7 +208,10 @@ void count_ern(struct dpa_percpu_priv_s *percpu_priv,
 		      const struct qm_mr_entry *msg);
 int dpa_enable_tx_csum(struct dpa_priv_s *priv,
 	struct sk_buff *skb, struct qm_fd *fd, char *parse_results);
-
+#ifdef CONFIG_FSL_DPAA_CEETM
+void dpa_enable_ceetm(struct net_device *dev);
+void dpa_disable_ceetm(struct net_device *dev);
+#endif
 struct proxy_device {
 		struct mac_device *mac_dev;
 };

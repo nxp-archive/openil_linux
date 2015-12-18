@@ -1735,3 +1735,19 @@ return_error:
 	return retval;
 }
 EXPORT_SYMBOL(dpa_enable_tx_csum);
+
+#ifdef CONFIG_FSL_DPAA_CEETM
+void dpa_enable_ceetm(struct net_device *dev)
+{
+	struct dpa_priv_s *priv = netdev_priv(dev);
+	priv->ceetm_en = true;
+}
+EXPORT_SYMBOL(dpa_enable_ceetm);
+
+void dpa_disable_ceetm(struct net_device *dev)
+{
+	struct dpa_priv_s *priv = netdev_priv(dev);
+	priv->ceetm_en = false;
+}
+EXPORT_SYMBOL(dpa_disable_ceetm);
+#endif

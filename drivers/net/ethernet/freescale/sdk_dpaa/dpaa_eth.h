@@ -401,6 +401,9 @@ struct dpa_priv_s {
 	int loop_id;
 	int loop_to;
 #endif
+#ifdef CONFIG_FSL_DPAA_CEETM
+	bool ceetm_en; /* CEETM QoS enabled */
+#endif
 };
 
 struct fm_port_fqs {
