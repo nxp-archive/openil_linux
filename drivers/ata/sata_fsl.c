@@ -1501,6 +1501,14 @@ static int sata_fsl_probe(struct platform_device *ofdev)
 	else
 		host_priv->data_snoop = DATA_SNOOP_ENABLE_V1;
 
+	/*
+	 * Since erratum A-005636 applies to all platforms, it only be fixed
+	 * on T4 rev2.0, we add a flag to identify the erratum in main path.
+	 * XXX: for T4 rev2.0 and other new SoCs use same controller as
+	 * T4 Rev2.0. this flag should be removed.
+	 */
+	pi.flags |= ATA_FLAG_BROKENAA;
+
 	/* allocate host structure */
 	host = ata_host_alloc_pinfo(&ofdev->dev, ppi, SATA_FSL_MAX_PORTS);
 	if (!host) {
