@@ -333,6 +333,17 @@ int dprc_scan_objects(struct fsl_mc_device *mc_bus_dev,
 				continue;
 			}
 
+			/*
+			 * for DPRC versions that do not support the
+			 * shareability attribute, make simplifying assumption
+			 * that only SEC is not shareable.
+			 */
+			if ((mc_bus_dev->obj_desc.ver_major == 5) &&
+			    (mc_bus_dev->obj_desc.ver_minor == 0) &&
+			    (strcmp(obj_desc->type, "dpseci") == 0))
+				obj_desc->flags |=
+					DPRC_OBJ_FLAG_NO_MEM_SHAREABILITY;
+
 			irq_count += obj_desc->irq_count;
 			dev_dbg(&mc_bus_dev->dev,
 				"Discovered object: type %s, id %d\n",
@@ -856,6 +867,17 @@ static int dprc_probe(struct fsl_mc_device *mc_dev)
 	if (error < 0) {
 		dev_err(&mc_dev->dev, "dprc_get_attributes() failed: %d\n",
 			error);
+		goto error_cleanup_open;
+	}
+
+	if (mc_bus->dprc_attr.version.major < DPRC_MIN_VER_MAJOR ||
+	   (mc_bus->dprc_attr.version.major == DPRC_MIN_VER_MAJOR &&
+	    mc_bus->dprc_attr.version.minor < DPRC_MIN_VER_MINOR)) {
+		dev_err(&mc_dev->dev,
+			"ERROR: DPRC version %d.%d not supported\n",
+			mc_bus->dprc_attr.version.major,
+			mc_bus->dprc_attr.version.minor);
+		error = -ENOTSUPP;
 		goto error_cleanup_open;
 	}
 

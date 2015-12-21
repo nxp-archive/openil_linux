@@ -620,12 +620,12 @@ int fsl_mc_device_add(struct dprc_obj_desc *obj_desc,
 			goto error_cleanup_dev;
 	}
 
-	/* DPAA2 devices on the mc-bus *are* dma-coherent,
-	 * with the noticeable exception of DPSECI.
+	/*
+	 * Objects are coherent, unless 'no shareability' flag set.
 	 * FIXME: fill up @dma_base, @size, @iommu
 	 */
-	if (strcmp(obj_desc->type, "dpseci"))
-		arch_setup_dma_ops(&mc_dev->dev, 0, 0, NULL, true);
+	if (!(obj_desc->flags & DPRC_OBJ_FLAG_NO_MEM_SHAREABILITY))
+			arch_setup_dma_ops(&mc_dev->dev, 0, 0, NULL, true);
 
 	/*
 	 * The device-specific probe callback will get invoked by device_add()
@@ -1209,6 +1209,7 @@ static int fsl_mc_bus_probe(struct platform_device *pdev)
 		goto error_cleanup_mc_io;
 	}
 
+	memset(&obj_desc, 0, sizeof(struct dprc_obj_desc));
 	error = get_dprc_version(mc_io, container_id,
 				 &obj_desc.ver_major, &obj_desc.ver_minor);
 	if (error < 0)
