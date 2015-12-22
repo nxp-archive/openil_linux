@@ -249,6 +249,7 @@ struct dpaa2_eth_fq {
 	enum dpaa2_eth_fq_type type;
 
 	void (*consume)(struct dpaa2_eth_priv *,
+			struct dpaa2_eth_channel *,
 			const struct dpaa2_fd *,
 			struct napi_struct *);
 	struct dpaa2_eth_priv *netdev_priv;	/* backpointer */
@@ -264,6 +265,7 @@ struct dpaa2_eth_channel {
 	struct napi_struct napi;
 	struct dpaa2_io_store *store;
 	struct dpaa2_eth_priv *priv;
+	int buf_count;
 	struct dpaa2_eth_ch_stats stats;
 };
 
@@ -294,8 +296,6 @@ struct dpaa2_eth_priv {
 	/* TODO: Support multiple BPs */
 	struct fsl_mc_device *dpbp_dev;
 	struct dpbp_attr dpbp_attrs;
-
-	int __percpu *buf_count;
 
 	u16 tx_qdid;
 	struct fsl_mc_io *mc_io;

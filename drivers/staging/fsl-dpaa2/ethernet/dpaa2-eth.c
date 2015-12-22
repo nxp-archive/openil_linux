@@ -69,7 +69,9 @@ do { \
 		(cpu) = cpumask_first((maskptr)); \
 } while (0)
 
-static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv, u16 bpid);
+static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv,
+			     struct dpaa2_eth_channel *ch,
+			     u16 bpid);
 static int dpaa2_dpbp_seed(struct dpaa2_eth_priv *priv, u16 bpid);
 static void __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv);
 
@@ -128,13 +130,13 @@ static void dpaa2_eth_free_rx_fd(struct dpaa2_eth_priv *priv,
 
 /* Build a linear skb based on a single-buffer frame descriptor */
 static struct sk_buff *dpaa2_eth_build_linear_skb(struct dpaa2_eth_priv *priv,
+						  struct dpaa2_eth_channel *ch,
 						  const struct dpaa2_fd *fd,
 						  void *fd_vaddr)
 {
 	struct sk_buff *skb = NULL;
 	u16 fd_offset = dpaa2_fd_get_offset(fd);
 	u32 fd_length = dpaa2_fd_get_len(fd);
-	int *count;
 
 	skb = build_skb(fd_vaddr, DPAA2_ETH_RX_BUFFER_SIZE +
 			SKB_DATA_ALIGN(sizeof(struct skb_shared_info)));
@@ -146,14 +148,14 @@ static struct sk_buff *dpaa2_eth_build_linear_skb(struct dpaa2_eth_priv *priv,
 	skb_reserve(skb, fd_offset);
 	skb_put(skb, fd_length);
 
-	count = this_cpu_ptr(priv->buf_count);
-	(*count)--;
+	ch->buf_count--;
 
 	return skb;
 }
 
 /* Build a non linear (fragmented) skb based on a S/G table */
 static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
+						struct dpaa2_eth_channel *ch,
 						struct dpaa2_sg_entry *sgt)
 {
 	struct sk_buff *skb = NULL;
@@ -164,7 +166,6 @@ static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
 	u32 sg_length;
 	struct page *page, *head_page;
 	int page_offset;
-	int *count;
 	int i;
 
 	for (i = 0; i < DPAA2_ETH_MAX_SG_ENTRIES; i++) {
@@ -227,13 +228,13 @@ static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
 	}
 
 	/* Count all data buffers + sgt buffer */
-	count = this_cpu_ptr(priv->buf_count);
-	*count -= i + 2;
+	ch->buf_count -= i + 2;
 
 	return skb;
 }
 
 static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
+			 struct dpaa2_eth_channel *ch,
 			 const struct dpaa2_fd *fd,
 			 struct napi_struct *napi)
 {
@@ -260,11 +261,11 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 	percpu_extras = this_cpu_ptr(priv->percpu_extras);
 
 	if (fd_format == dpaa2_fd_single) {
-		skb = dpaa2_eth_build_linear_skb(priv, fd, vaddr);
+		skb = dpaa2_eth_build_linear_skb(priv, ch, fd, vaddr);
 	} else if (fd_format == dpaa2_fd_sg) {
 		struct dpaa2_sg_entry *sgt =
 				vaddr + dpaa2_fd_get_offset(fd);
-		skb = dpaa2_eth_build_frag_skb(priv, sgt);
+		skb = dpaa2_eth_build_frag_skb(priv, ch, sgt);
 		put_page(virt_to_head_page(vaddr));
 		percpu_extras->rx_sg_frames++;
 		percpu_extras->rx_sg_bytes += dpaa2_fd_get_len(fd);
@@ -319,6 +320,7 @@ err_build_skb:
 
 #ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
 static void dpaa2_eth_rx_err(struct dpaa2_eth_priv *priv,
+			     struct dpaa2_eth_channel *ch,
 			     const struct dpaa2_fd *fd,
 			     struct napi_struct *napi __always_unused)
 {
@@ -386,7 +388,8 @@ static int dpaa2_eth_store_consume(struct dpaa2_eth_channel *ch)
 		fd = dpaa2_dq_fd(dq);
 		fq = (struct dpaa2_eth_fq *)dpaa2_dq_fqd_ctx(dq);
 		fq->stats.frames++;
-		fq->consume(priv, fd, &ch->napi);
+
+		fq->consume(priv, ch, fd, &ch->napi);
 		cleaned++;
 	} while (!is_last);
 
@@ -718,6 +721,7 @@ err_alloc_headroom:
 }
 
 static void dpaa2_eth_tx_conf(struct dpaa2_eth_priv *priv,
+			      struct dpaa2_eth_channel *ch,
 			      const struct dpaa2_fd *fd,
 			      struct napi_struct *napi __always_unused)
 {
@@ -828,7 +832,7 @@ static int dpaa2_eth_poll(struct napi_struct *napi, int budget)
 
 	do {
 		/* Refill pool if appropriate */
-		dpaa2_dpbp_refill(priv, priv->dpbp_attrs.bpid);
+		dpaa2_dpbp_refill(priv, ch, priv->dpbp_attrs.bpid);
 
 		store_cleaned = dpaa2_eth_store_consume(ch);
 		cleaned += store_cleaned;
@@ -1726,7 +1730,6 @@ static int dpaa2_dpbp_seed(struct dpaa2_eth_priv *priv, u16 bpid)
 {
 	int i, j;
 	int new_count;
-	int *count;
 
 	/* This is the lazy seeding of Rx buffer pools.
 	 * dpaa2_bp_add_7() is also used on the Rx hotpath and calls
@@ -1735,11 +1738,10 @@ static int dpaa2_dpbp_seed(struct dpaa2_eth_priv *priv, u16 bpid)
 	 * Rather than splitting up the code, do a one-off preempt disable.
 	 */
 	preempt_disable();
-	for_each_possible_cpu(j) {
+	for (j = 0; j < priv->num_channels; j++) {
 		for (i = 0; i < DPAA2_ETH_NUM_BUFS; i += 7) {
 			new_count = dpaa2_bp_add_7(priv, bpid);
-			count = per_cpu_ptr(priv->buf_count, j);
-			*count += new_count;
+			priv->channel[j]->buf_count += new_count;
 
 			if (new_count < 7) {
 				preempt_enable();
@@ -1758,13 +1760,14 @@ out_of_memory:
 /* Function is called from softirq context only, so we don't need to guard
  * the access to percpu count
  */
-static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv, u16 bpid)
+static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv,
+			     struct dpaa2_eth_channel *ch,
+			     u16 bpid)
 {
 	int new_count;
 	int err = 0;
-	int *count = this_cpu_ptr(priv->buf_count);
 
-	if (unlikely(*count < DPAA2_ETH_REFILL_THRESH)) {
+	if (unlikely(ch->buf_count < DPAA2_ETH_REFILL_THRESH)) {
 		do {
 			new_count = dpaa2_bp_add_7(priv, bpid);
 			if (unlikely(!new_count)) {
@@ -1773,10 +1776,10 @@ static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv, u16 bpid)
 				 */
 				break;
 			}
-			*count += new_count;
-		} while (*count < DPAA2_ETH_NUM_BUFS);
+			ch->buf_count += new_count;
+		} while (ch->buf_count < DPAA2_ETH_NUM_BUFS);
 
-		if (unlikely(*count < DPAA2_ETH_NUM_BUFS))
+		if (unlikely(ch->buf_count < DPAA2_ETH_NUM_BUFS))
 			err = -ENOMEM;
 	}
 
@@ -1837,14 +1840,12 @@ err_open:
 
 static void __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
 {
-	int cpu, *count;
+	int i;
 
 	dpaa2_dpbp_drain(priv);
 
-	for_each_possible_cpu(cpu) {
-		count = per_cpu_ptr(priv->buf_count, cpu);
-		*count = 0;
-	}
+	for (i = 0; i < priv->num_channels; i++)
+		priv->channel[i]->buf_count = 0;
 }
 
 static void dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
@@ -2623,12 +2624,6 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 	dpaa2_set_fq_affinity(priv);
 
 	/* DPBP */
-	priv->buf_count = alloc_percpu(*priv->buf_count);
-	if (!priv->buf_count) {
-		dev_err(dev, "alloc_percpu() failed\n");
-		err = -ENOMEM;
-		goto err_alloc_bp_count;
-	}
 	err = dpaa2_dpbp_setup(priv);
 	if (err)
 		goto err_dpbp_setup;
@@ -2718,8 +2713,6 @@ err_alloc_percpu_stats:
 err_bind:
 	dpaa2_dpbp_free(priv);
 err_dpbp_setup:
-	free_percpu(priv->buf_count);
-err_alloc_bp_count:
 	dpaa2_dpio_free(priv);
 err_dpio_setup:
 	kfree(priv->cls_rule);
@@ -2763,7 +2756,6 @@ static int dpaa2_eth_remove(struct fsl_mc_device *ls_dev)
 
 	free_percpu(priv->percpu_stats);
 	free_percpu(priv->percpu_extras);
-	free_percpu(priv->buf_count);
 
 #ifdef CONFIG_FSL_DPAA2_ETH_LINK_POLL
 	kthread_stop(priv->poll_thread);
