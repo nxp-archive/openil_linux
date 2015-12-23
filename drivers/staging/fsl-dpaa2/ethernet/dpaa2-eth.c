@@ -36,6 +36,7 @@
 #include <linux/interrupt.h>
 #include <linux/debugfs.h>
 #include <linux/kthread.h>
+#include <linux/net_tstamp.h>
 
 #include "../../fsl-mc/include/mc.h"
 #include "../../fsl-mc/include/mc-sys.h" /* FSL_MC_IO_ATOMIC_CONTEXT_PORTAL */
@@ -281,6 +282,17 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 	}
 
 	prefetch(skb->data);
+
+	if (priv->ts_rx_en) {
+		struct skb_shared_hwtstamps *shhwtstamps = skb_hwtstamps(skb);
+		u64 *ns = (u64 *) (vaddr +
+				priv->buf_layout.private_data_size +
+				sizeof(struct dpaa2_fas));
+
+		*ns = DPAA2_PTP_NOMINAL_FREQ_PERIOD_NS * (*ns);
+		memset(shhwtstamps, 0, sizeof(*shhwtstamps));
+		shhwtstamps->hwtstamp = ns_to_ktime(*ns);
+	}
 
 	/* Check if we need to validate the L4 csum */
 	if (likely(fd->simple.frc & DPAA2_FD_FRC_FASV)) {
@@ -591,6 +603,20 @@ static void dpaa2_eth_free_fd(const struct dpaa2_eth_priv *priv,
 		unmap_size = priv->tx_data_offset +
 		       sizeof(struct dpaa2_sg_entry) * (1 + num_dma_bufs);
 		dma_unmap_single(dev, fd_addr, unmap_size, DMA_TO_DEVICE);
+	}
+
+	if (priv->ts_tx_en && skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP) {
+		struct skb_shared_hwtstamps shhwtstamps;
+		u64 *ns;
+
+		memset(&shhwtstamps, 0, sizeof(shhwtstamps));
+
+		ns = (u64 *)((void *)skbh +
+			priv->buf_layout.private_data_size +
+			sizeof(struct dpaa2_fas));
+		*ns = DPAA2_PTP_NOMINAL_FREQ_PERIOD_NS * (*ns);
+		shhwtstamps.hwtstamp = ns_to_ktime(*ns);
+		skb_tstamp_tx(skb, &shhwtstamps);
 	}
 
 	/* Check the status from the Frame Annotation after we unmap the first
@@ -1224,6 +1250,45 @@ static int dpaa2_eth_set_features(struct net_device *net_dev,
 	return 0;
 }
 
+static int dpaa2_eth_ts_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
+{
+	struct dpaa2_eth_priv *priv = netdev_priv(dev);
+	struct hwtstamp_config config;
+
+	if (copy_from_user(&config, rq->ifr_data, sizeof(config)))
+		return -EFAULT;
+
+	switch (config.tx_type) {
+	case HWTSTAMP_TX_OFF:
+		priv->ts_tx_en = false;
+		break;
+	case HWTSTAMP_TX_ON:
+		priv->ts_tx_en = true;
+		break;
+	default:
+		return -ERANGE;
+	}
+
+	if (config.rx_filter == HWTSTAMP_FILTER_NONE)
+		priv->ts_rx_en = false;
+	else {
+		priv->ts_rx_en = true;
+		/* TS is set for all frame types, not only those requested */
+		config.rx_filter = HWTSTAMP_FILTER_ALL;
+	}
+
+	return copy_to_user(rq->ifr_data, &config, sizeof(config)) ?
+			-EFAULT : 0;
+}
+
+static int dpaa2_eth_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
+{
+	if (cmd == SIOCSHWTSTAMP)
+		return dpaa2_eth_ts_ioctl(dev, rq, cmd);
+	else
+		return -EINVAL;
+}
+
 static const struct net_device_ops dpaa2_eth_ops = {
 	.ndo_open = dpaa2_eth_open,
 	.ndo_start_xmit = dpaa2_eth_tx,
@@ -1234,6 +1299,7 @@ static const struct net_device_ops dpaa2_eth_ops = {
 	.ndo_change_mtu = dpaa2_eth_change_mtu,
 	.ndo_set_rx_mode = dpaa2_eth_set_rx_mode,
 	.ndo_set_features = dpaa2_eth_set_features,
+	.ndo_do_ioctl = dpaa2_eth_ioctl,
 };
 
 static void dpaa2_eth_cdan_cb(struct dpaa2_io_notification_ctx *ctx)
@@ -1813,6 +1879,8 @@ static int __cold dpaa2_dpni_setup(struct fsl_mc_device *ls_dev)
 	}
 	/* ... tx-confirm. */
 	priv->buf_layout.options &= ~DPNI_BUF_LAYOUT_OPT_PRIVATE_DATA_SIZE;
+	priv->buf_layout.options |= DPNI_BUF_LAYOUT_OPT_TIMESTAMP;
+	priv->buf_layout.pass_timestamp = 1;
 	err = dpni_set_tx_conf_buffer_layout(priv->mc_io, 0, priv->mc_token,
 					     &priv->buf_layout);
 	if (err) {

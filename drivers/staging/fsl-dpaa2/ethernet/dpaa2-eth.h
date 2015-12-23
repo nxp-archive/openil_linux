@@ -82,6 +82,9 @@
 	SKB_DATA_ALIGN(sizeof(struct skb_shared_info)) + \
 	DPAA2_ETH_RX_BUF_ALIGN)
 
+/* PTP nominal frequency 1MHz */
+#define DPAA2_PTP_NOMINAL_FREQ_PERIOD_NS 1000
+
 /* We are accomodating a skb backpointer and potentially other data (see
  * struct backpointers) in the frame's software annotation. The hardware
  * options are either 0 or 64, so we choose the latter.
@@ -310,6 +313,9 @@ struct dpaa2_eth_priv {
 	struct dpaa2_cls_rule *cls_rule;
 
 	struct dpni_tx_shaping_cfg shaping_cfg;
+
+	bool ts_tx_en; /* Tx timestamping enabled */
+	bool ts_rx_en; /* Rx timestamping enabled */
 };
 
 /* default Rx hash options, set during probing */
