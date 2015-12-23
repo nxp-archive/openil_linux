@@ -68,6 +68,10 @@
 #include "../mm/mmu_decl.h"
 #endif
 
+#ifdef CONFIG_FSL_QORIQ_PM
+#include <asm/fsl_pm.h>
+#endif
+
 int main(void)
 {
 	DEFINE(THREAD, offsetof(struct task_struct, thread));
@@ -763,5 +767,13 @@ int main(void)
 
 	DEFINE(PPC_DBELL_SERVER, PPC_DBELL_SERVER);
 
+#ifdef CONFIG_FSL_QORIQ_PM
+	DEFINE(CCSR_CPC_BASE, offsetof(struct fsl_iomap, ccsr_cpc_base));
+	DEFINE(CCSR_GPIO1_BASE, offsetof(struct fsl_iomap, ccsr_gpio1_base));
+	DEFINE(CCSR_RCPM_BASE, offsetof(struct fsl_iomap, ccsr_rcpm_base));
+	DEFINE(CCSR_DDR_BASE, offsetof(struct fsl_iomap, ccsr_ddr_base));
+	DEFINE(CCSR_SCFG_BASE, offsetof(struct fsl_iomap, ccsr_scfg_base));
+	DEFINE(DCSR_EPU_BASE, offsetof(struct fsl_iomap, dcsr_epu_base));
+#endif
 	return 0;
 }

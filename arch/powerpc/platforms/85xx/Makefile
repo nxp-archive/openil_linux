@@ -4,6 +4,7 @@
 obj-$(CONFIG_SMP) += smp.o
 obj-$(CONFIG_FSL_PMC)		  += mpc85xx_pm_ops.o
 obj-$(CONFIG_FSL_QORIQ_PM)	  += qoriq_pm.o sleep_fsm.o
+obj-$(CONFIG_FSL_QORIQ_PM)	  += deepsleep.o t104x_deepsleep.o
 
 obj-y += common.o
 

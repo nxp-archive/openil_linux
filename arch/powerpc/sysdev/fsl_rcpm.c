@@ -248,7 +248,7 @@ static int rcpm_v2_plat_enter_sleep(int state)
 {
 	u32 *pmcsr_reg = &rcpm_v2_regs->powmgtcsr;
 	int ret = 0;
-	int result;
+	int result, cpu;
 
 	switch (state) {
 	case FSL_PM_SLEEP:
@@ -267,6 +267,12 @@ static int rcpm_v2_plat_enter_sleep(int state)
 			pr_err("timeout waiting for LPM20 bit to be cleared\n");
 			ret = -ETIMEDOUT;
 		}
+		break;
+	case FSL_PM_DEEP_SLEEP:
+		cpu = smp_processor_id();
+		rcpm_v2_irq_mask(cpu);
+		ret = fsl_enter_deepsleep();
+		rcpm_v2_irq_unmask(cpu);
 		break;
 	default:
 		pr_warn("Unknown platform PM state (%d)\n", state);
