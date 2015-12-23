@@ -4138,6 +4138,7 @@ L:	linux-arm-kernel@lists.infradead.org
 S:	Maintained
 F:	Documentation/devicetree/bindings/dma/fsl-qdma.txt
 F:	drivers/dma/fsl-qdma.c
+F:	drivers/dma/dpaa2-qdma/
 
 FREESCALE I2C CPM DRIVER
 M:	Jochen Friedrich <jochen@scram.de>
