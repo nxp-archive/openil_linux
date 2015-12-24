@@ -31,6 +31,10 @@ config UCC
 	bool
 	default y if UCC_FAST || UCC_SLOW
 
+config QE_TDM
+	bool
+	select UCC_FAST
+
 config QE_USB
 	bool
 	default y if USB_FSL_QE
