@@ -466,7 +466,7 @@ static void zynq_gpio_hold_irq(struct irq_data *irq_data)
 	struct zynq_gpio *gpio = irq_data_get_irq_chip_data(irq_data);
 
 	device_pin_num = irq_data->hwirq;
-	zynq_gpio_get_bank_pin(device_pin_num, &bank_num, &bank_pin_num, gpio);
+	zynq_gpio_get_bank_pin(device_pin_num, &bank_num, &bank_pin_num);
 	writel_relaxed(BIT(bank_pin_num),
 		       gpio->base_addr + ZYNQ_GPIO_INTDIS_OFFSET(bank_num));
 	writel_relaxed(BIT(bank_pin_num),
@@ -479,7 +479,7 @@ static void zynq_gpio_release_irq(struct irq_data *irq_data)
 	struct zynq_gpio *gpio = irq_data_get_irq_chip_data(irq_data);
 
 	device_pin_num = irq_data->hwirq;
-	zynq_gpio_get_bank_pin(device_pin_num, &bank_num, &bank_pin_num, gpio);
+	zynq_gpio_get_bank_pin(device_pin_num, &bank_num, &bank_pin_num);
 	writel_relaxed(BIT(bank_pin_num),
 		       gpio->base_addr + ZYNQ_GPIO_INTEN_OFFSET(bank_num));
 }
