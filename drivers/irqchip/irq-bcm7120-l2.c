@@ -56,6 +56,7 @@ static void bcm7120_l2_intc_irq_handle(unsigned int irq, struct irq_desc *desc)
 {
 	struct bcm7120_l2_intc_data *b = irq_desc_get_handler_data(desc);
 	struct irq_chip *chip = irq_desc_get_chip(desc);
+	unsigned long flags;
 	unsigned int idx;
 
 	chained_irq_enter(chip, desc);
@@ -67,10 +68,10 @@ static void bcm7120_l2_intc_irq_handle(unsigned int irq, struct irq_desc *desc)
 		unsigned long pending;
 		int hwirq;
 
-		irq_gc_lock(gc);
+		flags = irq_gc_lock(gc);
 		pending = irq_reg_readl(gc, b->stat_offset[idx]) &
 					    gc->mask_cache;
-		irq_gc_unlock(gc);
+		irq_gc_unlock(gc, flags);
 
 		for_each_set_bit(hwirq, &pending, IRQS_PER_WORD) {
 			generic_handle_irq(irq_find_mapping(b->domain,
@@ -86,23 +87,25 @@ static void bcm7120_l2_intc_suspend(struct irq_data *d)
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
 	struct irq_chip_type *ct = irq_data_get_chip_type(d);
 	struct bcm7120_l2_intc_data *b = gc->private;
+	unsigned long flags;
 
-	irq_gc_lock(gc);
+	flags = irq_gc_lock(gc);
 	if (b->can_wake)
 		irq_reg_writel(gc, gc->mask_cache | gc->wake_active,
 			       ct->regs.mask);
-	irq_gc_unlock(gc);
+	irq_gc_unlock(gc, flags);
 }
 
 static void bcm7120_l2_intc_resume(struct irq_data *d)
 {
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
 	struct irq_chip_type *ct = irq_data_get_chip_type(d);
+	unsigned long flags;
 
 	/* Restore the saved mask */
-	irq_gc_lock(gc);
+	flags = irq_gc_lock(gc);
 	irq_reg_writel(gc, gc->mask_cache, ct->regs.mask);
-	irq_gc_unlock(gc);
+	irq_gc_unlock(gc, flags);
 }
 
 static int bcm7120_l2_intc_init_one(struct device_node *dn,
