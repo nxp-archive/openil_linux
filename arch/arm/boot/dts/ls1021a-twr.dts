@@ -182,6 +182,12 @@
 		VDDIO-supply = <&reg_3p3v>;
 		clocks = <&sys_mclk 1>;
 	};
+
+	hdmi: sii9022a@39 {
+	      compatible = "fsl,sii902x";
+	      reg = <0x39>;
+	      interrupts = <GIC_SPI 167 IRQ_TYPE_EDGE_RISING>;
+	};
 };
 
 &ifc {
