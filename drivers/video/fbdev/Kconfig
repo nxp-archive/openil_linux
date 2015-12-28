@@ -1957,6 +1957,25 @@ config FB_FSL_DIU
 	---help---
 	  Framebuffer driver for the Freescale SoC DIU
 
+config FB_FSL_DCU
+	tristate "Freescale DCU framebuffer support"
+	depends on FB
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	select FB_MODE_HELPERS
+	select VIDEOMODE_HELPERS
+	select REGMAP_MMIO
+	---help---
+	  Framebuffer driver for the Freescale SoC DCU.
+
+	  This driver is also available as a module ( = code which can be
+	  inserted and removed from the running kernel whenever you want).
+	  If you want to compile it as a module, say M here and read
+	  <file:Documentation/kbuild/modules.txt>.
+
+	  If unsure, say N.
+
 config FB_W100
 	tristate "W100 frame buffer support"
 	depends on FB && ARCH_PXA
