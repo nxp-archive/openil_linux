@@ -1976,6 +1976,20 @@ config FB_FSL_DCU
 
 	  If unsure, say N.
 
+config FB_FSL_SII902X
+	tristate "Si Image SII9022 DVI/HDMI Interface Chip"
+	depends on FB
+	select FB_MODE_HELPERS
+	---help---
+	  Driver for the SII9022 DVI/HDMI controller.
+
+	  This driver is also available as a module ( = code which can be
+	  inserted and removed from the running kernel whenever you want).
+	  If you want to compile it as a module, say M here and read
+	  <file:Documentation/kbuild/modules.txt>.
+
+	  If unsure, say N.
+
 config FB_W100
 	tristate "W100 frame buffer support"
 	depends on FB && ARCH_PXA
