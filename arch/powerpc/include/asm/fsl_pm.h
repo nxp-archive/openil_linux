@@ -62,7 +62,9 @@ void fsl_dp_enter_low(void *priv);
 void fsl_booke_deep_sleep_resume(void);
 
 struct fsl_iomap {
+	void *ccsr_lcc_base;
 	void *ccsr_scfg_base;
+	void *ccsr_dcfg_base;
 	void *ccsr_rcpm_base;
 	void *ccsr_ddr_base;
 	void *ccsr_gpio1_base;
