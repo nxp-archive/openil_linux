@@ -16,12 +16,14 @@
  */
 #include <linux/errno.h>
 #include <linux/sched.h>
+#include <linux/wait.h>
 #include <linux/kernel.h>
 #include <linux/param.h>
 #include <linux/string.h>
 #include <linux/spinlock.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
+#include <linux/jiffies.h>
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/ioport.h>
@@ -39,6 +41,7 @@
 static void qe_snums_init(void);
 static int qe_sdma_init(void);
 
+static DECLARE_WAIT_QUEUE_HEAD(wait_q);
 static DEFINE_SPINLOCK(qe_lock);
 DEFINE_SPINLOCK(cmxgcr_lock);
 EXPORT_SYMBOL(cmxgcr_lock);
@@ -141,8 +144,9 @@ int qe_issue_cmd(u32 cmd, u32 device, u8 mcn_protocol, u32 cmd_input)
 	}
 
 	/* wait for the QE_CR_FLG to clear */
-	ret = spin_event_timeout((in_be32(&qe_immr->cp.cecr) & QE_CR_FLG) == 0,
-			   100, 0);
+	ret = wait_event_timeout(wait_q,
+				 (in_be32(&qe_immr->cp.cecr) & QE_CR_FLG) == 0,
+				 usecs_to_jiffies(100));
 	/* On timeout (e.g. failure), the expression will be false (ret == 0),
 	   otherwise it will be true (ret == 1). */
 	spin_unlock_irqrestore(&qe_lock, flags);
