@@ -309,7 +309,7 @@ static void qe_uart_stop_tx(struct uart_port *port)
 	struct uart_qe_port *qe_port =
 		container_of(port, struct uart_qe_port, port);
 
-	clrbits16(&qe_port->uccp->uccm, UCC_UART_UCCE_TX);
+	qe_clrbits16(&qe_port->uccp->uccm, UCC_UART_UCCE_TX);
 }
 
 /*
@@ -345,7 +345,7 @@ static int qe_uart_tx_pump(struct uart_qe_port *qe_port)
 
 		*p++ = port->x_char;
 		out_be16(&bdp->length, 1);
-		setbits16(&bdp->status, BD_SC_READY);
+		qe_setbits16(&bdp->status, BD_SC_READY);
 		/* Get next BD. */
 		if (in_be16(&bdp->status) & BD_SC_WRAP)
 			bdp = qe_port->tx_bd_base;
@@ -380,7 +380,7 @@ static int qe_uart_tx_pump(struct uart_qe_port *qe_port)
 		}
 
 		out_be16(&bdp->length, count);
-		setbits16(&bdp->status, BD_SC_READY);
+		qe_setbits16(&bdp->status, BD_SC_READY);
 
 		/* Get next BD. */
 		if (in_be16(&bdp->status) & BD_SC_WRAP)
@@ -421,7 +421,7 @@ static void qe_uart_start_tx(struct uart_port *port)
 
 	/* Otherwise, pump the port and start transmission */
 	if (qe_uart_tx_pump(qe_port))
-		setbits16(&qe_port->uccp->uccm, UCC_UART_UCCE_TX);
+		qe_setbits16(&qe_port->uccp->uccm, UCC_UART_UCCE_TX);
 }
 
 /*
@@ -432,7 +432,7 @@ static void qe_uart_stop_rx(struct uart_port *port)
 	struct uart_qe_port *qe_port =
 		container_of(port, struct uart_qe_port, port);
 
-	clrbits16(&qe_port->uccp->uccm, UCC_UART_UCCE_RX);
+	qe_clrbits16(&qe_port->uccp->uccm, UCC_UART_UCCE_RX);
 }
 
 /* Start or stop sending  break signal
@@ -509,7 +509,7 @@ error_return:
 		}
 
 		/* This BD is ready to be used again. Clear status. get next */
-		clrsetbits_be16(&bdp->status, BD_SC_BR | BD_SC_FR | BD_SC_PR |
+		qe_clrsetbits16(&bdp->status, BD_SC_BR | BD_SC_FR | BD_SC_PR |
 			BD_SC_OV | BD_SC_ID, BD_SC_EMPTY);
 		if (in_be16(&bdp->status) & BD_SC_WRAP)
 			bdp = qe_port->rx_bd_base;
@@ -632,7 +632,7 @@ static void qe_uart_initbd(struct uart_qe_port *qe_port)
 
 	/* Loopback requires the preamble bit to be set on the first TX BD */
 #ifdef LOOPBACK
-	setbits16(&qe_port->tx_cur->status, BD_SC_P);
+	qe_setbits16(&qe_port->tx_cur->status, BD_SC_P);
 #endif
 
 	out_be16(&bdp->status, BD_SC_WRAP | BD_SC_INTRPT);
@@ -678,30 +678,30 @@ static void qe_uart_init_ucc(struct uart_qe_port *qe_port)
 	/* Configure the GUMR registers for UART */
 	if (soft_uart) {
 		/* Soft-UART requires a 1X multiplier for TX */
-		clrsetbits_be32(&uccp->gumr_l,
+		qe_clrsetbits32(&uccp->gumr_l,
 			UCC_SLOW_GUMR_L_MODE_MASK | UCC_SLOW_GUMR_L_TDCR_MASK |
 			UCC_SLOW_GUMR_L_RDCR_MASK,
 			UCC_SLOW_GUMR_L_MODE_UART | UCC_SLOW_GUMR_L_TDCR_1 |
 			UCC_SLOW_GUMR_L_RDCR_16);
 
-		clrsetbits_be32(&uccp->gumr_h, UCC_SLOW_GUMR_H_RFW,
+		qe_clrsetbits32(&uccp->gumr_h, UCC_SLOW_GUMR_H_RFW,
 			UCC_SLOW_GUMR_H_TRX | UCC_SLOW_GUMR_H_TTX);
 	} else {
-		clrsetbits_be32(&uccp->gumr_l,
+		qe_clrsetbits32(&uccp->gumr_l,
 			UCC_SLOW_GUMR_L_MODE_MASK | UCC_SLOW_GUMR_L_TDCR_MASK |
 			UCC_SLOW_GUMR_L_RDCR_MASK,
 			UCC_SLOW_GUMR_L_MODE_UART | UCC_SLOW_GUMR_L_TDCR_16 |
 			UCC_SLOW_GUMR_L_RDCR_16);
 
-		clrsetbits_be32(&uccp->gumr_h,
+		qe_clrsetbits32(&uccp->gumr_h,
 			UCC_SLOW_GUMR_H_TRX | UCC_SLOW_GUMR_H_TTX,
 			UCC_SLOW_GUMR_H_RFW);
 	}
 
 #ifdef LOOPBACK
-	clrsetbits_be32(&uccp->gumr_l, UCC_SLOW_GUMR_L_DIAG_MASK,
+	qe_clrsetbits32(&uccp->gumr_l, UCC_SLOW_GUMR_L_DIAG_MASK,
 		UCC_SLOW_GUMR_L_DIAG_LOOP);
-	clrsetbits_be32(&uccp->gumr_h,
+	qe_clrsetbits32(&uccp->gumr_h,
 		UCC_SLOW_GUMR_H_CTSP | UCC_SLOW_GUMR_H_RSYN,
 		UCC_SLOW_GUMR_H_CDS);
 #endif
@@ -744,21 +744,21 @@ static void qe_uart_init_ucc(struct uart_qe_port *qe_port)
 		 * ...
 		 * 6.Receiver must use 16x over sampling
 		 */
-		clrsetbits_be32(&uccp->gumr_l,
+		qe_clrsetbits32(&uccp->gumr_l,
 			UCC_SLOW_GUMR_L_MODE_MASK | UCC_SLOW_GUMR_L_TDCR_MASK |
 			UCC_SLOW_GUMR_L_RDCR_MASK,
 			UCC_SLOW_GUMR_L_MODE_QMC | UCC_SLOW_GUMR_L_TDCR_16 |
 			UCC_SLOW_GUMR_L_RDCR_16);
 
-		clrsetbits_be32(&uccp->gumr_h,
+		qe_clrsetbits32(&uccp->gumr_h,
 			UCC_SLOW_GUMR_H_RFW | UCC_SLOW_GUMR_H_RSYN,
 			UCC_SLOW_GUMR_H_SUART | UCC_SLOW_GUMR_H_TRX |
 			UCC_SLOW_GUMR_H_TTX | UCC_SLOW_GUMR_H_TFL);
 
 #ifdef LOOPBACK
-		clrsetbits_be32(&uccp->gumr_l, UCC_SLOW_GUMR_L_DIAG_MASK,
+		qe_clrsetbits32(&uccp->gumr_l, UCC_SLOW_GUMR_L_DIAG_MASK,
 				UCC_SLOW_GUMR_L_DIAG_LOOP);
-		clrbits32(&uccp->gumr_h, UCC_SLOW_GUMR_H_CTSP |
+		qe_clrbits32(&uccp->gumr_h, UCC_SLOW_GUMR_H_CTSP |
 			  UCC_SLOW_GUMR_H_CDS);
 #endif
 
@@ -802,7 +802,7 @@ static int qe_uart_startup(struct uart_port *port)
 	}
 
 	/* Startup rx-int */
-	setbits16(&qe_port->uccp->uccm, UCC_UART_UCCE_RX);
+	qe_setbits16(&qe_port->uccp->uccm, UCC_UART_UCCE_RX);
 	ucc_slow_enable(qe_port->us_private, COMM_DIR_RX_AND_TX);
 
 	return 0;
@@ -838,7 +838,7 @@ static void qe_uart_shutdown(struct uart_port *port)
 
 	/* Stop uarts */
 	ucc_slow_disable(qe_port->us_private, COMM_DIR_RX_AND_TX);
-	clrbits16(&uccp->uccm, UCC_UART_UCCE_TX | UCC_UART_UCCE_RX);
+	qe_clrbits16(&uccp->uccm, UCC_UART_UCCE_TX | UCC_UART_UCCE_RX);
 
 	/* Shut them really down and reinit buffer descriptors */
 	ucc_slow_graceful_stop_tx(qe_port->us_private);

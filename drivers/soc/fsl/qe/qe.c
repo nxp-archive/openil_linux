@@ -491,7 +491,7 @@ int qe_upload_firmware(const struct qe_firmware *firmware)
 	 * If the microcode calls for it, split the I-RAM.
 	 */
 	if (!firmware->split)
-		setbits16(&qe_immr->cp.cercr, QE_CP_CERCR_CIR);
+		qe_setbits16(&qe_immr->cp.cercr, QE_CP_CERCR_CIR);
 
 	if (firmware->soc.model)
 		printk(KERN_INFO
