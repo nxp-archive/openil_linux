@@ -1156,7 +1156,7 @@ config SERIAL_LANTIQ
 
 config SERIAL_QE
 	tristate "Freescale QUICC Engine serial port support"
-	depends on QUICC_ENGINE
+	select QUICC_ENGINE
 	select SERIAL_CORE
 	select FW_LOADER
 	default n
