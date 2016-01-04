@@ -362,13 +362,10 @@ static void ppx_link_changed(struct net_device *netdev)
 
 	/* We must call into the MC firmware at all times, because we don't know
 	 * when and whether a potential DPNI may have read the link state.
-	 *
-	 * We intentionally ignore the error here as MC will return an error
-	 * if peer L2 interface (like a DPNI) is down at this time.
 	 */
 	err = dpmac_set_link_state(priv->mc_dev->mc_io, 0,
 				   priv->mc_dev->mc_handle, &state);
-	if (err && err != -EACCES && err != -ENAVAIL)
+	if (unlikely(err))
 		dev_err(&priv->mc_dev->dev, "dpmac_set_link_state: %d\n", err);
 }
 
