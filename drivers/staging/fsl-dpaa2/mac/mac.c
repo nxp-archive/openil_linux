@@ -273,6 +273,7 @@ static struct {
 	{DPMAC_CNT_ING_OVERSIZED,		"rx oversized"},
 	{DPMAC_CNT_ING_VALID_PAUSE_FRAME,	"rx pause"},
 	{DPMAC_CNT_ING_BYTE,			"rx bytes"},
+	{DPMAC_CNT_ENG_GOOD_FRAME,		"tx frames ok"},
 	{DPMAC_CNT_EGR_UCAST_FRAME,		"tx u-cast"},
 	{DPMAC_CNT_EGR_MCAST_FRAME,		"tx m-cast"},
 	{DPMAC_CNT_EGR_BCAST_FRAME,		"tx b-cast"},
