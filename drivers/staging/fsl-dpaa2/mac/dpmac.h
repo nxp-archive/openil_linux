@@ -497,48 +497,50 @@ int dpmac_set_link_state(struct fsl_mc_io		*mc_io,
 			 struct dpmac_link_state	*link_state);
 
 /**
- * enum dpni_counter - DPNI counter types
- * @DPMAC_CNT_ING_FRAME_64: counts 64-octet frame, good or bad.
- * @DPMAC_CNT_ING_FRAME_127: counts 65- to 127-octet frame, good or bad.
- * @DPMAC_CNT_ING_FRAME_255: counts 128- to 255-octet frame, good or bad.
- * @DPMAC_CNT_ING_FRAME_511: counts 256- to 511-octet frame, good or bad.
- * @DPMAC_CNT_ING_FRAME_1023: counts 512- to 1023-octet frame, good or bad.
- * @DPMAC_CNT_ING_FRAME_1518: counts 1024- to 1518-octet frame, good or bad.
- * @DPMAC_CNT_ING_FRAME_1519_MAX: counts 1519-octet frame and larger
+ * enum dpmac_counter - DPMAC counter types
+ * @DPMAC_CNT_ING_FRAME_64: counts 64-bytes frames, good or bad.
+ * @DPMAC_CNT_ING_FRAME_127: counts 65- to 127-bytes frames, good or bad.
+ * @DPMAC_CNT_ING_FRAME_255: counts 128- to 255-bytes frames, good or bad.
+ * @DPMAC_CNT_ING_FRAME_511: counts 256- to 511-bytes frames, good or bad.
+ * @DPMAC_CNT_ING_FRAME_1023: counts 512- to 1023-bytes frames, good or bad.
+ * @DPMAC_CNT_ING_FRAME_1518: counts 1024- to 1518-bytes frames, good or bad.
+ * @DPMAC_CNT_ING_FRAME_1519_MAX: counts 1519-bytes frames and larger
  *				  (up to max frame length specified),
  *				  good or bad.
- * @DPMAC_CNT_ING_FRAG: counts packet which is shorter than 64 octets received
+ * @DPMAC_CNT_ING_FRAG: counts frames which are shorter than 64 bytes received
  *			with a wrong CRC
- * @DPMAC_CNT_ING_JABBER: counts packet longer than the maximum frame length
+ * @DPMAC_CNT_ING_JABBER: counts frames longer than the maximum frame length
  *			  specified, with a bad frame check sequence.
- * @DPMAC_CNT_ING_FRAME_DISCARD: counts dropped packet due to internal errors.
+ * @DPMAC_CNT_ING_FRAME_DISCARD: counts dropped frames due to internal errors.
  *				 Occurs when a receive FIFO overflows.
- *				 Includes also packets truncated as a result of
+ *				 Includes also frames truncated as a result of
  *				 the receive FIFO overflow.
- * @DPMAC_CNT_ING_ALIGN_ERR: counts frame with an alignment error
- *			     (optional used for wrong SFD)
- * @DPMAC_CNT_EGR_UNDERSIZED: counts packet transmitted that was less than 64
- *			      octets long with a good CRC.
- * @DPMAC_CNT_ING_OVERSIZED: counts packet longer than the maximum frame length
+ * @DPMAC_CNT_ING_ALIGN_ERR: counts frames with an alignment error
+ *			     (optional used for wrong SFD).
+ * @DPMAC_CNT_EGR_UNDERSIZED: counts frames transmitted that was less than 64
+ *			      bytes long with a good CRC.
+ * @DPMAC_CNT_ING_OVERSIZED: counts frames longer than the maximum frame length
  *			     specified, with a good frame check sequence.
- * @DPMAC_CNT_ING_VALID_PAUSE_FRAME: counts valid pause frame (regular and PFC).
- * @DPMAC_CNT_EGR_VALID_PAUSE_FRAME: counts valid pause frame transmitted
+ * @DPMAC_CNT_ING_VALID_PAUSE_FRAME: counts valid pause frames (regular and PFC)
+ * @DPMAC_CNT_EGR_VALID_PAUSE_FRAME: counts valid pause frames transmitted
  *				     (regular and PFC).
- * @DPMAC_CNT_ING_BYTE: counts octet received except preamble for all valid
- *				frames and valid pause frames.
- * @DPMAC_CNT_ING_MCAST_FRAME: counts received multicast frame
- * @DPMAC_CNT_ING_BCAST_FRAME: counts received broadcast frame
- * @DPMAC_CNT_ING_ALL_FRAME: counts each good or bad packet received.
- * @DPMAC_CNT_ING_UCAST_FRAME: counts received unicast frame
- * @DPMAC_CNT_ING_ERR_FRAME: counts frame received with an error
- *			     (except for undersized/fragment frame)
- * @DPMAC_CNT_EGR_BYTE: counts octet transmitted except preamble for all valid
+ * @DPMAC_CNT_ING_BYTE: counts bytes received except preamble for all valid
+ *			frames and valid pause frames.
+ * @DPMAC_CNT_ING_MCAST_FRAME: counts received multicast frames.
+ * @DPMAC_CNT_ING_BCAST_FRAME: counts received broadcast frames.
+ * @DPMAC_CNT_ING_ALL_FRAME: counts each good or bad frames received.
+ * @DPMAC_CNT_ING_UCAST_FRAME: counts received unicast frames.
+ * @DPMAC_CNT_ING_ERR_FRAME: counts frames received with an error
+ *			     (except for undersized/fragment frame).
+ * @DPMAC_CNT_EGR_BYTE: counts bytes transmitted except preamble for all valid
  *			frames and valid pause frames transmitted.
- * @DPMAC_CNT_EGR_MCAST_FRAME: counts transmitted multicast frame
- * @DPMAC_CNT_EGR_BCAST_FRAME: counts transmitted broadcast frame
- * @DPMAC_CNT_EGR_UCAST_FRAME: counts transmitted unicast frame
- * @DPMAC_CNT_EGR_ERR_FRAME: counts frame transmitted with an error
- * @DPMAC_CNT_ING_GOOD_FRAME: counts frame received without error, including
+ * @DPMAC_CNT_EGR_MCAST_FRAME: counts transmitted multicast frames.
+ * @DPMAC_CNT_EGR_BCAST_FRAME: counts transmitted broadcast frames.
+ * @DPMAC_CNT_EGR_UCAST_FRAME: counts transmitted unicast frames.
+ * @DPMAC_CNT_EGR_ERR_FRAME: counts frames transmitted with an error.
+ * @DPMAC_CNT_ING_GOOD_FRAME: counts frames received without error, including
+ *			      pause frames.
+ * @DPMAC_CNT_ENG_GOOD_FRAME: counts frames transmitted without error, including
  *			      pause frames.
  */
 enum dpmac_counter {
@@ -568,7 +570,8 @@ enum dpmac_counter {
 	DPMAC_CNT_EGR_BCAST_FRAME,
 	DPMAC_CNT_EGR_UCAST_FRAME,
 	DPMAC_CNT_EGR_ERR_FRAME,
-	DPMAC_CNT_ING_GOOD_FRAME
+	DPMAC_CNT_ING_GOOD_FRAME,
+	DPMAC_CNT_ENG_GOOD_FRAME
 };
 
 /**
