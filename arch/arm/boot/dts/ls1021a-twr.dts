@@ -303,3 +303,28 @@
 &uart1 {
 	status = "okay";
 };
+
+&uqe {
+	serial: ucc@2000 {
+		device_type = "serial";
+		compatible = "ucc_uart";
+		port-number = <0>;
+		rx-clock-name = "brg1";
+		tx-clock-name = "brg1";
+	};
+
+	ucc_hdlc: ucc@2200 {
+		compatible = "fsl,ucc_hdlc";
+		rx-clock-name = "brg2";
+		tx-clock-name = "brg2";
+		fsl,rx-sync-clock = "none";
+		fsl,tx-sync-clock = "none";
+		fsl,tx-timeslot = <0xfffffffe>;
+		fsl,rx-timeslot = <0xfffffffe>;
+		fsl,tdm-framer-type = "e1";
+		fsl,tdm-mode = "normal";
+		fsl,tdm-id = <1>;
+		fsl,siram-entry-id = <2>;
+		fsl,inter-loopback;
+	};
+};
