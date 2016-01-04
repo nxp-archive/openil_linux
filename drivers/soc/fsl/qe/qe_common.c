@@ -70,7 +70,7 @@ int cpm_muram_init(void)
 	}
 
 	muram_pool = gen_pool_create(0, -1);
-	muram_pbase = of_translate_address(np, zero);
+	muram_pbase = (phys_addr_t)of_translate_address(np, zero);
 	if (muram_pbase == (phys_addr_t)OF_BAD_ADDR) {
 		pr_err("Cannot translate zero through CPM muram node");
 		ret = -ENODEV;
