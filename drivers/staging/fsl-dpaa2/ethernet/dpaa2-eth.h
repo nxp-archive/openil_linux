@@ -50,23 +50,31 @@
 /* NAPI weight *must* be a multiple of 16, i.e. the store size. */
 #define DPAA2_ETH_NAPI_WEIGHT		64
 
-/* TODO: Sort of arbitrary values for bpools, but we'll need to tune.
- * Supply enough buffers to reassembly several fragmented datagrams. Making it a
- * multiple of 7, because we're doing dpaa2_bp_add_7(). This is a per-CPU
- * counter.
- */
-#define DPAA2_ETH_NUM_BUFS		(16 * 7)
-#define DPAA2_ETH_REFILL_THRESH		(DPAA2_ETH_NUM_BUFS * 5 / 6)
-
 /* Maximum receive frame size is 64K */
 #define DPAA2_ETH_MAX_SG_ENTRIES	((64 * 1024) / DPAA2_ETH_RX_BUFFER_SIZE)
 
 /* Maximum acceptable MTU value. It is in direct relation with the MC-enforced
  * Max Frame Length (currently 10k).
  */
-#define DPAA2_ETH_MAX_MTU	(10000 - VLAN_ETH_HLEN)
+#define DPAA2_ETH_MFL			(10 * 1024)
+#define DPAA2_ETH_MAX_MTU		(DPAA2_ETH_MFL - VLAN_ETH_HLEN)
 /* Convert L3 MTU to L2 MFL */
 #define DPAA2_ETH_L2_MAX_FRM(mtu)	(mtu + VLAN_ETH_HLEN)
+
+/* Set the taildrop threshold (in bytes) to allow the enqueue of several jumbo
+ * frames in the Rx queues (length of the current frame is not
+ * taken into account when making the taildrop decision)
+ */
+#define DPAA2_ETH_TAILDROP_THRESH	(64 * 1024)
+
+/* Buffer quota per queue. Must be large enough such that for minimum sized
+ * frames taildrop kicks in before the bpool gets depleted, so we compute
+ * how many 64B frames fit inside the taildrop threshold and add a margin
+ * to accommodate the buffer refill delay.
+ */
+#define DPAA2_ETH_MAX_FRAMES_PER_QUEUE	(DPAA2_ETH_TAILDROP_THRESH / 64)
+#define DPAA2_ETH_NUM_BUFS		(DPAA2_ETH_MAX_FRAMES_PER_QUEUE + 256)
+#define DPAA2_ETH_REFILL_THRESH		DPAA2_ETH_MAX_FRAMES_PER_QUEUE
 
 /* Hardware requires alignment for ingress/egress buffer addresses
  * and ingress buffer lengths.

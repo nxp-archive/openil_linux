@@ -1949,11 +1949,13 @@ static int dpaa2_rx_flow_setup(struct dpaa2_eth_priv *priv,
 	int err;
 
 	memset(&queue_cfg, 0, sizeof(queue_cfg));
-	queue_cfg.options = DPNI_QUEUE_OPT_USER_CTX | DPNI_QUEUE_OPT_DEST;
+	queue_cfg.options = DPNI_QUEUE_OPT_USER_CTX | DPNI_QUEUE_OPT_DEST |
+			    DPNI_QUEUE_OPT_TAILDROP_THRESHOLD;
 	queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPCON;
 	queue_cfg.dest_cfg.priority = 1;
 	queue_cfg.user_ctx = (uint64_t)fq;
 	queue_cfg.dest_cfg.dest_id = fq->channel->dpcon_id;
+	queue_cfg.tail_drop_threshold = DPAA2_ETH_TAILDROP_THRESH;
 	err = dpni_set_rx_flow(priv->mc_io, 0, priv->mc_token, 0, fq->flowid,
 			       &queue_cfg);
 	if (unlikely(err)) {
