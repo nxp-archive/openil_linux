@@ -214,7 +214,7 @@ static __init int fsl_ceetm_init(struct device_node *node)
 		return -EINVAL;
 	}
 
-	for (i = 0; i < range[1]; i++) {
+	for (i = 0; i < be32_to_cpu(range[1]); i++) {
 		sp = kzalloc(sizeof(*sp), GFP_KERNEL);
 		if (!sp) {
 			pr_err("Can't alloc memory for sub-portal %d\n",
@@ -244,7 +244,7 @@ static __init int fsl_ceetm_init(struct device_node *node)
 		return -EINVAL;
 	}
 
-	for (i = 0; i < range[1]; i++) {
+	for (i = 0; i < be32_to_cpu(range[1]); i++) {
 		lni = kzalloc(sizeof(*lni), GFP_KERNEL);
 		if (!lni) {
 			pr_err("Can't alloc memory for LNI %d\n",
@@ -780,7 +780,7 @@ __init int qman_init(void)
 		if (!clk)
 			pr_warn("Can't find Qman clock frequency\n");
 		else
-			qman_clk = *clk;
+			qman_clk = be32_to_cpu(*clk);
 	}
 #ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
 	/* Setup lookup table for FQ demux */
