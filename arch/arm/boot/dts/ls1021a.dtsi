@@ -496,4 +496,27 @@
 			dr_mode = "host";
 		};
 	};
+
+	dcsr {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "fsl,dcsr", "simple-bus";
+
+		ranges = <0x0 0x0 0x20000000 0x1000000>;
+
+		dcsr-epu@0 {
+			compatible = "fsl,ls1021a-dcsr-epu";
+			reg = <0x0 0x10000>;
+		};
+
+		dcsr-dcfg@220000 {
+			compatible = "fsl,ls1021a-dcsr-dcfg";
+			reg = <0x220000 0x1000>;
+		};
+
+		dcsr-rcpm@222000 {
+			compatible = "fsl,ls1021a-dcsr-rcpm";
+			reg = <0x222000 0x1000 0x223000 0x1000>;
+		};
+	};
 };
