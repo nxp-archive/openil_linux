@@ -697,7 +697,7 @@ static int dpaa2_do_cls(struct net_device *net_dev,
 		err = dpni_remove_fs_entry(priv->mc_io, 0, priv->mc_token, 0,
 					   &rule_cfg);
 
-	dma_unmap_single(net_dev->dev.parent, rule_cfg.mask_iova,
+	dma_unmap_single(net_dev->dev.parent, rule_cfg.key_iova,
 			 rule_cfg.key_size * 2, DMA_TO_DEVICE);
 	if (err) {
 		netdev_err(net_dev, "dpaa2_add_cls() error %d\n", err);
