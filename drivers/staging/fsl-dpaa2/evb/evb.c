@@ -45,6 +45,11 @@
 /* IRQ index */
 #define DPDMUX_MAX_IRQ_NUM			2
 
+/* MAX FRAME LENGTH (currently 10k) */
+#define EVB_MAX_FRAME_LENGTH			(10 * 1024)
+/* MIN FRAME LENGTH (64 bytes + 4 bytes CRC) */
+#define EVB_MIN_FRAME_LENGTH			68
+
 struct evb_port_priv {
 	struct net_device	*netdev;
 	struct list_head	list;
@@ -433,6 +438,45 @@ static int evb_port_fdb_del(struct ndmsg *ndm, struct nlattr *tb[],
 	return 0;
 }
 
+static int evb_change_mtu(struct net_device *netdev,
+			  int mtu)
+{
+	struct evb_port_priv	*port_priv = netdev_priv(netdev);
+	struct evb_priv		*evb_priv = port_priv->evb_priv;
+	struct list_head	*pos;
+	int			err = 0;
+
+	/* This operation is not permitted on downlinks */
+	if (port_priv->port_index > 0)
+		return -EPERM;
+
+	if (mtu < EVB_MIN_FRAME_LENGTH || mtu > EVB_MAX_FRAME_LENGTH) {
+		netdev_err(netdev, "Invalid MTU %d. Valid range is: %d..%d\n",
+			   mtu, EVB_MIN_FRAME_LENGTH, EVB_MAX_FRAME_LENGTH);
+		return -EINVAL;
+	}
+
+	err = dpdmux_ul_set_max_frame_length(evb_priv->mc_io,
+					    0,
+					    evb_priv->mux_handle,
+					    (uint16_t)mtu);
+
+	if (unlikely(err)) {
+		netdev_err(netdev, "dpdmux_ul_set_max_frame_length err %d\n",
+			   err);
+		return err;
+	}
+
+	/* Update the max frame length for downlinks */
+	list_for_each(pos, &evb_priv->port_list) {
+		port_priv = list_entry(pos, struct evb_port_priv, list);
+		port_priv->netdev->mtu = mtu;
+	}
+
+	netdev->mtu = mtu;
+	return 0;
+}
+
 static const struct nla_policy ifla_br_policy[IFLA_MAX+1] = {
 	[IFLA_BRIDGE_FLAGS]	= { .type = NLA_U16 },
 	[IFLA_BRIDGE_MODE]	= { .type = NLA_U16 },
@@ -809,6 +853,7 @@ static const struct net_device_ops evb_port_ops = {
 	.ndo_fdb_del		= &evb_port_fdb_del,
 
 	.ndo_get_stats64	= &evb_port_get_stats,
+	.ndo_change_mtu		= &evb_change_mtu,
 };
 
 static struct {
@@ -913,6 +958,7 @@ static const struct net_device_ops evb_ops = {
 	.ndo_bridge_dellink	= &evb_dellink,
 
 	.ndo_get_stats64	= &evb_port_get_stats,
+	.ndo_change_mtu		= &evb_change_mtu,
 };
 
 static int evb_takedown(struct fsl_mc_device *evb_dev)
