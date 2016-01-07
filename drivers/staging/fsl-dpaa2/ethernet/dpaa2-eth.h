@@ -37,7 +37,9 @@
 #include "../../fsl-mc/include/fsl_dpaa2_io.h"
 #include "../../fsl-mc/include/fsl_dpaa2_fd.h"
 #include "../../fsl-mc/include/dpbp.h"
+#include "../../fsl-mc/include/dpbp-cmd.h"
 #include "../../fsl-mc/include/dpcon.h"
+#include "../../fsl-mc/include/dpcon-cmd.h"
 #include "dpni.h"
 #include "dpni-cmd.h"
 
