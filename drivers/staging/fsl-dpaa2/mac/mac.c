@@ -105,8 +105,8 @@ static phy_interface_t ppx_eth_iface_mode[] __maybe_unused =  {
 static void ppx_link_changed(struct net_device *netdev);
 
 /* IRQ bits that we handle */
-static const uint32_t dpmac_irq_mask =  DPMAC_IRQ_EVENT_LINK_CFG_REQ |
-					DPMAC_IRQ_EVENT_LINK_CHANGED;
+static const u32 dpmac_irq_mask =  DPMAC_IRQ_EVENT_LINK_CFG_REQ |
+				   DPMAC_IRQ_EVENT_LINK_CHANGED;
 
 #ifdef CONFIG_FSL_DPAA2_MAC_NETDEVS
 static netdev_tx_t ppx_dropframe(struct sk_buff *skb, struct net_device *dev);
@@ -403,8 +403,8 @@ static irqreturn_t ppx_irq_handler(int irq_num, void *arg)
 	struct fsl_mc_device *mc_dev = to_fsl_mc_device(dev);
 	struct ppx_priv *priv = dev_get_drvdata(dev);
 	struct dpmac_link_cfg link_cfg;
-	uint8_t irq_index = DPMAC_IRQ_INDEX;
-	uint32_t status, clear = 0;
+	u8 irq_index = DPMAC_IRQ_INDEX;
+	u32 status, clear = 0;
 	int err;
 
 	if (mc_dev->irqs[0]->irq_number != irq_num) {
