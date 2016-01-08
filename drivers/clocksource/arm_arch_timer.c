@@ -341,6 +341,18 @@ static void __arch_timer_setup(unsigned type,
 			clk->set_mode = arch_timer_set_mode_phys;
 			clk->set_next_event = arch_timer_set_next_event_phys;
 		}
+
+#ifdef CONFIG_IPIPE
+		clk->ipipe_timer = raw_cpu_ptr(&arch_itimer);
+		if (arch_timer_use_virtual) {
+			clk->ipipe_timer->irq = arch_timer_ppi[VIRT_PPI];
+			clk->ipipe_timer->ack = arch_itimer_ack_virt;
+		} else {
+			clk->ipipe_timer->irq = arch_timer_ppi[PHYS_SECURE_PPI];
+			clk->ipipe_timer->ack = arch_itimer_ack_phys;
+		}
+		clk->ipipe_timer->freq = arch_timer_rate;
+#endif
 	} else {
 		clk->features |= CLOCK_EVT_FEAT_DYNIRQ;
 		clk->name = "arch_mem_timer";
@@ -358,18 +370,6 @@ static void __arch_timer_setup(unsigned type,
 	}
 
 	clk->set_mode(CLOCK_EVT_MODE_SHUTDOWN, clk);
-
-#ifdef CONFIG_IPIPE
-	clk->ipipe_timer = raw_cpu_ptr(&arch_itimer);
-	if (arch_timer_use_virtual) {
-		clk->ipipe_timer->irq = arch_timer_ppi[VIRT_PPI];
-		clk->ipipe_timer->ack = arch_itimer_ack_virt;
-	} else {
-		clk->ipipe_timer->irq = arch_timer_ppi[PHYS_SECURE_PPI];
-		clk->ipipe_timer->ack = arch_itimer_ack_phys;
-	}
-	clk->ipipe_timer->freq = arch_timer_rate;
-#endif
 
 	clockevents_config_and_register(clk, arch_timer_rate, 0xf, 0x7fffffff);
 }
