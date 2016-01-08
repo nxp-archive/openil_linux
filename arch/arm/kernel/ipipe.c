@@ -208,6 +208,7 @@ EXPORT_SYMBOL_GPL(__ipipe_send_vnmi);
 
 #ifdef CONFIG_SMP_ON_UP
 struct static_key __ipipe_smp_key = STATIC_KEY_INIT_TRUE;
+EXPORT_SYMBOL_GPL(__ipipe_smp_key);
 
 unsigned notrace __ipipe_processor_id(void)
 {
