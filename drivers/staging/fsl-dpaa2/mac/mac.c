@@ -77,8 +77,10 @@ struct ppx_priv {
  *  XAUI is serial, using 8b/10b encoding
  *  XFI is also serial but using 64b/66b encoding
  * they can't all map to XGMII...
+ *
+ * This must be kept in sync with enum dpmac_eth_if.
  */
-static phy_interface_t ppx_eth_iface_mode[] __maybe_unused =  {
+static phy_interface_t ppx_eth_iface_mode[] =  {
 	/* DPMAC_ETH_IF_MII */
 	PHY_INTERFACE_MODE_MII,
 	/* DPMAC_ETH_IF_RMII */
@@ -91,15 +93,12 @@ static phy_interface_t ppx_eth_iface_mode[] __maybe_unused =  {
 	PHY_INTERFACE_MODE_RGMII,
 	/* DPMAC_ETH_IF_SGMII */
 	PHY_INTERFACE_MODE_SGMII,
-	/* DPMAC_ETH_IF_XGMII */
-	PHY_INTERFACE_MODE_XGMII,
 	/* DPMAC_ETH_IF_QSGMII */
 	PHY_INTERFACE_MODE_QSGMII,
 	/* DPMAC_ETH_IF_XAUI */
 	PHY_INTERFACE_MODE_XGMII,
 	/* DPMAC_ETH_IF_XFI */
 	PHY_INTERFACE_MODE_XGMII,
-
 };
 
 static void ppx_link_changed(struct net_device *netdev);
