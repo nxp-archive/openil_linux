@@ -414,6 +414,9 @@ void dpaa2_cls_check(struct net_device *net_dev)
 	}
 }
 
+/* Set RX hash options
+ * flags is a combination of RXH_ bits
+ */
 int dpaa2_set_hash(struct net_device *net_dev, u64 flags)
 {
 	struct device *dev = net_dev->dev.parent;
