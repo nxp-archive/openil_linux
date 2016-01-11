@@ -51,18 +51,6 @@
 #include "dpmac.h"
 #include "dpmac-cmd.h"
 
-
-/* use different err functions if the driver registers phyX netdevs */
-#ifdef CONFIG_FSL_DPAA2_MAC_NETDEVS
-#define ppx_err(netdev, ...)  netdev_err(netdev, __VA_ARGS__)
-#define ppx_warn(netdev, ...) netdev_err(netdev, __VA_ARGS__)
-#define ppx_info(netdev, ...) netdev_err(netdev, __VA_ARGS__)
-#else /* CONFIG_FSL_DPAA2_MAC_NETDEVS */
-#define ppx_err(netdev, ...)  dev_err(&netdev->dev, __VA_ARGS__)
-#define ppx_warn(netdev, ...) dev_err(&netdev->dev, __VA_ARGS__)
-#define ppx_info(netdev, ...) dev_err(&netdev->dev, __VA_ARGS__)
-#endif /* CONFIG_FSL_DPAA2_MAC_NETDEVS */
-
 #define PPX_SUPPORTED_DPMAC_VERSION	3
 
 struct ppx_priv {
@@ -255,7 +243,7 @@ static struct rtnl_link_stats64
 	return storage;
 
 error:
-	ppx_err(netdev, "dpmac_get_counter err %d\n", err);
+	netdev_err(netdev, "dpmac_get_counter err %d\n", err);
 	return storage;
 }
 
@@ -322,8 +310,8 @@ static void ppx_ethtool_get_stats(struct net_device *netdev,
 					priv->mc_dev->mc_handle,
 					ppx_ethtool_counters[i].id, &data[i]);
 		if (err)
-			ppx_err(netdev, "dpmac_get_counter[%s] err %d\n",
-				ppx_ethtool_counters[i].name, err);
+			netdev_err(netdev, "dpmac_get_counter[%s] err %d\n",
+				   ppx_ethtool_counters[i].name, err);
 	}
 }
 
@@ -358,7 +346,7 @@ static int ppx_configure_link(struct ppx_priv *priv, struct dpmac_link_cfg *cfg)
 	struct phy_device *phydev = priv->netdev->phydev;
 
 	if (!phydev) {
-		ppx_warn(priv->netdev,
+		dev_warn(priv->netdev->dev.parent,
 			 "asked to change PHY settings but PHY ref is NULL, ignoring\n");
 		return 0;
 	}
