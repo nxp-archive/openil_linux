@@ -732,6 +732,8 @@ probe_fixed_link:
 		netdev->phydev = fixed_phy_register(PHY_POLL, &status, NULL);
 		if (!netdev->phydev || IS_ERR(netdev->phydev)) {
 			dev_err(dev, "error trying to register fixed PHY\n");
+			/* So we don't crash unregister_netdev() later on */
+			netdev->phydev = NULL;
 			err = -EFAULT;
 			goto err_no_phy;
 		}
