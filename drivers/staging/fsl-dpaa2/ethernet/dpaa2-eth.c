@@ -2317,11 +2317,6 @@ static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 	int err;
 
 	netdev_dbg(net_dev, "IRQ %d received\n", irq_num);
-	if (!dpni_dev || !dpni_dev->irqs || !dpni_dev->irqs[irq_index])
-		goto out;
-	if (dpni_dev->irqs[irq_index]->irq_number != irq_num)
-		goto out;
-
 	err = dpni_get_irq_status(dpni_dev->mc_io, 0, dpni_dev->mc_handle,
 				  irq_index, &status);
 	if (unlikely(err)) {
