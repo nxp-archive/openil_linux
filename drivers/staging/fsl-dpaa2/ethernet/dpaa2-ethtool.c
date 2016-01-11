@@ -86,9 +86,28 @@ char dpaa2_ethtool_extras[][ETH_GSTRING_LEN] = {
 static void dpaa2_get_drvinfo(struct net_device *net_dev,
 			      struct ethtool_drvinfo *drvinfo)
 {
+	struct mc_version mc_ver;
+	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
+	char fw_version[ETHTOOL_FWVERS_LEN];
+	char version[32];
+	int err;
+
+	err = mc_get_version(priv->mc_io, 0, &mc_ver);
+	if (err) {
+		strlcpy(drvinfo->fw_version, "Error retrieving MC version",
+			sizeof(drvinfo->fw_version));
+	} else {
+		scnprintf(fw_version, sizeof(fw_version), "%d.%d.%d",
+			  mc_ver.major, mc_ver.minor, mc_ver.revision);
+		strlcpy(drvinfo->fw_version, fw_version,
+			sizeof(drvinfo->fw_version));
+	}
+
+	scnprintf(version, sizeof(version), "%d.%d", DPNI_VER_MAJOR,
+		  DPNI_VER_MINOR);
+	strlcpy(drvinfo->version, version, sizeof(drvinfo->version));
+
 	strlcpy(drvinfo->driver, KBUILD_MODNAME, sizeof(drvinfo->driver));
-	strlcpy(drvinfo->version, VERSION, sizeof(drvinfo->version));
-	strlcpy(drvinfo->fw_version, "N/A", sizeof(drvinfo->fw_version));
 	strlcpy(drvinfo->bus_info, dev_name(net_dev->dev.parent->parent),
 		sizeof(drvinfo->bus_info));
 }
