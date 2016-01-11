@@ -101,41 +101,51 @@ static phy_interface_t ppx_eth_iface_mode[] =  {
 	PHY_INTERFACE_MODE_XGMII,
 };
 
-static void ppx_link_changed(struct net_device *netdev);
+static void ppx_link_changed(struct net_device *netdev)
+{
+	struct phy_device	*phydev;
+	struct dpmac_link_state	state = { 0 };
+	struct ppx_priv		*priv = netdev_priv(netdev);
+	int			err;
+
+	/* the PHY just notified us of link state change */
+	phydev = netdev->phydev;
+
+	state.up = !!phydev->link;
+	if (phydev->link) {
+		state.rate = phydev->speed;
+
+		if (!phydev->duplex)
+			state.options |= DPMAC_LINK_OPT_HALF_DUPLEX;
+		if (phydev->autoneg)
+			state.options |= DPMAC_LINK_OPT_AUTONEG;
+
+		netif_carrier_on(netdev);
+	} else {
+		netif_carrier_off(netdev);
+	}
+
+	if (priv->old_state.up != state.up ||
+	    priv->old_state.rate != state.rate ||
+	    priv->old_state.options != state.options) {
+		priv->old_state = state;
+		phy_print_status(phydev);
+	}
+
+	/* We must call into the MC firmware at all times, because we don't know
+	 * when and whether a potential DPNI may have read the link state.
+	 */
+	err = dpmac_set_link_state(priv->mc_dev->mc_io, 0,
+				   priv->mc_dev->mc_handle, &state);
+	if (unlikely(err))
+		dev_err(&priv->mc_dev->dev, "dpmac_set_link_state: %d\n", err);
+}
 
 /* IRQ bits that we handle */
 static const u32 dpmac_irq_mask =  DPMAC_IRQ_EVENT_LINK_CFG_REQ |
 				   DPMAC_IRQ_EVENT_LINK_CHANGED;
 
 #ifdef CONFIG_FSL_DPAA2_MAC_NETDEVS
-static netdev_tx_t ppx_dropframe(struct sk_buff *skb, struct net_device *dev);
-static int ppx_open(struct net_device *netdev);
-static int ppx_stop(struct net_device *netdev);
-static struct rtnl_link_stats64 *ppx_get_stats(struct net_device *,
-					       struct rtnl_link_stats64 *);
-
-static int ppx_ethtool_get_settings(struct net_device *, struct ethtool_cmd *);
-static int ppx_ethtool_set_settings(struct net_device *, struct ethtool_cmd *);
-static int ppx_ethtool_get_sset_count(struct net_device *dev, int sset);
-static void ppx_ethtool_get_strings(struct net_device *, u32 stringset, u8 *);
-static void ppx_ethtool_get_stats(struct net_device *, struct ethtool_stats *,
-				  u64 *);
-
-static const struct net_device_ops ppx_ndo = {
-	.ndo_start_xmit		= &ppx_dropframe,
-	.ndo_open		= &ppx_open,
-	.ndo_stop		= &ppx_stop,
-	.ndo_get_stats64	= &ppx_get_stats,
-};
-
-static const struct ethtool_ops ppx_ethtool_ops = {
-	.get_settings		= &ppx_ethtool_get_settings,
-	.set_settings		= &ppx_ethtool_set_settings,
-	.get_strings		= &ppx_ethtool_get_strings,
-	.get_ethtool_stats	= &ppx_ethtool_get_stats,
-	.get_sset_count		= &ppx_ethtool_get_sset_count,
-};
-
 static netdev_tx_t ppx_dropframe(struct sk_buff *skb, struct net_device *dev)
 {
 	/* we don't support I/O for now, drop the frame */
@@ -326,47 +336,22 @@ static int ppx_ethtool_get_sset_count(struct net_device *dev, int sset)
 		return -EOPNOTSUPP;
 	}
 }
+
+static const struct net_device_ops ppx_ndo = {
+	.ndo_start_xmit		= &ppx_dropframe,
+	.ndo_open		= &ppx_open,
+	.ndo_stop		= &ppx_stop,
+	.ndo_get_stats64	= &ppx_get_stats,
+};
+
+static const struct ethtool_ops ppx_ethtool_ops = {
+	.get_settings		= &ppx_ethtool_get_settings,
+	.set_settings		= &ppx_ethtool_set_settings,
+	.get_strings		= &ppx_ethtool_get_strings,
+	.get_ethtool_stats	= &ppx_ethtool_get_stats,
+	.get_sset_count		= &ppx_ethtool_get_sset_count,
+};
 #endif /* CONFIG_FSL_DPAA2_MAC_NETDEVS */
-
-static void ppx_link_changed(struct net_device *netdev)
-{
-	struct phy_device	*phydev;
-	struct dpmac_link_state	state = { 0 };
-	struct ppx_priv		*priv = netdev_priv(netdev);
-	int			err;
-
-	/* the PHY just notified us of link state change */
-	phydev = netdev->phydev;
-
-	state.up = !!phydev->link;
-	if (phydev->link) {
-		state.rate = phydev->speed;
-
-		if (!phydev->duplex)
-			state.options |= DPMAC_LINK_OPT_HALF_DUPLEX;
-		if (phydev->autoneg)
-			state.options |= DPMAC_LINK_OPT_AUTONEG;
-
-		netif_carrier_on(netdev);
-	} else {
-		netif_carrier_off(netdev);
-	}
-
-	if (priv->old_state.up != state.up ||
-	    priv->old_state.rate != state.rate ||
-	    priv->old_state.options != state.options) {
-		priv->old_state = state;
-		phy_print_status(phydev);
-	}
-
-	/* We must call into the MC firmware at all times, because we don't know
-	 * when and whether a potential DPNI may have read the link state.
-	 */
-	err = dpmac_set_link_state(priv->mc_dev->mc_io, 0,
-				   priv->mc_dev->mc_handle, &state);
-	if (unlikely(err))
-		dev_err(&priv->mc_dev->dev, "dpmac_set_link_state: %d\n", err);
-}
 
 static int ppx_configure_link(struct ppx_priv *priv, struct dpmac_link_cfg *cfg)
 {
