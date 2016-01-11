@@ -909,17 +909,12 @@ static void dpaa2_dpbp_drain_cnt(struct dpaa2_eth_priv *priv, int count)
 	} while (ret);
 }
 
-static void dpaa2_dpbp_drain(struct dpaa2_eth_priv *priv)
-{
-	dpaa2_dpbp_drain_cnt(priv, 7);
-	dpaa2_dpbp_drain_cnt(priv, 1);
-}
-
 static void __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
 {
 	int i;
 
-	dpaa2_dpbp_drain(priv);
+	dpaa2_dpbp_drain_cnt(priv, 7);
+	dpaa2_dpbp_drain_cnt(priv, 1);
 
 	for (i = 0; i < priv->num_channels; i++)
 		priv->channel[i]->buf_count = 0;
