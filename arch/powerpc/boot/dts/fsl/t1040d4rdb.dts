@@ -88,27 +88,35 @@
 				};
 				phy_qsgmii_0: ethernet-phy@08 {
 					reg = <0x08>;
+					interrupts = <0 1 0 0>;
 				};
 				phy_qsgmii_1: ethernet-phy@09 {
 					reg = <0x09>;
+					interrupts = <0 1 0 0>;
 				};
 				phy_qsgmii_2: ethernet-phy@0a {
 					reg = <0x0a>;
+					interrupts = <0 1 0 0>;
 				};
 				phy_qsgmii_3: ethernet-phy@0b {
 					reg = <0x0b>;
+					interrupts = <0 1 0 0>;
 				};
 				phy_qsgmii_4: ethernet-phy@0c {
 					reg = <0x0c>;
+					interrupts = <0 1 0 0>;
 				};
 				phy_qsgmii_5: ethernet-phy@0d {
 					reg = <0x0d>;
+					interrupts = <0 1 0 0>;
 				};
 				phy_qsgmii_6: ethernet-phy@0e {
 					reg = <0x0e>;
+					interrupts = <0 1 0 0>;
 				};
 				phy_qsgmii_7: ethernet-phy@0f {
 					reg = <0x0f>;
+					interrupts = <0 1 0 0>;
 				};
 			};
 		};
