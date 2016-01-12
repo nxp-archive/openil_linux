@@ -87,11 +87,14 @@ static u16 esdhc_readw_fixup(struct sdhci_host *host,
 	else
 		ret = (value >> shift) & 0xffff;
 
-	/* Workaround for T4240-R1.0-R2.0 eSDHC which has incorrect
+	/* Workaround for T4240-4160-4080-R1.0-R2.0 eSDHC which has incorrect
 	 * vendor version and spec version information.
 	 */
 	if ((spec_reg == SDHCI_HOST_VERSION) &&
-	    (esdhc->soc_ver == SVR_T4240) && (esdhc->soc_rev <= 0x20))
+	    ((esdhc->soc_ver == SVR_T4240) ||
+	     (esdhc->soc_ver == SVR_T4160) ||
+	     (esdhc->soc_ver == SVR_T4080)) &&
+	    (esdhc->soc_rev <= 0x20))
 		ret = (VENDOR_V_23 << SDHCI_VENDOR_VER_SHIFT) | SDHCI_SPEC_200;
 	return ret;
 }
@@ -396,12 +399,13 @@ static void esdhc_of_adma_workaround(struct sdhci_host *host, u32 intmask)
 	 * Check for A-004388: eSDHC DMA might not stop if error
 	 * occurs on system transaction
 	 * Impact list:
-	 * T4240-4160-R1.0 B4860-4420-R1.0-R2.0 P1010-1014-R1.0
+	 * T4240-4160-4080-R1.0 B4860-4420-R1.0-R2.0 P1010-1014-R1.0
 	 * P3041-R1.0-R2.0-R1.1 P2041-2040-R1.0-R1.1-R2.0
 	 * P5020-5010-R2.0-R1.0 P5040-5021-R2.0-R2.1
 	 */
 	if (!(((esdhc->soc_ver == SVR_T4240) && (esdhc->soc_rev == 0x10)) ||
 		((esdhc->soc_ver == SVR_T4160) && (esdhc->soc_rev == 0x10)) ||
+		((esdhc->soc_ver == SVR_T4080) && (esdhc->soc_rev == 0x10)) ||
 		((esdhc->soc_ver == SVR_B4860) && (esdhc->soc_rev == 0x10)) ||
 		((esdhc->soc_ver == SVR_B4860) && (esdhc->soc_rev == 0x20)) ||
 		((esdhc->soc_ver == SVR_B4420) && (esdhc->soc_rev == 0x10)) ||
@@ -598,14 +602,17 @@ static int esdhc_of_reset_workaround(struct sdhci_host *host, u8 mask)
 	/*
 	 * Check for A-003980
 	 * Impact list:
-	 * T4240-4160-R1.0-R2.0 B4860-4420-R1.0-R2.0 P5040-5021-R1.0-R2.0-R2.1
-	 * P5020-5010-R1.0-R2.0 P3041-R1.0-R1.1-R2.0 P2041-2040-R1.0-R1.1-R2.0
+	 * T4240-4160-4080-R1.0-R2.0 B4860-4420-R1.0-R2.0
+	 * P5040-5021-R1.0-R2.0-R2.1 P5020-5010-R1.0-R2.0
+	 * P3041-R1.0-R1.1-R2.0 P2041-2040-R1.0-R1.1-R2.0
 	 * P1010-1014-R1.0
 	 */
 	if (((esdhc->soc_ver == SVR_T4240) && (esdhc->soc_rev == 0x10)) ||
 	    ((esdhc->soc_ver == SVR_T4240) && (esdhc->soc_rev == 0x20)) ||
 	    ((esdhc->soc_ver == SVR_T4160) && (esdhc->soc_rev == 0x10)) ||
 	    ((esdhc->soc_ver == SVR_T4160) && (esdhc->soc_rev == 0x20)) ||
+	    ((esdhc->soc_ver == SVR_T4080) && (esdhc->soc_rev == 0x10)) ||
+	    ((esdhc->soc_ver == SVR_T4080) && (esdhc->soc_rev == 0x20)) ||
 	    ((esdhc->soc_ver == SVR_B4860) && (esdhc->soc_rev == 0x10)) ||
 	    ((esdhc->soc_ver == SVR_B4860) && (esdhc->soc_rev == 0x20)) ||
 	    ((esdhc->soc_ver == SVR_B4420) && (esdhc->soc_rev == 0x10)) ||
