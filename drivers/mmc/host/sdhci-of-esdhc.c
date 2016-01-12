@@ -375,19 +375,96 @@ static void esdhc_of_adma_workaround(struct sdhci_host *host, u32 intmask)
 	applicable = (intmask & SDHCI_INT_DATA_END) &&
 		     (intmask & SDHCI_INT_BLK_GAP) &&
 		     (esdhc->vendor_ver == VENDOR_V_23);
-	if (!applicable)
+	if (applicable) {
+
+		sdhci_reset(host, SDHCI_RESET_DATA);
+		host->data->error = 0;
+		dmastart = sg_dma_address(host->data->sg);
+		dmanow = dmastart + host->data->bytes_xfered;
+		/*
+		 * Force update to the next DMA block boundary.
+		 */
+		dmanow = (dmanow & ~(SDHCI_DEFAULT_BOUNDARY_SIZE - 1)) +
+			SDHCI_DEFAULT_BOUNDARY_SIZE;
+		host->data->bytes_xfered = dmanow - dmastart;
+		sdhci_writel(host, dmanow, SDHCI_DMA_ADDRESS);
+
+		return;
+	}
+
+	/*
+	 * Check for A-004388: eSDHC DMA might not stop if error
+	 * occurs on system transaction
+	 * Impact list:
+	 * T4240-4160-R1.0 B4860-4420-R1.0-R2.0 P1010-1014-R1.0
+	 * P3041-R1.0-R2.0-R1.1 P2041-2040-R1.0-R1.1-R2.0
+	 * P5020-5010-R2.0-R1.0 P5040-5021-R2.0-R2.1
+	 */
+	if (!(((esdhc->soc_ver == SVR_T4240) && (esdhc->soc_rev == 0x10)) ||
+		((esdhc->soc_ver == SVR_T4160) && (esdhc->soc_rev == 0x10)) ||
+		((esdhc->soc_ver == SVR_B4860) && (esdhc->soc_rev == 0x10)) ||
+		((esdhc->soc_ver == SVR_B4860) && (esdhc->soc_rev == 0x20)) ||
+		((esdhc->soc_ver == SVR_B4420) && (esdhc->soc_rev == 0x10)) ||
+		((esdhc->soc_ver == SVR_B4420) && (esdhc->soc_rev == 0x20)) ||
+		((esdhc->soc_ver == SVR_P1010) && (esdhc->soc_rev == 0x10)) ||
+		((esdhc->soc_ver == SVR_P1014) && (esdhc->soc_rev == 0x10)) ||
+		((esdhc->soc_ver == SVR_P3041) && (esdhc->soc_rev <= 0x20)) ||
+		((esdhc->soc_ver == SVR_P2041) && (esdhc->soc_rev <= 0x20)) ||
+		((esdhc->soc_ver == SVR_P2040) && (esdhc->soc_rev <= 0x20)) ||
+		((esdhc->soc_ver == SVR_P5020) && (esdhc->soc_rev <= 0x20)) ||
+		((esdhc->soc_ver == SVR_P5010) && (esdhc->soc_rev <= 0x20)) ||
+		((esdhc->soc_ver == SVR_P5040) && (esdhc->soc_rev <= 0x21)) ||
+		((esdhc->soc_ver == SVR_P5021) && (esdhc->soc_rev <= 0x21))))
 		return;
 
-	host->data->error = 0;
-	dmastart = sg_dma_address(host->data->sg);
-	dmanow = dmastart + host->data->bytes_xfered;
-	/*
-	 * Force update to the next DMA block boundary.
-	 */
-	dmanow = (dmanow & ~(SDHCI_DEFAULT_BOUNDARY_SIZE - 1)) +
-		SDHCI_DEFAULT_BOUNDARY_SIZE;
-	host->data->bytes_xfered = dmanow - dmastart;
-	sdhci_writel(host, dmanow, SDHCI_DMA_ADDRESS);
+	sdhci_reset(host, SDHCI_RESET_DATA);
+
+	if (host->flags & SDHCI_USE_ADMA) {
+		u32 mod, i, offset;
+		u8 *desc;
+		dma_addr_t addr;
+		struct scatterlist *sg;
+		__le32 *dataddr;
+		__le32 *cmdlen;
+
+		/*
+		 * If block count was enabled, in case read transfer there
+		 * is no data was corrupted
+		 */
+		mod = sdhci_readl(host, SDHCI_TRANSFER_MODE);
+		if ((mod & SDHCI_TRNS_BLK_CNT_EN) &&
+				(host->data->flags & MMC_DATA_READ))
+			host->data->error = 0;
+
+		BUG_ON(!host->data);
+		desc = host->adma_table;
+		for_each_sg(host->data->sg, sg, host->sg_count, i) {
+			addr = sg_dma_address(sg);
+			offset = (4 - (addr & 0x3)) & 0x3;
+			if (offset)
+				desc += 8;
+			desc += 8;
+		}
+
+		/*
+		 * Add an extra zero descriptor next to the
+		 * terminating descriptor.
+		 */
+		desc += 8;
+		WARN_ON((desc - (u8 *)(host->adma_table)) > (128 * 2 + 1) * 4);
+
+		dataddr = (__le32 __force *)(desc + 4);
+		cmdlen = (__le32 __force *)desc;
+
+		cmdlen[0] = cpu_to_le32(0);
+		dataddr[0] = cpu_to_le32(0);
+	}
+
+	if ((host->flags & SDHCI_USE_SDMA) &&
+			(host->data->flags & MMC_DATA_READ))
+		host->data->error = 0;
+
+	return;
 }
 
 static int esdhc_of_enable_dma(struct sdhci_host *host)
