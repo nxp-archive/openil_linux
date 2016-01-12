@@ -1114,20 +1114,78 @@ enable_err:
 	return err;
 }
 
+/* The DPIO store must be empty when we call this,
+ * at the end of every NAPI cycle.
+ */
+static u32 dpaa2_eth_drain_ch(struct dpaa2_eth_priv *priv,
+			      struct dpaa2_eth_channel *ch)
+{
+	u32 drained = 0, total = 0;
+
+	do {
+		__dpaa2_eth_pull_channel(ch);
+		drained = dpaa2_eth_store_consume(ch);
+		total += drained;
+	} while (drained);
+
+	return total;
+}
+
+static u32 dpaa2_eth_drain_rx(struct dpaa2_eth_priv *priv)
+{
+	struct dpaa2_eth_channel *ch;
+	int i;
+	u32 drained = 0;
+
+	for (i = 0; i < priv->num_channels; i++) {
+		ch = priv->channel[i];
+		drained += dpaa2_eth_drain_ch(priv, ch);
+	}
+
+	return drained;
+}
+
 static int dpaa2_eth_stop(struct net_device *net_dev)
 {
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
+	int dpni_enabled;
+	int retries = 10;
+	u32 drained;
 
-	/* Stop Tx and Rx traffic */
 	netif_tx_stop_all_queues(net_dev);
 	netif_carrier_off(net_dev);
-	dpni_disable(priv->mc_io, 0, priv->mc_token);
 
-	msleep(500);
+	/* Loop while dpni_disable() attempts to drain the egress FQs
+	 * and confirm them back to us.
+	 */
+	do {
+		dpni_disable(priv->mc_io, 0, priv->mc_token);
+		dpni_is_enabled(priv->mc_io, 0, priv->mc_token, &dpni_enabled);
+		if (dpni_enabled)
+			/* Allow the MC some slack */
+			msleep(100);
+	} while (dpni_enabled && --retries);
+	if (!retries) {
+		netdev_warn(net_dev, "Retry count exceeded disabling DPNI\n");
+		/* Must go on and disable NAPI nonetheless, so we don't crash at
+		 * the next "ifconfig up"
+		 */
+	}
 
+	/* Wait for NAPI to complete on every core and disable it.
+	 * In particular, this will also prevent NAPI from being rescheduled if
+	 * a new CDAN is serviced, effectively discarding the CDAN. We therefore
+	 * don't even need to disarm the channels, except perhaps for the case
+	 * of a huge coalescing value.
+	 */
 	dpaa2_eth_napi_disable(priv);
-	msleep(100);
 
+	 /* Manually drain the Rx and TxConf queues */
+	drained = dpaa2_eth_drain_rx(priv);
+	if (drained)
+		netdev_dbg(net_dev, "Drained %d frames.\n", drained);
+
+	/* Empty the buffer pool */
 	__dpaa2_dpbp_free(priv);
 
 	return 0;
