@@ -25,6 +25,7 @@
 #include <linux/genalloc.h>
 
 #include <asm/mpc85xx.h>
+#include <asm/fsl_kibo.h>
 
 /* define indexes for each operation mapping scenario */
 #define OMI_QMAN        0x00
@@ -289,16 +290,16 @@ void pamu_free_subwins(int liodn)
 }
 
 /*
- * Function used for updating stash destination for the coressponding
+ * Function used for updating a specifc PAACE field for the coressponding
  * LIODN.
  */
-int  pamu_update_paace_stash(int liodn, u32 subwin, u32 value)
+int  pamu_update_paace_field(int liodn, u32 subwin, int field, u32 value)
 {
 	struct paace *paace;
 
 	paace = pamu_get_ppaace(liodn);
 	if (!paace) {
-		pr_debug("Invalid liodn entry\n");
+		pr_err("Invalid liodn entry\n");
 		return -ENOENT;
 	}
 	if (subwin) {
@@ -306,8 +307,19 @@ int  pamu_update_paace_stash(int liodn, u32 subwin, u32 value)
 		if (!paace)
 			return -ENOENT;
 	}
-	set_bf(paace->impl_attr, PAACE_IA_CID, value);
 
+	switch (field) {
+	case PAACE_STASH_FIELD:
+		set_bf(paace->impl_attr, PAACE_IA_CID, value);
+		break;
+	case PAACE_OMI_FIELD:
+		set_bf(paace->impl_attr, PAACE_IA_OTM, PAACE_OTM_INDEXED);
+		paace->op_encode.index_ot.omi = value;
+		break;
+	default:
+		pr_debug("Invalid field, can't update\n");
+		return -EINVAL;
+	}
 	mb();
 
 	return 0;
@@ -533,6 +545,63 @@ void get_ome_index(u32 *omi_index, struct device *dev)
 		*omi_index = OMI_QMAN_PRIV;
 }
 
+/*
+ * We get the stash id programmed by SDOS from the shared
+ * cluster L2 l2csr1 register.
+ */
+static u32 get_dsp_l2_stash_id(u32 vcpu)
+{
+	const u32 *prop;
+	struct device_node *node;
+	struct ccsr_cluster_l2 *l2cache_regs;
+	u32 stash_id;
+
+	for_each_compatible_node(node, NULL, "fsl,sc3900") {
+		prop = of_get_property(node, "reg", 0);
+		if (!prop) {
+			pr_err("missing reg property in dsp cpu node %s\n",
+			       node->full_name);
+			of_node_put(node);
+			return ~(u32)0;
+		}
+
+		if (*prop != vcpu)
+			continue;
+
+		prop = of_get_property(node, "next-level-cache", 0);
+		if (!prop) {
+			pr_err("missing next level cache property in dsp cpu %s\n",
+			       node->full_name);
+			of_node_put(node);
+			return ~(u32)0;
+		}
+		of_node_put(node);
+
+		node = of_find_node_by_phandle(*prop);
+		if (!node) {
+			pr_err("Invalid node for cache hierarchy %s\n",
+			       node->full_name);
+			return ~(u32)0;
+		}
+
+		l2cache_regs = of_iomap(node, 0);
+		if (!l2cache_regs) {
+			pr_err("failed to map cluster l2 cache registers %s\n",
+			       node->full_name);
+			of_node_put(node);
+			return ~(u32)0;
+		}
+
+		stash_id = in_be32(&l2cache_regs->l2csr1) &
+				 CLUSTER_L2_STASH_MASK;
+		of_node_put(node);
+		iounmap(l2cache_regs);
+
+		return stash_id;
+	}
+	return ~(u32)0;
+}
+
 /**
  * get_stash_id - Returns stash destination id corresponding to a
  *                cache type and vcpu.
@@ -549,6 +618,11 @@ u32 get_stash_id(u32 stash_dest_hint, u32 vcpu)
 	u32 cache_level;
 	int len, found = 0;
 	int i;
+
+	/* check for DSP L2 cache */
+	if (stash_dest_hint == PAMU_ATTR_CACHE_DSP_L2) {
+		return get_dsp_l2_stash_id(vcpu);
+	}
 
 	/* Fastpath, exit early if L3/CPC cache is target for stashing */
 	if (stash_dest_hint == PAMU_ATTR_CACHE_L3) {
@@ -694,6 +768,13 @@ static void __init setup_omt(struct ome *omt)
 	ome = &omt[OMI_CAAM];
 	ome->moe[IOE_READ_IDX]  = EOE_VALID | EOE_READI;
 	ome->moe[IOE_WRITE_IDX] = EOE_VALID | EOE_WRITE;
+
+	/* Configure OMI_DSP */
+	ome = &omt[OMI_DSP];
+	ome->moe[IOE_READ_IDX]  = EOE_VALID | EOE_RWNITC;
+	ome->moe[IOE_EREAD0_IDX] = EOE_VALID | EOE_RWNITC;
+	ome->moe[IOE_WRITE_IDX] = EOE_VALID | EOE_WWSAO;
+	ome->moe[IOE_EWRITE0_IDX] = EOE_VALID | EOE_WWSAO;
 }
 
 /*
