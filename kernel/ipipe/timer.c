@@ -365,6 +365,7 @@ int ipipe_timer_start(void (*tick_handler)(void),
 		timer->real_set_next_event = evtdev->set_next_event;
 		evtdev->mult = 1;
 		evtdev->shift = 0;
+		evtdev->max_delta_ns = UINT_MAX;
 		evtdev->set_mode = emumode;
 		evtdev->set_next_event = emutick;
 		evtdev->ipipe_stolen = 1;
