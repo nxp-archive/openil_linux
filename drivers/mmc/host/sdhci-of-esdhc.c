@@ -421,6 +421,7 @@ static void esdhc_of_set_clock(struct sdhci_host *host, unsigned int clock)
 	int pre_div = 1;
 	int div = 1;
 	u32 temp;
+	u32 timeout;
 
 	host->mmc->actual_clock = 0;
 
@@ -441,7 +442,7 @@ static void esdhc_of_set_clock(struct sdhci_host *host, unsigned int clock)
 
 	temp = sdhci_readl(host, ESDHC_SYSTEM_CONTROL);
 	temp &= ~(ESDHC_CLOCK_IPGEN | ESDHC_CLOCK_HCKEN | ESDHC_CLOCK_PEREN
-		| ESDHC_CLOCK_MASK);
+		| ESDHC_CLOCK_CRDEN | ESDHC_CLOCK_MASK);
 	sdhci_writel(host, temp, ESDHC_SYSTEM_CONTROL);
 
 	while (host->max_clk / pre_div / 16 > clock && pre_div < 256)
@@ -461,7 +462,21 @@ static void esdhc_of_set_clock(struct sdhci_host *host, unsigned int clock)
 		| (div << ESDHC_DIVIDER_SHIFT)
 		| (pre_div << ESDHC_PREDIV_SHIFT));
 	sdhci_writel(host, temp, ESDHC_SYSTEM_CONTROL);
-	mdelay(1);
+
+	/* Wait max 20 ms */
+	timeout = 20;
+	while (!(sdhci_readl(host, ESDHC_PRESENT_STATE) & ESDHC_CLOCK_STABLE)) {
+		if (timeout == 0) {
+			pr_err("%s: Internal clock never stabilised.\n",
+				mmc_hostname(host->mmc));
+			return;
+		}
+		timeout--;
+		mdelay(1);
+	}
+
+	temp |= ESDHC_CLOCK_CRDEN;
+	sdhci_writel(host, temp, ESDHC_SYSTEM_CONTROL);
 }
 
 static void esdhc_pltfm_set_bus_width(struct sdhci_host *host, int width)
@@ -486,9 +501,66 @@ static void esdhc_pltfm_set_bus_width(struct sdhci_host *host, int width)
 	sdhci_writel(host, ctrl, ESDHC_PROCTL);
 }
 
+/*
+ * A-003980: SDHC: Glitch is generated on the card clock with software reset
+ * or clock divider change
+ * Workaround:
+ * A simple workaround is to disable the SD card clock before the software
+ * reset, and enable it when the module resumes normal operation. The Host
+ * and the SD card are in a master-slave relationship. The Host provides
+ * clock and control transfer across the interface. Therefore, any existing
+ * operation is discarded when the Host controller is reset.
+ */
+static int esdhc_of_reset_workaround(struct sdhci_host *host, u8 mask)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_esdhc *esdhc = pltfm_host->priv;
+	bool disable_clk_before_reset = false;
+	u32 temp;
+
+	/*
+	 * Check for A-003980
+	 * Impact list:
+	 * T4240-4160-R1.0-R2.0 B4860-4420-R1.0-R2.0 P5040-5021-R1.0-R2.0-R2.1
+	 * P5020-5010-R1.0-R2.0 P3041-R1.0-R1.1-R2.0 P2041-2040-R1.0-R1.1-R2.0
+	 * P1010-1014-R1.0
+	 */
+	if (((esdhc->soc_ver == SVR_T4240) && (esdhc->soc_rev == 0x10)) ||
+	    ((esdhc->soc_ver == SVR_T4240) && (esdhc->soc_rev == 0x20)) ||
+	    ((esdhc->soc_ver == SVR_T4160) && (esdhc->soc_rev == 0x10)) ||
+	    ((esdhc->soc_ver == SVR_T4160) && (esdhc->soc_rev == 0x20)) ||
+	    ((esdhc->soc_ver == SVR_B4860) && (esdhc->soc_rev == 0x10)) ||
+	    ((esdhc->soc_ver == SVR_B4860) && (esdhc->soc_rev == 0x20)) ||
+	    ((esdhc->soc_ver == SVR_B4420) && (esdhc->soc_rev == 0x10)) ||
+	    ((esdhc->soc_ver == SVR_B4420) && (esdhc->soc_rev == 0x20)) ||
+	    ((esdhc->soc_ver == SVR_P5040) && (esdhc->soc_rev <= 0x21)) ||
+	    ((esdhc->soc_ver == SVR_P5021) && (esdhc->soc_rev <= 0x21)) ||
+	    ((esdhc->soc_ver == SVR_P5020) && (esdhc->soc_rev <= 0x20)) ||
+	    ((esdhc->soc_ver == SVR_P5010) && (esdhc->soc_rev <= 0x20)) ||
+	    ((esdhc->soc_ver == SVR_P3041) && (esdhc->soc_rev <= 0x20)) ||
+	    ((esdhc->soc_ver == SVR_P2041) && (esdhc->soc_rev <= 0x20)) ||
+	    ((esdhc->soc_ver == SVR_P2040) && (esdhc->soc_rev <= 0x20)) ||
+	    ((esdhc->soc_ver == SVR_P1014) && (esdhc->soc_rev == 0x10)) ||
+	    ((esdhc->soc_ver == SVR_P1010) && (esdhc->soc_rev == 0x10)))
+		disable_clk_before_reset = true;
+
+	if (disable_clk_before_reset && (mask & SDHCI_RESET_ALL)) {
+		temp = sdhci_readl(host, ESDHC_SYSTEM_CONTROL);
+		temp &= ~ESDHC_CLOCK_CRDEN;
+		sdhci_writel(host, temp, ESDHC_SYSTEM_CONTROL);
+		sdhci_reset(host, mask);
+		temp = sdhci_readl(host, ESDHC_SYSTEM_CONTROL);
+		temp |= ESDHC_CLOCK_CRDEN;
+		sdhci_writel(host, temp, ESDHC_SYSTEM_CONTROL);
+		return 1;
+	}
+	return 0;
+}
+
 static void esdhc_reset(struct sdhci_host *host, u8 mask)
 {
-	sdhci_reset(host, mask);
+	if (!esdhc_of_reset_workaround(host, mask))
+		sdhci_reset(host, mask);
 
 	sdhci_writel(host, host->ier, SDHCI_INT_ENABLE);
 	sdhci_writel(host, host->ier, SDHCI_SIGNAL_ENABLE);
