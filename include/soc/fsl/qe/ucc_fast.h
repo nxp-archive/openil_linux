@@ -27,12 +27,16 @@
 #define R_I	0x10000000	/* interrupt on reception */
 #define R_L	0x08000000	/* last */
 #define R_F	0x04000000	/* first */
+#define R_CM	0x02000000	/* first */
+#define R_CR	0x00040000	/* first */
 
 /* transmit BD's status */
 #define T_R	0x80000000	/* ready bit */
 #define T_W	0x20000000	/* wrap bit */
 #define T_I	0x10000000	/* interrupt on completion */
 #define T_L	0x08000000	/* last */
+#define T_TC	0x04000000	/* crc */
+#define T_TM	0x02000000	/* crc */
 
 /* Rx Data buffer must be 4 bytes aligned in most cases */
 #define UCC_FAST_RX_ALIGN			4
