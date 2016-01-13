@@ -1543,7 +1543,7 @@ static struct fsl_mc_device *dpaa2_dpcon_setup(struct dpaa2_eth_priv *priv)
 	err = fsl_mc_object_allocate(to_fsl_mc_device(dev),
 				     FSL_MC_POOL_DPCON, &dpcon);
 	if (err) {
-		dev_err(dev, "DPCON allocation failed\n");
+		dev_info(dev, "Not enough DPCONs, will go on as-is\n");
 		return NULL;
 	}
 
@@ -1590,7 +1590,7 @@ static void dpaa2_dpcon_free(struct dpaa2_eth_priv *priv,
 }
 
 static struct dpaa2_eth_channel *
-dpaa2_alloc_channel(struct dpaa2_eth_priv *priv, int cpu)
+dpaa2_alloc_channel(struct dpaa2_eth_priv *priv)
 {
 	struct dpaa2_eth_channel *channel;
 	struct dpcon_attr attr;
@@ -1651,7 +1651,7 @@ static int dpaa2_dpio_setup(struct dpaa2_eth_priv *priv)
 	cpumask_clear(&priv->dpio_cpumask);
 	for_each_online_cpu(i) {
 		/* Try to allocate a channel */
-		channel = dpaa2_alloc_channel(priv, i);
+		channel = dpaa2_alloc_channel(priv);
 		if (!channel)
 			goto err_alloc_ch;
 
