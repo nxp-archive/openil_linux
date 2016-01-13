@@ -41,7 +41,9 @@ void __init corenet_gen_pic_init(void)
 	unsigned int flags = MPIC_BIG_ENDIAN | MPIC_SINGLE_DEST_CPU |
 		MPIC_NO_RESET;
 
+#ifdef CONFIG_QUICC_ENGINE
 	struct device_node *np;
+#endif
 
 	if (ppc_md.get_irq == mpic_get_coreint_irq)
 		flags |= MPIC_ENABLE_COREINT;
@@ -51,12 +53,14 @@ void __init corenet_gen_pic_init(void)
 
 	mpic_init(mpic);
 
+#ifdef CONFIG_QUICC_ENGINE
 	np = of_find_compatible_node(NULL, NULL, "fsl,qe-ic");
 	if (np) {
 		qe_ic_init(np, 0, qe_ic_cascade_low_mpic,
 				qe_ic_cascade_high_mpic);
 		of_node_put(np);
 	}
+#endif
 }
 
 /*
@@ -114,9 +118,11 @@ static const struct of_device_id of_device_ids[] = {
 	{
 		.compatible	= "fsl,qoriq-pcie-v3.0",
 	},
+#ifdef CONFIG_QUICC_ENGINE
 	{
 		.compatible	= "fsl,qe",
 	},
+#endif
 	{
 		.compatible    = "fsl,fman",
 	},
