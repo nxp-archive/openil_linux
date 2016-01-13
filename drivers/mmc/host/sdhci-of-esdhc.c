@@ -666,11 +666,9 @@ static int esdhc_of_resume(struct device *dev)
 	struct sdhci_host *host = dev_get_drvdata(dev);
 	int ret = sdhci_resume_host(host);
 
-	if (ret == 0) {
-		/* Isn't this already done by sdhci_resume_host() ? --rmk */
-		esdhc_of_enable_dma(host);
+	if (ret == 0)
 		sdhci_writel(host, esdhc_proctl, SDHCI_HOST_CONTROL);
-	}
+
 	return ret;
 }
 
