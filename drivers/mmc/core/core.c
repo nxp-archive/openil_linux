@@ -2154,7 +2154,8 @@ EXPORT_SYMBOL(mmc_can_erase);
 
 int mmc_can_trim(struct mmc_card *card)
 {
-	if (card->ext_csd.sec_feature_support & EXT_CSD_SEC_GB_CL_EN)
+	if ((card->ext_csd.sec_feature_support & EXT_CSD_SEC_GB_CL_EN) &&
+	    (!(card->host->caps2 & MMC_CAP2_NO_TRIM)))
 		return 1;
 	return 0;
 }
