@@ -1213,6 +1213,9 @@ static void bond_free_slave(struct slave *slave)
 	if (BOND_MODE(bond) == BOND_MODE_8023AD)
 		kfree(SLAVE_AD_INFO(slave));
 
+#ifdef CONFIG_HW_DISTRIBUTION_WITH_OH
+	del_oh_pcd_fqs_with_slave_info(bond, slave);
+#endif
 	kfree(slave);
 }
 
@@ -1661,6 +1664,10 @@ int bond_enslave(struct net_device *bond_dev, struct net_device *slave_dev)
 
 	/* enslave is successful */
 	bond_queue_slave_event(new_slave);
+#ifdef CONFIG_HW_DISTRIBUTION_WITH_OH
+	fill_oh_pcd_fqs_with_slave_info(bond, new_slave);
+	apply_pcd(bond, NO_POLICY);
+#endif
 	return 0;
 
 /* Undo stages on error */
@@ -3249,6 +3256,9 @@ static struct rtnl_link_stats64 *bond_get_stats(struct net_device *bond_dev,
 		/* save off the slave stats for the next run */
 		memcpy(pstats, sstats, sizeof(*sstats));
 	}
+#ifdef CONFIG_HW_DISTRIBUTION_WITH_OH
+	add_statistics(bond, stats);
+#endif
 	memcpy(&bond->bond_stats, stats, sizeof(*stats));
 
 	return stats;
@@ -3831,6 +3841,16 @@ static int bond_3ad_xor_xmit(struct sk_buff *skb, struct net_device *dev)
 	count = slaves ? ACCESS_ONCE(slaves->count) : 0;
 	if (likely(count)) {
 		slave = slaves->arr[bond_xmit_hash(bond, skb) % count];
+#ifdef CONFIG_HW_DISTRIBUTION_WITH_OH
+		hw_lag_dbg("skb->protocol:0x%0x\n", skb->protocol);
+		/* exclude ARP/LACP */
+		if ((bond->slave_cnt == SLAVES_PER_BOND) &&
+		    are_all_slaves_linkup(bond) && (bond->params.ohp) &&
+		    (bond->params.ohp->oh_en)) {
+			enqueue_pkt_to_oh(bond, skb, NULL);
+			return NETDEV_TX_OK;
+		}
+#endif
 		bond_dev_queue_xmit(bond, skb, slave->dev);
 	} else {
 		bond_tx_drop(dev, skb);
@@ -4051,6 +4071,9 @@ static const struct device_type bond_type = {
 static void bond_destructor(struct net_device *bond_dev)
 {
 	struct bonding *bond = netdev_priv(bond_dev);
+#ifdef CONFIG_HW_DISTRIBUTION_WITH_OH
+	release_pcd_mem(bond);
+#endif
 	if (bond->wq)
 		destroy_workqueue(bond->wq);
 	free_netdev(bond_dev);
@@ -4573,6 +4596,10 @@ int bond_create(struct net *net, const char *name)
 	res = register_netdevice(bond_dev);
 
 	netif_carrier_off(bond_dev);
+#ifdef CONFIG_HW_DISTRIBUTION_WITH_OH
+	if (res == 0)
+		init_status(bond_dev);
+#endif
 
 	rtnl_unlock();
 	if (res < 0)
@@ -4646,6 +4673,12 @@ static int __init bonding_init(void)
 	}
 
 	register_netdevice_notifier(&bond_netdev_notifier);
+#ifdef CONFIG_HW_DISTRIBUTION_WITH_OH
+	if (get_oh_info())
+		pr_err("oh ports probe error, use software distribution\n");
+	else
+		pr_info("get offline ports information ok.\n");
+#endif
 out:
 	return res;
 err:
@@ -4665,6 +4698,10 @@ static void __exit bonding_exit(void)
 
 	bond_netlink_fini();
 	unregister_pernet_subsys(&bond_net_ops);
+#ifdef CONFIG_HW_DISTRIBUTION_WITH_OH
+	kfree(poh);
+	hw_lag_dbg("released offline port resources\n");
+#endif
 
 #ifdef CONFIG_NET_POLL_CONTROLLER
 	/* Make sure we don't have an imbalance on our netpoll blocking */
@@ -4672,7 +4709,13 @@ static void __exit bonding_exit(void)
 #endif
 }
 
-module_init(bonding_init);
+/**
+ * late init to wait till oh port initialization ready,
+ * oh port can help distribute outgoing traffics based
+ * on hardware (FSL DPAA Offline port and PCD).
+ * module_init(bonding_init);
+ */
+late_initcall(bonding_init);
 module_exit(bonding_exit);
 MODULE_LICENSE("GPL");
 MODULE_VERSION(DRV_VERSION);
