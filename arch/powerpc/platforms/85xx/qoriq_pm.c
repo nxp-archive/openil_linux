@@ -15,14 +15,71 @@
 #include <linux/suspend.h>
 #include <linux/of_platform.h>
 #include <linux/of_fdt.h>
+#include <linux/usb.h>
 
 #include <asm/fsl_pm.h>
 
 static unsigned int pm_modes;
+static u32 wake_mask;
+
+static int fsl_set_power_except(struct device_node *of_node)
+{
+	u32 value[2];
+	int ret;
+
+	if (!of_node)
+		return -EINVAL;
+
+	ret = of_property_read_u32_array(of_node, "rcpm-wakeup", value, 2);
+	if (ret)
+		return ret;
+
+	/* get the second value, it is a mask */
+	wake_mask |= value[1];
+	return 0;
+}
+
+static void qoriq_set_wakeup_source(struct device *dev, void *enable)
+{
+	const phandle *phandle_prop;
+	struct device_node *mac_node;
+	int ret;
+
+	if (!dev || !device_may_wakeup(dev))
+		return;
+
+	ret = fsl_set_power_except(dev->of_node);
+	if (!ret)
+		return;
+
+	/* usb device */
+	if (!strncmp(dev->bus->name, "usb", 3)) {
+		struct usb_device *udev = container_of(dev,
+						struct usb_device, dev);
+		struct device *controller = udev->bus->controller;
+
+		ret = fsl_set_power_except(controller->parent->of_node);
+		if (!ret)
+			return;
+	}
+
+	/* fman mac node */
+	phandle_prop = of_get_property(dev->of_node, "fsl,fman-mac", NULL);
+	mac_node = of_find_node_by_phandle(*phandle_prop);
+	ret = fsl_set_power_except(mac_node);
+	if (!ret)
+		return;
+}
 
 static int qoriq_suspend_enter(suspend_state_t state)
 {
 	int ret = 0;
+
+	wake_mask = 0;
+	dpm_for_each_dev(NULL, qoriq_set_wakeup_source);
+	/* clear the default value */
+	qoriq_pm_ops->set_ip_power(false, 0x0ffffffff);
+	qoriq_pm_ops->set_ip_power(true, wake_mask);
 
 	switch (state) {
 	case PM_SUSPEND_STANDBY:
