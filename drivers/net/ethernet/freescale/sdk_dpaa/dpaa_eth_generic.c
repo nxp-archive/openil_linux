@@ -38,7 +38,6 @@
 #include "dpaa_eth_common.h"
 #include "dpaa_eth_base.h"
 #include "dpaa_eth_generic.h"
-#include "dpaa_generic_debugfs.h"
 
 #define DPA_DEFAULT_TX_HEADROOM		64
 #define DPA_GENERIC_SKB_COPY_MAX_SIZE	256
@@ -914,15 +913,6 @@ static int dpa_generic_netdev_init(struct device_node *dpa_node,
 		return err;
 	}
 
-#ifdef CONFIG_FSL_DPAA_ETH_DEBUGFS
-	/* create debugfs entry for this net_device */
-	err = dpa_generic_debugfs_create(netdev);
-	if (err) {
-		unregister_netdev(netdev);
-		return err;
-	}
-#endif /* CONFIG_FSL_DPAA_ETH_DEBUGFS */
-
 	return 0;
 }
 
@@ -1567,9 +1557,6 @@ static int dpa_generic_remove(struct platform_device *of_dev)
 
 	dpa_generic_bp_free(priv);
 
-#ifdef CONFIG_FSL_DPAA_ETH_DEBUGFS
-	dpa_generic_debugfs_remove(net_dev);
-#endif
 	free_netdev(net_dev);
 
 	return err;
@@ -1706,10 +1693,6 @@ static int __init __cold dpa_generic_load(void)
 
 	pr_info(KBUILD_MODNAME ": " DPA_GENERIC_DESCRIPTION "\n");
 
-#ifdef CONFIG_FSL_DPAA_ETH_DEBUGFS
-	dpa_generic_debugfs_module_init();
-#endif /* CONFIG_FSL_DPAA_ETH_DEBUGFS */
-
 	/* initialise dpaa_eth mirror values */
 	dpa_rx_extra_headroom = fm_get_rx_extra_headroom();
 	dpa_max_frm = fm_get_max_frm();
@@ -1738,10 +1721,6 @@ static void __exit __cold dpa_generic_unload(void)
 		KBUILD_BASENAME".c", __func__);
 
 	platform_driver_unregister(&dpa_generic_driver);
-
-#ifdef CONFIG_FSL_DPAA_ETH_DEBUGFS
-	dpa_generic_debugfs_module_exit();
-#endif /* CONFIG_FSL_DPAA_ETH_DEBUGFS */
 
 	pr_debug(KBUILD_MODNAME ": %s:%s() ->\n",
 		KBUILD_BASENAME".c", __func__);

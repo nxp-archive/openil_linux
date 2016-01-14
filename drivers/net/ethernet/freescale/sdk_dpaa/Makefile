@@ -49,9 +49,6 @@ ifeq ($(CONFIG_FSL_DPAA_GENERIC_DRIVER),y)
 obj-$(CONFIG_FSL_SDK_DPAA_ETH) += fsl_generic.o
 
 fsl_generic-objs += dpaa_eth_generic.o dpaa_eth_generic_sysfs.o dpaa_generic_ethtool.o
-ifeq ($(CONFIG_FSL_DPAA_ETH_DEBUGFS),y)
-fsl_generic-objs += dpaa_generic_debugfs.o
-endif
 endif
 
 # Needed by the tracing framework

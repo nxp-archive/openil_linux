@@ -71,10 +71,6 @@ struct dpa_generic_priv_s {
 	uint16_t		 channel;	/* "fsl,qman-channel-id" */
 	struct list_head	 dpa_fq_list;
 
-#ifdef CONFIG_FSL_DPAA_ETH_DEBUGFS
-	struct dentry		*debugfs_file;
-#endif /* CONFIG_FSL_DPAA_ETH_DEBUGFS */
-
 	uint32_t		 msg_enable;	/* net_device message level */
 
 	struct dpa_buffer_layout_s *buf_layout;
