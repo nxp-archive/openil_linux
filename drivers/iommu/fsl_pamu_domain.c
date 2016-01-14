@@ -1216,6 +1216,17 @@ static u32 fsl_pamu_get_windows(struct iommu_domain *domain)
 	return dma_domain->win_cnt;
 }
 
+static struct iommu_domain *fsl_get_dev_domain(struct device *dev)
+{
+	struct device_domain_info *info;
+
+	info = dev->archdata.iommu_domain;
+	if (info && info->domain)
+		return &info->domain->iommu_domain;
+
+	return NULL;
+}
+
 static const struct iommu_ops fsl_pamu_ops = {
 	.capable	= fsl_pamu_capable,
 	.domain_alloc	= fsl_pamu_domain_alloc,
@@ -1231,6 +1242,7 @@ static const struct iommu_ops fsl_pamu_ops = {
 	.domain_get_attr = fsl_pamu_get_domain_attr,
 	.add_device	= fsl_pamu_add_device,
 	.remove_device	= fsl_pamu_remove_device,
+	.get_dev_iommu_domain = fsl_get_dev_domain,
 };
 
 int __init pamu_domain_init(void)
