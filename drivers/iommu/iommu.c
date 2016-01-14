@@ -945,6 +945,16 @@ void iommu_detach_device(struct iommu_domain *domain, struct device *dev)
 }
 EXPORT_SYMBOL_GPL(iommu_detach_device);
 
+struct iommu_domain *iommu_get_dev_domain(struct device *dev)
+{
+	const struct iommu_ops *ops = dev->bus->iommu_ops;
+
+	if (unlikely(ops == NULL || ops->get_dev_iommu_domain == NULL))
+		return NULL;
+
+	return ops->get_dev_iommu_domain(dev);
+}
+EXPORT_SYMBOL_GPL(iommu_get_dev_domain);
 /*
  * IOMMU groups are really the natrual working unit of the IOMMU, but
  * the IOMMU API works on domains and devices.  Bridge that gap by

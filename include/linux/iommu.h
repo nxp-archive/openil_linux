@@ -169,6 +169,7 @@ struct iommu_ops {
 	int (*domain_set_windows)(struct iommu_domain *domain, u32 w_count);
 	/* Get the numer of window per domain */
 	u32 (*domain_get_windows)(struct iommu_domain *domain);
+	struct iommu_domain *(*get_dev_iommu_domain)(struct device *dev);
 
 #ifdef CONFIG_OF_IOMMU
 	int (*of_xlate)(struct device *dev, struct of_phandle_args *args);
@@ -246,6 +247,9 @@ extern int iommu_domain_window_enable(struct iommu_domain *domain, u32 wnd_nr,
 				      phys_addr_t offset, u64 size,
 				      int prot);
 extern void iommu_domain_window_disable(struct iommu_domain *domain, u32 wnd_nr);
+
+extern struct iommu_domain *iommu_get_dev_domain(struct device *dev);
+
 /**
  * report_iommu_fault() - report about an IOMMU fault to the IOMMU framework
  * @domain: the iommu domain where the fault has happened
@@ -482,6 +486,11 @@ static inline int iommu_device_link(struct device *dev, struct device *link)
 
 static inline void iommu_device_unlink(struct device *dev, struct device *link)
 {
+}
+
+static inline struct iommu_domain *iommu_get_dev_domain(struct device *dev)
+{
+	return NULL;
 }
 
 #endif /* CONFIG_IOMMU_API */
