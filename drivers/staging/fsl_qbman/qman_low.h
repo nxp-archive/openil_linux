@@ -694,6 +694,15 @@ static inline void qm_dqrr_pvb_update(struct qm_portal *portal)
 	register struct qm_dqrr *dqrr = &portal->dqrr;
 	const struct qm_dqrr_entry *res = qm_cl(dqrr->ring, dqrr->pi);
 	DPA_ASSERT(dqrr->pmode == qm_dqrr_pvb);
+#ifndef CONFIG_FSL_PAMU
+        /*
+         * If PAMU is not available we need to invalidate the cache.
+         * When PAMU is available the cache is updated by stash
+         */
+	dcbi(res);
+	dcbt_ro(res);
+#endif
+
 	/* when accessing 'verb', use __raw_readb() to ensure that compiler
 	 * inlining doesn't try to optimise out "excess reads". */
 	if ((__raw_readb(&res->verb) & QM_DQRR_VERB_VBIT) == dqrr->vbit) {
