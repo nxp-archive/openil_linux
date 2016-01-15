@@ -98,113 +98,25 @@
 		};
 	};
 
+	sysclk: sysclk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <100000000>;
+		clock-output-names = "sysclk";
+	};
+
 	clockgen: clocking@1300000 {
-		#address-cells = <1>;
-		#size-cells = <1>;
-		ranges = <0x0 0x0 0x1300000 0xa0000>;
-
-		sysclk: sysclk {
-			compatible = "fixed-clock";
-			#clock-cells = <0>;
-			clock-frequency = <100000000>;
-			clock-output-names = "sysclk";
-		};
-
-		cga_pll1: pll@80 {
-			compatible = "fsl,qoriq-core-pll-3.0";
-			#clock-cells = <1>;
-			reg = <0x80 0x10>;
-			clocks = <&sysclk>;
-			clock-output-names = "cga-pll1", "cga-pll1-div2",
-					     "cga-pll1-div3", "cga-pll1-div4";
-		};
-
-		cga_pll2: pll@a00 {
-			compatible = "fsl,qoriq-core-pll-3.0";
-			#clock-cells = <1>;
-			reg = <0xa0 0x10>;
-			clocks = <&sysclk>;
-			clock-output-names = "cga-pll2", "cga-pll2-div2",
-					     "cga-pll2-div3", "cga-pll2-div4";
-		};
-
-		cgb_pll1: pll@10080 {
-			compatible = "fsl,qoriq-core-pll-3.0";
-			#clock-cells = <1>;
-			reg = <0x10080 0x10>;
-			clocks = <&sysclk>;
-			clock-output-names = "cgb-pll1", "cgb-pll1-div2",
-					     "cgb-pll1-div3", "cgb-pll1-div4";
-		};
-
-		cgb_pll2: pll@100a0 {
-			compatible = "fsl,qoriq-core-pll-3.0";
-			#clock-cells = <1>;
-			reg = <0x100a0 0x10>;
-			clocks = <&sysclk>;
-			clock-output-names = "cgb-pll2", "cgb-pll2-div2",
-					     "cgb-pll2-div3", "cgb-pll2-div4";
-		};
-
-		platform_clk: pll@60080 {
-			compatible = "fsl,qoriq-core-pll-3.0";
-			#clock-cells = <1>;
-			reg = <0x60080 0x10>;
-			clocks = <&sysclk>;
-			clock-output-names = "platform-clk",
-					     "platform-clk-div2";
-		};
-
-		cluster1_clk: clk0c0@70000 {
-			compatible = "fsl,qoriq-core-mux-3.0";
-			#clock-cells = <0>;
-			reg = <0x70000 0x10>;
-			clock-names = "pll1cga", "pll1cga-div2", "pll1cga-div4",
-				      "pll2cga", "pll2cga-div2", "pll2cga-div4";
-			clocks = <&cga_pll1 0>, <&cga_pll1 1>, <&cga_pll1 2>,
-				 <&cga_pll2 0>, <&cga_pll2 1>, <&cga_pll2 2>;
-			clock-output-names = "cluster1-clk";
-		};
-
-		cluster2_clk: clk0c0@70020 {
-			compatible = "fsl,qoriq-core-mux-3.0";
-			#clock-cells = <0>;
-			reg = <0x70020 0x10>;
-			clock-names = "pll1cga", "pll1cga-div2", "pll1cga-div4",
-				      "pll2cga", "pll2cga-div2", "pll2cga-div4";
-			clocks = <&cga_pll1 0>, <&cga_pll1 1>, <&cga_pll1 2>,
-				 <&cga_pll2 0>, <&cga_pll2 1>, <&cga_pll2 2>;
-			clock-output-names = "cluster2-clk";
-		};
-
-		cluster3_clk: clk0c0@70040 {
-			compatible = "fsl,qoriq-core-mux-3.0";
-			#clock-cells = <0>;
-			reg = <0x70040 0x10>;
-			clock-names = "pll1cgb", "pll1cgb-div2", "pll1cgb-div4",
-				      "pll2cgb", "pll2cgb-div2", "pll2cgb-div4";
-			clocks = <&cgb_pll1 0>, <&cgb_pll1 1>, <&cgb_pll1 2>,
-				 <&cgb_pll2 0>, <&cgb_pll2 1>, <&cgb_pll2 2>;
-			clock-output-names = "cluster3-clk";
-		};
-
-		cluster4_clk: clk0c0@70060 {
-			compatible = "fsl,qoriq-core-mux-3.0";
-			#clock-cells = <0>;
-			reg = <0x70060 0x10>;
-			clock-names = "pll1cgb", "pll1cgb-div2", "pll1cgb-div4",
-				      "pll2cgb", "pll2cgb-div2", "pll2cgb-div4";
-			clocks = <&cgb_pll1 0>, <&cgb_pll1 1>, <&cgb_pll1 2>,
-				 <&cgb_pll2 0>, <&cgb_pll2 1>, <&cgb_pll2 2>;
-			clock-output-names = "cluster4-clk";
-		};
+		compatible = "fsl,ls2080a-clockgen";
+		reg = <0 0x1300000 0 0xa0000>;
+		#clock-cells = <2>;
+		clocks = <&sysclk>;
 	};
 
 	serial0: serial@21c0500 {
 		device_type = "serial";
 		compatible = "fsl,ns16550", "ns16550a";
 		reg = <0x0 0x21c0500 0x0 0x100>;
-		clock-frequency = <&platform_clk 1>;
+		clocks = <&clockgen 4 3>;
 		interrupts = <0 32 0x4>; /* Level high type */
 	};
 
@@ -212,7 +124,7 @@
 		device_type = "serial";
 		compatible = "fsl,ns16550", "ns16550a";
 		reg = <0x0 0x21c0600 0x0 0x100>;
-		clock-frequency = <&platform_clk 1>;
+		clocks = <&clockgen 4 3>;
 		interrupts = <0 32 0x4>; /* Level high type */
 	};
 
@@ -320,7 +232,7 @@
 		reg = <0x0 0x2100000 0x0 0x10000>;
 		interrupts = <0 26 0x4>; /* Level high type */
 		tcfq-mode;
-		clocks = <&platform_clk 1>;
+		clocks = <&clockgen 4 3>;
 		clock-names = "dspi";
 		spi-num-chipselects = <5>;
 		bus-num = <0>;
@@ -335,7 +247,7 @@
 		reg = <0x0 0x2000000 0x0 0x10000>;
 		interrupts = <0 34 0x4>; /* Level high type */
 		clock-names = "i2c";
-		clocks = <&platform_clk 1>;
+		clocks = <&clockgen 4 3>;
 	};
 
 	i2c1: i2c@2010000 {
@@ -345,7 +257,7 @@
 		reg = <0x0 0x2010000 0x0 0x10000>;
 		interrupts = <0 34 0x4>; /* Level high type */
 		clock-names = "i2c";
-		clocks = <&platform_clk 1>;
+		clocks = <&clockgen 4 3>;
 	};
 
 	i2c2: i2c@2020000 {
@@ -355,7 +267,7 @@
 		reg = <0x0 0x2020000 0x0 0x10000>;
 		interrupts = <0 35 0x4>; /* Level high type */
 		clock-names = "i2c";
-		clocks = <&platform_clk 1>;
+		clocks = <&clockgen 4 3>;
 	};
 
 	i2c3: i2c@2030000 {
@@ -365,7 +277,7 @@
 		reg = <0x0 0x2030000 0x0 0x10000>;
 		interrupts = <0 35 0x4>; /* Level high type */
 		clock-names = "i2c";
-		clocks = <&platform_clk 1>;
+		clocks = <&clockgen 4 3>;
 	};
 
 	qspi: quadspi@20c0000 {
@@ -376,7 +288,7 @@
 		      <0x0 0x20000000 0x0 0x10000000>;
 		reg-names = "QuadSPI", "QuadSPI-memory";
 		interrupts = <0 25 0x4>; /* Level high type */
-		clocks = <&platform_clk 1>, <&platform_clk 1>;
+		clocks = <&clockgen 4 3>, <&clockgen 4 3>;
 		clock-names = "qspi_en", "qspi";
 	};
 
@@ -485,14 +397,14 @@
 		compatible = "fsl,ls2085a-ahci", "fsl,ls1021a-ahci";
 		reg = <0x0 0x3200000 0x0 0x10000>;
 		interrupts = <0 133 0x4>; /* Level high type */
-		clocks = <&platform_clk 1>;
+		clocks = <&clockgen 4 3>;
 	};
 
 	sata1: sata@3210000 {
 		compatible = "fsl,ls2085a-ahci", "fsl,ls1021a-ahci";
 		reg = <0x0 0x3210000 0x0 0x10000>;
 		interrupts = <0 136 0x4>; /* Level high type */
-		clocks = <&platform_clk 1>;
+		clocks = <&clockgen 4 3>;
 	};
 
 	usb0: usb3@3100000 {
