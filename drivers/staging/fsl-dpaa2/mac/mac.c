@@ -593,8 +593,7 @@ static int ppx_probe(struct fsl_mc_device *mc_dev)
 
 	dev_set_drvdata(dev, priv);
 
-	err = fsl_mc_portal_allocate(mc_dev, FSL_MC_IO_ATOMIC_CONTEXT_PORTAL,
-				     &mc_dev->mc_io);
+	err = fsl_mc_portal_allocate(mc_dev, 0, &mc_dev->mc_io);
 	if (err || !mc_dev->mc_io) {
 		dev_err(dev, "fsl_mc_portal_allocate error: %d\n", err);
 		err = -ENODEV;
