@@ -225,6 +225,12 @@ static const struct file_operations clk_summary_fops = {
 	.release	= single_release,
 };
 
+unsigned int clk_get_num_parents(struct clk *clk)
+{
+	return !clk ? 0 : clk->core->num_parents;
+}
+EXPORT_SYMBOL_GPL(clk_get_num_parents);
+
 static void clk_dump_one(struct seq_file *s, struct clk_core *c, int level)
 {
 	if (!c)
@@ -280,7 +286,6 @@ static int clk_dump(struct seq_file *s, void *data)
 	seq_printf(s, "}");
 	return 0;
 }
-
 
 static int clk_dump_open(struct inode *inode, struct file *file)
 {
