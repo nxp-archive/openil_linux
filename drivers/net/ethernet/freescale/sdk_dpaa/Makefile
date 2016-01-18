@@ -35,11 +35,7 @@ fsl_advanced-objs += dpaa_eth_base.o
 fsl_proxy-objs += dpaa_eth_proxy.o
 fsl_dpa_shared-objs += dpaa_eth_shared.o
 fsl_dpa_macless-objs += dpaa_eth_macless.o
-fsl_dpa_macsec-objs += dpaa_eth_macsec.o
-
-ifeq ($(CONFIG_FSL_DPAA_MACSEC_DEBUGFS),y)
-fsl_dpa_macsec-objs += dpaa_debugfs_macsec.o
-endif
+fsl_dpa_macsec-objs += dpaa_eth_macsec.o dpaa_macsec_ethtool.o
 
 ifeq ($(CONFIG_FSL_DPAA_OFFLINE_PORTS),y)
 obj-$(CONFIG_FSL_SDK_DPAA_ETH) += fsl_oh.o

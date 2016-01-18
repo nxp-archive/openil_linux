@@ -45,34 +45,47 @@
 #include "dpaa_1588.h"
 #endif
 
-#ifdef CONFIG_FSL_DPAA_MACSEC_DEBUGFS
-#include "dpaa_debugfs_macsec.h"
-#endif /* CONFIG_FSL_DPAA_MACSEC_DEBUGFS */
-
 static struct sock *nl_sk;
 static struct macsec_priv_s *macsec_priv[FM_MAX_NUM_OF_MACS];
 static char *macsec_ifs[FM_MAX_NUM_OF_MACS];
 static int macsec_ifs_cnt;
 
 static char ifs[MAX_LEN];
+const struct ethtool_ops *dpa_ethtool_ops_prev;
+static struct ethtool_ops dpa_macsec_ethtool_ops;
+
 module_param_string(ifs, ifs, MAX_LEN, 0000);
 MODULE_PARM_DESC(ifs, "Comma separated interface list");
 
-#ifdef CONFIG_FSL_DPAA_MACSEC_DEBUGFS
-static void remove_debugfs(int index)
+struct macsec_priv_s *dpa_macsec_get_priv(struct net_device *net_dev)
 {
-	struct net_device *net_dev;
-	net_dev = first_net_device(&init_net);
-	while (net_dev) {
-		if (strcmp(net_dev->name, macsec_ifs[index]) == 0) {
-			macsec_netdev_debugfs_remove(net_dev);
-			unset_macsec_priv(index);
-			break;
-		}
-		net_dev = next_net_device(net_dev);
-	}
+	return macsec_priv[net_dev->ifindex - 1];
 }
-#endif /* CONFIG_FSL_DPAA_MACSEC_DEBUGFS */
+
+static void macsec_setup_ethtool_ops(struct net_device *net_dev)
+{
+	/* remember private driver's ethtool ops just once */
+	if (!dpa_ethtool_ops_prev) {
+		dpa_ethtool_ops_prev = net_dev->ethtool_ops;
+
+		memcpy(&dpa_macsec_ethtool_ops, net_dev->ethtool_ops,
+		       sizeof(struct ethtool_ops));
+		dpa_macsec_ethtool_ops.get_sset_count =
+		    dpa_macsec_get_sset_count;
+		dpa_macsec_ethtool_ops.get_ethtool_stats =
+		    dpa_macsec_get_ethtool_stats;
+		dpa_macsec_ethtool_ops.get_strings =
+		    dpa_macsec_get_strings;
+	}
+
+	net_dev->ethtool_ops = &dpa_macsec_ethtool_ops;
+}
+
+static void macsec_restore_ethtool_ops(struct net_device *net_dev)
+{
+	net_dev->ethtool_ops = dpa_ethtool_ops_prev;
+}
+
 
 static int ifname_to_id(char *ifname)
 {
@@ -1480,15 +1493,6 @@ static int macsec_setup(void)
 
 			alloc_priv(percpu_priv, macsec_priv[macsec_id], dev);
 
-#ifdef CONFIG_FSL_DPAA_MACSEC_DEBUGFS
-			/* copy macsec_priv to dpaa_debugfs_macsec */
-			set_macsec_priv(macsec_priv[macsec_id], macsec_id);
-
-			/* create debugfs entry for this net_device */
-			err = macsec_netdev_debugfs_create(net_dev);
-			if (unlikely(err))
-				goto _err_debugfs_create;
-#endif /* CONFIG_FSL_DPAA_MACSEC_DEBUGFS */
 			break;
 		}
 		if (macsec_priv[macsec_id]->net_dev == NULL) {
@@ -1496,13 +1500,12 @@ static int macsec_setup(void)
 			err = -EINVAL;
 			goto _error;
 		}
+
+		/* setup specific ethtool ops for macsec */
+		macsec_setup_ethtool_ops(net_dev);
 	}
 	return 0;
-#ifdef CONFIG_FSL_DPAA_MACSEC_DEBUGFS
-_err_debugfs_create:
-	for (i = 0; i < macsec_ifs_cnt; i++)
-		remove_debugfs(i);
-#endif /* CONFIG_FSL_DPAA_MACSEC_DEBUGFS */
+
 _error:
 	for (j = 0; j < i; i++) {
 		net_dev = first_net_device(&init_net);
@@ -1516,6 +1519,7 @@ _error:
 				&macsec_priv[macsec_id]->dpa_fq_list);
 			break;
 		}
+		macsec_restore_ethtool_ops(macsec_priv[j]->net_dev);
 		kfree(macsec_priv[j]);
 	}
 	for (j = i; j < FM_MAX_NUM_OF_MACS; j++)
@@ -2008,10 +2012,6 @@ _release:
 	memset(&macsec_dpaa_eth_hooks, 0, sizeof(macsec_dpaa_eth_hooks));
 	fsl_dpaa_eth_set_hooks(&macsec_dpaa_eth_hooks);
 
-#ifdef CONFIG_FSL_DPAA_MACSEC_DEBUGFS
-	for (i = 0; i < macsec_ifs_cnt; i++)
-		remove_debugfs(i);
-#endif /* CONFIG_FSL_DPAA_MACSEC_DEBUGFS */
 	for (i = 0; i < FM_MAX_NUM_OF_MACS; i++) {
 
 		if (!macsec_priv[i]->net_dev)
@@ -2030,6 +2030,7 @@ _release:
 				pr_err("_dpa_fq_fre=%d\n", rv);
 		}
 
+		macsec_restore_ethtool_ops(macsec_priv[i]->net_dev);
 		kfree(macsec_priv[i]);
 		macsec_priv[i] = NULL;
 	}
@@ -2059,10 +2060,6 @@ static int __init macsec_init(void)
 			return -EINVAL;
 		}
 	}
-
-#ifdef CONFIG_FSL_DPAA_MACSEC_DEBUGFS
-	macsec_debugfs_module_init();
-#endif /* CONFIG_FSL_DPAA_MACSEC_DEBUGFS */
 
 	/* Actually send the info to the user through a given socket. */
 	nl_sk = netlink_kernel_create(&init_net, NETLINK_USER, &ms_cfg);
@@ -2120,13 +2117,6 @@ static void __exit macsec_exit(void)
 	memset(&macsec_dpaa_eth_hooks, 0, sizeof(macsec_dpaa_eth_hooks));
 	fsl_dpaa_eth_set_hooks(&macsec_dpaa_eth_hooks);
 
-#ifdef CONFIG_FSL_DPAA_MACSEC_DEBUGFS
-	for (i = 0; i < macsec_ifs_cnt; i++)
-		remove_debugfs(i);
-
-	macsec_debugfs_module_exit();
-#endif /* CONFIG_FSL_DPAA_MACSEC_DEBUGFS */
-
 	for (i = 0; i < FM_MAX_NUM_OF_MACS; i++) {
 
 		if (!macsec_priv[i]->net_dev) {
@@ -2147,6 +2137,9 @@ static void __exit macsec_exit(void)
 					pr_err("_dpa_fq_fre=%d\n", _errno);
 			}
 		}
+
+		/* restore ethtool ops to the previous private ones */
+		macsec_restore_ethtool_ops(macsec_priv[i]->net_dev);
 
 		kfree(macsec_priv[i]);
 	}

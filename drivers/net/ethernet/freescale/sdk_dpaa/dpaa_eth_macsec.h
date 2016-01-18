@@ -45,6 +45,14 @@
 
 extern const struct dpa_fq_cbs_t private_fq_cbs;
 
+extern int dpa_macsec_get_sset_count(struct net_device *net_dev, int type);
+extern void
+dpa_macsec_get_ethtool_stats(struct net_device *net_dev,
+			     struct ethtool_stats *stats, u64 *data);
+extern void
+dpa_macsec_get_strings(struct net_device *net_dev,
+		       u32 stringset, u8 *data);
+
 enum msg_type {ENABLE_MACSEC,
 	SET_EXCEPTION,
 	ENABLE_SECY,
@@ -266,9 +274,6 @@ struct macsec_priv_s {
 	struct qman_fq		*egress_fqs[MACSEC_ETH_TX_QUEUES];
 	struct qman_fq		*conf_fqs[MACSEC_ETH_TX_QUEUES];
 	struct list_head	 dpa_fq_list;
-#ifdef CONFIG_FSL_DPAA_MACSEC_DEBUGFS
-	struct dentry		*debugfs_file;
-#endif /* CONFIG_FSL_DPAA_MACSEC_DEBUGFS */
 	uint32_t		 msg_enable;	/* net_device message level */
 	uint16_t                 channel;
 	struct fm_macsec_dev *fm_macsec;
@@ -283,5 +288,7 @@ struct macsec_priv_s {
 	uintptr_t vaddr;
 	struct resource *fman_resource;
 };
+
+struct macsec_priv_s *dpa_macsec_get_priv(struct net_device *net_dev);
 
 #endif /* __DPAA_ETH_MACSEC_H */
