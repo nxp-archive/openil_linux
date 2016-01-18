@@ -166,4 +166,14 @@ config UIO_FSL_DMA
 
 	  If you don't know what to do here, say N.
 
+config UIO_FSL_SRIO
+	tristate "Freescale Serial RapidIO support"
+	depends on RAPIDIO=n
+	default n
+	help
+	  UIO driver for the Freescale RapidIO unit.
+	  This driver will obtain the RapidIO nodes from DTB structure, and
+	  expose the RapidIO regiter space to user space.
+
+	  If you don't know what to do here, say N.
 endif
