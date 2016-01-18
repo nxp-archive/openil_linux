@@ -204,5 +204,10 @@
 
 	L2: l2-cache-controller@c20000 {
 		compatible = "fsl,b4860-l2-cache-controller";
+
+/include/ "qoriq-rman-0.dtsi"
+	rman: rman@1e0000 {
+		fsl,qman-channels-id = <0x820 0x821>;
+		interrupts = <16 2 1 20>;
 	};
 };

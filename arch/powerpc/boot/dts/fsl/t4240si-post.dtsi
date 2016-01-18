@@ -771,4 +771,9 @@
 		reg = <0xca0000 0x40000>;
 		next-level-cache = <&cpc>;
 	};
+
+/include/ "qoriq-rman-0.dtsi"
+	rman: rman@1e0000 {
+		fsl,qman-channels-id = <0x880 0x881>;
+	};
 };
