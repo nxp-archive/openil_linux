@@ -32,7 +32,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/include/ "fsl/t104xsi-pre.dtsi"
+/include/ "t104xsi-pre.dtsi"
 /include/ "t104xd4rdb.dtsi"
 
 / {
@@ -43,4 +43,4 @@
 	interrupt-parent = <&mpic>;
 };
 
-/include/ "fsl/t1040si-post.dtsi"
+/include/ "t1040si-post.dtsi"
