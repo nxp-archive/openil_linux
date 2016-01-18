@@ -32,7 +32,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/include/ "fsl/t102xsi-pre.dtsi"
+/include/ "t102xsi-pre.dtsi"
 
 / {
 	model = "fsl,T1023RDB";
@@ -236,5 +236,5 @@
 	};
 };
 
-/include/ "fsl/t1023si-post.dtsi"
-/include/ "fsl/qoriq-dpaa-res3.dtsi"
+/include/ "t1023si-post.dtsi"
+/include/ "qoriq-dpaa-res3.dtsi"
