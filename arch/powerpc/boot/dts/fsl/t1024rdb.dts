@@ -97,9 +97,21 @@
 			flash@0 {
 				#address-cells = <1>;
 				#size-cells = <1>;
-				compatible = "micron,n25q512a";
+				compatible = "micron,n25q512ax3";
 				reg = <0>;
 				spi-max-frequency = <10000000>; /* input clock */
+			};
+
+			slic@1 {
+				compatible = "maxim,ds26522";
+				reg = <1>;
+				spi-max-frequency = <2000000>;
+			};
+
+			slic@2 {
+				compatible = "maxim,ds26522";
+				reg = <2>;
+				spi-max-frequency = <2000000>;
 			};
 		};
 
@@ -108,6 +120,13 @@
 				/* Thermal Monitor */
 				compatible = "adi,adt7461";
 				reg = <0x4c>;
+			};
+
+			/* INA220 Current Sense */
+			ina220@40 {
+				compatible = "ti,ina220";
+				reg = <0x40>;
+				shunt-resistor = <1000>;
 			};
 
 			eeprom@50 {
