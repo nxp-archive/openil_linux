@@ -11,3 +11,4 @@ obj-$(CONFIG_UIO_MF624)         += uio_mf624.o
 obj-$(CONFIG_UIO_FSL_ELBC_GPCM)	+= uio_fsl_elbc_gpcm.o
 obj-$(CONFIG_UIO_FSL_DMA)	+= fsl_dma_uio.o
 obj-$(CONFIG_UIO_FSL_SRIO)	+= fsl_srio_uio.o
+obj-$(CONFIG_UIO_FSL_RMU)	+= fsl_rmu_uio.o

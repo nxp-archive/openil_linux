@@ -176,4 +176,15 @@ config UIO_FSL_SRIO
 	  expose the RapidIO regiter space to user space.
 
 	  If you don't know what to do here, say N.
+
+config UIO_FSL_RMU
+	tristate "Freescale RapidIO Message Unit support"
+	depends on RAPIDIO=n
+	default n
+	help
+	  UIO driver for the Freescale RapidIO Message Unit and Doorbell.
+	  This driver will obtain the RMU nodes from DTB structure, and
+	  expose the RMU regiter space to user space.
+
+	  If you don't know what to do here, say N.
 endif
