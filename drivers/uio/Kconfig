@@ -155,4 +155,15 @@ config UIO_MF624
 
 	  If you compile this as a module, it will be called uio_mf624.
 
+config UIO_FSL_DMA
+	tristate "Freescale DMA support"
+	depends on FSL_DMA=n
+	default n
+	help
+	  UIO driver for the Freescale DMA controller.
+	  This driver will obtain the DMA nodes from DTB structure, and
+	  expose the DMA regiter space to user space.
+
+	  If you don't know what to do here, say N.
+
 endif
