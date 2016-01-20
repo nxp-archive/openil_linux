@@ -23,6 +23,8 @@
 #define JOBR_INTC_COUNT_THLD 0
 #endif
 
+#define CAAM_NAPI_WEIGHT	63
+
 /*
  * Storage for tracking each in-process entry moving across a ring
  * Each entry on an output ring needs one of these
@@ -41,7 +43,8 @@ struct caam_drv_private_jr {
 	struct device		*dev;
 	int ridx;
 	struct caam_job_ring __iomem *rregs;	/* JobR's register space */
-	struct tasklet_struct irqtask;
+	struct napi_struct __percpu *irqtask;
+	struct net_device __percpu *net_dev;
 	int irq;			/* One per queue */
 
 	/* Number of scatterlist crypt transforms active on the JobR */

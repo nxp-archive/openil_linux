@@ -74,7 +74,7 @@ config CRYPTO_DEV_FSL_CAAM_INTC_TIME_THLD
 
 config CRYPTO_DEV_FSL_CAAM_CRYPTO_API
 	tristate "Register algorithm implementations with the Crypto API"
-	depends on CRYPTO_DEV_FSL_CAAM && CRYPTO_DEV_FSL_CAAM_JR
+	depends on CRYPTO_DEV_FSL_CAAM && CRYPTO_DEV_FSL_CAAM_JR && NET
 	default y
 	select CRYPTO_AEAD
 	select CRYPTO_AUTHENC
