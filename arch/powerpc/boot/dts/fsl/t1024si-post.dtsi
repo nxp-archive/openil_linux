@@ -42,8 +42,6 @@
 };
 
 &soc {
-/include/ "qoriq-tdm1.0.dtsi"
-
 	display:display@180000 {
 		compatible = "fsl,t1024-diu", "fsl,diu";
 		reg = <0x180000 1000>;

@@ -1,7 +1,7 @@
 /*
- * T1040RDB Device Tree Source
+ * T1042D4RDB Device Tree Source
  *
- * Copyright 2014 Freescale Semiconductor Inc.
+ * Copyright 2015 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -33,24 +33,19 @@
  */
 
 /include/ "t104xsi-pre.dtsi"
-/include/ "t104xrdb.dtsi"
+/include/ "t104xd4rdb.dtsi"
 
 / {
-	model = "fsl,T1040RDB";
-	compatible = "fsl,T1040RDB";
+	model = "fsl,T1042D4RDB";
+	compatible = "fsl,T1042D4RDB";
+	#address-cells = <2>;
+	#size-cells = <2>;
+	interrupt-parent = <&mpic>;
+
 	ifc: localbus@ffe124000 {
 		cpld@3,0 {
-			compatible = "fsl,t1040rdb-cpld";
-		};
-	};
-
-	soc: soc@ffe000000 {
-		spi@110000 {
-			slic@3 {
-				compatible = "maxim,ds26522";
-				reg = <3>;
-				spi-max-frequency = <2000000>; /* input clock */
-			};
+			compatible = "fsl,t1040d4rdb-cpld",
+					"fsl,deepsleep-cpld";
 		};
 	};
 };

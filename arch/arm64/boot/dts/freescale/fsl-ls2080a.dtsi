@@ -1,9 +1,10 @@
 /*
- * Device Tree Include file for Freescale Layerscape-2085A family SoC.
+ * Device Tree Include file for Freescale Layerscape-2080A family SoC.
  *
  * Copyright (C) 2014-2015, Freescale Semiconductor
  *
  * Bhupesh Sharma <bhupesh.sharma@freescale.com>
+ * Harninder Rai <harninder.rai@freescale.com>
  *
  * This file is licensed under the terms of the GNU General Public
  * License version 2.  This program is licensed "as is" without any
@@ -13,7 +14,7 @@
 /memreserve/ 0x80000000 0x00010000;
 
 / {
-	compatible = "fsl,ls2085a";
+	compatible = "fsl,ls2080a";
 	interrupt-parent = <&gic>;
 	#address-cells = <2>;
 	#size-cells = <2>;
@@ -217,7 +218,7 @@
 	};
 
 	gpio0: gpio@2300000 {
-		compatible = "fsl,ls2085a-gpio";
+		compatible = "fsl,qoriq-gpio";
 		reg = <0x0 0x2300000 0x0 0x10000>;
 		interrupts = <0 36 0x4>; /* Level high type */
 		gpio-controller;
@@ -227,7 +228,7 @@
 	};
 
 	gpio1: gpio@2310000 {
-		compatible = "fsl,ls2085a-gpio";
+		compatible = "fsl,qoriq-gpio";
 		reg = <0x0 0x2310000 0x0 0x10000>;
 		interrupts = <0 36 0x4>; /* Level high type */
 		gpio-controller;
@@ -237,7 +238,7 @@
 	};
 
 	gpio2: gpio@2320000 {
-		compatible = "fsl,ls2085a-gpio";
+		compatible = "fsl,qoriq-gpio";
 		reg = <0x0 0x2320000 0x0 0x10000>;
 		interrupts = <0 37 0x4>; /* Level high type */
 		gpio-controller;
@@ -247,7 +248,7 @@
 	};
 
 	gpio3: gpio@2330000 {
-		compatible = "fsl,ls2085a-gpio";
+		compatible = "fsl,qoriq-gpio";
 		reg = <0x0 0x2330000 0x0 0x10000>;
 		interrupts = <0 37 0x4>; /* Level high type */
 		gpio-controller;
@@ -292,7 +293,7 @@
 	};
 
 	esdhc: esdhc@2140000 {
-		compatible = "fsl,ls2085a-esdhc", "fsl,esdhc";
+		compatible = "fsl,ls2080a-esdhc", "fsl,esdhc";
 		reg = <0x0 0x2140000 0x0 0x10000>;
 		interrupts = <0 28 0x4>; /* Level high type */
 		clock-frequency = <0>;
@@ -390,7 +391,7 @@
 	};
 
 	pcie@3400000 {
-		compatible = "fsl,ls2085a-pcie", "snps,dw-pcie";
+		compatible = "fsl,ls2080a-pcie", "snps,dw-pcie";
 		reg = <0x00 0x03400000 0x0 0x00100000   /* controller registers */
 		       0x10 0x00000000 0x0 0x00001000>; /* configuration space */
 		reg-names = "regs", "config";
@@ -413,7 +414,7 @@
 	};
 
 	pcie@3500000 {
-		compatible = "fsl,ls2085a-pcie", "snps,dw-pcie";
+		compatible = "fsl,ls2080a-pcie", "snps,dw-pcie";
 		reg = <0x00 0x03500000 0x0 0x00100000   /* controller registers */
 		       0x12 0x00000000 0x0 0x00001000>; /* configuration space */
 		reg-names = "regs", "config";
@@ -436,7 +437,7 @@
 	};
 
 	pcie@3600000 {
-		compatible = "fsl,ls2085a-pcie", "snps,dw-pcie";
+		compatible = "fsl,ls2080a-pcie", "snps,dw-pcie";
 		reg = <0x00 0x03600000 0x0 0x00100000   /* controller registers */
 		       0x14 0x00000000 0x0 0x00001000>; /* configuration space */
 		reg-names = "regs", "config";
@@ -459,7 +460,7 @@
 	};
 
 	pcie@3700000 {
-		compatible = "fsl,ls2085a-pcie", "snps,dw-pcie";
+		compatible = "fsl,ls2080a-pcie", "snps,dw-pcie";
 		reg = <0x00 0x03700000 0x0 0x00100000   /* controller registers */
 		       0x16 0x00000000 0x0 0x00001000>; /* configuration space */
 		reg-names = "regs", "config";
@@ -482,14 +483,14 @@
 	};
 
 	sata0: sata@3200000 {
-		compatible = "fsl,ls2085a-ahci", "fsl,ls1021a-ahci";
+		compatible = "fsl,ls2080a-ahci", "fsl,ls1021a-ahci";
 		reg = <0x0 0x3200000 0x0 0x10000>;
 		interrupts = <0 133 0x4>; /* Level high type */
 		clocks = <&platform_clk 1>;
 	};
 
 	sata1: sata@3210000 {
-		compatible = "fsl,ls2085a-ahci", "fsl,ls1021a-ahci";
+		compatible = "fsl,ls2080a-ahci", "fsl,ls1021a-ahci";
 		reg = <0x0 0x3210000 0x0 0x10000>;
 		interrupts = <0 136 0x4>; /* Level high type */
 		clocks = <&platform_clk 1>;
