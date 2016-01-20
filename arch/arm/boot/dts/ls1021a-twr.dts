@@ -172,6 +172,66 @@
 		reg = <0x0 0x0 0x8000000>;
 		bank-width = <2>;
 		device-width = <1>;
+
+		partition@0 {
+			/* 128KB for bank0 RCW */
+			reg = <0x00000000 0x00020000>;
+			label = "NOR bank0 RCW Image";
+		};
+
+		partition@100000 {
+			/* 1MB for bank0 u-boot Image */
+			reg = <0x00100000 0x00100000>;
+			label = "NOR bank0 u-boot Image";
+		};
+
+		partition@200000 {
+			/* 1MB for bank0 DTB */
+			reg = <0x00200000 0x00100000>;
+			label = "NOR bank0 DTB Image";
+		};
+
+		partition@300000 {
+			/* 7MB for bank0 Linux Kernel */
+			reg = <0x00300000 0x00700000>;
+			label = "NOR bank0 Linux Kernel Image";
+		};
+
+		partition@a00000 {
+			/* 54MB for bank0 Ramdisk Root File System */
+			reg = <0x00a00000 0x03600000>;
+			label = "NOR bank0 Ramdisk Root File System Image";
+		};
+
+		partition@4000000 {
+			/* 128KB for bank4 RCW */
+			reg = <0x04000000 0x00020000>;
+			label = "NOR bank4 RCW Image";
+		};
+
+		partition@4100000 {
+			/* 1MB for bank4 u-boot Image */
+			reg = <0x04100000 0x00100000>;
+			label = "NOR bank4 u-boot Image";
+		};
+
+		partition@4200000 {
+			/* 1MB for bank4 DTB */
+			reg = <0x04200000 0x00100000>;
+			label = "NOR bank4 DTB Image";
+		};
+
+		partition@4300000 {
+			/* 7MB for bank4 Linux Kernel */
+			reg = <0x04300000 0x00700000>;
+			label = "NOR bank4 Linux Kernel Image";
+		};
+
+		partition@4a00000 {
+			/* 54MB for bank4 Ramdisk Root File System */
+			reg = <0x04a00000 0x03600000>;
+			label = "NOR bank4 Ramdisk Root File System Image";
+		};
 	};
 };
 
