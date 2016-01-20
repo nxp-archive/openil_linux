@@ -215,9 +215,9 @@ static void append_key_aead(u32 *desc, struct caam_ctx *ctx,
 		append_key_as_imm(desc, ctx->key, ctx->split_key_pad_len,
 				  ctx->split_key_len, CLASS_2 |
 				  KEY_DEST_MDHA_SPLIT | KEY_ENC);
-		append_key_as_imm(desc, (void *)ctx->key +
-				  ctx->split_key_pad_len, enckeylen,
-				  enckeylen, CLASS_1 | KEY_DEST_CLASS_REG);
+		append_key_as_imm(desc, ctx->key + ctx->split_key_pad_len,
+				  enckeylen, enckeylen, CLASS_1 |
+				  KEY_DEST_CLASS_REG);
 	} else {
 		append_key(desc, ctx->key_dma, ctx->split_key_len, CLASS_2 |
 			   KEY_DEST_MDHA_SPLIT | KEY_ENC);
