@@ -204,6 +204,24 @@
 
 	L2: l2-cache-controller@c20000 {
 		compatible = "fsl,b4860-l2-cache-controller";
+		reg = <0xc20000 0x1000>;
+		next-level-cache = <&cpc>;
+	};
+/* Following are DSP L2 cache */
+	L2_2: l2-cache-controller@c60000 {
+		compatible = "fsl,b4860-l2-cache-controller";
+		reg = <0xc60000 0x1000>;
+		next-level-cache = <&cpc>;
+	};
+	L2_3: l2-cache-controller@ca0000 {
+		compatible = "fsl,b4860-l2-cache-controller";
+		reg = <0xca0000 0x1000>;
+		next-level-cache = <&cpc>;
+	};
+	L2_4: l2-cache-controller@ce0000 {
+		compatible = "fsl,b4860-l2-cache-controller";
+		reg = <0xce0000 0x1000>;
+		next-level-cache = <&cpc>;
 	};
 
 /include/ "qoriq-rman-0.dtsi"
