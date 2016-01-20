@@ -220,6 +220,8 @@ struct sec_vid {
 	u8 min_rev;
 };
 
+#define SEC_ID_MS_T1040		0x0A120400
+
 struct caam_perfmon {
 	/* Performance Monitor Registers			f00-f9f */
 	u64 req_dequeued;	/* PC_REQ_DEQ - Dequeued Requests	     */

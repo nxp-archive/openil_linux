@@ -30,6 +30,12 @@ struct caam_pkc_context_s {
 	struct device *dev;
 };
 
+struct caam_pkc_alg {
+	struct list_head entry;
+	struct device *ctrldev;
+	struct crypto_alg crypto_alg;
+};
+
 static void rsa_unmap(struct device *dev,
 		      struct rsa_edesc *edesc, struct pkc_request *req)
 {
@@ -152,55 +158,106 @@ static void rsa_op_done(struct device *dev, u32 *desc, u32 err, void *context)
 	pkc_request_complete(req, err);
 }
 
+static void dh_unmap(struct device *dev,
+		      struct dh_edesc_s *edesc, struct pkc_request *req)
+{
+	struct dh_key_req_s *dh_req = &req->req_u.dh_req;
+	struct dh_key_desc_s *dh_desc =
+	    (struct dh_key_desc_s *)edesc->hw_desc;
+	dma_unmap_single(dev, dh_desc->q_dma,
+			 dh_req->q_len, DMA_TO_DEVICE);
+	dma_unmap_single(dev, dh_desc->w_dma,
+			 dh_req->pub_key_len, DMA_TO_DEVICE);
+	dma_unmap_single(dev, dh_desc->s_dma,
+			 dh_req->s_len, DMA_TO_DEVICE);
+	dma_unmap_single(dev, dh_desc->z_dma,
+			 dh_req->z_len, DMA_FROM_DEVICE);
+	if (edesc->req_type == ECDH_COMPUTE_KEY)
+		dma_unmap_single(dev, dh_desc->ab_dma,
+				 dh_req->ab_len, DMA_TO_DEVICE);
+}
+
 static void dsa_unmap(struct device *dev,
 		       struct dsa_edesc_s *edesc, struct pkc_request *req)
 {
 	switch (req->type) {
 	case DSA_SIGN:
-		{
-			struct dsa_sign_req_s *dsa_req = &req->req_u.dsa_sign;
-			struct dsa_sign_desc_s *dsa_desc =
-			    (struct dsa_sign_desc_s *)edesc->hw_desc;
-			dma_unmap_single(dev, dsa_desc->q_dma,
-					 dsa_req->q_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, dsa_desc->r_dma,
-					 dsa_req->r_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, dsa_desc->g_dma,
-					 dsa_req->g_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, dsa_desc->s_dma,
-					 dsa_req->priv_key_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, dsa_desc->f_dma,
-					 dsa_req->m_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, dsa_desc->c_dma,
-					 dsa_req->d_len, DMA_FROM_DEVICE);
-			dma_unmap_single(dev, dsa_desc->d_dma,
-					 dsa_req->d_len, DMA_FROM_DEVICE);
-		}
+	case ECDSA_SIGN:
+	{
+		struct dsa_sign_req_s *dsa_req = &req->req_u.dsa_sign;
+		struct dsa_sign_desc_s *dsa_desc =
+		    (struct dsa_sign_desc_s *)edesc->hw_desc;
+		dma_unmap_single(dev, dsa_desc->q_dma,
+				 dsa_req->q_len, DMA_TO_DEVICE);
+		dma_unmap_single(dev, dsa_desc->r_dma,
+				 dsa_req->r_len, DMA_TO_DEVICE);
+		dma_unmap_single(dev, dsa_desc->g_dma,
+				 dsa_req->g_len, DMA_TO_DEVICE);
+		dma_unmap_single(dev, dsa_desc->s_dma,
+				 dsa_req->priv_key_len, DMA_TO_DEVICE);
+		dma_unmap_single(dev, dsa_desc->f_dma,
+				 dsa_req->m_len, DMA_TO_DEVICE);
+		dma_unmap_single(dev, dsa_desc->c_dma,
+				 dsa_req->d_len, DMA_FROM_DEVICE);
+		dma_unmap_single(dev, dsa_desc->d_dma,
+				 dsa_req->d_len, DMA_FROM_DEVICE);
+		if (req->type == ECDSA_SIGN)
+			dma_unmap_single(dev, edesc->ab_dma,
+					 dsa_req->ab_len, DMA_TO_DEVICE);
+	}
 	break;
 	case DSA_VERIFY:
-		{
-			struct dsa_verify_req_s *dsa_req =
-				 &req->req_u.dsa_verify;
-			struct dsa_verify_desc_s *dsa_desc =
-			    (struct dsa_verify_desc_s *)edesc->hw_desc;
-			dma_unmap_single(dev, dsa_desc->q_dma,
-					 dsa_req->q_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, dsa_desc->r_dma,
-					 dsa_req->r_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, dsa_desc->g_dma,
-					 dsa_req->g_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, dsa_desc->w_dma,
-					 dsa_req->pub_key_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, dsa_desc->f_dma,
-					 dsa_req->m_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, dsa_desc->c_dma,
-					 dsa_req->d_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, dsa_desc->d_dma,
-					 dsa_req->d_len, DMA_TO_DEVICE);
+	case ECDSA_VERIFY:
+	{
+		struct dsa_verify_req_s *dsa_req = &req->req_u.dsa_verify;
+		struct dsa_verify_desc_s *dsa_desc =
+		    (struct dsa_verify_desc_s *)edesc->hw_desc;
+		dma_unmap_single(dev, dsa_desc->q_dma,
+				 dsa_req->q_len, DMA_TO_DEVICE);
+		dma_unmap_single(dev, dsa_desc->r_dma,
+				 dsa_req->r_len, DMA_TO_DEVICE);
+		dma_unmap_single(dev, dsa_desc->g_dma,
+				 dsa_req->g_len, DMA_TO_DEVICE);
+		dma_unmap_single(dev, dsa_desc->w_dma,
+				 dsa_req->pub_key_len, DMA_TO_DEVICE);
+		dma_unmap_single(dev, dsa_desc->f_dma,
+				 dsa_req->m_len, DMA_TO_DEVICE);
+		dma_unmap_single(dev, dsa_desc->c_dma,
+				 dsa_req->d_len, DMA_TO_DEVICE);
+		dma_unmap_single(dev, dsa_desc->d_dma,
+				 dsa_req->d_len, DMA_TO_DEVICE);
+		if (req->type == ECDSA_VERIFY) {
 			dma_unmap_single(dev, dsa_desc->tmp_dma,
-					 edesc->l_len, DMA_BIDIRECTIONAL);
-			kfree(edesc->tmp);
+					 2*edesc->l_len, DMA_BIDIRECTIONAL);
+			dma_unmap_single(dev, edesc->ab_dma,
+					 dsa_req->ab_len, DMA_TO_DEVICE);
+		} else {
+			dma_unmap_single(dev, dsa_desc->tmp_dma,
+				 edesc->l_len, DMA_BIDIRECTIONAL);
 		}
+		kfree(edesc->tmp);
+	}
+	break;
+	case DLC_KEYGEN:
+	case ECC_KEYGEN:
+	{
+		struct keygen_req_s *key_req = &req->req_u.keygen;
+		struct dlc_keygen_desc_s *key_desc =
+		    (struct dlc_keygen_desc_s *)edesc->hw_desc;
+		dma_unmap_single(dev, key_desc->q_dma,
+				 key_req->q_len, DMA_TO_DEVICE);
+		dma_unmap_single(dev, key_desc->r_dma,
+				 key_req->r_len, DMA_TO_DEVICE);
+		dma_unmap_single(dev, key_desc->g_dma,
+				 key_req->g_len, DMA_TO_DEVICE);
+		dma_unmap_single(dev, key_desc->s_dma,
+				 key_req->priv_key_len, DMA_FROM_DEVICE);
+		dma_unmap_single(dev, key_desc->w_dma,
+				 key_req->pub_key_len, DMA_FROM_DEVICE);
+		if (req->type == ECC_KEYGEN)
+			dma_unmap_single(dev, edesc->ab_dma,
+					 key_req->ab_len, DMA_TO_DEVICE);
+	}
 	break;
 	default:
 		dev_err(dev, "Unable to find request type\n");
@@ -235,6 +292,7 @@ static int caam_dsa_sign_edesc(struct pkc_request *req,
 	edesc->l_len = dsa_req->q_len;
 	edesc->n_len = dsa_req->r_len;
 	edesc->req_type = req->type;
+	edesc->curve_type = req->curve_type;
 	edesc->q_dma = dma_map_single(dev, dsa_req->q, dsa_req->q_len,
 					  DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, edesc->q_dma)) {
@@ -283,6 +341,7 @@ static int caam_dsa_sign_edesc(struct pkc_request *req,
 		dev_err(dev, "Unable to map  memory\n");
 		goto d_map_fail;
 	}
+
 	if (edesc->req_type == ECDSA_SIGN) {
 		edesc->ab_dma = dma_map_single(dev, dsa_req->ab,
 					       dsa_req->ab_len, DMA_TO_DEVICE);
@@ -312,24 +371,32 @@ r_map_fail:
 q_map_fail:
 	return -EINVAL;
 }
+
 static int caam_dsa_verify_edesc(struct pkc_request *req,
 				  struct dsa_edesc_s *edesc)
 {
 	struct crypto_pkc *tfm = crypto_pkc_reqtfm(req);
 	struct caam_pkc_context_s *ctxt = crypto_pkc_ctx(tfm);
 	struct device *dev = ctxt->dev;
+	uint32_t tmp_len;
 	struct dsa_verify_req_s *dsa_req = &req->req_u.dsa_verify;
 
 	edesc->l_len = dsa_req->q_len;
 	edesc->n_len = dsa_req->r_len;
-	edesc->tmp = kzalloc(dsa_req->q_len, GFP_DMA);
 	edesc->req_type = req->type;
+	edesc->curve_type = req->curve_type;
+	if (edesc->req_type == ECDSA_VERIFY)
+		tmp_len = 2*dsa_req->q_len;
+	else
+		tmp_len = dsa_req->q_len;
+
+	edesc->tmp = kzalloc(tmp_len, GFP_DMA);
 	if (!edesc->tmp) {
 		pr_debug("Failed to allocate temp buffer for DSA Verify\n");
 		return -ENOMEM;
 	}
 
-	edesc->tmp_dma = dma_map_single(dev, edesc->tmp, dsa_req->q_len,
+	edesc->tmp_dma = dma_map_single(dev, edesc->tmp, tmp_len,
 					  DMA_BIDIRECTIONAL);
 	if (dma_mapping_error(dev, edesc->tmp_dma)) {
 		dev_err(dev, "Unable to map  memory\n");
@@ -370,6 +437,7 @@ static int caam_dsa_verify_edesc(struct pkc_request *req,
 		dev_err(dev, "Unable to map  memory\n");
 		goto key_map_fail;
 	}
+
 	edesc->c_dma = dma_map_single(dev, dsa_req->c, dsa_req->d_len,
 					  DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, edesc->c_dma)) {
@@ -383,6 +451,7 @@ static int caam_dsa_verify_edesc(struct pkc_request *req,
 		dev_err(dev, "Unable to map  memory\n");
 		goto d_map_fail;
 	}
+
 	if (edesc->req_type == ECDSA_VERIFY) {
 		edesc->ab_dma = dma_map_single(dev, dsa_req->ab,
 					       dsa_req->ab_len, DMA_TO_DEVICE);
@@ -410,10 +479,107 @@ g_map_fail:
 r_map_fail:
 	dma_unmap_single(dev, edesc->q_dma, dsa_req->q_len, DMA_TO_DEVICE);
 q_map_fail:
-	dma_unmap_single(dev, edesc->tmp_dma, dsa_req->q_len,
-			 DMA_BIDIRECTIONAL);
+	dma_unmap_single(dev, edesc->tmp_dma, tmp_len, DMA_BIDIRECTIONAL);
 tmp_map_fail:
 	kfree(edesc->tmp);
+	return -EINVAL;
+}
+
+static int caam_keygen_edesc(struct pkc_request *req,
+				struct dsa_edesc_s *edesc)
+{
+	struct crypto_pkc *tfm = crypto_pkc_reqtfm(req);
+	struct caam_pkc_context_s *ctxt = crypto_pkc_ctx(tfm);
+	struct crypto_alg *alg = crypto_pkc_tfm(tfm)->__crt_alg;
+	struct caam_pkc_alg *caam_alg =
+			container_of(alg, struct caam_pkc_alg, crypto_alg);
+	struct caam_drv_private *caam_priv = dev_get_drvdata(caam_alg->ctrldev);
+	struct device *dev = ctxt->dev;
+	struct keygen_req_s *key_req = &req->req_u.keygen;
+
+	edesc->l_len = key_req->q_len;
+	edesc->n_len = key_req->r_len;
+	edesc->req_type = req->type;
+	edesc->curve_type = req->curve_type;
+	edesc->erratum_A_006899 = caam_priv->errata & SEC_ERRATUM_A_006899;
+
+	edesc->q_dma = dma_map_single(dev, key_req->q, key_req->q_len,
+					  DMA_TO_DEVICE);
+	if (dma_mapping_error(dev, edesc->q_dma)) {
+		dev_err(dev, "Unable to map  memory\n");
+		goto q_map_fail;
+	}
+
+	edesc->r_dma = dma_map_single(dev, key_req->r, key_req->r_len,
+				DMA_TO_DEVICE);
+	if (dma_mapping_error(dev, edesc->r_dma)) {
+		dev_err(dev, "Unable to map  memory\n");
+		goto r_map_fail;
+	}
+
+	edesc->g_dma = dma_map_single(dev, key_req->g, key_req->g_len,
+					  DMA_TO_DEVICE);
+	if (dma_mapping_error(dev, edesc->g_dma)) {
+		dev_err(dev, "Unable to map  memory\n");
+		goto g_map_fail;
+	}
+
+	if (edesc->erratum_A_006899) {
+		dma_to_sec4_sg_one(&(edesc->g_sg), edesc->g_dma,
+				   key_req->g_len, 0);
+		edesc->g_sg.len |= SEC4_SG_LEN_FIN;
+
+		edesc->g_sg_dma = dma_map_single(dev, &(edesc->g_sg),
+						 sizeof(struct sec4_sg_entry),
+						 DMA_TO_DEVICE);
+		if (dma_mapping_error(dev, edesc->g_sg_dma)) {
+			dev_err(dev, "unable to map S/G table\n");
+			goto g_sg_dma_fail;
+		}
+	}
+
+	edesc->key_dma = dma_map_single(dev, key_req->pub_key,
+					key_req->pub_key_len, DMA_FROM_DEVICE);
+	if (dma_mapping_error(dev, edesc->key_dma)) {
+		dev_err(dev, "Unable to map  memory\n");
+		goto key_map_fail;
+	}
+
+	edesc->s_dma = dma_map_single(dev, key_req->priv_key,
+				      key_req->priv_key_len, DMA_FROM_DEVICE);
+	if (dma_mapping_error(dev, edesc->s_dma)) {
+		dev_err(dev, "Unable to map  memory\n");
+		goto s_map_fail;
+	}
+
+	if (edesc->req_type == ECC_KEYGEN) {
+		edesc->ab_dma = dma_map_single(dev, key_req->ab,
+						key_req->ab_len, DMA_TO_DEVICE);
+		if (dma_mapping_error(dev, edesc->ab_dma)) {
+			dev_err(dev, "Unable to map  memory\n");
+			goto ab_map_fail;
+		}
+	}
+
+	return 0;
+ab_map_fail:
+	if (edesc->req_type == ECC_KEYGEN)
+		dma_unmap_single(dev, edesc->s_dma, key_req->priv_key_len,
+				 DMA_FROM_DEVICE);
+s_map_fail:
+	dma_unmap_single(dev, edesc->key_dma, key_req->pub_key_len,
+			 DMA_FROM_DEVICE);
+key_map_fail:
+	if (edesc->erratum_A_006899)
+		dma_unmap_single(dev, edesc->g_sg_dma, key_req->g_len,
+				 DMA_TO_DEVICE);
+g_sg_dma_fail:
+	dma_unmap_single(dev, edesc->g_dma, key_req->g_len, DMA_TO_DEVICE);
+g_map_fail:
+	dma_unmap_single(dev, edesc->r_dma, key_req->r_len, DMA_TO_DEVICE);
+r_map_fail:
+	dma_unmap_single(dev, edesc->q_dma, key_req->q_len, DMA_TO_DEVICE);
+q_map_fail:
 	return -EINVAL;
 }
 
@@ -873,7 +1039,6 @@ static void *caam_dsa_desc_init(struct pkc_request *req)
 			}
 
 			desc = caam_dsa_sign_desc(edesc);
-			break;
 		}
 		break;
 	case DSA_VERIFY:
@@ -890,7 +1055,22 @@ static void *caam_dsa_desc_init(struct pkc_request *req)
 			}
 
 			desc = caam_dsa_verify_desc(edesc);
-			break;
+		}
+		break;
+	case DLC_KEYGEN:
+		{
+			edesc = kzalloc(sizeof(*edesc) +
+					sizeof(struct dlc_keygen_desc_s),
+					GFP_DMA);
+			if (!edesc)
+				return NULL;
+
+			if (caam_keygen_edesc(req, edesc)) {
+				kfree(edesc);
+				return NULL;
+			}
+
+			desc = caam_keygen_desc(edesc);
 		}
 		break;
 	case ECDSA_SIGN:
@@ -907,9 +1087,7 @@ static void *caam_dsa_desc_init(struct pkc_request *req)
 			}
 
 			desc = caam_dsa_sign_desc(edesc);
-			break;
 		}
-
 		break;
 	case ECDSA_VERIFY:
 		{
@@ -925,15 +1103,89 @@ static void *caam_dsa_desc_init(struct pkc_request *req)
 			}
 
 			desc = caam_dsa_verify_desc(edesc);
-			break;
 		}
+		break;
+	case ECC_KEYGEN:
+		{
+			edesc = kzalloc(sizeof(*edesc) +
+					sizeof(struct ecc_keygen_desc_s),
+					GFP_DMA);
+			if (!edesc)
+				return NULL;
+
+			if (caam_keygen_edesc(req, edesc)) {
+				kfree(edesc);
+				return NULL;
+			}
+
+			desc = caam_keygen_desc(edesc);
+		}
+		break;
 	default:
 		pr_debug("Unknown DSA Desc init request\n");
 		return NULL;
 	}
-
 	edesc->req_type = req->type;
 	return desc;
+}
+
+static int caam_dh_key_edesc(struct pkc_request *req, struct dh_edesc_s *edesc)
+{
+	struct crypto_pkc *tfm = crypto_pkc_reqtfm(req);
+	struct caam_pkc_context_s *ctxt = crypto_pkc_ctx(tfm);
+	struct device *dev = ctxt->dev;
+	struct dh_key_req_s *dh_req = &req->req_u.dh_req;
+
+	edesc->l_len = dh_req->q_len;
+	edesc->n_len = dh_req->s_len;
+	edesc->req_type = req->type;
+	edesc->curve_type = req->curve_type;
+	edesc->q_dma = dma_map_single(dev, dh_req->q, dh_req->q_len,
+					  DMA_TO_DEVICE);
+	if (dma_mapping_error(dev, edesc->q_dma)) {
+		dev_err(dev, "Unable to map  memory\n");
+		goto q_map_fail;
+	}
+
+	edesc->w_dma = dma_map_single(dev, dh_req->pub_key, dh_req->pub_key_len,
+					  DMA_TO_DEVICE);
+	if (dma_mapping_error(dev, edesc->w_dma)) {
+		dev_err(dev, "Unable to map  memory\n");
+		goto w_map_fail;
+	}
+
+	edesc->s_dma = dma_map_single(dev, dh_req->s, dh_req->s_len,
+					  DMA_TO_DEVICE);
+	if (dma_mapping_error(dev, edesc->s_dma)) {
+		dev_err(dev, "Unable to map  memory\n");
+		goto s_map_fail;
+	}
+
+	edesc->z_dma = dma_map_single(dev, dh_req->z, dh_req->z_len,
+					  DMA_FROM_DEVICE);
+	if (dma_mapping_error(dev, edesc->z_dma)) {
+		dev_err(dev, "Unable to map  memory\n");
+		goto z_map_fail;
+	}
+	if (req->type == ECDH_COMPUTE_KEY) {
+		edesc->ab_dma = dma_map_single(dev, dh_req->ab, dh_req->ab_len,
+					  DMA_TO_DEVICE);
+		if (dma_mapping_error(dev, edesc->ab_dma)) {
+			dev_err(dev, "Unable to map  memory\n");
+			goto ab_map_fail;
+		}
+	}
+	return 0;
+ab_map_fail:
+	dma_unmap_single(dev, edesc->z_dma, dh_req->z_len, DMA_FROM_DEVICE);
+z_map_fail:
+	dma_unmap_single(dev, edesc->s_dma, dh_req->s_len, DMA_TO_DEVICE);
+s_map_fail:
+	dma_unmap_single(dev, edesc->w_dma, dh_req->pub_key_len, DMA_TO_DEVICE);
+w_map_fail:
+	dma_unmap_single(dev, edesc->q_dma, dh_req->q_len, DMA_TO_DEVICE);
+q_map_fail:
+	return -EINVAL;
 }
 
 /* DSA operation Handler */
@@ -952,6 +1204,75 @@ static int dsa_op(struct pkc_request *req)
 	}
 
 	ret = caam_jr_enqueue(dev, desc, dsa_op_done, req);
+	if (!ret)
+		ret = -EINPROGRESS;
+
+	return ret;
+}
+
+/* CAAM Descriptor creator for DH Public Key operations */
+static void *caam_dh_desc_init(struct pkc_request *req)
+{
+	void *desc = NULL;
+	struct dh_edesc_s *edesc = NULL;
+
+	switch (req->type) {
+	case DH_COMPUTE_KEY:
+	case ECDH_COMPUTE_KEY:
+		{
+			edesc = kzalloc(sizeof(*edesc) +
+					sizeof(struct dh_key_desc_s),
+					GFP_DMA);
+			if (!edesc)
+				return NULL;
+
+			if (caam_dh_key_edesc(req, edesc)) {
+				kfree(edesc);
+				return NULL;
+			}
+			desc = caam_dh_key_desc(edesc);
+		}
+		break;
+	default:
+		pr_debug("Unknown DH Desc init request\n");
+		return NULL;
+	}
+	edesc->req_type = req->type;
+	return desc;
+}
+
+/* DH Job Completion handler */
+static void dh_op_done(struct device *dev, u32 *desc, u32 err, void *context)
+{
+	struct pkc_request *req = context;
+	struct dh_edesc_s *edesc;
+
+	edesc = (struct dh_edesc_s *)((char *)desc -
+				     offsetof(struct dh_edesc_s, hw_desc));
+
+	if (err)
+		caam_jr_strstatus(dev, err);
+
+	dh_unmap(dev, edesc, req);
+	kfree(edesc);
+
+	pkc_request_complete(req, err);
+}
+
+static int dh_op(struct pkc_request *req)
+{
+	struct crypto_pkc *pkc_tfm = crypto_pkc_reqtfm(req);
+	struct caam_pkc_context_s *ctxt = crypto_pkc_ctx(pkc_tfm);
+	struct device *dev = ctxt->dev;
+	int ret = 0;
+	void *desc = NULL;
+	desc = caam_dh_desc_init(req);
+	if (!desc) {
+		dev_err(dev, "Unable to allocate descriptor\n");
+		return -ENOMEM;
+	}
+
+	ret = caam_jr_enqueue(dev, desc, dh_op_done, req);
 	if (!ret)
 		ret = -EINPROGRESS;
 
@@ -1016,13 +1337,20 @@ static struct caam_pkc_template driver_pkc[] = {
 			  .min_keysize = 512,
 			  .max_keysize = 4096,
 			  },
+	 },
+	/* DH driver registeration hooks */
+	{
+	 .name = "dh",
+	 .driver_name = "dh-caam",
+	 .pkc_name = "pkc(dh)",
+	 .pkc_driver_name = "pkc-dh-caam",
+	 .type = CRYPTO_ALG_TYPE_PKC_DH,
+	 .template_pkc = {
+			  .pkc_op = dh_op,
+			  .min_keysize = 512,
+			  .max_keysize = 4096,
+			  },
 	 }
-};
-
-struct caam_pkc_alg {
-	struct list_head entry;
-	struct device *ctrldev;
-	struct crypto_alg crypto_alg;
 };
 
 /* Per session pkc's driver context creation function */
@@ -1057,6 +1385,7 @@ static struct caam_pkc_alg *caam_pkc_alloc(struct device *ctrldev,
 		dev_err(ctrldev, "failed to allocate t_alg\n");
 		return NULL;
 	}
+
 	alg = &t_alg->crypto_alg;
 	alg->cra_pkc = template->template_pkc;
 

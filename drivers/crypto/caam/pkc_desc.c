@@ -142,11 +142,56 @@ void *caam_rsa_priv_f3_desc(struct rsa_edesc *edesc)
 	return rsa_priv_desc;
 }
 
+/* DH sign CAAM descriptor */
+void *caam_dh_key_desc(struct dh_edesc_s *edesc)
+{
+	u32 start_idx, desc_size;
+	void *desc;
+#ifdef CAAM_DEBUG
+	uint32_t i;
+	uint32_t *buf;
+#endif
+	struct dh_key_desc_s *dh_desc =
+	    (struct dh_key_desc_s *)edesc->hw_desc;
+	desc_size = sizeof(struct dh_key_desc_s) / sizeof(u32);
+	start_idx = desc_size - 1;
+	start_idx &= HDR_START_IDX_MASK;
+	init_job_desc(edesc->hw_desc, (start_idx << HDR_START_IDX_SHIFT) |
+		      (start_idx & HDR_DESCLEN_MASK) | HDR_ONE);
+	dh_desc->sgf_ln = (edesc->l_len << DH_PDB_L_SHIFT) |
+		((edesc->n_len & DH_PDB_N_MASK));
+	dh_desc->q_dma = edesc->q_dma;
+	dh_desc->w_dma = edesc->w_dma;
+	dh_desc->s_dma = edesc->s_dma;
+	dh_desc->z_dma = edesc->z_dma;
+	dh_desc->op = CMD_OPERATION | OP_TYPE_UNI_PROTOCOL |
+	    OP_PCLID_DH;
+	if (edesc->req_type == ECDH_COMPUTE_KEY) {
+		dh_desc->ab_dma = edesc->ab_dma;
+		dh_desc->op |= OP_PCL_PKPROT_ECC;
+		if (edesc->curve_type == ECC_BINARY)
+			dh_desc->op |= OP_PCL_PKPROT_F2M;
+	}
+
+	desc = dh_desc;
+#ifdef CAAM_DEBUG
+	buf = desc;
+	pr_debug("%d DH Descriptor is:\n", desc_size);
+	for (i = 0; i < desc_size; i++)
+		pr_debug("[%d] %x\n", i, buf[i]);
+#endif
+	return desc;
+}
+
 /* DSA sign CAAM descriptor */
 void *caam_dsa_sign_desc(struct dsa_edesc_s *edesc)
 {
 	u32 start_idx, desc_size;
 	void *desc;
+#ifdef CAAM_DEBUG
+	uint32_t i;
+	uint32_t *buf;
+#endif
 
 	if (edesc->req_type == ECDSA_SIGN) {
 		struct ecdsa_sign_desc_s *ecdsa_desc =
@@ -169,6 +214,9 @@ void *caam_dsa_sign_desc(struct dsa_edesc_s *edesc)
 		ecdsa_desc->ab_dma = edesc->ab_dma;
 		ecdsa_desc->op = CMD_OPERATION | OP_TYPE_UNI_PROTOCOL |
 		    OP_PCLID_DSASIGN | OP_PCL_PKPROT_ECC;
+		if (edesc->curve_type == ECC_BINARY)
+			ecdsa_desc->op |= OP_PCL_PKPROT_F2M;
+
 		desc = ecdsa_desc;
 	} else {
 		struct dsa_sign_desc_s *dsa_desc =
@@ -192,6 +240,82 @@ void *caam_dsa_sign_desc(struct dsa_edesc_s *edesc)
 		    OP_PCLID_DSASIGN;
 		desc = dsa_desc;
 	}
+#ifdef CAAM_DEBUG
+	buf = desc;
+	pr_debug("DSA Descriptor is:");
+	for (i = 0; i < desc_size; i++)
+		pr_debug("[%d] %x ", i, buf[i]);
+	pr_debug("\n");
+#endif
+
+	return desc;
+}
+
+/* DSA/ECDSA/DH/ECDH keygen CAAM descriptor */
+void *caam_keygen_desc(struct dsa_edesc_s *edesc)
+{
+	u32 start_idx, desc_size;
+	void *desc;
+#ifdef CAAM_DEBUG
+	uint32_t i;
+	uint32_t *buf;
+#endif
+
+	if (edesc->req_type == ECC_KEYGEN) {
+		struct ecc_keygen_desc_s *ecc_desc =
+		    (struct ecc_keygen_desc_s *)edesc->hw_desc;
+		desc_size = sizeof(struct ecc_keygen_desc_s) / sizeof(u32);
+		start_idx = desc_size - 1;
+		start_idx &= HDR_START_IDX_MASK;
+		init_job_desc(edesc->hw_desc,
+			      (start_idx << HDR_START_IDX_SHIFT) |
+			      (start_idx & HDR_DESCLEN_MASK) | HDR_ONE);
+		ecc_desc->sgf_ln = (edesc->l_len << DSA_PDB_L_SHIFT) |
+				   (edesc->n_len & DSA_PDB_N_MASK);
+		if (edesc->erratum_A_006899) {
+			ecc_desc->sgf_ln |= DSA_PDB_SGF_G;
+			ecc_desc->g_dma = edesc->g_sg_dma;
+		} else {
+			ecc_desc->g_dma = edesc->g_dma;
+		}
+		ecc_desc->q_dma = edesc->q_dma;
+		ecc_desc->r_dma = edesc->r_dma;
+		ecc_desc->s_dma = edesc->s_dma;
+		ecc_desc->w_dma = edesc->key_dma;
+		ecc_desc->ab_dma = edesc->ab_dma;
+		ecc_desc->op = CMD_OPERATION | OP_TYPE_UNI_PROTOCOL |
+		    OP_PCLID_PUBLICKEYPAIR | OP_PCL_PKPROT_ECC;
+		if (edesc->curve_type == ECC_BINARY)
+			ecc_desc->op |= OP_PCL_PKPROT_F2M;
+
+		desc = ecc_desc;
+	} else {
+		struct dlc_keygen_desc_s *key_desc =
+		    (struct dlc_keygen_desc_s *)edesc->hw_desc;
+		desc_size = sizeof(struct dlc_keygen_desc_s) / sizeof(u32);
+		start_idx = desc_size - 1;
+		start_idx &= HDR_START_IDX_MASK;
+		init_job_desc(edesc->hw_desc,
+			      (start_idx << HDR_START_IDX_SHIFT) |
+			      (start_idx & HDR_DESCLEN_MASK) | HDR_ONE);
+		key_desc->sgf_ln = (edesc->l_len << DSA_PDB_L_SHIFT) |
+			((edesc->n_len & DSA_PDB_N_MASK));
+		key_desc->q_dma = edesc->q_dma;
+		key_desc->r_dma = edesc->r_dma;
+		key_desc->g_dma = edesc->g_dma;
+		key_desc->s_dma = edesc->s_dma;
+		key_desc->w_dma = edesc->key_dma;
+		key_desc->op = CMD_OPERATION | OP_TYPE_UNI_PROTOCOL |
+		    OP_PCLID_PUBLICKEYPAIR;
+		desc = key_desc;
+	}
+#ifdef CAAM_DEBUG
+	buf = desc;
+	pr_debug("DSA Keygen Descriptor is:");
+	for (i = 0; i < desc_size; i++)
+		pr_debug("[%d] %x ", i, buf[i]);
+	pr_debug("\n");
+#endif
 
 	return desc;
 }
@@ -201,6 +325,10 @@ void *caam_dsa_verify_desc(struct dsa_edesc_s *edesc)
 {
 	u32 start_idx, desc_size;
 	void *desc;
+#ifdef CAAM_DEBUG
+	uint32_t i;
+	uint32_t *buf;
+#endif
 
 	if (edesc->req_type == ECDSA_VERIFY) {
 		struct ecdsa_verify_desc_s *ecdsa_desc =
@@ -224,8 +352,9 @@ void *caam_dsa_verify_desc(struct dsa_edesc_s *edesc)
 		ecdsa_desc->ab_dma = edesc->ab_dma;
 		ecdsa_desc->op = CMD_OPERATION | OP_TYPE_UNI_PROTOCOL |
 		    OP_PCLID_DSAVERIFY | OP_PCL_PKPROT_ECC;
+		if (edesc->curve_type == ECC_BINARY)
+			ecdsa_desc->op |= OP_PCL_PKPROT_F2M;
 		desc = ecdsa_desc;
-
 	} else {
 		struct dsa_verify_desc_s *dsa_desc =
 		    (struct dsa_verify_desc_s *)edesc->hw_desc;
@@ -249,5 +378,11 @@ void *caam_dsa_verify_desc(struct dsa_edesc_s *edesc)
 		    OP_PCLID_DSAVERIFY;
 		desc = dsa_desc;
 	}
+#ifdef CAAM_DEBUG
+	buf = desc;
+	pr_debug("DSA Descriptor is:\n");
+	for (i = 0; i < desc_size; i++)
+		pr_debug("[%d] %x\n", i, buf[i]);
+#endif
 	return desc;
 }

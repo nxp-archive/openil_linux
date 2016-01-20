@@ -400,6 +400,17 @@ struct dsa_verify_desc_s {
 	uint32_t	op;
 } __packed;
 
+struct dlc_keygen_desc_s {
+	uint32_t desc_hdr;
+	uint32_t sgf_ln;
+	dma_addr_t q_dma;
+	dma_addr_t r_dma;
+	dma_addr_t g_dma;
+	dma_addr_t s_dma;
+	dma_addr_t w_dma;
+	uint32_t op;
+} __packed;
+
 struct ecdsa_sign_desc_s {
 	uint32_t	desc_hdr;
 	uint32_t sgf_ln; /* Use ECDSA_PDB_ definitions per above */
@@ -425,6 +436,42 @@ struct ecdsa_verify_desc_s {
 	dma_addr_t c_dma;
 	dma_addr_t d_dma;
 	dma_addr_t tmp_dma; /* temporary data block */
+	dma_addr_t ab_dma;
+	uint32_t	op;
+} __packed;
+
+struct ecc_keygen_desc_s {
+	uint32_t desc_hdr;
+	uint32_t sgf_ln;
+	dma_addr_t q_dma;
+	dma_addr_t r_dma;
+	dma_addr_t g_dma;
+	dma_addr_t s_dma;
+	dma_addr_t w_dma;
+	dma_addr_t ab_dma;
+	uint32_t op;
+} __packed;
+
+#define DH_PDB_L_SHIFT         7
+#define DH_PDB_L_MASK          (0x3ff << DH_PDB_L_SHIFT)
+#define DH_PDB_N_MASK          0x7f
+#define DH_PDB_SGF_SHIFT       24
+#define DH_PDB_SGF_MASK        (0xff << DH_PDB_SGF_SHIFT)
+#define DH_PDB_SGF_Q           (0x80 << DH_PDB_SGF_SHIFT)
+#define DH_PDB_SGF_R           (0x40 << DH_PDB_SGF_SHIFT)
+#define DH_PDB_SGF_W           (0x20 << DH_PDB_SGF_SHIFT)
+#define DH_PDB_SGF_S           (0x10 << DH_PDB_SGF_SHIFT)
+#define DH_PDB_SGF_Z           (0x08 << DH_PDB_SGF_SHIFT)
+#define DH_PDB_SGF_AB          (0x04 << DH_PDB_SGF_SHIFT)
+
+struct dh_key_desc_s {
+	uint32_t	desc_hdr;
+	uint32_t sgf_ln; /* Use DH_PDB_ definitions per above */
+	dma_addr_t q_dma;
+	dma_addr_t r_dma;
+	dma_addr_t w_dma;
+	dma_addr_t s_dma;
+	dma_addr_t z_dma;
 	dma_addr_t ab_dma;
 	uint32_t	op;
 } __packed;

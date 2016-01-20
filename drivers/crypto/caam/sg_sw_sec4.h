@@ -89,7 +89,7 @@ static inline int sg_count(struct scatterlist *sg_list, int nbytes,
 	return sg_nents;
 }
 
-static inline void dma_unmap_sg_chained(
+static inline void __maybe_unused dma_unmap_sg_chained(
 	struct device *dev, struct scatterlist *sg, unsigned int nents,
 	enum dma_data_direction dir, bool chained)
 {
@@ -113,7 +113,7 @@ static inline void dma_unmap_sg_chained(
 	}
 }
 
-static inline int dma_map_sg_chained(
+static inline int __maybe_unused dma_map_sg_chained(
 	struct device *dev, struct scatterlist *sg, unsigned int nents,
 	enum dma_data_direction dir, bool chained)
 {
