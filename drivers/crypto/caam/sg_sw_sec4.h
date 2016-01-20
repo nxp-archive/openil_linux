@@ -32,7 +32,10 @@ static inline struct sec4_sg_entry *
 sg_to_sec4_sg(struct scatterlist *sg, int sg_count,
 	      struct sec4_sg_entry *sec4_sg_ptr, u32 offset)
 {
-	while (sg_count) {
+	if (!sg)
+		return NULL;
+
+	while (sg_count && sg) {
 		dma_to_sec4_sg_one(sec4_sg_ptr, sg_dma_address(sg),
 				   sg_dma_len(sg), offset);
 		sec4_sg_ptr++;
@@ -50,6 +53,8 @@ static inline void sg_to_sec4_sg_last(struct scatterlist *sg, int sg_count,
 				      struct sec4_sg_entry *sec4_sg_ptr,
 				      u32 offset)
 {
+	if (!sg)
+		return;
 	sec4_sg_ptr = sg_to_sec4_sg(sg, sg_count, sec4_sg_ptr, offset);
 	sec4_sg_ptr->len |= SEC4_SG_LEN_FIN;
 }
@@ -61,7 +66,7 @@ static inline int __sg_count(struct scatterlist *sg_list, int nbytes,
 	struct scatterlist *sg = sg_list;
 	int sg_nents = 0;
 
-	while (nbytes > 0) {
+	while (nbytes > 0 && sg) {
 		sg_nents++;
 		nbytes -= sg->length;
 		if (!sg_is_last(sg) && (sg + 1)->length == 0)
@@ -88,6 +93,9 @@ static inline void dma_unmap_sg_chained(
 	struct device *dev, struct scatterlist *sg, unsigned int nents,
 	enum dma_data_direction dir, bool chained)
 {
+	if (!sg || !nents)
+		return;
+
 	if (unlikely(chained)) {
 		int i;
 		struct scatterlist *tsg = sg;
@@ -96,7 +104,7 @@ static inline void dma_unmap_sg_chained(
 		 * Use a local copy of the sg pointer to avoid moving the
 		 * head of the list pointed to by sg as we walk the list.
 		 */
-		for (i = 0; i < nents; i++) {
+		for (i = 0; i < nents && tsg; i++) {
 			dma_unmap_sg(dev, tsg, 1, dir);
 			tsg = sg_next(tsg);
 		}
@@ -109,6 +117,9 @@ static inline int dma_map_sg_chained(
 	struct device *dev, struct scatterlist *sg, unsigned int nents,
 	enum dma_data_direction dir, bool chained)
 {
+	if (!sg || !nents)
+		return 0;
+
 	if (unlikely(chained)) {
 		int i;
 		struct scatterlist *tsg = sg;
@@ -117,7 +128,7 @@ static inline int dma_map_sg_chained(
 		 * Use a local copy of the sg pointer to avoid moving the
 		 * head of the list pointed to by sg as we walk the list.
 		 */
-		for (i = 0; i < nents; i++) {
+		for (i = 0; i < nents && tsg; i++) {
 			if (!dma_map_sg(dev, tsg, 1, dir)) {
 				dma_unmap_sg_chained(dev, sg, i, dir,
 						     chained);
