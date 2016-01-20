@@ -57,6 +57,8 @@ struct caam_drv_private_jr {
 	int inp_ring_write_index;	/* Input index "tail" */
 	int head;			/* entinfo (s/w ring) head index */
 	dma_addr_t *inpring;	/* Base of input ring, alloc DMA-safe */
+	dma_addr_t inpbusaddr;	/* Input ring physical address */
+	dma_addr_t outbusaddr;	/* Output ring physical address */
 	spinlock_t outlock ____cacheline_aligned; /* Output ring index lock */
 	int out_ring_read_index;	/* Output index "tail" */
 	int tail;			/* entinfo (s/w ring) tail index */
