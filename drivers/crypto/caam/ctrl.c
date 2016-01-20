@@ -102,7 +102,7 @@ static inline int run_descriptor_deco0(struct device *ctrldev, u32 *desc,
 	struct caam_deco __iomem *deco = ctrlpriv->deco;
 	unsigned int timeout = 100000;
 	u32 deco_dbg_reg, flags;
-	int i;
+	int i, ret;
 
 
 	if (ctrlpriv->virt_en == 1) {
@@ -123,8 +123,8 @@ static inline int run_descriptor_deco0(struct device *ctrldev, u32 *desc,
 
 	if (!timeout) {
 		dev_err(ctrldev, "failed to acquire DECO 0\n");
-		clrbits32(&ctrl->deco_rq, DECORR_RQD0ENABLE);
-		return -ENODEV;
+		ret = -ENODEV;
+		goto out_err;
 	}
 
 	for (i = 0; i < desc_len(desc); i++)
@@ -160,13 +160,12 @@ static inline int run_descriptor_deco0(struct device *ctrldev, u32 *desc,
 	if (ctrlpriv->virt_en == 1)
 		clrbits32(&ctrl->deco_rsr, DECORSR_JR0);
 
+	ret = timeout ? 0 : -EAGAIN;
+
+out_err:
 	/* Mark the DECO as free */
 	clrbits32(&ctrl->deco_rq, DECORR_RQD0ENABLE);
-
-	if (!timeout)
-		return -EAGAIN;
-
-	return 0;
+	return ret;
 }
 
 /*
