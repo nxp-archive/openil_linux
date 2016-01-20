@@ -327,30 +327,30 @@
 		};
 
 		fman0: fman@400000 {
-			sleep = <&rcpm 0x00000008>;
+			rcpm-wakeup = <&rcpm 0x00000008>;
 
 			fm1mac1: ethernet@e0000 {
 				phy-handle = <&sgmii_aqr105_phy_s5>;
 				phy-connection-type = "sgmii";
-				sleep = <&rcpm 0x80000000>;
+				rcpm-wakeup = <&rcpm 0x80000000>;
 			};
 
 			fm1mac2: ethernet@e2000 {
 				phy-handle = <&sgmii_aqr105_phy_s4>;
 				phy-connection-type = "sgmii";
-				sleep = <&rcpm 0x40000000>;
+				rcpm-wakeup = <&rcpm 0x40000000>;
 			};
 
 			fm1mac3: ethernet@e4000 {
 				phy-handle = <&sgmii_vsc8234_phy_s3>;
 				phy-connection-type = "sgmii";
-				sleep = <&rcpm 0x20000000>;
+				rcpm-wakeup = <&rcpm 0x20000000>;
 			};
 
 			fm1mac4: ethernet@e6000 {
 				phy-handle = <&rgmii_phy1>;
 				phy-connection-type = "rgmii";
-				sleep = <&rcpm 0x10000000>;
+				rcpm-wakeup = <&rcpm 0x10000000>;
 			};
 
 			mdio0: mdio@fc000 {
