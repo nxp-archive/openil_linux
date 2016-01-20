@@ -792,15 +792,15 @@ static int dpaa2_eth_set_tx_csum(struct dpaa2_eth_priv *priv, bool enable)
 	return 0;
 }
 
-static int dpaa2_bp_add_7(struct dpaa2_eth_priv *priv, u16 bpid)
+static int dpaa2_bp_add_bufs(struct dpaa2_eth_priv *priv, u16 bpid)
 {
 	struct device *dev = priv->net_dev->dev.parent;
-	u64 buf_array[7];
+	u64 buf_array[DPAA2_ETH_BUFS_PER_CMD];
 	void *buf;
 	dma_addr_t addr;
 	int i;
 
-	for (i = 0; i < 7; i++) {
+	for (i = 0; i < DPAA2_ETH_BUFS_PER_CMD; i++) {
 		/* Allocate buffer visible to WRIOP + skb shared info +
 		 * alignment padding
 		 */
@@ -855,18 +855,19 @@ static int dpaa2_dpbp_seed(struct dpaa2_eth_priv *priv, u16 bpid)
 	int new_count;
 
 	/* This is the lazy seeding of Rx buffer pools.
-	 * dpaa2_bp_add_7() is also used on the Rx hotpath and calls
+	 * dpaa2_bp_add_bufs() is also used on the Rx hotpath and calls
 	 * napi_alloc_frag(). The trouble with that is that it in turn ends up
 	 * calling this_cpu_ptr(), which mandates execution in atomic context.
 	 * Rather than splitting up the code, do a one-off preempt disable.
 	 */
 	preempt_disable();
 	for (j = 0; j < priv->num_channels; j++) {
-		for (i = 0; i < DPAA2_ETH_NUM_BUFS; i += 7) {
-			new_count = dpaa2_bp_add_7(priv, bpid);
+		for (i = 0; i < DPAA2_ETH_NUM_BUFS;
+		     i += DPAA2_ETH_BUFS_PER_CMD) {
+			new_count = dpaa2_bp_add_bufs(priv, bpid);
 			priv->channel[j]->buf_count += new_count;
 
-			if (new_count < 7) {
+			if (new_count < DPAA2_ETH_BUFS_PER_CMD) {
 				preempt_enable();
 				goto out_of_memory;
 			}
@@ -882,12 +883,12 @@ out_of_memory:
 
 /**
  * Drain the specified number of buffers from the DPNI's private buffer pool.
- * @count must not exceeed 7
+ * @count must not exceeed DPAA2_ETH_BUFS_PER_CMD
  */
 static void dpaa2_dpbp_drain_cnt(struct dpaa2_eth_priv *priv, int count)
 {
 	struct device *dev = priv->net_dev->dev.parent;
-	u64 buf_array[7];
+	u64 buf_array[DPAA2_ETH_BUFS_PER_CMD];
 	void *vaddr;
 	int ret, i;
 
@@ -913,7 +914,7 @@ static void __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
 {
 	int i;
 
-	dpaa2_dpbp_drain_cnt(priv, 7);
+	dpaa2_dpbp_drain_cnt(priv, DPAA2_ETH_BUFS_PER_CMD);
 	dpaa2_dpbp_drain_cnt(priv, 1);
 
 	for (i = 0; i < priv->num_channels; i++)
@@ -932,7 +933,7 @@ static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv,
 
 	if (unlikely(ch->buf_count < DPAA2_ETH_REFILL_THRESH)) {
 		do {
-			new_count = dpaa2_bp_add_7(priv, bpid);
+			new_count = dpaa2_bp_add_bufs(priv, bpid);
 			if (unlikely(!new_count)) {
 				/* Out of memory; abort for now, we'll
 				 * try later on

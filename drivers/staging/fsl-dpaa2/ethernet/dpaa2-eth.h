@@ -75,6 +75,11 @@
 #define DPAA2_ETH_NUM_BUFS		(DPAA2_ETH_MAX_FRAMES_PER_QUEUE + 256)
 #define DPAA2_ETH_REFILL_THRESH		DPAA2_ETH_MAX_FRAMES_PER_QUEUE
 
+/* Maximum number of buffers that can be acquired/released through a single
+ * QBMan command
+ */
+#define DPAA2_ETH_BUFS_PER_CMD		7
+
 /* Hardware requires alignment for ingress/egress buffer addresses
  * and ingress buffer lengths.
  */
