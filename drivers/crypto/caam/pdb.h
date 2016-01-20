@@ -373,30 +373,157 @@ struct srtp_decap_pdb {
 
 #define DSA_PDB_N_MASK		0x7f
 
-struct dsa_sign_pdb {
-	u32 sgf_ln; /* Use DSA_PDB_ defintions per above */
-	u8 *q;
-	u8 *r;
-	u8 *g;	/* or Gx,y */
-	u8 *s;
-	u8 *f;
-	u8 *c;
-	u8 *d;
-	u8 *ab; /* ECC only */
-	u8 *u;
-};
+struct dsa_sign_desc_s {
+	uint32_t	desc_hdr;
+	uint32_t sgf_ln; /* Use DSA_PDB_ definitions per above */
+	dma_addr_t q_dma;
+	dma_addr_t r_dma;
+	dma_addr_t g_dma;	/* or Gx,y */
+	dma_addr_t s_dma;
+	dma_addr_t f_dma;
+	dma_addr_t c_dma;
+	dma_addr_t d_dma;
+	uint32_t	op;
+} __packed;
 
-struct dsa_verify_pdb {
-	u32 sgf_ln;
-	u8 *q;
-	u8 *r;
-	u8 *g;	/* or Gx,y */
-	u8 *w; /* or Wx,y */
-	u8 *f;
-	u8 *c;
-	u8 *d;
-	u8 *tmp; /* temporary data block */
-	u8 *ab; /* only used if ECC processing */
-};
+struct dsa_verify_desc_s {
+	uint32_t	desc_hdr;
+	uint32_t sgf_ln;
+	dma_addr_t q_dma;
+	dma_addr_t r_dma;
+	dma_addr_t g_dma;	/* or Gx,y */
+	dma_addr_t w_dma; /* or Wx,y */
+	dma_addr_t f_dma;
+	dma_addr_t c_dma;
+	dma_addr_t d_dma;
+	dma_addr_t tmp_dma; /* temporary data block */
+	uint32_t	op;
+} __packed;
+
+struct ecdsa_sign_desc_s {
+	uint32_t	desc_hdr;
+	uint32_t sgf_ln; /* Use ECDSA_PDB_ definitions per above */
+	dma_addr_t q_dma;
+	dma_addr_t r_dma;
+	dma_addr_t g_dma;	/* or Gx,y */
+	dma_addr_t s_dma;
+	dma_addr_t f_dma;
+	dma_addr_t c_dma;
+	dma_addr_t d_dma;
+	dma_addr_t ab_dma;
+	uint32_t	op;
+} __packed;
+
+struct ecdsa_verify_desc_s {
+	uint32_t	desc_hdr;
+	uint32_t sgf_ln;
+	dma_addr_t q_dma;
+	dma_addr_t r_dma;
+	dma_addr_t g_dma;	/* or Gx,y */
+	dma_addr_t w_dma; /* or Wx,y */
+	dma_addr_t f_dma;
+	dma_addr_t c_dma;
+	dma_addr_t d_dma;
+	dma_addr_t tmp_dma; /* temporary data block */
+	dma_addr_t ab_dma;
+	uint32_t	op;
+} __packed;
+
+/* DSA/ECDSA Protocol Data Blocks */
+#define RSA_PDB_SGF_SHIFT       28
+#define RSA_PDB_MSG_FMT_SHIFT   12
+#define RSA_PDB_E_SHIFT       12
+#define RSA_PDB_E_MASK        (0xFFF << RSA_PDB_E_SHIFT)
+#define RSA_PDB_D_SHIFT       12
+#define RSA_PDB_D_MASK        (0xFFF << RSA_PDB_D_SHIFT)
+#define RSA_PDB_Q_SHIFT       12
+#define RSA_PDB_Q_MASK        (0xFFF << RSA_PDB_Q_SHIFT)
+
+
+#define RSA_PDB_SGF_F		(0x8 << RSA_PDB_SGF_SHIFT)
+#define RSA_PDB_SGF_G		(0x4 << RSA_PDB_SGF_SHIFT)
+#define RSA_PDB_SGF_N		(0x2 << RSA_PDB_SGF_SHIFT)
+#define RSA_PDB_SGF_E		(0x1 << RSA_PDB_SGF_SHIFT)
+
+#define RSA_PRIV_KEY_FRM_1	0
+#define RSA_PRIV_KEY_FRM_2	1
+#define RSA_PRIV_KEY_FRM_3	2
+
+#define RSA_PDB_PVT_FRM1_SGF_SHIFT  28
+#define RSA_PDB_PVT_FRM1_D_SHIFT 10
+
+#define RSA_PDB_PVT_MSG_FMT_SHIFT   12
+#define RSA_PDB_PVT_FRM3_SGF_SHIFT  23
+#define RSA_PDB_PVT_FRM3_Q_SHIFT  12
+
+/* RSA Pub_Key Descriptor */
+struct rsa_pub_desc_s {
+	uint32_t	desc_hdr;
+	uint32_t	sgf_flg;
+	dma_addr_t	f_dma;
+	dma_addr_t	g_dma;
+	dma_addr_t	n_dma;
+	dma_addr_t	e_dma;
+	uint32_t	msg_len;
+	uint32_t	op;
+} __packed;
+
+/*
+ * Form1 Priv_key Decryption Descriptor
+ * Private key is represented by (n,d)
+ * f is decrypted data pointer while g is pointer
+ * of encrypted data
+ */
+struct rsa_priv_frm1_desc_s {
+	uint32_t	desc_hdr;
+	uint32_t	sgf_flg;
+	dma_addr_t	g_dma;
+	dma_addr_t	f_dma;
+	dma_addr_t	n_dma;
+	dma_addr_t	d_dma;
+	uint32_t	op;
+} __packed;
+
+/*
+ * Form2 Priv_key Decryption Descriptor
+ * Private key is represented by (p,q,d)
+ * f is decrypted data pointer while g is pointer
+ * of encrypted data
+ */
+struct rsa_priv_frm2_desc_s {
+	uint32_t	desc_hdr;
+	uint32_t	sgf_flg;
+	dma_addr_t	g_dma;
+	dma_addr_t	f_dma;
+	dma_addr_t	d_dma;
+	dma_addr_t	p_dma;
+	dma_addr_t	q_dma;
+	dma_addr_t	tmp1_dma;
+	dma_addr_t	tmp2_dma;
+	uint32_t	p_q_len;
+	uint32_t	op;
+} __packed;
+
+/*
+ * Form3 Priv_key Decryption Descriptor
+ * Private key is represented by (p,q,dp,dq,c)
+ * f is decrypted data pointer while g is input pointer
+ * of encrypted data
+ */
+struct rsa_priv_frm3_desc_s {
+	uint32_t	desc_hdr;
+	uint32_t	sgf_flg;
+	dma_addr_t	g_dma;
+	dma_addr_t	f_dma;
+	dma_addr_t	c_dma;
+	dma_addr_t	p_dma;
+	dma_addr_t	q_dma;
+	dma_addr_t	dp_dma;
+	dma_addr_t	dq_dma;
+	dma_addr_t	tmp1_dma;
+	dma_addr_t	tmp2_dma;
+	uint32_t	p_q_len;
+	uint32_t	op;
+} __packed;
 
 #endif

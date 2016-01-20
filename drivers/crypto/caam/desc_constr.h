@@ -4,6 +4,8 @@
  * Copyright 2008-2012 Freescale Semiconductor, Inc.
  */
 
+#ifndef _DESC_CONSTR_H_
+#define _DESC_CONSTR_H_
 #include "desc.h"
 
 #define IMMEDIATE (1 << 23)
@@ -388,3 +390,4 @@ do { \
 	APPEND_MATH_IMM_u64(LSHIFT, desc, dest, src0, src1, data)
 #define append_math_rshift_imm_u64(desc, dest, src0, src1, data) \
 	APPEND_MATH_IMM_u64(RSHIFT, desc, dest, src0, src1, data)
+#endif
