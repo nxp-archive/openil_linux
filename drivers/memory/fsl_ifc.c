@@ -63,11 +63,11 @@ int fsl_ifc_find(phys_addr_t addr_base)
 {
 	int i = 0;
 
-	if (!fsl_ifc_ctrl_dev || !fsl_ifc_ctrl_dev->regs)
+	if (!fsl_ifc_ctrl_dev || !fsl_ifc_ctrl_dev->gregs)
 		return -ENODEV;
 
 	for (i = 0; i < fsl_ifc_ctrl_dev->banks; i++) {
-		u32 cspr = ifc_in32(&fsl_ifc_ctrl_dev->regs->cspr_cs[i].cspr);
+		u32 cspr = ifc_in32(&fsl_ifc_ctrl_dev->gregs->cspr_cs[i].cspr);
 		if (cspr & CSPR_V && (cspr & CSPR_BA) ==
 				convert_ifc_address(addr_base))
 			return i;
@@ -79,7 +79,7 @@ EXPORT_SYMBOL(fsl_ifc_find);
 
 static int fsl_ifc_ctrl_init(struct fsl_ifc_ctrl *ctrl)
 {
-	struct fsl_ifc_regs __iomem *ifc = ctrl->regs;
+	struct fsl_ifc_fcm __iomem *ifc = ctrl->gregs;
 
 	/*
 	 * Clear all the common status and event registers
@@ -108,7 +108,7 @@ static int fsl_ifc_ctrl_remove(struct platform_device *dev)
 	irq_dispose_mapping(ctrl->nand_irq);
 	irq_dispose_mapping(ctrl->irq);
 
-	iounmap(ctrl->regs);
+	iounmap(ctrl->gregs);
 
 	dev_set_drvdata(&dev->dev, NULL);
 	kfree(ctrl);
@@ -126,7 +126,7 @@ static DEFINE_SPINLOCK(nand_irq_lock);
 
 static u32 check_nand_stat(struct fsl_ifc_ctrl *ctrl)
 {
-	struct fsl_ifc_regs __iomem *ifc = ctrl->regs;
+	struct fsl_ifc_runtime __iomem *ifc = ctrl->rregs;
 	unsigned long flags;
 	u32 stat;
 
@@ -161,7 +161,7 @@ static irqreturn_t fsl_ifc_nand_irq(int irqno, void *data)
 static irqreturn_t fsl_ifc_ctrl_irq(int irqno, void *data)
 {
 	struct fsl_ifc_ctrl *ctrl = data;
-	struct fsl_ifc_regs __iomem *ifc = ctrl->regs;
+	struct fsl_ifc_fcm __iomem *ifc = ctrl->gregs;
 	u32 err_axiid, err_srcid, status, cs_err, err_addr;
 	irqreturn_t ret = IRQ_NONE;
 
@@ -219,6 +219,7 @@ static int fsl_ifc_ctrl_probe(struct platform_device *dev)
 {
 	int ret = 0;
 	int version, banks;
+	void __iomem *addr;
 
 	dev_info(&dev->dev, "Freescale Integrated Flash Controller\n");
 
@@ -229,21 +230,12 @@ static int fsl_ifc_ctrl_probe(struct platform_device *dev)
 	dev_set_drvdata(&dev->dev, fsl_ifc_ctrl_dev);
 
 	/* IOMAP the entire IFC region */
-	fsl_ifc_ctrl_dev->regs = of_iomap(dev->dev.of_node, 0);
-	if (!fsl_ifc_ctrl_dev->regs) {
+	fsl_ifc_ctrl_dev->gregs = of_iomap(dev->dev.of_node, 0);
+	if (!fsl_ifc_ctrl_dev->gregs) {
 		dev_err(&dev->dev, "failed to get memory region\n");
 		ret = -ENODEV;
 		goto err;
 	}
-
-	version = ifc_in32(&fsl_ifc_ctrl_dev->regs->ifc_rev) &
-			FSL_IFC_VERSION_MASK;
-	banks = (version == FSL_IFC_VERSION_1_0_0) ? 4 : 8;
-	dev_info(&dev->dev, "IFC version %d.%d, %d banks\n",
-		version >> 24, (version >> 16) & 0xf, banks);
-
-	fsl_ifc_ctrl_dev->version = version;
-	fsl_ifc_ctrl_dev->banks = banks;
 
 	if (of_property_read_bool(dev->dev.of_node, "little-endian")) {
 		fsl_ifc_ctrl_dev->little_endian = true;
@@ -253,14 +245,23 @@ static int fsl_ifc_ctrl_probe(struct platform_device *dev)
 		dev_dbg(&dev->dev, "IFC REGISTERS are BIG endian\n");
 	}
 
-	version = ioread32be(&fsl_ifc_ctrl_dev->regs->ifc_rev) &
+	version = ifc_in32(&fsl_ifc_ctrl_dev->gregs->ifc_rev) &
 			FSL_IFC_VERSION_MASK;
+
 	banks = (version == FSL_IFC_VERSION_1_0_0) ? 4 : 8;
 	dev_info(&dev->dev, "IFC version %d.%d, %d banks\n",
 		version >> 24, (version >> 16) & 0xf, banks);
 
 	fsl_ifc_ctrl_dev->version = version;
 	fsl_ifc_ctrl_dev->banks = banks;
+
+	addr = fsl_ifc_ctrl_dev->gregs;
+	if (version >= FSL_IFC_VERSION_2_0_0)
+		fsl_ifc_ctrl_dev->rregs =
+			(struct fsl_ifc_runtime *)(addr + PGOFFSET_64K);
+	else
+		fsl_ifc_ctrl_dev->rregs =
+			(struct fsl_ifc_runtime *)(addr + PGOFFSET_4K);
 
 	/* get the Controller level irq */
 	fsl_ifc_ctrl_dev->irq = irq_of_parse_and_map(dev->dev.of_node, 0);
@@ -318,33 +319,39 @@ err:
 static int fsl_ifc_suspend(struct device *dev)
 {
 	struct fsl_ifc_ctrl *ctrl = dev_get_drvdata(dev);
-	struct fsl_ifc_regs __iomem *ifc = ctrl->regs;
+	struct fsl_ifc_fcm __iomem *fcm = ctrl->gregs;
+	struct fsl_ifc_runtime __iomem *runtime = ctrl->rregs;
 	__be32 nand_evter_intr_en, cm_evter_intr_en, nor_evter_intr_en,
 							 gpcm_evter_intr_en;
 
-	ctrl->saved_regs = kzalloc(sizeof(struct fsl_ifc_regs), GFP_KERNEL);
-	if (!ctrl->saved_regs)
+	ctrl->saved_gregs = kzalloc(sizeof(struct fsl_ifc_fcm), GFP_KERNEL);
+	if (!ctrl->saved_gregs)
+		return -ENOMEM;
+	ctrl->saved_rregs = kzalloc(sizeof(struct fsl_ifc_runtime), GFP_KERNEL);
+	if (!ctrl->saved_rregs)
 		return -ENOMEM;
 
-	cm_evter_intr_en = ifc_in32(&ifc->cm_evter_intr_en);
-	nand_evter_intr_en = ifc_in32(&ifc->ifc_nand.nand_evter_intr_en);
-	nor_evter_intr_en = ifc_in32(&ifc->ifc_nor.nor_evter_intr_en);
-	gpcm_evter_intr_en = ifc_in32(&ifc->ifc_gpcm.gpcm_evter_intr_en);
+	cm_evter_intr_en = ifc_in32(&fcm->cm_evter_intr_en);
+	nand_evter_intr_en = ifc_in32(&runtime->ifc_nand.nand_evter_intr_en);
+	nor_evter_intr_en = ifc_in32(&runtime->ifc_nor.nor_evter_intr_en);
+	gpcm_evter_intr_en = ifc_in32(&runtime->ifc_gpcm.gpcm_evter_intr_en);
 
 /* IFC interrupts disabled */
 
-	ifc_out32(0x0, &ifc->cm_evter_intr_en);
-	ifc_out32(0x0, &ifc->ifc_nand.nand_evter_intr_en);
-	ifc_out32(0x0, &ifc->ifc_nor.nor_evter_intr_en);
-	ifc_out32(0x0, &ifc->ifc_gpcm.gpcm_evter_intr_en);
+	ifc_out32(0x0, &fcm->cm_evter_intr_en);
+	ifc_out32(0x0, &runtime->ifc_nand.nand_evter_intr_en);
+	ifc_out32(0x0, &runtime->ifc_nor.nor_evter_intr_en);
+	ifc_out32(0x0, &runtime->ifc_gpcm.gpcm_evter_intr_en);
 
-	memcpy_fromio(ctrl->saved_regs, ifc, sizeof(struct fsl_ifc_regs));
+	memcpy_fromio(ctrl->saved_gregs, fcm, sizeof(struct fsl_ifc_fcm));
+	memcpy_fromio(ctrl->saved_rregs, runtime,
+					sizeof(struct fsl_ifc_runtime));
 
 /* save the interrupt values */
-	ctrl->saved_regs->cm_evter_intr_en = cm_evter_intr_en;
-	ctrl->saved_regs->ifc_nand.nand_evter_intr_en = nand_evter_intr_en;
-	ctrl->saved_regs->ifc_nor.nor_evter_intr_en = nor_evter_intr_en;
-	ctrl->saved_regs->ifc_gpcm.gpcm_evter_intr_en = gpcm_evter_intr_en;
+	ctrl->saved_gregs->cm_evter_intr_en = cm_evter_intr_en;
+	ctrl->saved_rregs->ifc_nand.nand_evter_intr_en = nand_evter_intr_en;
+	ctrl->saved_rregs->ifc_nor.nor_evter_intr_en = nor_evter_intr_en;
+	ctrl->saved_rregs->ifc_gpcm.gpcm_evter_intr_en = gpcm_evter_intr_en;
 
 	return 0;
 }
@@ -353,110 +360,116 @@ static int fsl_ifc_suspend(struct device *dev)
 static int fsl_ifc_resume(struct device *dev)
 {
 	struct fsl_ifc_ctrl *ctrl = dev_get_drvdata(dev);
-	struct fsl_ifc_regs __iomem *ifc = ctrl->regs;
-	struct fsl_ifc_regs *savd_regs = ctrl->saved_regs;
+	struct fsl_ifc_fcm __iomem *fcm = ctrl->gregs;
+	struct fsl_ifc_runtime __iomem *runtime = ctrl->rregs;
+	struct fsl_ifc_fcm *savd_gregs = ctrl->saved_gregs;
+	struct fsl_ifc_runtime *savd_rregs = ctrl->saved_rregs;
 	uint32_t ver = 0, ncfgr, status, ifc_bank, i;
 
 /*
  * IFC interrupts disabled
  */
-	ifc_out32(0x0, &ifc->cm_evter_intr_en);
-	ifc_out32(0x0, &ifc->ifc_nand.nand_evter_intr_en);
-	ifc_out32(0x0, &ifc->ifc_nor.nor_evter_intr_en);
-	ifc_out32(0x0, &ifc->ifc_gpcm.gpcm_evter_intr_en);
+	ifc_out32(0x0, &fcm->cm_evter_intr_en);
+	ifc_out32(0x0, &runtime->ifc_nand.nand_evter_intr_en);
+	ifc_out32(0x0, &runtime->ifc_nor.nor_evter_intr_en);
+	ifc_out32(0x0, &runtime->ifc_gpcm.gpcm_evter_intr_en);
 
 
-	if (ctrl->saved_regs) {
+	if (ctrl->saved_gregs) {
 		for (ifc_bank = 0; ifc_bank < FSL_IFC_BANK_COUNT; ifc_bank++) {
-			ifc_out32(savd_regs->cspr_cs[ifc_bank].cspr_ext,
-					&ifc->cspr_cs[ifc_bank].cspr_ext);
-			ifc_out32(savd_regs->cspr_cs[ifc_bank].cspr,
-					&ifc->cspr_cs[ifc_bank].cspr);
-			ifc_out32(savd_regs->amask_cs[ifc_bank].amask,
-					&ifc->amask_cs[ifc_bank].amask);
-			ifc_out32(savd_regs->csor_cs[ifc_bank].csor_ext,
-					&ifc->csor_cs[ifc_bank].csor_ext);
-			ifc_out32(savd_regs->csor_cs[ifc_bank].csor,
-					&ifc->csor_cs[ifc_bank].csor);
+			ifc_out32(savd_gregs->cspr_cs[ifc_bank].cspr_ext,
+					&fcm->cspr_cs[ifc_bank].cspr_ext);
+			ifc_out32(savd_gregs->cspr_cs[ifc_bank].cspr,
+					&fcm->cspr_cs[ifc_bank].cspr);
+			ifc_out32(savd_gregs->amask_cs[ifc_bank].amask,
+					&fcm->amask_cs[ifc_bank].amask);
+			ifc_out32(savd_gregs->csor_cs[ifc_bank].csor_ext,
+					&fcm->csor_cs[ifc_bank].csor_ext);
+			ifc_out32(savd_gregs->csor_cs[ifc_bank].csor,
+					&fcm->csor_cs[ifc_bank].csor);
 			for (i = 0; i < 4; i++) {
-				ifc_out32(savd_regs->ftim_cs[ifc_bank].ftim[i],
-					&ifc->ftim_cs[ifc_bank].ftim[i]);
+				ifc_out32(savd_gregs->ftim_cs[ifc_bank].ftim[i],
+					&fcm->ftim_cs[ifc_bank].ftim[i]);
 			}
 		}
-		ifc_out32(savd_regs->ifc_gcr, &ifc->ifc_gcr);
-		ifc_out32(savd_regs->cm_evter_en, &ifc->cm_evter_en);
-
-/*
-* IFC controller NAND machine registers
-*/
-		ifc_out32(savd_regs->ifc_nand.ncfgr, &ifc->ifc_nand.ncfgr);
-		ifc_out32(savd_regs->ifc_nand.nand_fcr0,
-						&ifc->ifc_nand.nand_fcr0);
-		ifc_out32(savd_regs->ifc_nand.nand_fcr1,
-						&ifc->ifc_nand.nand_fcr1);
-		ifc_out32(savd_regs->ifc_nand.row0, &ifc->ifc_nand.row0);
-		ifc_out32(savd_regs->ifc_nand.row1, &ifc->ifc_nand.row1);
-		ifc_out32(savd_regs->ifc_nand.col0, &ifc->ifc_nand.col0);
-		ifc_out32(savd_regs->ifc_nand.col1, &ifc->ifc_nand.col1);
-		ifc_out32(savd_regs->ifc_nand.row2, &ifc->ifc_nand.row2);
-		ifc_out32(savd_regs->ifc_nand.col2, &ifc->ifc_nand.col2);
-		ifc_out32(savd_regs->ifc_nand.row3, &ifc->ifc_nand.row3);
-		ifc_out32(savd_regs->ifc_nand.col3, &ifc->ifc_nand.col3);
-		ifc_out32(savd_regs->ifc_nand.nand_fbcr,
-						&ifc->ifc_nand.nand_fbcr);
-		ifc_out32(savd_regs->ifc_nand.nand_fir0,
-						&ifc->ifc_nand.nand_fir0);
-		ifc_out32(savd_regs->ifc_nand.nand_fir1,
-						&ifc->ifc_nand.nand_fir1);
-		ifc_out32(savd_regs->ifc_nand.nand_fir2,
-						&ifc->ifc_nand.nand_fir2);
-		ifc_out32(savd_regs->ifc_nand.nand_csel,
-						&ifc->ifc_nand.nand_csel);
-		ifc_out32(savd_regs->ifc_nand.nandseq_strt,
-						&ifc->ifc_nand.nandseq_strt);
-		ifc_out32(savd_regs->ifc_nand.nand_evter_en,
-						&ifc->ifc_nand.nand_evter_en);
-		ifc_out32(savd_regs->ifc_nand.nanndcr, &ifc->ifc_nand.nanndcr);
-
-/*
-* IFC controller NOR machine registers
-*/
-		ifc_out32(savd_regs->ifc_nor.nor_evter_en,
-					&ifc->ifc_nor.nor_evter_en);
-		ifc_out32(savd_regs->ifc_nor.norcr, &ifc->ifc_nor.norcr);
-
-/*
- * IFC controller GPCM Machine registers
- */
-		ifc_out32(savd_regs->ifc_gpcm.gpcm_evter_en,
-					&ifc->ifc_gpcm.gpcm_evter_en);
-
-
-
-/*
- * IFC interrupts enabled
- */
-	ifc_out32(ctrl->saved_regs->cm_evter_intr_en, &ifc->cm_evter_intr_en);
-	ifc_out32(ctrl->saved_regs->ifc_nand.nand_evter_intr_en,
-					&ifc->ifc_nand.nand_evter_intr_en);
-	ifc_out32(ctrl->saved_regs->ifc_nor.nor_evter_intr_en,
-					&ifc->ifc_nor.nor_evter_intr_en);
-	ifc_out32(ctrl->saved_regs->ifc_gpcm.gpcm_evter_intr_en,
-					&ifc->ifc_gpcm.gpcm_evter_intr_en);
-
-		kfree(ctrl->saved_regs);
-		ctrl->saved_regs = NULL;
+		ifc_out32(savd_gregs->rb_map, &fcm->rb_map);
+		ifc_out32(savd_gregs->wb_map, &fcm->wb_map);
+		ifc_out32(savd_gregs->ifc_gcr, &fcm->ifc_gcr);
+		ifc_out32(savd_gregs->ddr_ccr_low, &fcm->ddr_ccr_low);
+		ifc_out32(savd_gregs->cm_evter_en, &fcm->cm_evter_en);
 	}
 
-	ver = ifc_in32(&ctrl->regs->ifc_rev);
-	ncfgr = ifc_in32(&ifc->ifc_nand.ncfgr);
+	if (ctrl->saved_rregs) {
+		/* IFC controller NAND machine registers */
+		ifc_out32(savd_rregs->ifc_nand.ncfgr,
+						&runtime->ifc_nand.ncfgr);
+		ifc_out32(savd_rregs->ifc_nand.nand_fcr0,
+						&runtime->ifc_nand.nand_fcr0);
+		ifc_out32(savd_rregs->ifc_nand.nand_fcr1,
+						&runtime->ifc_nand.nand_fcr1);
+		ifc_out32(savd_rregs->ifc_nand.row0, &runtime->ifc_nand.row0);
+		ifc_out32(savd_rregs->ifc_nand.row1, &runtime->ifc_nand.row1);
+		ifc_out32(savd_rregs->ifc_nand.col0, &runtime->ifc_nand.col0);
+		ifc_out32(savd_rregs->ifc_nand.col1, &runtime->ifc_nand.col1);
+		ifc_out32(savd_rregs->ifc_nand.row2, &runtime->ifc_nand.row2);
+		ifc_out32(savd_rregs->ifc_nand.col2, &runtime->ifc_nand.col2);
+		ifc_out32(savd_rregs->ifc_nand.row3, &runtime->ifc_nand.row3);
+		ifc_out32(savd_rregs->ifc_nand.col3, &runtime->ifc_nand.col3);
+		ifc_out32(savd_rregs->ifc_nand.nand_fbcr,
+						&runtime->ifc_nand.nand_fbcr);
+		ifc_out32(savd_rregs->ifc_nand.nand_fir0,
+						&runtime->ifc_nand.nand_fir0);
+		ifc_out32(savd_rregs->ifc_nand.nand_fir1,
+						&runtime->ifc_nand.nand_fir1);
+		ifc_out32(savd_rregs->ifc_nand.nand_fir2,
+						&runtime->ifc_nand.nand_fir2);
+		ifc_out32(savd_rregs->ifc_nand.nand_csel,
+						&runtime->ifc_nand.nand_csel);
+		ifc_out32(savd_rregs->ifc_nand.nandseq_strt,
+					&runtime->ifc_nand.nandseq_strt);
+		ifc_out32(savd_rregs->ifc_nand.nand_evter_en,
+					&runtime->ifc_nand.nand_evter_en);
+		ifc_out32(savd_rregs->ifc_nand.nanndcr,
+					&runtime->ifc_nand.nanndcr);
+		ifc_out32(savd_rregs->ifc_nand.nand_dll_lowcfg0,
+					&runtime->ifc_nand.nand_dll_lowcfg0);
+		ifc_out32(savd_rregs->ifc_nand.nand_dll_lowcfg1,
+					&runtime->ifc_nand.nand_dll_lowcfg1);
+
+		/* IFC controller NOR machine registers */
+		ifc_out32(savd_rregs->ifc_nor.nor_evter_en,
+					&runtime->ifc_nor.nor_evter_en);
+		ifc_out32(savd_rregs->ifc_nor.norcr, &runtime->ifc_nor.norcr);
+
+		/* IFC controller GPCM Machine registers */
+		ifc_out32(savd_rregs->ifc_gpcm.gpcm_evter_en,
+					&runtime->ifc_gpcm.gpcm_evter_en);
+
+		/* IFC interrupts enabled */
+		ifc_out32(ctrl->saved_gregs->cm_evter_intr_en,
+					&fcm->cm_evter_intr_en);
+		ifc_out32(ctrl->saved_rregs->ifc_nand.nand_evter_intr_en,
+					&runtime->ifc_nand.nand_evter_intr_en);
+		ifc_out32(ctrl->saved_rregs->ifc_nor.nor_evter_intr_en,
+					&runtime->ifc_nor.nor_evter_intr_en);
+		ifc_out32(ctrl->saved_rregs->ifc_gpcm.gpcm_evter_intr_en,
+					&runtime->ifc_gpcm.gpcm_evter_intr_en);
+
+		kfree(ctrl->saved_gregs);
+		kfree(ctrl->saved_rregs);
+		ctrl->saved_gregs = NULL;
+		ctrl->saved_rregs = NULL;
+	}
+
+	ver = ifc_in32(&fcm->ifc_rev);
+	ncfgr = ifc_in32(&runtime->ifc_nand.ncfgr);
 	if (ver >= FSL_IFC_V1_3_0) {
 
 		ifc_out32(ncfgr | IFC_NAND_SRAM_INIT_EN,
-					&ifc->ifc_nand.ncfgr);
+					&runtime->ifc_nand.ncfgr);
 		/* wait for  SRAM_INIT bit to be clear or timeout */
 		status = spin_event_timeout(
-					!(ifc_in32(&ifc->ifc_nand.ncfgr)
+					!(ifc_in32(&runtime->ifc_nand.ncfgr)
 					& IFC_NAND_SRAM_INIT_EN),
 					IFC_TIMEOUT_MSECS, 0);
 
