@@ -205,6 +205,7 @@ struct aead_request {
 };
 
 enum pkc_req_type {
+	RSA_KEYGEN,
 	RSA_PUB,
 	RSA_PRIV_FORM1,
 	RSA_PRIV_FORM2,
@@ -293,6 +294,27 @@ struct rsa_priv_frm3_req_s {
 	uint32_t q_len;
 	uint32_t dp_len;
 	uint32_t dq_len;
+	uint32_t c_len;
+};
+
+/*
+ * RSA keygen request
+ */
+
+struct rsa_keygen_req_s {
+	uint8_t *p;
+	uint8_t *q;
+	uint8_t *dp;
+	uint8_t *dq;
+	uint8_t *d;
+	uint8_t *n;
+	uint8_t *c;
+	uint32_t p_len;
+	uint32_t q_len;
+	uint32_t dp_len;
+	uint32_t dq_len;
+	uint32_t d_len;
+	uint32_t n_len;
 	uint32_t c_len;
 };
 
@@ -477,6 +499,7 @@ struct pkc_request {
 	enum pkc_req_type type;
 	enum curve_t curve_type;
 	union {
+		struct rsa_keygen_req_s rsa_keygen;
 		struct rsa_pub_req_s rsa_pub_req;
 		struct rsa_priv_frm1_req_s rsa_priv_f1;
 		struct rsa_priv_frm2_req_s rsa_priv_f2;
