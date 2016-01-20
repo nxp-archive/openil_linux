@@ -15,6 +15,10 @@
 #include "desc_constr.h"
 #include "error.h"
 
+#ifdef CONFIG_CAAM_QI
+#include "qi.h"
+#endif
+
 /*
  * i.MX targets tend to have clock control subsystems that can
  * enable/disable clocking to our device.
@@ -319,6 +323,11 @@ static int caam_remove(struct platform_device *pdev)
 		if (ctrlpriv->jrpdev[ring])
 			of_device_unregister(ctrlpriv->jrpdev[ring]);
 	}
+
+#ifdef CONFIG_CAAM_QI
+	if (ctrlpriv->qidev)
+		caam_qi_shutdown(ctrlpriv->qidev);
+#endif
 
 	/* De-initialize RNG state handles initialized by this driver. */
 	if (ctrlpriv->rng4_sh_init)
@@ -707,6 +716,13 @@ static int caam_probe(struct platform_device *pdev)
 			       );
 		/* This is all that's required to physically enable QI */
 		wr_reg32(&ctrlpriv->qi->qi_control_lo, QICTL_DQEN);
+
+		/* If QMAN driver is present, init CAAM-QI backend */
+#ifdef CONFIG_CAAM_QI
+		ret = caam_qi_init(pdev, nprop);
+		if (ret)
+			dev_err(dev, "caam qi i/f init failed: %d\n", ret);
+#endif
 	}
 
 	/* If no QI and no rings specified, quit and go home */
