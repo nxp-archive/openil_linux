@@ -43,6 +43,16 @@
 			compatible = "fsl,t1040rdb-cpld";
 		};
 	};
+
+	soc: soc@ffe000000 {
+		spi@110000 {
+			slic@3 {
+				compatible = "maxim,ds26522";
+				reg = <3>;
+				spi-max-frequency = <2000000>; /* input clock */
+			};
+		};
+	};
 };
 
 /include/ "t1040si-post.dtsi"
