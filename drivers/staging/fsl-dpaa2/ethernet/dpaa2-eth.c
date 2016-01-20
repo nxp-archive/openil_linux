@@ -61,9 +61,9 @@ MODULE_PARM_DESC(debug, "Module/Driver verbosity level");
 #define DPAA2_SUPPORTED_DPBP_VERSION	2
 #define DPAA2_SUPPORTED_DPCON_VERSION	2
 
-static void dpaa2_eth_rx_csum(struct dpaa2_eth_priv *priv,
-			      u32 fd_status,
-			      struct sk_buff *skb)
+static void validate_rx_csum(struct dpaa2_eth_priv *priv,
+			     u32 fd_status,
+			     struct sk_buff *skb)
 {
 	skb_checksum_none_assert(skb);
 
@@ -83,9 +83,9 @@ static void dpaa2_eth_rx_csum(struct dpaa2_eth_priv *priv,
 /* Free a received FD.
  * Not to be used for Tx conf FDs or on any other paths.
  */
-static void dpaa2_eth_free_rx_fd(struct dpaa2_eth_priv *priv,
-				 const struct dpaa2_fd *fd,
-				 void *vaddr)
+static void free_rx_fd(struct dpaa2_eth_priv *priv,
+		       const struct dpaa2_fd *fd,
+		       void *vaddr)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	dma_addr_t addr = dpaa2_fd_get_addr(fd);
@@ -119,10 +119,10 @@ free_buf:
 }
 
 /* Build a linear skb based on a single-buffer frame descriptor */
-static struct sk_buff *dpaa2_eth_build_linear_skb(struct dpaa2_eth_priv *priv,
-						  struct dpaa2_eth_channel *ch,
-						  const struct dpaa2_fd *fd,
-						  void *fd_vaddr)
+static struct sk_buff *build_linear_skb(struct dpaa2_eth_priv *priv,
+					struct dpaa2_eth_channel *ch,
+					const struct dpaa2_fd *fd,
+					void *fd_vaddr)
 {
 	struct sk_buff *skb = NULL;
 	u16 fd_offset = dpaa2_fd_get_offset(fd);
@@ -142,9 +142,9 @@ static struct sk_buff *dpaa2_eth_build_linear_skb(struct dpaa2_eth_priv *priv,
 }
 
 /* Build a non linear (fragmented) skb based on a S/G table */
-static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
-						struct dpaa2_eth_channel *ch,
-						struct dpaa2_sg_entry *sgt)
+static struct sk_buff *build_frag_skb(struct dpaa2_eth_priv *priv,
+				      struct dpaa2_eth_channel *ch,
+				      struct dpaa2_sg_entry *sgt)
 {
 	struct sk_buff *skb = NULL;
 	struct device *dev = priv->net_dev->dev.parent;
@@ -239,11 +239,11 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 	percpu_extras = this_cpu_ptr(priv->percpu_extras);
 
 	if (fd_format == dpaa2_fd_single) {
-		skb = dpaa2_eth_build_linear_skb(priv, ch, fd, vaddr);
+		skb = build_linear_skb(priv, ch, fd, vaddr);
 	} else if (fd_format == dpaa2_fd_sg) {
 		struct dpaa2_sg_entry *sgt =
 				vaddr + dpaa2_fd_get_offset(fd);
-		skb = dpaa2_eth_build_frag_skb(priv, ch, sgt);
+		skb = build_frag_skb(priv, ch, sgt);
 		put_page(virt_to_head_page(vaddr));
 		percpu_extras->rx_sg_frames++;
 		percpu_extras->rx_sg_bytes += dpaa2_fd_get_len(fd);
@@ -273,7 +273,7 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 		fas = (struct dpaa2_fas *)
 				(vaddr + priv->buf_layout.private_data_size);
 		status = le32_to_cpu(fas->status);
-		dpaa2_eth_rx_csum(priv, status, skb);
+		validate_rx_csum(priv, status, skb);
 	}
 
 	skb->protocol = eth_type_trans(skb, priv->net_dev);
@@ -289,7 +289,7 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 	return;
 err_frame_format:
 err_build_skb:
-	dpaa2_eth_free_rx_fd(priv, fd, vaddr);
+	free_rx_fd(priv, fd, vaddr);
 	percpu_stats->rx_dropped++;
 }
 
@@ -317,7 +317,7 @@ static void dpaa2_eth_rx_err(struct dpaa2_eth_priv *priv,
 			netdev_warn(priv->net_dev, "Rx frame error: 0x%08x\n",
 				    status & DPAA2_ETH_RX_ERR_MASK);
 	}
-	dpaa2_eth_free_rx_fd(priv, fd, vaddr);
+	free_rx_fd(priv, fd, vaddr);
 
 	percpu_stats = this_cpu_ptr(priv->percpu_stats);
 	percpu_stats->rx_errors++;
@@ -330,7 +330,7 @@ static void dpaa2_eth_rx_err(struct dpaa2_eth_priv *priv,
  *
  * Observance of NAPI budget is not our concern, leaving that to the caller.
  */
-static int dpaa2_eth_store_consume(struct dpaa2_eth_channel *ch)
+static int consume_frames(struct dpaa2_eth_channel *ch)
 {
 	struct dpaa2_eth_priv *priv = ch->priv;
 	struct dpaa2_eth_fq *fq;
@@ -361,9 +361,9 @@ static int dpaa2_eth_store_consume(struct dpaa2_eth_channel *ch)
 	return cleaned;
 }
 
-static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
-				 struct sk_buff *skb,
-				 struct dpaa2_fd *fd)
+static int build_sg_fd(struct dpaa2_eth_priv *priv,
+		       struct sk_buff *skb,
+		       struct dpaa2_fd *fd)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	void *sgt_buf = NULL;
@@ -467,9 +467,9 @@ dma_map_sg_failed:
 	return err;
 }
 
-static int dpaa2_eth_build_single_fd(struct dpaa2_eth_priv *priv,
-				     struct sk_buff *skb,
-				     struct dpaa2_fd *fd)
+static int build_single_fd(struct dpaa2_eth_priv *priv,
+			   struct sk_buff *skb,
+			   struct dpaa2_fd *fd)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	u8 *buffer_start;
@@ -519,9 +519,9 @@ static int dpaa2_eth_build_single_fd(struct dpaa2_eth_priv *priv,
  * Optionally, return the frame annotation status word (FAS), which needs
  * to be checked if we're on the confirmation path.
  */
-static void dpaa2_eth_free_fd(const struct dpaa2_eth_priv *priv,
-			      const struct dpaa2_fd *fd,
-			      u32 *status)
+static void free_tx_fd(const struct dpaa2_eth_priv *priv,
+		       const struct dpaa2_fd *fd,
+		       u32 *status)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	dma_addr_t fd_addr;
@@ -636,11 +636,11 @@ static int dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	}
 
 	if (skb_is_nonlinear(skb)) {
-		err = dpaa2_eth_build_sg_fd(priv, skb, &fd);
+		err = build_sg_fd(priv, skb, &fd);
 		percpu_extras->tx_sg_frames++;
 		percpu_extras->tx_sg_bytes += skb->len;
 	} else {
-		err = dpaa2_eth_build_single_fd(priv, skb, &fd);
+		err = build_single_fd(priv, skb, &fd);
 	}
 
 	if (unlikely(err)) {
@@ -662,7 +662,7 @@ static int dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	if (unlikely(err < 0)) {
 		percpu_stats->tx_errors++;
 		/* Clean up everything, including freeing the skb */
-		dpaa2_eth_free_fd(priv, &fd, NULL);
+		free_tx_fd(priv, &fd, NULL);
 	} else {
 		percpu_stats->tx_packets++;
 		percpu_stats->tx_bytes += skb->len;
@@ -693,7 +693,7 @@ static void dpaa2_eth_tx_conf(struct dpaa2_eth_priv *priv,
 	percpu_extras->tx_conf_frames++;
 	percpu_extras->tx_conf_bytes += dpaa2_fd_get_len(fd);
 
-	dpaa2_eth_free_fd(priv, fd, &status);
+	free_tx_fd(priv, fd, &status);
 
 	if (unlikely(status & DPAA2_ETH_TXCONF_ERR_MASK)) {
 		percpu_stats = this_cpu_ptr(priv->percpu_stats);
@@ -702,7 +702,7 @@ static void dpaa2_eth_tx_conf(struct dpaa2_eth_priv *priv,
 	}
 }
 
-static int dpaa2_eth_set_rx_csum(struct dpaa2_eth_priv *priv, bool enable)
+static int set_rx_csum(struct dpaa2_eth_priv *priv, bool enable)
 {
 	int err;
 
@@ -725,7 +725,7 @@ static int dpaa2_eth_set_rx_csum(struct dpaa2_eth_priv *priv, bool enable)
 	return 0;
 }
 
-static int dpaa2_eth_set_tx_csum(struct dpaa2_eth_priv *priv, bool enable)
+static int set_tx_csum(struct dpaa2_eth_priv *priv, bool enable)
 {
 	struct dpaa2_eth_fq *fq;
 	struct dpni_tx_flow_cfg tx_flow_cfg;
@@ -755,7 +755,7 @@ static int dpaa2_eth_set_tx_csum(struct dpaa2_eth_priv *priv, bool enable)
 	return 0;
 }
 
-static int dpaa2_bp_add_bufs(struct dpaa2_eth_priv *priv, u16 bpid)
+static int add_bufs(struct dpaa2_eth_priv *priv, u16 bpid)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	u64 buf_array[DPAA2_ETH_BUFS_PER_CMD];
@@ -810,13 +810,13 @@ err_alloc:
 	return 0;
 }
 
-static int dpaa2_dpbp_seed(struct dpaa2_eth_priv *priv, u16 bpid)
+static int seed_pool(struct dpaa2_eth_priv *priv, u16 bpid)
 {
 	int i, j;
 	int new_count;
 
 	/* This is the lazy seeding of Rx buffer pools.
-	 * dpaa2_bp_add_bufs() is also used on the Rx hotpath and calls
+	 * dpaa2_add_bufs() is also used on the Rx hotpath and calls
 	 * napi_alloc_frag(). The trouble with that is that it in turn ends up
 	 * calling this_cpu_ptr(), which mandates execution in atomic context.
 	 * Rather than splitting up the code, do a one-off preempt disable.
@@ -825,7 +825,7 @@ static int dpaa2_dpbp_seed(struct dpaa2_eth_priv *priv, u16 bpid)
 	for (j = 0; j < priv->num_channels; j++) {
 		for (i = 0; i < DPAA2_ETH_NUM_BUFS;
 		     i += DPAA2_ETH_BUFS_PER_CMD) {
-			new_count = dpaa2_bp_add_bufs(priv, bpid);
+			new_count = add_bufs(priv, bpid);
 			priv->channel[j]->buf_count += new_count;
 
 			if (new_count < DPAA2_ETH_BUFS_PER_CMD) {
@@ -846,7 +846,7 @@ out_of_memory:
  * Drain the specified number of buffers from the DPNI's private buffer pool.
  * @count must not exceeed DPAA2_ETH_BUFS_PER_CMD
  */
-static void dpaa2_dpbp_drain_cnt(struct dpaa2_eth_priv *priv, int count)
+static void drain_bufs(struct dpaa2_eth_priv *priv, int count)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	u64 buf_array[DPAA2_ETH_BUFS_PER_CMD];
@@ -871,12 +871,12 @@ static void dpaa2_dpbp_drain_cnt(struct dpaa2_eth_priv *priv, int count)
 	} while (ret);
 }
 
-static void __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
+static void drain_pool(struct dpaa2_eth_priv *priv)
 {
 	int i;
 
-	dpaa2_dpbp_drain_cnt(priv, DPAA2_ETH_BUFS_PER_CMD);
-	dpaa2_dpbp_drain_cnt(priv, 1);
+	drain_bufs(priv, DPAA2_ETH_BUFS_PER_CMD);
+	drain_bufs(priv, 1);
 
 	for (i = 0; i < priv->num_channels; i++)
 		priv->channel[i]->buf_count = 0;
@@ -885,9 +885,9 @@ static void __dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
 /* Function is called from softirq context only, so we don't need to guard
  * the access to percpu count
  */
-static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv,
-			     struct dpaa2_eth_channel *ch,
-			     u16 bpid)
+static int refill_pool(struct dpaa2_eth_priv *priv,
+		       struct dpaa2_eth_channel *ch,
+		       u16 bpid)
 {
 	int new_count;
 
@@ -895,7 +895,7 @@ static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv,
 		return 0;
 
 	do {
-		new_count = dpaa2_bp_add_bufs(priv, bpid);
+		new_count = add_bufs(priv, bpid);
 		if (unlikely(!new_count)) {
 			/* Out of memory; abort for now, we'll
 			 * try later on
@@ -911,7 +911,7 @@ static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv,
 	return 0;
 }
 
-static int __dpaa2_eth_pull_channel(struct dpaa2_eth_channel *ch)
+static int pull_channel(struct dpaa2_eth_channel *ch)
 {
 	int err;
 	int dequeues = -1;
@@ -941,14 +941,14 @@ static int dpaa2_eth_poll(struct napi_struct *napi, int budget)
 	priv = ch->priv;
 
 	while (cleaned < budget) {
-		err = __dpaa2_eth_pull_channel(ch);
+		err = pull_channel(ch);
 		if (unlikely(err))
 			break;
 
 		/* Refill pool if appropriate */
-		dpaa2_dpbp_refill(priv, ch, priv->dpbp_attrs.bpid);
+		refill_pool(priv, ch, priv->dpbp_attrs.bpid);
 
-		store_cleaned = dpaa2_eth_store_consume(ch);
+		store_cleaned = consume_frames(ch);
 		cleaned += store_cleaned;
 
 		/* If we have enough budget left for a full store,
@@ -973,7 +973,7 @@ static int dpaa2_eth_poll(struct napi_struct *napi, int budget)
 	return cleaned;
 }
 
-static void dpaa2_eth_napi_enable(struct dpaa2_eth_priv *priv)
+static void enable_ch_napi(struct dpaa2_eth_priv *priv)
 {
 	struct dpaa2_eth_channel *ch;
 	int i;
@@ -984,7 +984,7 @@ static void dpaa2_eth_napi_enable(struct dpaa2_eth_priv *priv)
 	}
 }
 
-static void dpaa2_eth_napi_disable(struct dpaa2_eth_priv *priv)
+static void disable_ch_napi(struct dpaa2_eth_priv *priv)
 {
 	struct dpaa2_eth_channel *ch;
 	int i;
@@ -995,7 +995,7 @@ static void dpaa2_eth_napi_disable(struct dpaa2_eth_priv *priv)
 	}
 }
 
-static int dpaa2_link_state_update(struct dpaa2_eth_priv *priv)
+static int link_state_update(struct dpaa2_eth_priv *priv)
 {
 	struct dpni_link_state state;
 	int err;
@@ -1031,7 +1031,7 @@ static int dpaa2_eth_open(struct net_device *net_dev)
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
 	int err;
 
-	err = dpaa2_dpbp_seed(priv, priv->dpbp_attrs.bpid);
+	err = seed_pool(priv, priv->dpbp_attrs.bpid);
 	if (err) {
 		/* Not much to do; the buffer pool, though not filled up,
 		 * may still contain some buffers which would enable us
@@ -1046,7 +1046,7 @@ static int dpaa2_eth_open(struct net_device *net_dev)
 	 * immediately after dpni_enable();
 	 */
 	netif_tx_stop_all_queues(net_dev);
-	dpaa2_eth_napi_enable(priv);
+	enable_ch_napi(priv);
 	/* Also, explicitly set carrier off, otherwise netif_carrier_ok() will
 	 * return true and cause 'ip link show' to report the LOWER_UP flag,
 	 * even though the link notification wasn't even received.
@@ -1062,7 +1062,7 @@ static int dpaa2_eth_open(struct net_device *net_dev)
 	/* If the DPMAC object has already processed the link up interrupt,
 	 * we have to learn the link state ourselves.
 	 */
-	err = dpaa2_link_state_update(priv);
+	err = link_state_update(priv);
 	if (err < 0) {
 		netdev_err(net_dev, "Can't update link state\n");
 		goto link_state_err;
@@ -1072,29 +1072,29 @@ static int dpaa2_eth_open(struct net_device *net_dev)
 
 link_state_err:
 enable_err:
-	dpaa2_eth_napi_disable(priv);
-	__dpaa2_dpbp_free(priv);
+	disable_ch_napi(priv);
+	drain_pool(priv);
 	return err;
 }
 
 /* The DPIO store must be empty when we call this,
  * at the end of every NAPI cycle.
  */
-static u32 dpaa2_eth_drain_ch(struct dpaa2_eth_priv *priv,
-			      struct dpaa2_eth_channel *ch)
+static u32 drain_channel(struct dpaa2_eth_priv *priv,
+			 struct dpaa2_eth_channel *ch)
 {
 	u32 drained = 0, total = 0;
 
 	do {
-		__dpaa2_eth_pull_channel(ch);
-		drained = dpaa2_eth_store_consume(ch);
+		pull_channel(ch);
+		drained = consume_frames(ch);
 		total += drained;
 	} while (drained);
 
 	return total;
 }
 
-static u32 dpaa2_eth_drain_rx(struct dpaa2_eth_priv *priv)
+static u32 drain_ingress_frames(struct dpaa2_eth_priv *priv)
 {
 	struct dpaa2_eth_channel *ch;
 	int i;
@@ -1102,7 +1102,7 @@ static u32 dpaa2_eth_drain_rx(struct dpaa2_eth_priv *priv)
 
 	for (i = 0; i < priv->num_channels; i++) {
 		ch = priv->channel[i];
-		drained += dpaa2_eth_drain_ch(priv, ch);
+		drained += drain_channel(priv, ch);
 	}
 
 	return drained;
@@ -1141,15 +1141,15 @@ static int dpaa2_eth_stop(struct net_device *net_dev)
 	 * don't even need to disarm the channels, except perhaps for the case
 	 * of a huge coalescing value.
 	 */
-	dpaa2_eth_napi_disable(priv);
+	disable_ch_napi(priv);
 
 	 /* Manually drain the Rx and TxConf queues */
-	drained = dpaa2_eth_drain_rx(priv);
+	drained = drain_ingress_frames(priv);
 	if (drained)
 		netdev_dbg(net_dev, "Drained %d frames.\n", drained);
 
 	/* Empty the buffer pool */
-	__dpaa2_dpbp_free(priv);
+	drain_pool(priv);
 
 	return 0;
 }
@@ -1261,8 +1261,8 @@ static int dpaa2_eth_change_mtu(struct net_device *net_dev, int mtu)
 /* Copy mac unicast addresses from @net_dev to @priv.
  * Its sole purpose is to make dpaa2_eth_set_rx_mode() more readable.
  */
-static void _dpaa2_eth_hw_add_uc_addr(const struct net_device *net_dev,
-				      struct dpaa2_eth_priv *priv)
+static void add_uc_hw_addr(const struct net_device *net_dev,
+			   struct dpaa2_eth_priv *priv)
 {
 	struct netdev_hw_addr *ha;
 	int err;
@@ -1280,8 +1280,8 @@ static void _dpaa2_eth_hw_add_uc_addr(const struct net_device *net_dev,
 /* Copy mac multicast addresses from @net_dev to @priv
  * Its sole purpose is to make dpaa2_eth_set_rx_mode() more readable.
  */
-static void _dpaa2_eth_hw_add_mc_addr(const struct net_device *net_dev,
-				      struct dpaa2_eth_priv *priv)
+static void add_mc_hw_addr(const struct net_device *net_dev,
+			   struct dpaa2_eth_priv *priv)
 {
 	struct netdev_hw_addr *ha;
 	int err;
@@ -1351,7 +1351,7 @@ static void dpaa2_eth_set_rx_mode(struct net_device *net_dev)
 		err = dpni_clear_mac_filters(mc_io, 0, mc_token, 1, 0);
 		if (err)
 			netdev_warn(net_dev, "Can't clear uc filters\n");
-		_dpaa2_eth_hw_add_uc_addr(net_dev, priv);
+		add_uc_hw_addr(net_dev, priv);
 
 		/* Finally, clear uc promisc and set mc promisc as requested. */
 		err = dpni_set_unicast_promisc(mc_io, 0, mc_token, 0);
@@ -1374,8 +1374,8 @@ static void dpaa2_eth_set_rx_mode(struct net_device *net_dev)
 	err = dpni_clear_mac_filters(mc_io, 0, mc_token, 1, 1);
 	if (err)
 		netdev_warn(net_dev, "Can't clear mac filters\n");
-	_dpaa2_eth_hw_add_mc_addr(net_dev, priv);
-	_dpaa2_eth_hw_add_uc_addr(net_dev, priv);
+	add_mc_hw_addr(net_dev, priv);
+	add_uc_hw_addr(net_dev, priv);
 
 	/* Now we can clear both ucast and mcast promisc, without risking
 	 * to drop legitimate frames anymore.
@@ -1409,7 +1409,7 @@ static int dpaa2_eth_set_features(struct net_device *net_dev,
 	if (changed & NETIF_F_RXCSUM) {
 		bool enable = !!(features & NETIF_F_RXCSUM);
 
-		err = dpaa2_eth_set_rx_csum(priv, enable);
+		err = set_rx_csum(priv, enable);
 		if (err)
 			return err;
 	}
@@ -1417,7 +1417,7 @@ static int dpaa2_eth_set_features(struct net_device *net_dev,
 	if (changed & (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM)) {
 		bool enable = !!(features &
 				 (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM));
-		err = dpaa2_eth_set_tx_csum(priv, enable);
+		err = set_tx_csum(priv, enable);
 		if (err)
 			return err;
 	}
@@ -1477,7 +1477,7 @@ static const struct net_device_ops dpaa2_eth_ops = {
 	.ndo_do_ioctl = dpaa2_eth_ioctl,
 };
 
-static void dpaa2_eth_cdan_cb(struct dpaa2_io_notification_ctx *ctx)
+static void cdan_cb(struct dpaa2_io_notification_ctx *ctx)
 {
 	struct dpaa2_eth_channel *ch;
 
@@ -1489,7 +1489,7 @@ static void dpaa2_eth_cdan_cb(struct dpaa2_io_notification_ctx *ctx)
 	napi_schedule_irqoff(&ch->napi);
 }
 
-static void dpaa2_eth_setup_fqs(struct dpaa2_eth_priv *priv)
+static void setup_fqs(struct dpaa2_eth_priv *priv)
 {
 	int i;
 
@@ -1505,7 +1505,7 @@ static void dpaa2_eth_setup_fqs(struct dpaa2_eth_priv *priv)
 	 * the number of cores.
 	 * We only support one traffic class for now.
 	 */
-	for (i = 0; i < dpaa2_queue_count(priv); i++) {
+	for (i = 0; i < dpaa2_eth_queue_count(priv); i++) {
 		priv->fq[priv->num_fqs].netdev_priv = priv;
 		priv->fq[priv->num_fqs].type = DPAA2_RX_FQ;
 		priv->fq[priv->num_fqs].consume = dpaa2_eth_rx;
@@ -1559,7 +1559,7 @@ static int check_obj_version(struct fsl_mc_device *ls_dev, u16 mc_version)
 	return 0;
 }
 
-static struct fsl_mc_device *dpaa2_dpcon_setup(struct dpaa2_eth_priv *priv)
+static struct fsl_mc_device *setup_dpcon(struct dpaa2_eth_priv *priv)
 {
 	struct fsl_mc_device *dpcon;
 	struct device *dev = priv->net_dev->dev.parent;
@@ -1607,8 +1607,8 @@ err_open:
 	return NULL;
 }
 
-static void dpaa2_dpcon_free(struct dpaa2_eth_priv *priv,
-			     struct fsl_mc_device *dpcon)
+static void free_dpcon(struct dpaa2_eth_priv *priv,
+		       struct fsl_mc_device *dpcon)
 {
 	dpcon_disable(priv->mc_io, 0, dpcon->mc_handle);
 	dpcon_close(priv->mc_io, 0, dpcon->mc_handle);
@@ -1616,7 +1616,7 @@ static void dpaa2_dpcon_free(struct dpaa2_eth_priv *priv,
 }
 
 static struct dpaa2_eth_channel *
-dpaa2_alloc_channel(struct dpaa2_eth_priv *priv)
+alloc_channel(struct dpaa2_eth_priv *priv)
 {
 	struct dpaa2_eth_channel *channel;
 	struct dpcon_attr attr;
@@ -1627,7 +1627,7 @@ dpaa2_alloc_channel(struct dpaa2_eth_priv *priv)
 	if (!channel)
 		return NULL;
 
-	channel->dpcon = dpaa2_dpcon_setup(priv);
+	channel->dpcon = setup_dpcon(priv);
 	if (!channel->dpcon)
 		goto err_setup;
 
@@ -1645,20 +1645,20 @@ dpaa2_alloc_channel(struct dpaa2_eth_priv *priv)
 	return channel;
 
 err_get_attr:
-	dpaa2_dpcon_free(priv, channel->dpcon);
+	free_dpcon(priv, channel->dpcon);
 err_setup:
 	kfree(channel);
 	return NULL;
 }
 
-static void dpaa2_free_channel(struct dpaa2_eth_priv *priv,
-			       struct dpaa2_eth_channel *channel)
+static void free_channel(struct dpaa2_eth_priv *priv,
+			 struct dpaa2_eth_channel *channel)
 {
-	dpaa2_dpcon_free(priv, channel->dpcon);
+	free_dpcon(priv, channel->dpcon);
 	kfree(channel);
 }
 
-static int dpaa2_dpio_setup(struct dpaa2_eth_priv *priv)
+static int setup_dpio(struct dpaa2_eth_priv *priv)
 {
 	struct dpaa2_io_notification_ctx *nctx;
 	struct dpaa2_eth_channel *channel;
@@ -1675,7 +1675,7 @@ static int dpaa2_dpio_setup(struct dpaa2_eth_priv *priv)
 	cpumask_clear(&priv->dpio_cpumask);
 	for_each_online_cpu(i) {
 		/* Try to allocate a channel */
-		channel = dpaa2_alloc_channel(priv);
+		channel = alloc_channel(priv);
 		if (!channel)
 			goto err_alloc_ch;
 
@@ -1683,7 +1683,7 @@ static int dpaa2_dpio_setup(struct dpaa2_eth_priv *priv)
 
 		nctx = &channel->nctx;
 		nctx->is_cdan = 1;
-		nctx->cb = dpaa2_eth_cdan_cb;
+		nctx->cb = cdan_cb;
 		nctx->id = channel->ch_id;
 		nctx->desired_cpu = i;
 
@@ -1694,7 +1694,7 @@ static int dpaa2_dpio_setup(struct dpaa2_eth_priv *priv)
 			/* This core doesn't have an affine DPIO, but there's
 			 * a chance another one does, so keep trying
 			 */
-			dpaa2_free_channel(priv, channel);
+			free_channel(priv, channel);
 			continue;
 		}
 
@@ -1716,7 +1716,7 @@ static int dpaa2_dpio_setup(struct dpaa2_eth_priv *priv)
 		cpumask_set_cpu(i, &priv->dpio_cpumask);
 		priv->num_channels++;
 
-		if (priv->num_channels == dpaa2_max_channels(priv))
+		if (priv->num_channels == dpaa2_eth_max_channels(priv))
 			break;
 	}
 
@@ -1729,7 +1729,7 @@ static int dpaa2_dpio_setup(struct dpaa2_eth_priv *priv)
 
 err_set_cdan:
 	dpaa2_io_service_deregister(NULL, nctx);
-	dpaa2_free_channel(priv, channel);
+	free_channel(priv, channel);
 err_alloc_ch:
 	if (cpumask_empty(&priv->dpio_cpumask)) {
 		dev_err(dev, "No cpu with an affine DPIO/DPCON\n");
@@ -1740,7 +1740,7 @@ err_alloc_ch:
 	return 0;
 }
 
-static void dpaa2_dpio_free(struct dpaa2_eth_priv *priv)
+static void free_dpio(struct dpaa2_eth_priv *priv)
 {
 	int i;
 	struct dpaa2_eth_channel *ch;
@@ -1749,12 +1749,12 @@ static void dpaa2_dpio_free(struct dpaa2_eth_priv *priv)
 	for (i = 0; i < priv->num_channels; i++) {
 		ch = priv->channel[i];
 		dpaa2_io_service_deregister(NULL, &ch->nctx);
-		dpaa2_free_channel(priv, ch);
+		free_channel(priv, ch);
 	}
 }
 
-static struct dpaa2_eth_channel *
-dpaa2_get_channel_by_cpu(struct dpaa2_eth_priv *priv, int cpu)
+static struct dpaa2_eth_channel *get_affine_channel(struct dpaa2_eth_priv *priv,
+						    int cpu)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	int i;
@@ -1771,7 +1771,7 @@ dpaa2_get_channel_by_cpu(struct dpaa2_eth_priv *priv, int cpu)
 	return priv->channel[0];
 }
 
-static void dpaa2_set_fq_affinity(struct dpaa2_eth_priv *priv)
+static void set_fq_affinity(struct dpaa2_eth_priv *priv)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	struct dpaa2_eth_fq *fq;
@@ -1804,11 +1804,11 @@ static void dpaa2_set_fq_affinity(struct dpaa2_eth_priv *priv)
 		default:
 			dev_err(dev, "Unknown FQ type: %d\n", fq->type);
 		}
-		fq->channel = dpaa2_get_channel_by_cpu(priv, fq->target_cpu);
+		fq->channel = get_affine_channel(priv, fq->target_cpu);
 	}
 }
 
-static int dpaa2_dpbp_setup(struct dpaa2_eth_priv *priv)
+static int setup_dpbp(struct dpaa2_eth_priv *priv)
 {
 	int err;
 	struct fsl_mc_device *dpbp_dev;
@@ -1860,15 +1860,15 @@ err_open:
 	return err;
 }
 
-static void dpaa2_dpbp_free(struct dpaa2_eth_priv *priv)
+static void free_dpbp(struct dpaa2_eth_priv *priv)
 {
-	__dpaa2_dpbp_free(priv);
+	drain_pool(priv);
 	dpbp_disable(priv->mc_io, 0, priv->dpbp_dev->mc_handle);
 	dpbp_close(priv->mc_io, 0, priv->dpbp_dev->mc_handle);
 	fsl_mc_object_free(priv->dpbp_dev);
 }
 
-static int dpaa2_dpni_setup(struct fsl_mc_device *ls_dev)
+static int setup_dpni(struct fsl_mc_device *ls_dev)
 {
 	struct device *dev = &ls_dev->dev;
 	struct dpaa2_eth_priv *priv;
@@ -2006,7 +2006,7 @@ err_open:
 	return err;
 }
 
-static void dpaa2_dpni_free(struct dpaa2_eth_priv *priv)
+static void free_dpni(struct dpaa2_eth_priv *priv)
 {
 	int err;
 
@@ -2018,8 +2018,8 @@ static void dpaa2_dpni_free(struct dpaa2_eth_priv *priv)
 	dpni_close(priv->mc_io, 0, priv->mc_token);
 }
 
-static int dpaa2_rx_flow_setup(struct dpaa2_eth_priv *priv,
-			       struct dpaa2_eth_fq *fq)
+static int setup_rx_flow(struct dpaa2_eth_priv *priv,
+			 struct dpaa2_eth_fq *fq)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	struct dpni_queue_attr rx_queue_attr;
@@ -2053,8 +2053,8 @@ static int dpaa2_rx_flow_setup(struct dpaa2_eth_priv *priv,
 	return 0;
 }
 
-static int dpaa2_tx_flow_setup(struct dpaa2_eth_priv *priv,
-			       struct dpaa2_eth_fq *fq)
+static int setup_tx_flow(struct dpaa2_eth_priv *priv,
+			 struct dpaa2_eth_fq *fq)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	struct dpni_tx_flow_cfg tx_flow_cfg;
@@ -2100,8 +2100,8 @@ static int dpaa2_tx_flow_setup(struct dpaa2_eth_priv *priv,
 }
 
 #ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
-static int dpaa2_rx_err_setup(struct dpaa2_eth_priv *priv,
-			      struct dpaa2_eth_fq *fq)
+static int setup_rx_err_flow(struct dpaa2_eth_priv *priv,
+			     struct dpaa2_eth_fq *fq)
 {
 	struct dpni_queue_attr queue_attr;
 	struct dpni_queue_cfg queue_cfg;
@@ -2132,7 +2132,7 @@ static int dpaa2_rx_err_setup(struct dpaa2_eth_priv *priv,
 }
 #endif
 
-static int dpaa2_dpni_bind(struct dpaa2_eth_priv *priv)
+static int bind_dpni(struct dpaa2_eth_priv *priv)
 {
 	struct net_device *net_dev = priv->net_dev;
 	struct device *dev = net_dev->dev.parent;
@@ -2151,13 +2151,13 @@ static int dpaa2_dpni_bind(struct dpaa2_eth_priv *priv)
 		return err;
 	}
 
-	dpaa2_cls_check(net_dev);
+	check_fs_support(net_dev);
 
 	/* have the interface implicitly distribute traffic based on supported
 	 * header fields
 	 */
 	if (dpaa2_eth_hash_enabled(priv)) {
-		err = dpaa2_set_hash(net_dev, DPAA2_RXH_SUPPORTED);
+		err = dpaa2_eth_set_hash(net_dev, DPAA2_RXH_SUPPORTED);
 		if (err)
 			return err;
 	}
@@ -2181,14 +2181,14 @@ static int dpaa2_dpni_bind(struct dpaa2_eth_priv *priv)
 	for (i = 0; i < priv->num_fqs; i++) {
 		switch (priv->fq[i].type) {
 		case DPAA2_RX_FQ:
-			err = dpaa2_rx_flow_setup(priv, &priv->fq[i]);
+			err = setup_rx_flow(priv, &priv->fq[i]);
 			break;
 		case DPAA2_TX_CONF_FQ:
-			err = dpaa2_tx_flow_setup(priv, &priv->fq[i]);
+			err = setup_tx_flow(priv, &priv->fq[i]);
 			break;
 #ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
 		case DPAA2_RX_ERR_FQ:
-			err = dpaa2_rx_err_setup(priv, &priv->fq[i]);
+			err = setup_rx_err_flow(priv, &priv->fq[i]);
 			break;
 #endif
 		default:
@@ -2208,7 +2208,7 @@ static int dpaa2_dpni_bind(struct dpaa2_eth_priv *priv)
 	return 0;
 }
 
-static int dpaa2_eth_alloc_rings(struct dpaa2_eth_priv *priv)
+static int alloc_rings(struct dpaa2_eth_priv *priv)
 {
 	struct net_device *net_dev = priv->net_dev;
 	struct device *dev = net_dev->dev.parent;
@@ -2235,7 +2235,7 @@ err_ring:
 	return -ENOMEM;
 }
 
-static void dpaa2_eth_free_rings(struct dpaa2_eth_priv *priv)
+static void free_rings(struct dpaa2_eth_priv *priv)
 {
 	int i;
 
@@ -2243,7 +2243,7 @@ static void dpaa2_eth_free_rings(struct dpaa2_eth_priv *priv)
 		dpaa2_io_store_destroy(priv->channel[i]->store);
 }
 
-static int dpaa2_eth_netdev_init(struct net_device *net_dev)
+static int netdev_init(struct net_device *net_dev)
 {
 	int err;
 	struct device *dev = net_dev->dev.parent;
@@ -2312,13 +2312,13 @@ static int dpaa2_eth_netdev_init(struct net_device *net_dev)
 }
 
 #ifdef CONFIG_FSL_DPAA2_ETH_LINK_POLL
-static int dpaa2_poll_link_state(void *arg)
+static int poll_link_state(void *arg)
 {
 	struct dpaa2_eth_priv *priv = (struct dpaa2_eth_priv *)arg;
 	int err;
 
 	while (!kthread_should_stop()) {
-		err = dpaa2_link_state_update(priv);
+		err = link_state_update(priv);
 		if (unlikely(err))
 			return err;
 
@@ -2353,7 +2353,7 @@ static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 
 	if (status & DPNI_IRQ_EVENT_LINK_CHANGED) {
 		clear |= DPNI_IRQ_EVENT_LINK_CHANGED;
-		dpaa2_link_state_update(netdev_priv(net_dev));
+		link_state_update(netdev_priv(net_dev));
 	}
 
 out:
@@ -2362,7 +2362,7 @@ out:
 	return IRQ_HANDLED;
 }
 
-static int dpaa2_eth_setup_irqs(struct fsl_mc_device *ls_dev)
+static int setup_irqs(struct fsl_mc_device *ls_dev)
 {
 	int err = 0;
 	struct fsl_mc_device_irq *irq;
@@ -2398,7 +2398,7 @@ static int dpaa2_eth_setup_irqs(struct fsl_mc_device *ls_dev)
 }
 #endif
 
-static void dpaa2_eth_napi_add(struct dpaa2_eth_priv *priv)
+static void add_ch_napi(struct dpaa2_eth_priv *priv)
 {
 	int i;
 	struct dpaa2_eth_channel *ch;
@@ -2411,7 +2411,7 @@ static void dpaa2_eth_napi_add(struct dpaa2_eth_priv *priv)
 	}
 }
 
-static void dpaa2_eth_napi_del(struct dpaa2_eth_priv *priv)
+static void del_ch_napi(struct dpaa2_eth_priv *priv)
 {
 	int i;
 	struct dpaa2_eth_channel *ch;
@@ -2507,7 +2507,7 @@ static ssize_t dpaa2_eth_write_txconf_cpumask(struct device *dev,
 	}
 
 	/* Set the new TxConf FQ affinities */
-	dpaa2_set_fq_affinity(priv);
+	set_fq_affinity(priv);
 
 #ifdef CONFIG_FSL_DPAA2_ETH_LINK_POLL
 	/* dpaa2_eth_open() below will *stop* the Tx queues until an explicit
@@ -2522,7 +2522,7 @@ static ssize_t dpaa2_eth_write_txconf_cpumask(struct device *dev,
 		fq = &priv->fq[i];
 		if (fq->type != DPAA2_TX_CONF_FQ)
 			continue;
-		dpaa2_tx_flow_setup(priv, fq);
+		setup_tx_flow(priv, fq);
 	}
 
 	if (running) {
@@ -2612,30 +2612,30 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 #endif
 
 	/* DPNI initialization */
-	err = dpaa2_dpni_setup(dpni_dev);
+	err = setup_dpni(dpni_dev);
 	if (err < 0)
 		goto err_dpni_setup;
 
 	/* DPIO */
-	err = dpaa2_dpio_setup(priv);
+	err = setup_dpio(priv);
 	if (err)
 		goto err_dpio_setup;
 
 	/* FQs */
-	dpaa2_eth_setup_fqs(priv);
-	dpaa2_set_fq_affinity(priv);
+	setup_fqs(priv);
+	set_fq_affinity(priv);
 
 	/* DPBP */
-	err = dpaa2_dpbp_setup(priv);
+	err = setup_dpbp(priv);
 	if (err)
 		goto err_dpbp_setup;
 
 	/* DPNI binding to DPIO and DPBPs */
-	err = dpaa2_dpni_bind(priv);
+	err = bind_dpni(priv);
 	if (err)
 		goto err_bind;
 
-	dpaa2_eth_napi_add(priv);
+	add_ch_napi(priv);
 
 	/* Percpu statistics */
 	priv->percpu_stats = alloc_percpu(*priv->percpu_stats);
@@ -2660,23 +2660,21 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 		dev_warn(&net_dev->dev, "using name \"%s\"\n", net_dev->name);
 	}
 
-	err = dpaa2_eth_netdev_init(net_dev);
+	err = netdev_init(net_dev);
 	if (err)
 		goto err_netdev_init;
 
 	/* Configure checksum offload based on current interface flags */
-	err = dpaa2_eth_set_rx_csum(priv,
-				    !!(net_dev->features & NETIF_F_RXCSUM));
+	err = set_rx_csum(priv, !!(net_dev->features & NETIF_F_RXCSUM));
 	if (err)
 		goto err_csum;
 
-	err = dpaa2_eth_set_tx_csum(priv,
-				    !!(net_dev->features &
-				    (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM)));
+	err = set_tx_csum(priv, !!(net_dev->features &
+				   (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM)));
 	if (err)
 		goto err_csum;
 
-	err = dpaa2_eth_alloc_rings(priv);
+	err = alloc_rings(priv);
 	if (err)
 		goto err_alloc_rings;
 
@@ -2686,7 +2684,7 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 	priv->poll_thread = kthread_run(dpaa2_poll_link_state, priv,
 					"%s_poll_link", net_dev->name);
 #else
-	err = dpaa2_eth_setup_irqs(dpni_dev);
+	err = setup_irqs(dpni_dev);
 	if (err) {
 		netdev_err(net_dev, "ERROR %d setting up interrupts", err);
 		goto err_setup_irqs;
@@ -2702,7 +2700,7 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 #ifndef CONFIG_FSL_DPAA2_ETH_LINK_POLL
 err_setup_irqs:
 #endif
-	dpaa2_eth_free_rings(priv);
+	free_rings(priv);
 err_alloc_rings:
 err_csum:
 	unregister_netdev(net_dev);
@@ -2711,11 +2709,11 @@ err_netdev_init:
 err_alloc_percpu_extras:
 	free_percpu(priv->percpu_stats);
 err_alloc_percpu_stats:
-	dpaa2_eth_napi_del(priv);
+	del_ch_napi(priv);
 err_bind:
-	dpaa2_dpbp_free(priv);
+	free_dpbp(priv);
 err_dpbp_setup:
-	dpaa2_dpio_free(priv);
+	free_dpio(priv);
 err_dpio_setup:
 	kfree(priv->cls_rule);
 	dpni_close(priv->mc_io, 0, priv->mc_token);
@@ -2748,11 +2746,11 @@ static int dpaa2_eth_remove(struct fsl_mc_device *ls_dev)
 	unregister_netdev(net_dev);
 	dev_info(net_dev->dev.parent, "Removed interface %s\n", net_dev->name);
 
-	dpaa2_dpio_free(priv);
-	dpaa2_eth_free_rings(priv);
-	dpaa2_eth_napi_del(priv);
-	dpaa2_dpbp_free(priv);
-	dpaa2_dpni_free(priv);
+	free_dpio(priv);
+	free_rings(priv);
+	del_ch_napi(priv);
+	free_dpbp(priv);
+	free_dpni(priv);
 
 	fsl_mc_portal_free(priv->mc_io);
 

@@ -265,7 +265,7 @@ struct dpaa2_eth_channel {
 	struct dpaa2_eth_ch_stats stats;
 };
 
-struct dpaa2_cls_rule {
+struct dpaa2_eth_cls_rule {
 	struct ethtool_rx_flow_spec fs;
 	bool in_use;
 };
@@ -322,7 +322,7 @@ struct dpaa2_eth_priv {
 #endif
 
 	/* array of classification rules */
-	struct dpaa2_cls_rule *cls_rule;
+	struct dpaa2_eth_cls_rule *cls_rule;
 
 	struct dpni_tx_shaping_cfg shaping_cfg;
 
@@ -348,9 +348,9 @@ struct dpaa2_eth_priv {
 
 extern const struct ethtool_ops dpaa2_ethtool_ops;
 
-int dpaa2_set_hash(struct net_device *net_dev, u64 flags);
+int dpaa2_eth_set_hash(struct net_device *net_dev, u64 flags);
 
-static int dpaa2_queue_count(struct dpaa2_eth_priv *priv)
+static int dpaa2_eth_queue_count(struct dpaa2_eth_priv *priv)
 {
 	if (!dpaa2_eth_hash_enabled(priv))
 		return 1;
@@ -358,16 +358,16 @@ static int dpaa2_queue_count(struct dpaa2_eth_priv *priv)
 	return priv->dpni_ext_cfg.tc_cfg[0].max_dist;
 }
 
-static inline int dpaa2_max_channels(struct dpaa2_eth_priv *priv)
+static inline int dpaa2_eth_max_channels(struct dpaa2_eth_priv *priv)
 {
 	/* Ideally, we want a number of channels large enough
 	 * to accommodate both the Rx distribution size
 	 * and the max number of Tx confirmation queues
 	 */
-	return max_t(int, dpaa2_queue_count(priv),
+	return max_t(int, dpaa2_eth_queue_count(priv),
 		     priv->dpni_attrs.max_senders);
 }
 
-void dpaa2_cls_check(struct net_device *);
+void check_fs_support(struct net_device *);
 
 #endif	/* __DPAA2_H */
