@@ -35,7 +35,6 @@
 #include <asm/pgtable.h>
 #include <soc/fsl/qe/immap_qe.h>
 #include <soc/fsl/qe/qe.h>
-#include <asm/prom.h>
 
 static void qe_snums_init(void);
 static int qe_sdma_init(void);
