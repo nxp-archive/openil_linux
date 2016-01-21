@@ -1413,7 +1413,7 @@ static void lm90_restore_conf(struct i2c_client *client, struct lm90_data *data)
 				  data->config_orig);
 }
 
-static void lm90_init_client(struct i2c_client *client, struct lm90_data *data)
+static int lm90_init_client(struct i2c_client *client, struct lm90_data *data)
 {
 	u8 config, convrate;
 
@@ -1429,7 +1429,7 @@ static void lm90_init_client(struct i2c_client *client, struct lm90_data *data)
 	lm90_set_convrate(client, data, 500);	/* 500ms; 2Hz conversion rate */
 	if (lm90_read_reg(client, LM90_REG_R_CONFIG1, &config) < 0) {
 		dev_warn(&client->dev, "Initialization failed!\n");
-		return;
+		return -ENODEV;
 	}
 	data->config_orig = config;
 
@@ -1456,6 +1456,8 @@ static void lm90_init_client(struct i2c_client *client, struct lm90_data *data)
 	config &= 0xBF;	/* run */
 	if (config != data->config_orig) /* Only write if changed */
 		i2c_smbus_write_byte_data(client, LM90_REG_W_CONFIG1, config);
+
+	return 0;
 }
 
 static bool lm90_is_tripped(struct i2c_client *client, u16 *status)
@@ -1557,7 +1559,9 @@ static int lm90_probe(struct i2c_client *client,
 	data->max_convrate = lm90_params[data->kind].max_convrate;
 
 	/* Initialize the LM90 chip */
-	lm90_init_client(client, data);
+	err = lm90_init_client(client, data);
+	if (err < 0)
+		return -ENODEV;
 
 	/* Register sysfs hooks */
 	data->groups[groups++] = &lm90_group;
