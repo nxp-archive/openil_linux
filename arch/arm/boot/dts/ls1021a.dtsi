@@ -130,6 +130,11 @@
 			big-endian;
 		};
 
+		rcpm: rcpm@1ee2000 {
+			compatible = "fsl,ls1021a-rcpm", "fsl,qoriq-rcpm-2.1";
+			reg = <0x0 0x1ee2000 0x0 0x10000>;
+		};
+
 		esdhc: esdhc@1560000 {
 			compatible = "fsl,esdhc";
 			reg = <0x0 0x1560000 0x0 0x10000>;
@@ -139,6 +144,7 @@
 			sdhci,auto-cmd12;
 			big-endian;
 			bus-width = <4>;
+			rcpm-wakeup = <&rcpm 0x00000080 0x0>;
 			status = "disabled";
 		};
 
@@ -335,6 +341,15 @@
 			status = "disabled";
 		};
 
+		ftm0: ftm0@29d0000 {
+			compatible = "fsl,ftm-alarm";
+			reg = <0x0 0x29d0000 0x0 0x10000>;
+			interrupts = <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH>;
+			big-endian;
+			rcpm-wakeup = <&rcpm 0x0 0x20000000>;
+			status = "okay";
+		};
+
 		wdog0: watchdog@2ad0000 {
 			compatible = "fsl,imx21-wdt";
 			reg = <0x0 0x2ad0000 0x0 0x10000>;
@@ -494,6 +509,29 @@
 			reg = <0x0 0x3100000 0x0 0x10000>;
 			interrupts = <GIC_SPI 93 IRQ_TYPE_LEVEL_HIGH>;
 			dr_mode = "host";
+		};
+	};
+
+	dcsr {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "fsl,dcsr", "simple-bus";
+
+		ranges = <0x0 0x0 0x20000000 0x1000000>;
+
+		dcsr-epu@0 {
+			compatible = "fsl,ls1021a-dcsr-epu";
+			reg = <0x0 0x10000>;
+		};
+
+		dcsr-dcfg@220000 {
+			compatible = "fsl,ls1021a-dcsr-dcfg";
+			reg = <0x220000 0x1000>;
+		};
+
+		dcsr-rcpm@222000 {
+			compatible = "fsl,ls1021a-dcsr-rcpm";
+			reg = <0x222000 0x1000 0x223000 0x1000>;
 		};
 	};
 };

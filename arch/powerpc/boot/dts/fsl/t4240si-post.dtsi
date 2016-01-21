@@ -724,12 +724,16 @@
 	sdhc@114000 {
 		compatible = "fsl,t4240-esdhc", "fsl,esdhc";
 		sdhci,auto-cmd12;
+		rcpm-wakeup = <&rcpm 0x00000080>;
 	};
 /include/ "qoriq-i2c-0.dtsi"
 /include/ "qoriq-i2c-1.dtsi"
 /include/ "qoriq-duart-0.dtsi"
 /include/ "qoriq-duart-1.dtsi"
 /include/ "qoriq-gpio-0.dtsi"
+	gpio@130000 {
+		rcpm-wakeup = <&rcpm 0x00000040>;
+	};
 /include/ "qoriq-gpio-1.dtsi"
 /include/ "qoriq-gpio-2.dtsi"
 /include/ "qoriq-gpio-3.dtsi"
@@ -737,6 +741,7 @@
 		usb0: usb@210000 {
 			compatible = "fsl-usb2-mph-v2.5", "fsl-usb2-mph";
 			phy_type = "utmi";
+			rcpm-wakeup = <&rcpm 0x00000020>;
 			port0;
 		};
 /include/ "qoriq-usb2-dr-0.dtsi"
@@ -744,6 +749,7 @@
 			compatible = "fsl-usb2-dr-v2.5", "fsl-usb2-dr";
 			dr_mode = "host";
 			phy_type = "utmi";
+			rcpm-wakeup = <&rcpm 0x00000010>;
 		};
 /include/ "qoriq-sata2-0.dtsi"
 /include/ "qoriq-sata2-1.dtsi"

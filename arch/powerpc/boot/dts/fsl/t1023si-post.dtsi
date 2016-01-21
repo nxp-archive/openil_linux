@@ -472,7 +472,7 @@
 		fsl,iommu-parent = <&pamu0>;
 		fsl,liodn-reg = <&guts 0x530>; /* eSDHCLIODNR */
 		sdhci,auto-cmd12;
-		sleep = <&rcpm 0x00000080>;
+		rcpm-wakeup = <&rcpm 0x00000080>;
 	};
 /include/ "qoriq-i2c-0.dtsi"
 /include/ "qoriq-i2c-1.dtsi"
@@ -480,7 +480,7 @@
 /include/ "qoriq-duart-1.dtsi"
 /include/ "qoriq-gpio-0.dtsi"
 	gpio@130000 {
-		sleep = <&rcpm 0x00000040>;
+		rcpm-wakeup = <&rcpm 0x00000040>;
 	};
 /include/ "qoriq-gpio-1.dtsi"
 /include/ "qoriq-gpio-2.dtsi"
@@ -491,7 +491,7 @@
 			fsl,iommu-parent = <&pamu0>;
 			fsl,liodn-reg = <&guts 0x520>; /* USB1LIODNR */
 			phy_type = "utmi";
-			sleep = <&rcpm 0x00000020>;
+			rcpm-wakeup = <&rcpm 0x00000020>;
 			port0;
 		};
 /include/ "qoriq-usb2-dr-0.dtsi"
@@ -501,7 +501,7 @@
 			fsl,liodn-reg = <&guts 0x524>; /* USB2LIODNR */
 			dr_mode = "host";
 			phy_type = "utmi";
-			sleep = <&rcpm 0x00000010>;
+			rcpm-wakeup = <&rcpm 0x00000010>;
 		};
 /include/ "qoriq-sata2-0.dtsi"
 sata@220000 {

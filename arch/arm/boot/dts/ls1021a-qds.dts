@@ -242,7 +242,7 @@
 	fpga: board-control@3,0 {
 		#address-cells = <1>;
 		#size-cells = <1>;
-		compatible = "simple-bus";
+		compatible = "fsl,ls1021aqds-fpga", "simple-bus";
 		reg = <0x3 0x0 0x0000100>;
 		bank-width = <1>;
 		device-width = <1>;
