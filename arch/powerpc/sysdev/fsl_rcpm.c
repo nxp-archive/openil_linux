@@ -18,8 +18,8 @@
 #include <linux/of_address.h>
 #include <linux/export.h>
 #include <linux/io.h>
+#include <linux/fsl/guts.h>
 
-#include <asm/fsl_guts.h>
 #include <asm/cputhreads.h>
 #include <asm/fsl_pm.h>
 
