@@ -12,9 +12,10 @@
  * option) any later version.
  */
 
-#ifndef __ASM_POWERPC_FSL_GUTS_H__
-#define __ASM_POWERPC_FSL_GUTS_H__
-#ifdef __KERNEL__
+#ifndef __FSL_GUTS_H__
+#define __FSL_GUTS_H__
+
+#include <linux/types.h>
 
 /**
  * Global Utility Registers.
@@ -293,5 +294,4 @@ struct ccsr_rcpm_v2 {
 	u8	res_300[3568];
 };
 
-#endif
 #endif
