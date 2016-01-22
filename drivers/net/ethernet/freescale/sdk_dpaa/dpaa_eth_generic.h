@@ -46,6 +46,7 @@ struct dpa_generic_priv_s {
 	struct dpa_buffer_layout_s *rx_buf_layout;
 
 	struct dpa_bp *draining_tx_bp;
+	struct dpa_bp *draining_tx_sg_bp;
 	struct dpa_buffer_layout_s *tx_buf_layout;
 
 	/* Store here the needed Tx headroom for convenience and speed
