@@ -31,6 +31,18 @@ void get_cached_msi_msg(unsigned int irq, struct msi_msg *msg)
 }
 EXPORT_SYMBOL_GPL(get_cached_msi_msg);
 
+struct msi_desc *alloc_msi_entry(struct device *dev)
+{
+	struct msi_desc *desc = kzalloc(sizeof(*desc), GFP_KERNEL);
+	if (!desc)
+		return NULL;
+
+	INIT_LIST_HEAD(&desc->list);
+	desc->dev = dev;
+
+	return desc;
+}
+
 #ifdef CONFIG_GENERIC_MSI_IRQ_DOMAIN
 static inline void irq_chip_write_msi_msg(struct irq_data *data,
 					  struct msi_msg *msg)
@@ -334,18 +346,6 @@ void msi_domain_free_irqs(struct irq_domain *domain, struct device *dev)
 struct msi_domain_info *msi_get_domain_info(struct irq_domain *domain)
 {
 	return (struct msi_domain_info *)domain->host_data;
-}
-
-struct msi_desc *alloc_msi_entry(struct device *dev)
-{
-	struct msi_desc *desc = kzalloc(sizeof(*desc), GFP_KERNEL);
-	if (!desc)
-		return NULL;
-
-	INIT_LIST_HEAD(&desc->list);
-	desc->dev = dev;
-
-	return desc;
 }
 
 #endif /* CONFIG_GENERIC_MSI_IRQ_DOMAIN */
