@@ -293,7 +293,7 @@ static int __init fsl_dp_iomap(void)
 
 	fsl_dp_priv.ccsr_scfg_base = fsl_of_iomap("fsl,t1040-scfg");
 	if (!fsl_dp_priv.ccsr_scfg_base) {
-		fsl_dp_priv.ccsr_scfg_base = fsl_of_iomap("fsl,t1023-scfg");
+		fsl_dp_priv.ccsr_scfg_base = fsl_of_iomap("fsl,t1024-scfg");
 		if (!fsl_dp_priv.ccsr_scfg_base)
 			goto err;
 	}
@@ -326,7 +326,7 @@ static int __init fsl_dp_iomap(void)
 			fsl_of_iomap("fsl,t1040-l3-cache-controller");
 	if (!fsl_dp_priv.ccsr_cpc_base) {
 		fsl_dp_priv.ccsr_cpc_base =
-			fsl_of_iomap("fsl,t1023-l3-cache-controller");
+			fsl_of_iomap("fsl,t1024-l3-cache-controller");
 		if (!fsl_dp_priv.ccsr_cpc_base)
 			goto err;
 	}
