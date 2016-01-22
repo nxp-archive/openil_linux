@@ -395,7 +395,7 @@ static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
 	struct scatterlist *scl, *crt_scl;
 	int num_sg;
 	int num_dma_bufs;
-	struct dpaa2_eth_swa *bps;
+	struct dpaa2_eth_swa *swa;
 
 	/* Create and map scatterlist.
 	 * We don't advertise NETIF_F_FRAGLIST, so skb_to_sgvec() will not have
@@ -453,11 +453,11 @@ static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
 	 * Fit the scatterlist and the number of buffers alongside the
 	 * skb backpointer in the SWA. We'll need all of them on Tx Conf.
 	 */
-	bps = (struct dpaa2_eth_swa *)sgt_buf;
-	bps->skb = skb;
-	bps->scl = scl;
-	bps->num_sg = num_sg;
-	bps->num_dma_bufs = num_dma_bufs;
+	swa = (struct dpaa2_eth_swa *)sgt_buf;
+	swa->skb = skb;
+	swa->scl = scl;
+	swa->num_sg = num_sg;
+	swa->num_dma_bufs = num_dma_bufs;
 
 	for (j = 0; j < i; j++)
 		dpaa2_sg_cpu_to_le(&sgt[j]);
@@ -553,7 +553,7 @@ static void dpaa2_eth_free_fd(const struct dpaa2_eth_priv *priv,
 	int unmap_size;
 	struct scatterlist *scl;
 	int num_sg, num_dma_bufs;
-	struct dpaa2_eth_swa *bps;
+	struct dpaa2_eth_swa *swa;
 	bool fd_single;
 	struct dpaa2_fas *fas;
 
@@ -571,11 +571,11 @@ static void dpaa2_eth_free_fd(const struct dpaa2_eth_priv *priv,
 				 skb_tail_pointer(skb) - buffer_start,
 				 DMA_TO_DEVICE);
 	} else {
-		bps = (struct dpaa2_eth_swa *)skbh;
-		skb = bps->skb;
-		scl = bps->scl;
-		num_sg = bps->num_sg;
-		num_dma_bufs = bps->num_dma_bufs;
+		swa = (struct dpaa2_eth_swa *)skbh;
+		skb = swa->skb;
+		scl = swa->scl;
+		num_sg = swa->num_sg;
+		num_dma_bufs = swa->num_dma_bufs;
 
 		/* Unmap the scatterlist */
 		dma_unmap_sg(dev, scl, num_sg, DMA_TO_DEVICE);
