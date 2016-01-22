@@ -456,7 +456,7 @@ static inline struct clk *clk_get_parent(struct clk *clk)
 	return NULL;
 }
 
-unsigned int clk_get_num_parents(struct clk *clk)
+static inline unsigned int clk_get_num_parents(struct clk *clk)
 {
 	return 0;
 }
