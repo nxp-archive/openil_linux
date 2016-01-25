@@ -367,11 +367,7 @@ dpa_generic_rx_dqrr(struct qman_portal *portal,
 		goto qman_consume;
 	}
 
-	skbh = (struct sk_buff **)phys_to_virt(addr);
-	/* according to the last common code (bp refill) the skb pointer is set
-	 * to another address shifted by sizeof(struct sk_buff) to the left
-	 */
-	skb = *(skbh - 1);
+	DPA_READ_SKB_PTR(skb, skbh, phys_to_virt(addr), -1);
 
 	if (unlikely(fd_status & FM_FD_STAT_RX_ERRORS) != 0) {
 		if (netif_msg_hw(priv) && net_ratelimit())
