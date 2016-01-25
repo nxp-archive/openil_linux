@@ -150,6 +150,11 @@ static const char * const boards[] __initconst = {
 	"fsl,B4860QDS",
 	"fsl,B4420QDS",
 	"fsl,B4220QDS",
+	"fsl,T1023RDB",
+	"fsl,T1024QDS",
+	"fsl,T1024RDB",
+	"fsl,T1040D4RDB",
+	"fsl,T1042D4RDB",
 	"fsl,T1040QDS",
 	"fsl,T1042QDS",
 	"fsl,T1040RDB",
@@ -209,7 +214,15 @@ define_machine(corenet_generic) {
 	.pcibios_fixup_bus	= fsl_pcibios_fixup_bus,
 	.pcibios_fixup_phb      = fsl_pcibios_fixup_phb,
 #endif
+/*
+ * Core reset may cause issue if using the proxy mode of MPIC.
+ * Use the mixed mode of MPIC if enabling CPU hotplug.
+ */
+#ifdef CONFIG_HOTPLUG_CPU
+	.get_irq		= mpic_get_irq,
+#else
 	.get_irq		= mpic_get_coreint_irq,
+#endif
 	.restart		= fsl_rstcr_restart,
 	.calibrate_decr		= generic_calibrate_decr,
 	.progress		= udbg_progress,

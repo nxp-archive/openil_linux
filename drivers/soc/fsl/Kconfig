@@ -1,0 +1,3 @@
+if ARM
+source "drivers/soc/fsl/Kconfig.arm"
+endif
