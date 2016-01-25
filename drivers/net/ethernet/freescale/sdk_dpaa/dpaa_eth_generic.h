@@ -81,7 +81,6 @@ struct dpa_generic_priv_s {
 	char if_type[30];
 
 	/* periodic drain */
-	atomic_t ifup;
 	struct timer_list timer;
 };
 

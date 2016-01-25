@@ -96,7 +96,7 @@ static void dpa_generic_draining_timer(unsigned long arg)
 	dpa_generic_drain_sg_bp(priv->draining_tx_sg_bp,
 			DPA_GENERIC_BUFFER_QUOTA);
 
-	if (atomic_read(&priv->ifup))
+	if (priv->net_dev->flags & IFF_UP)
 		mod_timer(&(priv->timer), jiffies + 1);
 }
 
@@ -246,7 +246,6 @@ static int __cold dpa_generic_start(struct net_device *netdev)
 	netif_tx_start_all_queues(netdev);
 
 	mod_timer(&priv->timer, jiffies + 100);
-	atomic_dec(&priv->ifup);
 
 	return 0;
 }
@@ -257,8 +256,6 @@ static int __cold dpa_generic_stop(struct net_device *netdev)
 
 	netif_tx_stop_all_queues(netdev);
 	dpaa_generic_napi_disable(priv);
-
-	atomic_inc_not_zero(&priv->ifup);
 
 	return 0;
 }
@@ -1660,7 +1657,6 @@ static int dpa_generic_eth_probe(struct platform_device *_of_dev)
 	priv->tx_headroom = DPA_DEFAULT_TX_HEADROOM;
 
 	init_timer(&priv->timer);
-	atomic_set(&priv->ifup, 0);
 	priv->timer.data = (unsigned long)priv;
 	priv->timer.function = dpa_generic_draining_timer;
 
