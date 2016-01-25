@@ -174,10 +174,7 @@ static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
 		sg_addr = dpaa2_sg_get_addr(sge);
 		dma_unmap_single(dev, sg_addr, DPAA2_ETH_RX_BUFFER_SIZE,
 				 DMA_FROM_DEVICE);
-		if (unlikely(dma_mapping_error(dev, sg_addr))) {
-			netdev_err(priv->net_dev, "DMA unmap failed\n");
-			return NULL;
-		}
+
 		sg_vaddr = phys_to_virt(sg_addr);
 		sg_length = dpaa2_sg_get_len(sge);
 
