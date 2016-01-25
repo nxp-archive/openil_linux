@@ -1492,21 +1492,18 @@ static int dpa_generic_bp_create(struct net_device *net_dev,
 
 	err = dpa_bp_alloc(priv->rx_bp);
 	if (err < 0) {
-		/* _dpa_bp_free(priv->rx_bp); */
 		priv->rx_bp = NULL;
 		return err;
 	}
 
 	err = dpa_bp_alloc(priv->draining_tx_bp);
 	if (err < 0) {
-		/* _dpa_bp_free(priv->draining_tx_bp); */
 		priv->draining_tx_bp = NULL;
 		return err;
 	}
 
 	err = dpa_bp_alloc(priv->draining_tx_sg_bp);
 	if (err < 0) {
-		/* _dpa_bp_free(priv->draining_tx_bp); */
 		priv->draining_tx_sg_bp = NULL;
 		return err;
 	}
@@ -1514,31 +1511,8 @@ static int dpa_generic_bp_create(struct net_device *net_dev,
 	return 0;
 }
 
-static void dpa_generic_bp_free(struct dpa_generic_priv_s *priv)
+static void dpa_generic_relase_bp(struct dpa_bp *bp)
 {
-	struct dpa_bp *bp = NULL;
-	int i = 0;
-
-	/* release the rx bpools */
-	for (i = 0; i < priv->rx_bp_count; i++) {
-		bp = &priv->rx_bp[i];
-		if (!bp)
-			continue;
-
-		if (!atomic_dec_and_test(&bp->refs))
-			continue;
-
-		if (bp->free_buf_cb)
-			dpa_bp_drain(bp);
-
-		bman_free_pool(bp->pool);
-
-		if (bp->dev)
-			platform_device_unregister(to_platform_device(bp->dev));
-	}
-
-	/* release the tx draining bpool */
-	bp = priv->draining_tx_bp;
 	if (!bp)
 		return;
 
@@ -1552,6 +1526,19 @@ static void dpa_generic_bp_free(struct dpa_generic_priv_s *priv)
 
 	if (bp->dev)
 		platform_device_unregister(to_platform_device(bp->dev));
+}
+
+static void dpa_generic_bp_free(struct dpa_generic_priv_s *priv)
+{
+	int i = 0;
+
+	/* release the rx bpools */
+	for (i = 0; i < priv->rx_bp_count; i++)
+		dpa_generic_relase_bp(&priv->rx_bp[i]);
+
+	/* release the tx draining bpools */
+	dpa_generic_relase_bp(priv->draining_tx_bp);
+	dpa_generic_relase_bp(priv->draining_tx_sg_bp);
 }
 
 static int dpa_generic_remove(struct platform_device *of_dev)
@@ -1699,11 +1686,9 @@ alloc_percpu_failed:
 	if (netdev)
 		dpa_fq_free(dev, &priv->dpa_fq_list);
 fq_create_failed:
-	if (netdev) {
-		/* _dpa_bp_free(priv->rx_bp); */
-		/* _dpa_bp_free(priv->draining_tx_bp); */
-	}
 bp_create_failed:
+	if (netdev)
+		dpa_generic_bp_free(priv);
 	dev_set_drvdata(dev, NULL);
 	if (netdev)
 		free_netdev(netdev);
