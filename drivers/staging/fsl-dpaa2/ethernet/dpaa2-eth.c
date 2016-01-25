@@ -90,27 +90,31 @@ static void dpaa2_eth_free_rx_fd(struct dpaa2_eth_priv *priv,
 	struct device *dev = priv->net_dev->dev.parent;
 	dma_addr_t addr = dpaa2_fd_get_addr(fd);
 	u8 fd_format = dpaa2_fd_get_format(fd);
+	struct dpaa2_sg_entry *sgt;
+	void *sg_vaddr;
+	int i;
 
-	if (fd_format == dpaa2_fd_sg) {
-		struct dpaa2_sg_entry *sgt = vaddr + dpaa2_fd_get_offset(fd);
-		void *sg_vaddr;
-		int i;
+	/* If single buffer frame, just free the data buffer */
+	if (fd_format == dpaa2_fd_single)
+		goto free_buf;
 
-		for (i = 0; i < DPAA2_ETH_MAX_SG_ENTRIES; i++) {
-			dpaa2_sg_le_to_cpu(&sgt[i]);
+	/* For S/G frames, we first need to free all SG entries */
+	sgt = vaddr + dpaa2_fd_get_offset(fd);
+	for (i = 0; i < DPAA2_ETH_MAX_SG_ENTRIES; i++) {
+		dpaa2_sg_le_to_cpu(&sgt[i]);
 
-			addr = dpaa2_sg_get_addr(&sgt[i]);
-			dma_unmap_single(dev, addr, DPAA2_ETH_RX_BUFFER_SIZE,
-					 DMA_FROM_DEVICE);
+		addr = dpaa2_sg_get_addr(&sgt[i]);
+		dma_unmap_single(dev, addr, DPAA2_ETH_RX_BUFFER_SIZE,
+				 DMA_FROM_DEVICE);
 
-			sg_vaddr = phys_to_virt(addr);
-			put_page(virt_to_head_page(sg_vaddr));
+		sg_vaddr = phys_to_virt(addr);
+		put_page(virt_to_head_page(sg_vaddr));
 
-			if (dpaa2_sg_is_final(&sgt[i]))
-				break;
-		}
+		if (dpaa2_sg_is_final(&sgt[i]))
+			break;
 	}
 
+free_buf:
 	put_page(virt_to_head_page(vaddr));
 }
 
@@ -356,20 +360,14 @@ static int dpaa2_eth_store_consume(struct dpaa2_eth_channel *ch)
 	do {
 		dq = dpaa2_io_store_next(ch->store, &is_last);
 		if (unlikely(!dq)) {
-			if (unlikely(!is_last)) {
-				netdev_dbg(priv->net_dev,
-					   "Channel %d reqturned no valid frames\n",
-					   ch->ch_id);
-				/* MUST retry until we get some sort of
-				 * valid response token (be it "empty dequeue"
-				 * or a valid frame).
-				 */
-				continue;
-			}
-			break;
+			/* If we're here, we *must* have placed a
+			 * volatile dequeue comnmand, so keep reading through
+			 * the store until we get some sort of valid response
+			 * token (either a valid frame or an "empty dequeue")
+			 */
+			continue;
 		}
 
-		/* Obtain FD and process it */
 		fd = dpaa2_dq_fd(dq);
 		fq = (struct dpaa2_eth_fq *)dpaa2_dq_fqd_ctx(dq);
 		fq->stats.frames++;
@@ -921,25 +919,25 @@ static int dpaa2_dpbp_refill(struct dpaa2_eth_priv *priv,
 			     u16 bpid)
 {
 	int new_count;
-	int err = 0;
 
-	if (unlikely(ch->buf_count < DPAA2_ETH_REFILL_THRESH)) {
-		do {
-			new_count = dpaa2_bp_add_bufs(priv, bpid);
-			if (unlikely(!new_count)) {
-				/* Out of memory; abort for now, we'll
-				 * try later on
-				 */
-				break;
-			}
-			ch->buf_count += new_count;
-		} while (ch->buf_count < DPAA2_ETH_NUM_BUFS);
+	if (likely(ch->buf_count >= DPAA2_ETH_REFILL_THRESH))
+		return 0;
 
-		if (unlikely(ch->buf_count < DPAA2_ETH_NUM_BUFS))
-			err = -ENOMEM;
-	}
+	do {
+		new_count = dpaa2_bp_add_bufs(priv, bpid);
+		if (unlikely(!new_count)) {
+			/* Out of memory; abort for now, we'll
+			 * try later on
+			 */
+			break;
+		}
+		ch->buf_count += new_count;
+	} while (ch->buf_count < DPAA2_ETH_NUM_BUFS);
 
-	return err;
+	if (unlikely(ch->buf_count < DPAA2_ETH_NUM_BUFS))
+		return -ENOMEM;
+
+	return 0;
 }
 
 static int __dpaa2_eth_pull_channel(struct dpaa2_eth_channel *ch)
@@ -970,24 +968,24 @@ static int dpaa2_eth_poll(struct napi_struct *napi, int budget)
 	ch = container_of(napi, struct dpaa2_eth_channel, napi);
 	priv = ch->priv;
 
-	__dpaa2_eth_pull_channel(ch);
+	while (cleaned < budget) {
+		err = __dpaa2_eth_pull_channel(ch);
+		if (unlikely(err))
+			break;
 
-	do {
 		/* Refill pool if appropriate */
 		dpaa2_dpbp_refill(priv, ch, priv->dpbp_attrs.bpid);
 
 		store_cleaned = dpaa2_eth_store_consume(ch);
 		cleaned += store_cleaned;
 
+		/* If we have enough budget left for a full store,
+		 * try a new pull dequeue, otherwise we're done here
+		 */
 		if (store_cleaned == 0 ||
 		    cleaned > budget - DPAA2_ETH_STORE_SIZE)
 			break;
-
-		/* Try to dequeue some more */
-		err = __dpaa2_eth_pull_channel(ch);
-		if (unlikely(err))
-			break;
-	} while (1);
+	}
 
 	if (cleaned < budget) {
 		napi_complete_done(napi, cleaned);
