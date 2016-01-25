@@ -44,6 +44,7 @@
 #define DPA_GENERIC_SKB_COPY_MAX_SIZE	256
 #define DPA_GENERIC_NAPI_WEIGHT		64
 #define DPA_GENERIC_DESCRIPTION "FSL DPAA Generic Ethernet driver"
+#define DPA_GENERIC_BUFFER_QUOTA       	4
 
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION(DPA_GENERIC_DESCRIPTION);
@@ -91,9 +92,9 @@ static void dpa_generic_draining_timer(unsigned long arg)
 {
 	struct dpa_generic_priv_s *priv = (struct dpa_generic_priv_s *)arg;
 
-	/* drain in pairs of 4 buffers */
-	dpa_generic_drain_bp(priv->draining_tx_bp, 4);
-	dpa_generic_drain_sg_bp(priv->draining_tx_sg_bp, 4);
+	dpa_generic_drain_bp(priv->draining_tx_bp, DPA_GENERIC_BUFFER_QUOTA);
+	dpa_generic_drain_sg_bp(priv->draining_tx_sg_bp,
+			DPA_GENERIC_BUFFER_QUOTA);
 
 	if (atomic_read(&priv->ifup))
 		mod_timer(&(priv->timer), jiffies + 1);
