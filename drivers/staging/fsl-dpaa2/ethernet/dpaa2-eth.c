@@ -130,10 +130,8 @@ static struct sk_buff *dpaa2_eth_build_linear_skb(struct dpaa2_eth_priv *priv,
 
 	skb = build_skb(fd_vaddr, DPAA2_ETH_RX_BUFFER_SIZE +
 			SKB_DATA_ALIGN(sizeof(struct skb_shared_info)));
-	if (unlikely(!skb)) {
-		netdev_err(priv->net_dev, "build_skb() failed\n");
+	if (unlikely(!skb))
 		return NULL;
-	}
 
 	skb_reserve(skb, fd_offset);
 	skb_put(skb, fd_length);
@@ -163,12 +161,9 @@ static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
 
 		dpaa2_sg_le_to_cpu(sge);
 
-		/* We don't support anything else yet! */
-		if (unlikely(dpaa2_sg_get_format(sge) != dpaa2_sg_single)) {
-			dev_warn_once(dev, "Unsupported S/G entry format: %d\n",
-				      dpaa2_sg_get_format(sge));
-			return NULL;
-		}
+		/* NOTE: We only support SG entries in dpaa2_sg_single format,
+		 * but this is the only format we may receive from HW anyway
+		 */
 
 		/* Get the address, offset and length from the S/G entry */
 		sg_addr = dpaa2_sg_get_addr(sge);
@@ -182,26 +177,22 @@ static struct sk_buff *dpaa2_eth_build_frag_skb(struct dpaa2_eth_priv *priv,
 			/* We build the skb around the first data buffer */
 			skb = build_skb(sg_vaddr, DPAA2_ETH_RX_BUFFER_SIZE +
 				SKB_DATA_ALIGN(sizeof(struct skb_shared_info)));
-			if (unlikely(!skb)) {
-				netdev_err(priv->net_dev, "build_skb failed\n");
+			if (unlikely(!skb))
 				return NULL;
-			}
+
 			sg_offset = dpaa2_sg_get_offset(sge);
 			skb_reserve(skb, sg_offset);
 			skb_put(skb, sg_length);
 		} else {
-			/* Subsequent data in SGEntries are stored at
-			 * offset 0 in their buffers, we don't need to
-			 * compute sg_offset.
-			 */
-			WARN_ONCE(dpaa2_sg_get_offset(sge) != 0,
-				  "Non-zero offset in SGE[%d]!\n", i);
-
 			/* Rest of the data buffers are stored as skb frags */
 			page = virt_to_page(sg_vaddr);
 			head_page = virt_to_head_page(sg_vaddr);
 
-			/* Offset in page (which may be compound) */
+			/* Offset in page (which may be compound).
+			 * Subsequent data in SGEntries are stored from the
+			 * beginning of the buffer, so we don't need to add the
+			 * sg_offset.
+			 */
 			page_offset = ((unsigned long)sg_vaddr &
 				(PAGE_SIZE - 1)) +
 				(page_address(page) - page_address(head_page));
@@ -258,14 +249,11 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 		percpu_extras->rx_sg_bytes += dpaa2_fd_get_len(fd);
 	} else {
 		/* We don't support any other format */
-		netdev_err(priv->net_dev, "Received invalid frame format\n");
 		goto err_frame_format;
 	}
 
-	if (unlikely(!skb)) {
-		dev_err_once(dev, "error building skb\n");
+	if (unlikely(!skb))
 		goto err_build_skb;
-	}
 
 	prefetch(skb->data);
 
@@ -325,12 +313,9 @@ static void dpaa2_eth_rx_err(struct dpaa2_eth_priv *priv,
 		fas = (struct dpaa2_fas *)
 			(vaddr + priv->buf_layout.private_data_size);
 		status = le32_to_cpu(fas->status);
-
-		/* All frames received on this queue should have at least
-		 * one of the Rx error bits set */
-		WARN_ON_ONCE((status & DPAA2_ETH_RX_ERR_MASK) == 0);
-		netdev_dbg(priv->net_dev, "Rx frame error: 0x%08x\n",
-			   status & DPAA2_ETH_RX_ERR_MASK);
+		if (net_ratelimit())
+			netdev_warn(priv->net_dev, "Rx frame error: 0x%08x\n",
+				    status & DPAA2_ETH_RX_ERR_MASK);
 	}
 	dpaa2_eth_free_rx_fd(priv, fd, vaddr);
 
@@ -397,7 +382,9 @@ static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
 	 * to go beyond nr_frags+1.
 	 * Note: We don't support chained scatterlists
 	 */
-	WARN_ON(PAGE_SIZE / sizeof(struct scatterlist) < nr_frags + 1);
+	if (unlikely(PAGE_SIZE / sizeof(struct scatterlist) < nr_frags + 1))
+		return -EINVAL;
+
 	scl = kcalloc(nr_frags + 1, sizeof(struct scatterlist), GFP_ATOMIC);
 	if (unlikely(!scl))
 		return -ENOMEM;
@@ -406,7 +393,6 @@ static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
 	num_sg = skb_to_sgvec(skb, scl, 0, skb->len);
 	num_dma_bufs = dma_map_sg(dev, scl, num_sg, DMA_TO_DEVICE);
 	if (unlikely(!num_dma_bufs)) {
-		netdev_err(priv->net_dev, "dma_map_sg() error\n");
 		err = -ENOMEM;
 		goto dma_map_sg_failed;
 	}
@@ -416,7 +402,6 @@ static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
 		       sizeof(struct dpaa2_sg_entry) * (1 + num_dma_bufs);
 	sgt_buf = kzalloc(sgt_buf_size + DPAA2_ETH_TX_BUF_ALIGN, GFP_ATOMIC);
 	if (unlikely(!sgt_buf)) {
-		netdev_err(priv->net_dev, "failed to allocate SGT buffer\n");
 		err = -ENOMEM;
 		goto sgt_buf_alloc_failed;
 	}
@@ -460,7 +445,6 @@ static int dpaa2_eth_build_sg_fd(struct dpaa2_eth_priv *priv,
 	/* Separately map the SGT buffer */
 	addr = dma_map_single(dev, sgt_buf, sgt_buf_size, DMA_TO_DEVICE);
 	if (unlikely(dma_mapping_error(dev, addr))) {
-		netdev_err(priv->net_dev, "dma_map_single() failed\n");
 		err = -ENOMEM;
 		goto dma_map_single_failed;
 	}
@@ -514,10 +498,8 @@ static int dpaa2_eth_build_single_fd(struct dpaa2_eth_priv *priv,
 			      buffer_start,
 			      skb_tail_pointer(skb) - buffer_start,
 			      DMA_TO_DEVICE);
-	if (unlikely(dma_mapping_error(dev, addr))) {
-		dev_err(dev, "dma_map_single() failed\n");
-		return -EINVAL;
-	}
+	if (unlikely(dma_mapping_error(dev, addr)))
+		return -ENOMEM;
 
 	dpaa2_fd_set_addr(fd, addr);
 	dpaa2_fd_set_offset(fd, (u16)(skb->data - buffer_start));
@@ -634,8 +616,6 @@ static int dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	if (unlikely(skb_headroom(skb) < DPAA2_ETH_NEEDED_HEADROOM(priv))) {
 		struct sk_buff *ns;
 
-		dev_info_once(net_dev->dev.parent,
-			      "skb headroom too small, must realloc.\n");
 		ns = skb_realloc_headroom(skb, DPAA2_ETH_NEEDED_HEADROOM(priv));
 		if (unlikely(!ns)) {
 			percpu_stats->tx_dropped++;
@@ -650,7 +630,6 @@ static int dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	 */
 	skb = skb_unshare(skb, GFP_ATOMIC);
 	if (unlikely(!skb)) {
-		netdev_err(net_dev, "Out of memory for skb_unshare()");
 		/* skb_unshare() has already freed the skb */
 		percpu_stats->tx_dropped++;
 		return NETDEV_TX_OK;
@@ -681,7 +660,6 @@ static int dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	}
 	percpu_extras->tx_portal_busy += i;
 	if (unlikely(err < 0)) {
-		netdev_dbg(net_dev, "error enqueueing Tx frame\n");
 		percpu_stats->tx_errors++;
 		/* Clean up everything, including freeing the skb */
 		dpaa2_eth_free_fd(priv, &fd, NULL);
@@ -718,8 +696,6 @@ static void dpaa2_eth_tx_conf(struct dpaa2_eth_priv *priv,
 	dpaa2_eth_free_fd(priv, fd, &status);
 
 	if (unlikely(status & DPAA2_ETH_TXCONF_ERR_MASK)) {
-		netdev_err(priv->net_dev, "TxConf frame error(s): 0x%08x\n",
-			   status & DPAA2_ETH_TXCONF_ERR_MASK);
 		percpu_stats = this_cpu_ptr(priv->percpu_stats);
 		/* Tx-conf logically pertains to the egress path. */
 		percpu_stats->tx_errors++;
@@ -792,18 +768,16 @@ static int dpaa2_bp_add_bufs(struct dpaa2_eth_priv *priv, u16 bpid)
 		 * alignment padding
 		 */
 		buf = napi_alloc_frag(DPAA2_ETH_BUF_RAW_SIZE);
-		if (unlikely(!buf)) {
-			dev_err(dev, "buffer allocation failed\n");
+		if (unlikely(!buf))
 			goto err_alloc;
-		}
+
 		buf = PTR_ALIGN(buf, DPAA2_ETH_RX_BUF_ALIGN);
 
 		addr = dma_map_single(dev, buf, DPAA2_ETH_RX_BUFFER_SIZE,
 				      DMA_FROM_DEVICE);
-		if (unlikely(dma_mapping_error(dev, addr))) {
-			dev_err(dev, "dma_map_single() failed\n");
+		if (unlikely(dma_mapping_error(dev, addr)))
 			goto err_map;
-		}
+
 		buf_array[i] = addr;
 
 		/* tracing point */
@@ -883,7 +857,7 @@ static void dpaa2_dpbp_drain_cnt(struct dpaa2_eth_priv *priv, int count)
 		ret = dpaa2_io_service_acquire(NULL, priv->dpbp_attrs.bpid,
 					      buf_array, count);
 		if (ret < 0) {
-			pr_err("dpaa2_io_service_acquire() failed\n");
+			netdev_err(priv->net_dev, "dpaa2_io_service_acquire() failed\n");
 			return;
 		}
 		for (i = 0; i < ret; i++) {
@@ -941,17 +915,15 @@ static int __dpaa2_eth_pull_channel(struct dpaa2_eth_channel *ch)
 {
 	int err;
 	int dequeues = -1;
-	struct dpaa2_eth_priv *priv = ch->priv;
 
 	/* Retry while portal is busy */
 	do {
 		err = dpaa2_io_service_pull_channel(NULL, ch->ch_id, ch->store);
 		dequeues++;
 	} while (err == -EBUSY);
-	if (unlikely(err))
-		netdev_err(priv->net_dev, "dpaa2_io_service_pull err %d", err);
 
 	ch->stats.dequeue_portal_busy += dequeues;
+
 	return err;
 }
 
@@ -986,11 +958,7 @@ static int dpaa2_eth_poll(struct napi_struct *napi, int budget)
 
 	if (cleaned < budget) {
 		napi_complete_done(napi, cleaned);
-		err = dpaa2_io_service_rearm(NULL, &ch->nctx);
-		if (unlikely(err))
-			netdev_err(priv->net_dev,
-				   "Notif rearm failed for channel %d\n",
-				   ch->ch_id);
+		dpaa2_io_service_rearm(NULL, &ch->nctx);
 	}
 
 	ch->stats.frames += cleaned;
@@ -1080,7 +1048,7 @@ static int dpaa2_eth_open(struct net_device *net_dev)
 
 	err = dpni_enable(priv->mc_io, 0, priv->mc_token);
 	if (err < 0) {
-		dev_err(net_dev->dev.parent, "dpni_enable() failed\n");
+		netdev_err(net_dev, "dpni_enable() failed\n");
 		goto enable_err;
 	}
 
@@ -1089,7 +1057,7 @@ static int dpaa2_eth_open(struct net_device *net_dev)
 	 */
 	err = dpaa2_link_state_update(priv);
 	if (err < 0) {
-		dev_err(net_dev->dev.parent, "Can't update link state\n");
+		netdev_err(net_dev, "Can't update link state\n");
 		goto link_state_err;
 	}
 
@@ -1283,13 +1251,6 @@ static int dpaa2_eth_change_mtu(struct net_device *net_dev, int mtu)
 	return 0;
 }
 
-/* Convenience macro to make code littered with error checking more readable */
-#define DPAA2_ETH_WARN_IF_ERR(err, netdevp, format, ...) \
-do { \
-	if (err) \
-		netdev_warn(netdevp, format, ##__VA_ARGS__); \
-} while (0)
-
 /* Copy mac unicast addresses from @net_dev to @priv.
  * Its sole purpose is to make dpaa2_eth_set_rx_mode() more readable.
  */
@@ -1302,9 +1263,10 @@ static void _dpaa2_eth_hw_add_uc_addr(const struct net_device *net_dev,
 	netdev_for_each_uc_addr(ha, net_dev) {
 		err = dpni_add_mac_addr(priv->mc_io, 0, priv->mc_token,
 					ha->addr);
-		DPAA2_ETH_WARN_IF_ERR(err, priv->net_dev,
-				      "Could not add ucast MAC %pM to the filtering table (err %d)\n",
-				      ha->addr, err);
+		if (err)
+			netdev_warn(priv->net_dev,
+				    "Could not add ucast MAC %pM to the filtering table (err %d)\n",
+				    ha->addr, err);
 	}
 }
 
@@ -1320,9 +1282,10 @@ static void _dpaa2_eth_hw_add_mc_addr(const struct net_device *net_dev,
 	netdev_for_each_mc_addr(ha, net_dev) {
 		err = dpni_add_mac_addr(priv->mc_io, 0, priv->mc_token,
 					ha->addr);
-		DPAA2_ETH_WARN_IF_ERR(err, priv->net_dev,
-				      "Could not add mcast MAC %pM to the filtering table (err %d)\n",
-				      ha->addr, err);
+		if (err)
+			netdev_warn(priv->net_dev,
+				    "Could not add mcast MAC %pM to the filtering table (err %d)\n",
+				    ha->addr, err);
 	}
 }
 
@@ -1374,16 +1337,19 @@ static void dpaa2_eth_set_rx_mode(struct net_device *net_dev)
 		 * nonetheless.
 		 */
 		err = dpni_set_unicast_promisc(mc_io, 0, mc_token, 1);
-		DPAA2_ETH_WARN_IF_ERR(err, net_dev, "Can't set uc promisc\n");
+		if (err)
+			netdev_warn(net_dev, "Can't set uc promisc\n");
 
 		/* Actual uc table reconstruction. */
 		err = dpni_clear_mac_filters(mc_io, 0, mc_token, 1, 0);
-		DPAA2_ETH_WARN_IF_ERR(err, net_dev, "Can't clear uc filters\n");
+		if (err)
+			netdev_warn(net_dev, "Can't clear uc filters\n");
 		_dpaa2_eth_hw_add_uc_addr(net_dev, priv);
 
 		/* Finally, clear uc promisc and set mc promisc as requested. */
 		err = dpni_set_unicast_promisc(mc_io, 0, mc_token, 0);
-		DPAA2_ETH_WARN_IF_ERR(err, net_dev, "Can't clear uc promisc\n");
+		if (err)
+			netdev_warn(net_dev, "Can't clear uc promisc\n");
 		goto force_mc_promisc;
 	}
 
@@ -1391,13 +1357,16 @@ static void dpaa2_eth_set_rx_mode(struct net_device *net_dev)
 	 * For now, rebuild mac filtering tables while forcing both of them on.
 	 */
 	err = dpni_set_unicast_promisc(mc_io, 0, mc_token, 1);
-	DPAA2_ETH_WARN_IF_ERR(err, net_dev, "Can't set uc promisc (%d)\n", err);
+	if (err)
+		netdev_warn(net_dev, "Can't set uc promisc (%d)\n", err);
 	err = dpni_set_multicast_promisc(mc_io, 0, mc_token, 1);
-	DPAA2_ETH_WARN_IF_ERR(err, net_dev, "Can't set mc promisc (%d)\n", err);
+	if (err)
+		netdev_warn(net_dev, "Can't set mc promisc (%d)\n", err);
 
 	/* Actual mac filtering tables reconstruction */
 	err = dpni_clear_mac_filters(mc_io, 0, mc_token, 1, 1);
-	DPAA2_ETH_WARN_IF_ERR(err, net_dev, "Can't clear mac filters\n");
+	if (err)
+		netdev_warn(net_dev, "Can't clear mac filters\n");
 	_dpaa2_eth_hw_add_mc_addr(net_dev, priv);
 	_dpaa2_eth_hw_add_uc_addr(net_dev, priv);
 
@@ -1405,18 +1374,22 @@ static void dpaa2_eth_set_rx_mode(struct net_device *net_dev)
 	 * to drop legitimate frames anymore.
 	 */
 	err = dpni_set_unicast_promisc(mc_io, 0, mc_token, 0);
-	DPAA2_ETH_WARN_IF_ERR(err, net_dev, "Can't clear ucast promisc\n");
+	if (err)
+		netdev_warn(net_dev, "Can't clear ucast promisc\n");
 	err = dpni_set_multicast_promisc(mc_io, 0, mc_token, 0);
-	DPAA2_ETH_WARN_IF_ERR(err, net_dev, "Can't clear mcast promisc\n");
+	if (err)
+		netdev_warn(net_dev, "Can't clear mcast promisc\n");
 
 	return;
 
 force_promisc:
 	err = dpni_set_unicast_promisc(mc_io, 0, mc_token, 1);
-	DPAA2_ETH_WARN_IF_ERR(err, net_dev, "Can't set ucast promisc\n");
+	if (err)
+		netdev_warn(net_dev, "Can't set ucast promisc\n");
 force_mc_promisc:
 	err = dpni_set_multicast_promisc(mc_io, 0, mc_token, 1);
-	DPAA2_ETH_WARN_IF_ERR(err, net_dev, "Can't set mcast promisc\n");
+	if (err)
+		netdev_warn(net_dev, "Can't set mcast promisc\n");
 }
 
 static int dpaa2_eth_set_features(struct net_device *net_dev,
@@ -1644,10 +1617,8 @@ dpaa2_alloc_channel(struct dpaa2_eth_priv *priv)
 	int err;
 
 	channel = kzalloc(sizeof(*channel), GFP_ATOMIC);
-	if (!channel) {
-		dev_err(dev, "Memory allocation failed\n");
+	if (!channel)
 		return NULL;
-	}
 
 	channel->dpcon = dpaa2_dpcon_setup(priv);
 	if (!channel->dpcon)
@@ -1997,8 +1968,9 @@ static int dpaa2_dpni_setup(struct fsl_mc_device *ls_dev)
 		goto err_data_offset;
 	}
 
-	/* Warn in case TX data offset is not multiple of 64 bytes. */
-	WARN_ON(priv->tx_data_offset % 64);
+	if ((priv->tx_data_offset % 64) != 0)
+		dev_warn(dev, "Tx data offset (%d) not a multiple of 64B",
+			 priv->tx_data_offset);
 
 	/* Accommodate SWA space. */
 	priv->tx_data_offset += DPAA2_ETH_SWA_SIZE;
@@ -2387,13 +2359,8 @@ static int dpaa2_eth_setup_irqs(struct fsl_mc_device *ls_dev)
 {
 	int err = 0;
 	struct fsl_mc_device_irq *irq;
-	int irq_count = ls_dev->obj_desc.irq_count;
 	u8 irq_index = DPNI_IRQ_INDEX;
 	u32 mask = DPNI_IRQ_EVENT_LINK_CHANGED;
-
-	/* The only interrupt supported now is the link state notification. */
-	if (WARN_ON(irq_count != 1))
-		return -EINVAL;
 
 	irq = ls_dev->irqs[0];
 	err = devm_request_threaded_irq(&ls_dev->dev, irq->irq_number,
