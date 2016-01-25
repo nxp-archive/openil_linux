@@ -25,21 +25,6 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* "generic" flavour of DPAA Ethernet driver, called oNIC
- *
- * TODO:
- *	1. This file should be conditionally compiled. For the moment it is
- *	compiled by default.
- *	2. Tx multiqueues (ndo_select queue, alloc_etherdev_mq)
- *	3. Fetch the buffer layouts from OH ports.
- *	4. Make the drive generic (can connect with multiple OH ports,
- *	remove '2' hardcode from oh_ports, buffer_layout, etc.).
- *	5. Multiple buffer pools for RX (up to 4 supported on HW)
- *	6. Different queue initializations (enable taildrop)
- *	7. ethtool
- *	8. Recycling (draining buffer pool = default buffer pool)
- */
-
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/kthread.h>
