@@ -1092,13 +1092,15 @@ static int dpa_generic_rx_bp_probe(struct platform_device *_of_dev,
 	bp = devm_kzalloc(dev, bp_count * sizeof(*bp), GFP_KERNEL);
 	if (unlikely(bp == NULL)) {
 		dev_err(dev, "devm_kzalloc() failed\n");
-		return -ENOMEM;
+		err = -ENOMEM;
+		goto _return_of_node_put;
 	}
 
 	dev_node = of_find_node_by_path("/");
 	if (unlikely(dev_node == NULL)) {
 		dev_err(dev, "of_find_node_by_path(/) failed\n");
-		return -EINVAL;
+		err = -EINVAL;
+		goto _return_of_node_put;
 	}
 
 	na = of_n_addr_cells(dev_node);
@@ -1111,7 +1113,8 @@ static int dpa_generic_rx_bp_probe(struct platform_device *_of_dev,
 				"fsl,bman-buffer-pools", i);
 		if (dev_node == NULL) {
 			dev_err(dev, "Cannot find buffer pool node in the device tree\n");
-			return -EFAULT;
+			err = -EINVAL;
+			goto _return_of_node_put;
 		}
 
 		err = of_property_read_u32(dev_node, "fsl,bpid", &bpid);
