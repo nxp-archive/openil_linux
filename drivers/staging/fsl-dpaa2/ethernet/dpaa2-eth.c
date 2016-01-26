@@ -1927,19 +1927,21 @@ static int dpaa2_dpni_setup(struct fsl_mc_device *ls_dev)
 
 	err = dpni_get_attributes(priv->mc_io, 0, priv->mc_token,
 				  &priv->dpni_attrs);
+
+	/* We'll check the return code after unmapping, as we need to
+	 * do this anyway
+	 */
+	dma_unmap_single(dev, priv->dpni_attrs.ext_cfg_iova,
+			 DPAA2_EXT_CFG_SIZE, DMA_FROM_DEVICE);
+
 	if (err) {
 		dev_err(dev, "dpni_get_attributes() failed (err=%d)\n", err);
-		dma_unmap_single(dev, priv->dpni_attrs.ext_cfg_iova,
-				 DPAA2_EXT_CFG_SIZE, DMA_FROM_DEVICE);
 		goto err_get_attr;
 	}
 
 	err = check_obj_version(ls_dev, priv->dpni_attrs.version.major);
 	if (err)
 		goto err_dpni_ver;
-
-	dma_unmap_single(dev, priv->dpni_attrs.ext_cfg_iova,
-			 DPAA2_EXT_CFG_SIZE, DMA_FROM_DEVICE);
 
 	memset(&priv->dpni_ext_cfg, 0, sizeof(priv->dpni_ext_cfg));
 	err = dpni_extract_extended_cfg(&priv->dpni_ext_cfg, dma_mem);
