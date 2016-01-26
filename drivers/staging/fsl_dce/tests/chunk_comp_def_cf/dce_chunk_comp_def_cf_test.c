@@ -108,7 +108,7 @@ static int init_test_ctx(struct dce_test_ctx *ctx,
 		enum dce_compression_format format)
 {
 	int ret, ret_fail;
-	uint32_t flags = 0;
+	u32 flags = 0;
 
 	/* initialize a compression deflate stream */
 	ret = fsl_dce_chunk_setup2(&ctx->deflate_chunk, flags,

@@ -52,7 +52,7 @@ enum fsl_dce_stat_attr {
 	DCE_DECOMP_OUTPUT_BYTES
 };
 
-int fsl_dce_get_stat(enum fsl_dce_stat_attr attr, uint64_t *val, int reset);
+int fsl_dce_get_stat(enum fsl_dce_stat_attr attr, u64 *val, int reset);
 int fsl_dce_clear_stat(enum fsl_dce_stat_attr attr);
 
 #endif /* __KERNEL__ */

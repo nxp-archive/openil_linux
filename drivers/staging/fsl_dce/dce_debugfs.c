@@ -39,8 +39,8 @@
 
 #define DRV_VERSION "0.1"
 
-static uint64_t dce_ccsr_start;
-static uint64_t dce_ccsr_size;
+static u64 dce_ccsr_start;
+static u64 dce_ccsr_size;
 
 /* takes userspace input and converts to upper case */
 static int user_input_convert(const char __user *user_buf, size_t count,
@@ -61,14 +61,14 @@ static int user_input_convert(const char __user *user_buf, size_t count,
 static struct dentry *dfs_root; /* debugfs root directory */
 
 struct dce_register_s {
-	uint32_t val;
+	u32 val;
 };
 static struct dce_register_s dce_register_data;
 
 static int init_ccsrmempeek(void)
 {
 	struct device_node *dn;
-	const uint32_t *regaddr_p;
+	const u32 *regaddr_p;
 
 	dn = of_find_compatible_node(NULL, NULL, "fsl,dce");
 	if (!dn) {
@@ -86,19 +86,19 @@ static int init_ccsrmempeek(void)
 }
 
 /* This function provides access to DCE ccsr memory map */
-static int dce_ccsrmem_get(uint32_t *val, uint32_t offset)
+static int dce_ccsrmem_get(u32 *val, u32 offset)
 {
 	void __iomem *addr;
-	uint64_t phys_addr;
+	u64 phys_addr;
 
 	if (!dce_ccsr_start)
 		return -EINVAL;
 
-	if (offset > (dce_ccsr_size - sizeof(uint32_t)))
+	if (offset > (dce_ccsr_size - sizeof(u32)))
 		return -EINVAL;
 
 	phys_addr = dce_ccsr_start + offset;
-	addr = ioremap(phys_addr, sizeof(uint32_t));
+	addr = ioremap(phys_addr, sizeof(u32));
 	if (!addr) {
 		pr_err("ccsrmem, ioremap failed\n");
 		return -EINVAL;
@@ -108,19 +108,19 @@ static int dce_ccsrmem_get(uint32_t *val, uint32_t offset)
 	return 0;
 }
 
-static int dce_ccsrmem_put(uint32_t val, uint32_t offset)
+static int dce_ccsrmem_put(u32 val, u32 offset)
 {
 	void __iomem *addr;
-	uint64_t phys_addr;
+	u64 phys_addr;
 
 	if (!dce_ccsr_start)
 		return -EINVAL;
 
-	if (offset > (dce_ccsr_size - sizeof(uint32_t)))
+	if (offset > (dce_ccsr_size - sizeof(u32)))
 		return -EINVAL;
 
 	phys_addr = dce_ccsr_start + offset;
-	addr = ioremap(phys_addr, sizeof(uint32_t));
+	addr = ioremap(phys_addr, sizeof(u32));
 	if (!addr) {
 		pr_err("ccsrmem, ioremap failed\n");
 		return -EINVAL;
@@ -153,9 +153,9 @@ static ssize_t dce_ccsrmem_addr_write(struct file *f, const char __user *buf,
 	if (ret)
 		return ret;
 	/* multiple of 4 */
-	if (val > (dce_ccsr_size - sizeof(uint32_t))) {
+	if (val > (dce_ccsr_size - sizeof(u32))) {
 		pr_info("Input 0x%lx > 0x%llx\n",
-			val, (dce_ccsr_size - sizeof(uint32_t)));
+			val, (dce_ccsr_size - sizeof(u32)));
 		return -EINVAL;
 	}
 	if (val & 0x3) {
@@ -176,7 +176,7 @@ static const struct file_operations dce_ccsrmem_addr_fops = {
 
 static int dce_ccsrmem_rw_show(struct seq_file *file, void *offset)
 {
-	uint32_t out_val = 0;
+	u32 out_val = 0;
 	int ret;
 
 	ret = dce_ccsrmem_get(&out_val, dce_register_data.val);

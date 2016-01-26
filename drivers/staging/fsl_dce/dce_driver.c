@@ -45,7 +45,7 @@
 
 #define DRV_VERSION "0.1"
 
-uint16_t dce_ip_rev = DCE_REV10;
+u16 dce_ip_rev = DCE_REV10;
 EXPORT_SYMBOL(dce_ip_rev);
 
 /* Pointer used to represent the DCE CCSR map and its instance */
@@ -68,8 +68,8 @@ static irqreturn_t dce_isr(int irq, void *st_dev)
 {
 	struct device *dev = st_dev;
 	struct dce_drv_private *ctrlpriv = dev_get_drvdata(dev);
-	static uint32_t last_isrstate;
-	uint32_t isrstate = ioread32be(&ctrlpriv->topregs->isr) ^ last_isrstate;
+	static u32 last_isrstate;
+	u32 isrstate = ioread32be(&ctrlpriv->topregs->isr) ^ last_isrstate;
 
 	/* What new ISR state has been raise */
 	if (!isrstate)
@@ -79,7 +79,7 @@ static irqreturn_t dce_isr(int irq, void *st_dev)
 	if (ISEQ_32FTK(isrstate, DCE_ISR_DBE, AT_LEAST_ONE))
 		dev_err(dev, "Double Bit Error detected\n");
 	if (ISEQ_32FTK(isrstate, DCE_ISR_UWE, AT_LEAST_ONE)) {
-		uint32_t uwe_high, uwe_low;
+		u32 uwe_high, uwe_low;
 
 		/* print extra info registers */
 		uwe_high = ioread32be(&ctrlpriv->topregs->uwe_info_h);
@@ -264,7 +264,7 @@ int fsl_dce_have_control(void)
 }
 EXPORT_SYMBOL(fsl_dce_have_control);
 
-int fsl_dce_get_stat(enum fsl_dce_stat_attr attr, uint64_t *val, int reset)
+int fsl_dce_get_stat(enum fsl_dce_stat_attr attr, u64 *val, int reset)
 {
 	if (!fsl_dce_have_control())
 		return -ENODEV;

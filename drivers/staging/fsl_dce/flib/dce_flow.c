@@ -44,7 +44,7 @@ static const struct qman_fq_cb dce_fq_base_tx = {
 static int park(struct qman_fq *fq, struct qm_mcc_initfq *initfq)
 {
 	int ret;
-	uint32_t flags;
+	u32 flags;
 
 	ret = qman_retire_fq(fq, &flags);
 	if (ret)
@@ -67,10 +67,10 @@ static int park(struct qman_fq *fq, struct qm_mcc_initfq *initfq)
 }
 
 static int configure_tx(struct fsl_dce_flow *flow, bool use_specified_txfq_dest,
-			uint16_t dest_qm_channel)
+			u16 dest_qm_channel)
 {
 	struct qm_mcc_initfq initfq;
-	uint32_t qinit_flags = QMAN_INITFQ_FLAG_SCHED;
+	u32 qinit_flags = QMAN_INITFQ_FLAG_SCHED;
 	int ret;
 
 	initfq.we_mask = QM_INITFQ_WE_DESTWQ | QM_INITFQ_WE_FQCTRL;
@@ -146,12 +146,12 @@ static int configure_rx(struct fsl_dce_flow *flow, struct dce_bman_cfg *bcfg,
 	return ret;
 }
 
-void fsl_dce_flow_setopt_fqtx_id(struct fsl_dce_flow *flow, uint32_t id)
+void fsl_dce_flow_setopt_fqtx_id(struct fsl_dce_flow *flow, u32 id)
 {
 	flow->fqtx_id = id;
 }
 
-void fsl_dce_flow_setopt_fqrx_id(struct fsl_dce_flow *flow, uint32_t id)
+void fsl_dce_flow_setopt_fqrx_id(struct fsl_dce_flow *flow, u32 id)
 {
 	flow->fqrx_id = id;
 }
@@ -162,19 +162,19 @@ void fsl_dce_flow_setopt_bcfg(struct fsl_dce_flow *flow,
 	flow->bcfg = bcfg;
 }
 
-int fsl_dce_flow_setopt_txfqdest(struct fsl_dce_flow *flow, uint32_t dest)
+int fsl_dce_flow_setopt_txfqdest(struct fsl_dce_flow *flow, u32 dest)
 {
 	if (dest == 0xffffffff) {
 		flow->use_specified_txfq_dest = false;
 	} else {
 		flow->use_specified_txfq_dest = true;
-		flow->txfq_dest = (uint32_t)dest;
+		flow->txfq_dest = (u32)dest;
 	}
 
 	return 0;
 }
 
-int fsl_dce_flow_setopt_outputoffset(struct fsl_dce_flow *flow, uint32_t val)
+int fsl_dce_flow_setopt_outputoffset(struct fsl_dce_flow *flow, u32 val)
 {
 	switch (val) {
 	case DCE_PROCESS_OO_NONE_LONG:
@@ -193,7 +193,7 @@ int fsl_dce_flow_setopt_outputoffset(struct fsl_dce_flow *flow, uint32_t val)
 }
 
 int fsl_dce_flow_setopt_compression_effort(struct fsl_dce_flow *flow,
-					uint32_t val)
+					u32 val)
 {
 	switch (val) {
 	case DCE_PROCESS_CE_NONE:
@@ -339,7 +339,7 @@ int fsl_dce_flow_fifo_len(struct fsl_dce_flow *flow)
 	return kfifo_len(&flow->fifo);
 }
 
-int fsl_dce_flow_finish(struct fsl_dce_flow *flow, uint32_t flags)
+int fsl_dce_flow_finish(struct fsl_dce_flow *flow, u32 flags)
 {
 	int ret = 0;
 	struct qm_mcc_initfq initfq;
@@ -379,7 +379,7 @@ int fsl_dce_flow_finish(struct fsl_dce_flow *flow, uint32_t flags)
  * QMAN "wait" flags have been aligned so that the below conversion should
  * compile with good straight-line speed.
  */
-static inline uint32_t ctrl2eq(uint32_t flags)
+static inline u32 ctrl2eq(u32 flags)
 {
 #ifdef CONFIG_FSL_DPA_CAN_WAIT
 	return flags & (QMAN_ENQUEUE_FLAG_WAIT | QMAN_ENQUEUE_FLAG_WAIT_INT);
@@ -406,7 +406,7 @@ static int _pre_commit_cb(void *arg)
 	return 0;
 }
 
-static inline int submit_job(struct fsl_dce_flow *flow, uint32_t flags,
+static inline int submit_job(struct fsl_dce_flow *flow, u32 flags,
 			struct qm_fd *fd, struct fsl_dce_cmd_token *token)
 {
 	int ret = 0;
@@ -424,7 +424,7 @@ static inline int submit_job(struct fsl_dce_flow *flow, uint32_t flags,
 	return ret;
 }
 
-int fsl_dce_nop(struct fsl_dce_flow *flow, uint32_t flags, void *callback_tag)
+int fsl_dce_nop(struct fsl_dce_flow *flow, u32 flags, void *callback_tag)
 {
 	struct qm_fd fd;
 	struct fsl_dce_cmd_token token;
@@ -436,7 +436,7 @@ int fsl_dce_nop(struct fsl_dce_flow *flow, uint32_t flags, void *callback_tag)
 	return submit_job(flow, flags, &fd, &token);
 }
 
-int fsl_dce_process(struct fsl_dce_flow *flow, uint32_t flags, struct qm_fd *fd,
+int fsl_dce_process(struct fsl_dce_flow *flow, u32 flags, struct qm_fd *fd,
 		void *callback_tag)
 {
 	struct fsl_dce_cmd_token token;
@@ -449,7 +449,7 @@ int fsl_dce_process(struct fsl_dce_flow *flow, uint32_t flags, struct qm_fd *fd,
 	return submit_job(flow, flags, fd, &token);
 }
 
-int fsl_dce_scr_invalidate(struct fsl_dce_flow *flow, uint32_t flags,
+int fsl_dce_scr_invalidate(struct fsl_dce_flow *flow, u32 flags,
 			void *callback_tag)
 {
 	struct qm_fd fd;
@@ -501,7 +501,7 @@ static void cb_fqs(__always_unused struct qman_portal *portal,
 			__always_unused struct qman_fq *fq,
 			const struct qm_mr_entry *mr)
 {
-	uint8_t verb = mr->verb & QM_MR_VERB_TYPE_MASK;
+	u8 verb = mr->verb & QM_MR_VERB_TYPE_MASK;
 
 	if (verb == QM_MR_VERB_FQRNI)
 		return;

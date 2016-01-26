@@ -214,10 +214,10 @@ void print_dce_fd(struct qm_fd fd)
 	pr_info("   LIODN ------------ %#x\n", fd.liodn_offset);
 	pr_info("   BPID ------------- %#x\n", fd.bpid);
 	pr_info("   ELIODN ----------- %#x\n", fd.eliodn_offset);
-	pr_info("   ADDRESS ---------- %#010llx\n", (uint64_t)fd.addr);
+	pr_info("   ADDRESS ---------- %#010llx\n", (u64)fd.addr);
 	if (fd.format == 0 || fd.format == 4)
 		pr_info("   - ADDRESS + OFFSET %#010llx\n",
-			(uint64_t)fd.addr + fd.offset);
+			(u64)fd.addr + fd.offset);
 	if (fd.format == 0)
 		pr_info("   FORMAT ----------- Short_SingleFrame\n");
 	else if (fd.format == 2)
@@ -246,7 +246,7 @@ void print_dce_sg(struct qm_sg_entry sg)
 {
 	pr_info(" Scatter/Gather Table Entry:\n");
 	pr_info("   RESERVED --------- %#06x\n", sg.__notaddress);
-	pr_info("   ADDRESS ---------- %#010llx\n", (uint64_t)sg.addr);
+	pr_info("   ADDRESS ---------- %#010llx\n", (u64)sg.addr);
 	pr_info("   E ---------------- %#x\n", sg.extension);
 	pr_info("   F ---------------- %#x\n", sg.final);
 	pr_info("   LENGTH ----------- %#x\n", sg.length);

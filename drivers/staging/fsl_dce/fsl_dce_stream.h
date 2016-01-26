@@ -100,7 +100,7 @@ struct fsl_dce_stream {
 	enum dce_processing_mode pmode;
 
 	bool use_bman_output;
-	uint32_t process_params;
+	u32 process_params;
 
 	union {
 		struct fsl_dce_hw_scr_64b *hw_comp_scr;
@@ -116,7 +116,7 @@ struct fsl_dce_stream {
 	struct fsl_dce_hw_decomp_ctxt *decomp_ctx_ptr;
 
 	/* internal state */
-	uint32_t flags;
+	u32 flags;
 	spinlock_t lock;
 	wait_queue_head_t queue;
 };
@@ -137,7 +137,7 @@ struct fsl_dce_stream {
  * Setup a @stream object for usage
  */
 int fsl_dce_stream_setup(struct fsl_dce_stream *stream,
-	uint32_t flags,
+	u32 flags,
 	enum dce_mode mode,
 	enum dce_compression_format cf,
 	fsl_dce_process_cb process_cb,
@@ -162,7 +162,7 @@ int fsl_dce_stream_setup(struct fsl_dce_stream *stream,
  * Returns 0 in success
  */
 int fsl_dce_stream_setup2(struct fsl_dce_stream *stream,
-	uint32_t flags,
+	u32 flags,
 	enum dce_mode mode,
 	enum dce_compression_format cf,
 	enum dce_processing_mode pmode,
@@ -190,7 +190,7 @@ int fsl_dce_stream_fifo_len(struct fsl_dce_stream *stream);
  *
  * Returns 0 on success
  */
-int fsl_dce_stream_destroy(struct fsl_dce_stream *stream, uint32_t flags,
+int fsl_dce_stream_destroy(struct fsl_dce_stream *stream, u32 flags,
 			void *callback_tag);
 
 /**
@@ -205,10 +205,10 @@ int fsl_dce_stream_destroy(struct fsl_dce_stream *stream, uint32_t flags,
  * Returns 0 on success
  */
 int fsl_dce_stream_deflate_params(struct fsl_dce_stream *stream,
-	uint32_t bman_output_offset,
+	u32 bman_output_offset,
 	bool bman_release_input,
 	bool base64,
-	uint32_t ce); /* DCE_PROCESS_CE_* value */
+	u32 ce); /* DCE_PROCESS_CE_* value */
 
 /**
  * fsl_dce_stream_inflate_params - set inflate options
@@ -221,7 +221,7 @@ int fsl_dce_stream_deflate_params(struct fsl_dce_stream *stream,
  * Returns 0 on success
  */
 int fsl_dce_stream_inflate_params(struct fsl_dce_stream *stream,
-	uint32_t bman_output_offset,
+	u32 bman_output_offset,
 	bool bman_release_input,
 	bool base64);
 
@@ -240,7 +240,7 @@ int fsl_dce_stream_inflate_params(struct fsl_dce_stream *stream,
  * Returns 0 on success
  */
 int fsl_dce_stream_process(struct fsl_dce_stream *stream,
-	uint32_t flags,
+	u32 flags,
 	struct qm_fd *fd,
 	bool initial_frame,
 	int z_flush,
@@ -256,11 +256,11 @@ int fsl_dce_stream_process(struct fsl_dce_stream *stream,
  *
  * Returns 0 on success
  */
-int fsl_dce_stream_nop(struct fsl_dce_stream *stream, uint32_t flags,
+int fsl_dce_stream_nop(struct fsl_dce_stream *stream, u32 flags,
 	void *callback_tag); /* optional callback tag */
 
 int fsl_dce_stream_scr_invalidate(struct fsl_dce_stream *stream,
-	uint32_t flags, void *callback_tag);
+	u32 flags, void *callback_tag);
 
 
 /* helper apis */

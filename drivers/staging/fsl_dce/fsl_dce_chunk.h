@@ -59,7 +59,7 @@ struct fsl_dce_chunk {
 	enum dce_compression_format cf;
 	bool use_bman_output;
 	/* internal state */
-	uint32_t flags;
+	u32 flags;
 	spinlock_t lock;
 	wait_queue_head_t queue;
 };
@@ -80,7 +80,7 @@ struct fsl_dce_chunk {
  * Returns 0 on success
  */
 int fsl_dce_chunk_setup2(struct fsl_dce_chunk *chunk,
-	uint32_t flags,
+	u32 flags,
 	enum dce_mode mode,
 	enum dce_compression_format cf,
 	struct dce_bman_cfg *bcfg,
@@ -106,7 +106,7 @@ int fsl_dce_chunk_fifo_len(struct fsl_dce_chunk *chunk);
  *
  * Returns 0 on success
  */
-int fsl_dce_chunk_destroy(struct fsl_dce_chunk *chunk, uint32_t flags,
+int fsl_dce_chunk_destroy(struct fsl_dce_chunk *chunk, u32 flags,
 			void *callback_tag);
 
 /**
@@ -121,10 +121,10 @@ int fsl_dce_chunk_destroy(struct fsl_dce_chunk *chunk, uint32_t flags,
  * Returns 0 on success
  */
 int fsl_dce_chunk_deflate_params(struct fsl_dce_chunk *chunk,
-	uint32_t bman_output_offset,
+	u32 bman_output_offset,
 	bool bman_release_input,
 	bool base64,
-	uint32_t ce);
+	u32 ce);
 
 /**
  * fsl_dce_chunk_inflate_params - set inflate options
@@ -137,7 +137,7 @@ int fsl_dce_chunk_deflate_params(struct fsl_dce_chunk *chunk,
  * Returns 0 on success
  */
 int fsl_dce_chunk_inflate_params(struct fsl_dce_chunk *chunk,
-	uint32_t bman_output_offset,
+	u32 bman_output_offset,
 	bool bman_release_input,
 	bool base64);
 
@@ -152,7 +152,7 @@ int fsl_dce_chunk_inflate_params(struct fsl_dce_chunk *chunk,
  *
  * Returns 0 on success
  */
-int fsl_dce_chunk_process(struct fsl_dce_chunk *chunk, uint32_t flags,
+int fsl_dce_chunk_process(struct fsl_dce_chunk *chunk, u32 flags,
 	struct qm_fd *fd, void *callback_tag);
 
 /**
@@ -165,7 +165,7 @@ int fsl_dce_chunk_process(struct fsl_dce_chunk *chunk, uint32_t flags,
  *
  * Returns 0 on success
  */
-int fsl_dce_chunk_nop(struct fsl_dce_chunk *chunk, uint32_t flags,
+int fsl_dce_chunk_nop(struct fsl_dce_chunk *chunk, u32 flags,
 	void *callback_tag);
 
 #endif /* FSL_DCE_CHUNK_H */

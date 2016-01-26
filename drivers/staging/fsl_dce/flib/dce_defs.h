@@ -20,7 +20,7 @@
  * set accordingly. If the variable is not set, the interfaces will behave
  * as if the revision is DCE_DEFAULT_REV.
  */
-extern uint16_t dce_ip_rev;
+extern u16 dce_ip_rev;
 #define DCE_REV10	0x0100
 #define DCE_REV11	0x0101
 #define DCE_DEFAULT_REV	DCE_REV10
@@ -55,7 +55,7 @@ extern uint16_t dce_ip_rev;
  *	virtual address aligned on a 64B address boundary in system memory.
  */
 struct dce_context_a {
-	uint64_t d64;
+	u64 d64;
 /* TSIZE */
 #define DCE_CONTEXT_A_TSIZE_SHIFT	60
 #define DCE_CONTEXT_A_TSIZE_MASK	(0x7ULL << DCE_CONTEXT_A_TSIZE_SHIFT)
@@ -84,7 +84,7 @@ struct dce_context_a {
  * @val: Value to set the scrp field to.
  */
 static inline void dce_context_a_set_scrp(struct dce_context_a *ctx_a,
-						uint64_t val)
+						u64 val)
 {
 	/* lower 6 bits expected to be zero, since 64 byte aligned */
 	SET_BF64(ctx_a->d64, DCE_CONTEXT_A_SCRP,
@@ -96,7 +96,7 @@ static inline void dce_context_a_set_scrp(struct dce_context_a *ctx_a,
  *
  * @ctxa: a dce_context_a structure
  */
-static inline uint64_t dce_context_a_get_scrp(struct dce_context_a *ctx_a)
+static inline u64 dce_context_a_get_scrp(struct dce_context_a *ctx_a)
 {
 	/* lower 6 bits expected to be zero, since 64 byte aligned */
 	return GET_BF64(ctx_a->d64, DCE_CONTEXT_A_SCRP) <<
@@ -116,7 +116,7 @@ static inline uint64_t dce_context_a_get_scrp(struct dce_context_a *ctx_a)
  *	this FQID
  */
 struct dce_context_b {
-	uint32_t d32;
+	u32 d32;
 /* DBPID */
 #define DCE_CONTEXT_B_DBPID_SHIFT	24
 #define DCE_CONTEXT_B_DBPID_MASK	(0xffUL << DCE_CONTEXT_B_DBPID_SHIFT)
@@ -390,7 +390,7 @@ struct dce_context_b {
  *				is set on the output fd received from the DCE.
  */
 struct dce_cmd {
-	uint32_t d32;
+	u32 d32;
 /* Common to all commands */
 #define DCE_CMD_SHIFT		29
 #define DCE_CMD_MASK		(0x7UL << DCE_CMD_SHIFT)
@@ -525,20 +525,20 @@ struct dce_cmd {
 /* 64 bytes Stream Context Frame, must be 64 byte aligned */
 struct scf_64b {
 	union {
-		uint8_t  opaque_data8[64];
-		uint16_t opaque_data16[32];
-		uint32_t opaque_data32[16];
-		uint64_t opaque_data64[8];
+		u8  opaque_data8[64];
+		u16 opaque_data16[32];
+		u32 opaque_data32[16];
+		u64 opaque_data64[8];
 	};
 } __aligned(DCE_SCR_ALIGN);
 
 /* 128 byte Stream Context Frame (Record), must be 64 byte aligned */
 struct scf_128b {
 	union {
-		uint8_t  opaque_data8[128];
-		uint16_t opaque_data16[64];
-		uint32_t opaque_data32[32];
-		uint64_t opaque_data64[16];
+		u8  opaque_data8[128];
+		u16 opaque_data16[64];
+		u32 opaque_data32[32];
+		u64 opaque_data64[16];
 		struct scf_64b scf[2];
 	};
 } __aligned(DCE_SCR_ALIGN);
@@ -553,7 +553,7 @@ struct scf_128b {
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_total_in(const struct scf_64b *scf)
+static inline u32 get_total_in(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_TOTAL_IN);
 }
@@ -564,7 +564,7 @@ static inline uint32_t get_total_in(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the total_in field to.
  */
-static inline void set_total_in(struct scf_64b *scf, uint32_t val)
+static inline void set_total_in(struct scf_64b *scf, u32 val)
 {
 	SET_BF32_IDX(&scf->opaque_data32[0], SCF_TOTAL_IN, val);
 }
@@ -577,7 +577,7 @@ static inline void set_total_in(struct scf_64b *scf, uint32_t val)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_total_out(const struct scf_64b *scf)
+static inline u32 get_total_out(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_TOTAL_OUT);
 }
@@ -588,7 +588,7 @@ static inline uint32_t get_total_out(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the total_out field to.
  */
-static inline void set_total_out(struct scf_64b *scf, uint32_t val)
+static inline void set_total_out(struct scf_64b *scf, u32 val)
 {
 	SET_BF32_IDX(&scf->opaque_data32[0], SCF_TOTAL_OUT, val);
 }
@@ -601,7 +601,7 @@ static inline void set_total_out(struct scf_64b *scf, uint32_t val)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_adler32(const struct scf_64b *scf)
+static inline u32 get_adler32(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_ADLER32);
 }
@@ -612,7 +612,7 @@ static inline uint32_t get_adler32(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the adler32 field to.
  */
-static inline void set_adler32(struct scf_64b *scf, uint32_t val)
+static inline void set_adler32(struct scf_64b *scf, u32 val)
 {
 	SET_BF32_IDX(&scf->opaque_data32[0], SCF_ADLER32, val);
 }
@@ -625,7 +625,7 @@ static inline void set_adler32(struct scf_64b *scf, uint32_t val)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_id1(const struct scf_64b *scf)
+static inline u32 get_id1(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_ID1);
 }
@@ -636,7 +636,7 @@ static inline uint32_t get_id1(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the id1 field to.
  */
-static inline void set_id1(struct scf_64b *scf, uint32_t val)
+static inline void set_id1(struct scf_64b *scf, u32 val)
 {
 	SET_BF32_IDX(&scf->opaque_data32[0], SCF_ID1, val);
 }
@@ -649,7 +649,7 @@ static inline void set_id1(struct scf_64b *scf, uint32_t val)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_id2(const struct scf_64b *scf)
+static inline u32 get_id2(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_ID2);
 }
@@ -660,7 +660,7 @@ static inline uint32_t get_id2(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the id2 field to.
  */
-static inline void set_id2(struct scf_64b *scf, uint32_t val)
+static inline void set_id2(struct scf_64b *scf, u32 val)
 {
 	SET_BF32_IDX(&scf->opaque_data32[0], SCF_ID2, val);
 }
@@ -673,7 +673,7 @@ static inline void set_id2(struct scf_64b *scf, uint32_t val)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_id1id2(const struct scf_64b *scf)
+static inline u32 get_id1id2(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_ID1_ID2);
 }
@@ -684,7 +684,7 @@ static inline uint32_t get_id1id2(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the id1 and id2 fields to.
  */
-static inline void set_id1id2(struct scf_64b *scf, uint32_t val)
+static inline void set_id1id2(struct scf_64b *scf, u32 val)
 {
 	SET_BF32_IDX(&scf->opaque_data32[0], SCF_ID1_ID2, val);
 }
@@ -697,7 +697,7 @@ static inline void set_id1id2(struct scf_64b *scf, uint32_t val)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_cm(const struct scf_64b *scf)
+static inline u32 get_cm(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_CM);
 }
@@ -708,7 +708,7 @@ static inline uint32_t get_cm(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the cm field to.
  */
-static inline void set_cm(struct scf_64b *scf, uint32_t val)
+static inline void set_cm(struct scf_64b *scf, u32 val)
 {
 	SET_BF32_IDX(&scf->opaque_data32[0], SCF_CM, val);
 }
@@ -721,7 +721,7 @@ static inline void set_cm(struct scf_64b *scf, uint32_t val)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_flg(const struct scf_64b *scf)
+static inline u32 get_flg(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_FLG);
 }
@@ -732,7 +732,7 @@ static inline uint32_t get_flg(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the cm field to.
  */
-static inline void set_flg(struct scf_64b *scf, uint32_t val)
+static inline void set_flg(struct scf_64b *scf, u32 val)
 {
 	SET_BF32_IDX(&scf->opaque_data32[0], SCF_FLG, val);
 }
@@ -746,7 +746,7 @@ static inline void set_flg(struct scf_64b *scf, uint32_t val)
  * @scf: stream context frame
  * @val: Value to set the cm and flg fields to.
  */
-static inline void set_cmflg(struct scf_64b *scf, uint32_t val)
+static inline void set_cmflg(struct scf_64b *scf, u32 val)
 {
 	SET_BF32_IDX(&scf->opaque_data32[0], SCF_CMFLG, val);
 }
@@ -756,7 +756,7 @@ static inline void set_cmflg(struct scf_64b *scf, uint32_t val)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_cmflg(const struct scf_64b *scf)
+static inline u32 get_cmflg(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_CMFLG);
 }
@@ -769,7 +769,7 @@ static inline uint32_t get_cmflg(const struct scf_64b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_mtime(const struct scf_64b *scf)
+static inline u32 get_mtime(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_MTIME);
 }
@@ -780,7 +780,7 @@ static inline uint32_t get_mtime(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the mtime field to.
  */
-static inline void set_mtime(struct scf_64b *scf, uint32_t val)
+static inline void set_mtime(struct scf_64b *scf, u32 val)
 {
 	SET_BF32_IDX(&scf->opaque_data32[0], SCF_MTIME, val);
 }
@@ -793,7 +793,7 @@ static inline void set_mtime(struct scf_64b *scf, uint32_t val)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_xfl(const struct scf_64b *scf)
+static inline u32 get_xfl(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_XFL);
 }
@@ -804,7 +804,7 @@ static inline uint32_t get_xfl(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the xfl field to.
  */
-static inline void set_xfl(struct scf_64b *scf, uint32_t val)
+static inline void set_xfl(struct scf_64b *scf, u32 val)
 {
 	SET_BF32_IDX(&scf->opaque_data32[0], SCF_XFL, val);
 }
@@ -817,7 +817,7 @@ static inline void set_xfl(struct scf_64b *scf, uint32_t val)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_os(const struct scf_64b *scf)
+static inline u32 get_os(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_OS);
 }
@@ -828,7 +828,7 @@ static inline uint32_t get_os(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the os field to.
  */
-static inline void set_os(struct scf_64b *scf, uint32_t val)
+static inline void set_os(struct scf_64b *scf, u32 val)
 {
 	SET_BF32_IDX(&scf->opaque_data32[0], SCF_OS, val);
 }
@@ -841,7 +841,7 @@ static inline void set_os(struct scf_64b *scf, uint32_t val)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_xlen(const struct scf_64b *scf)
+static inline u32 get_xlen(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_XLEN);
 }
@@ -852,7 +852,7 @@ static inline uint32_t get_xlen(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the xlen field to.
  */
-static inline void set_xlen(struct scf_64b *scf, uint32_t val)
+static inline void set_xlen(struct scf_64b *scf, u32 val)
 {
 	SET_BF32_IDX(&scf->opaque_data32[0], SCF_XLEN, val);
 }
@@ -865,7 +865,7 @@ static inline void set_xlen(struct scf_64b *scf, uint32_t val)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_nlen(const struct scf_64b *scf)
+static inline u32 get_nlen(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_NLEN);
 }
@@ -876,7 +876,7 @@ static inline uint32_t get_nlen(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the nlen field to.
  */
-static inline void set_nlen(struct scf_64b *scf, uint32_t val)
+static inline void set_nlen(struct scf_64b *scf, u32 val)
 {
 	SET_BF32_IDX(&scf->opaque_data32[0], SCF_NLEN, val);
 }
@@ -889,7 +889,7 @@ static inline void set_nlen(struct scf_64b *scf, uint32_t val)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_clen(const struct scf_64b *scf)
+static inline u32 get_clen(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_CLEN);
 }
@@ -900,7 +900,7 @@ static inline uint32_t get_clen(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the clen field to.
  */
-static inline void set_clen(struct scf_64b *scf, uint32_t val)
+static inline void set_clen(struct scf_64b *scf, u32 val)
 {
 	SET_BF32_IDX(&scf->opaque_data32[0], SCF_CLEN, val);
 }
@@ -913,7 +913,7 @@ static inline void set_clen(struct scf_64b *scf, uint32_t val)
  *
  * @scf: stream context frame
  */
-static inline uint64_t get_extra_ptr(const struct scf_64b *scf)
+static inline u64 get_extra_ptr(const struct scf_64b *scf)
 {
 	return GET_BF64_IDX(&scf->opaque_data64[0], SCF_EXTRA_PTR);
 }
@@ -924,7 +924,7 @@ static inline uint64_t get_extra_ptr(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the extra_ptr field to.
  */
-static inline void set_extra_ptr(struct scf_64b *scf, uint64_t val)
+static inline void set_extra_ptr(struct scf_64b *scf, u64 val)
 {
 	SET_BF64_IDX(&scf->opaque_data64[0], SCF_EXTRA_PTR, val);
 }
@@ -938,7 +938,7 @@ static inline void set_extra_ptr(struct scf_64b *scf, uint64_t val)
  *
  * @scf: stream context frame
  */
-static inline uint64_t get_pending_output_ptr(const struct scf_64b *scf)
+static inline u64 get_pending_output_ptr(const struct scf_64b *scf)
 {
 	return GET_BF64_IDX(&scf->opaque_data64[0], SCF_PENDING_OUTPUT_PTR);
 }
@@ -949,7 +949,7 @@ static inline uint64_t get_pending_output_ptr(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the pending_output_ptr field to.
  */
-static inline void set_pending_output_ptr(struct scf_64b *scf, uint64_t val)
+static inline void set_pending_output_ptr(struct scf_64b *scf, u64 val)
 {
 	SET_BF64_IDX(&scf->opaque_data64[0], SCF_PENDING_OUTPUT_PTR, val);
 }
@@ -970,7 +970,7 @@ static inline void set_pending_output_ptr(struct scf_64b *scf, uint64_t val)
  *
  * @scf: stream context frame
  */
-static inline uint64_t get_history_ptr(const struct scf_64b *scf)
+static inline u64 get_history_ptr(const struct scf_64b *scf)
 {
 	return GET_BF64_IDX(&scf->opaque_data64[0], SCF_HISTORY_PTR) <<
 		SCF_HISTORY_PTR_SHIFT;
@@ -982,7 +982,7 @@ static inline uint64_t get_history_ptr(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the history_ptr field to.
  */
-static inline void set_history_ptr(struct scf_64b *scf, uint64_t val)
+static inline void set_history_ptr(struct scf_64b *scf, u64 val)
 {
 	/* lower 6 bits expected to be zero, since 64 byte aligned */
 	SET_BF64_IDX(&scf->opaque_data64[0], SCF_HISTORY_PTR,
@@ -1025,7 +1025,7 @@ static inline void set_pmode(struct scf_64b *scf, bool val)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_bytes_processed(const struct scf_64b *scf)
+static inline u32 get_bytes_processed(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_BYTES_PROCESSED);
 }
@@ -1039,7 +1039,7 @@ static inline uint32_t get_bytes_processed(const struct scf_64b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_pending_output_len(const struct scf_64b *scf)
+static inline u32 get_pending_output_len(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_PENDING_OUTPUT_LEN);
 }
@@ -1061,9 +1061,9 @@ static inline uint32_t get_pending_output_len(const struct scf_64b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_extra_limit(const struct scf_64b *scf)
+static inline u32 get_extra_limit(const struct scf_64b *scf)
 {
-	uint16_t local_rev = dce_ip_rev;
+	u16 local_rev = dce_ip_rev;
 
 	if (local_rev == 0)
 		local_rev = DCE_DEFAULT_REV;
@@ -1081,9 +1081,9 @@ static inline uint32_t get_extra_limit(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the extra_limit field to.
  */
-static inline void set_extra_limit(struct scf_64b *scf, uint32_t val)
+static inline void set_extra_limit(struct scf_64b *scf, u32 val)
 {
-	uint16_t local_rev;
+	u16 local_rev;
 
 	if (!dce_ip_rev)
 		local_rev = DCE_DEFAULT_REV;
@@ -1105,7 +1105,7 @@ static inline void set_extra_limit(struct scf_64b *scf, uint32_t val)
  *
  * @scf: stream context frame
  */
-static inline uint64_t get_decomp_ctxt_ptr(const struct scf_64b *scf)
+static inline u64 get_decomp_ctxt_ptr(const struct scf_64b *scf)
 {
 	return GET_BF64_IDX(&scf->opaque_data64[0], SCF_DECOMP_CTXT_PTR);
 }
@@ -1116,7 +1116,7 @@ static inline uint64_t get_decomp_ctxt_ptr(const struct scf_64b *scf)
  * @scf: stream context frame
  * @val: Value to set the decomp_ctxt_ptr field to.
  */
-static inline void set_decomp_ctxt_ptr(struct scf_64b *scf, uint64_t val)
+static inline void set_decomp_ctxt_ptr(struct scf_64b *scf, u64 val)
 {
 	SET_BF64_IDX(&scf->opaque_data64[0], SCF_DECOMP_CTXT_PTR, val);
 }
@@ -1180,7 +1180,7 @@ static inline bool get_no(const struct scf_64b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_co(const struct scf_64b *scf)
+static inline u32 get_co(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_CO);
 }
@@ -1229,7 +1229,7 @@ static inline uint32_t get_co(const struct scf_64b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_output_phase(const struct scf_64b *scf)
+static inline u32 get_output_phase(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_OUTPUT_PHASE);
 }
@@ -1242,7 +1242,7 @@ static inline uint32_t get_output_phase(const struct scf_64b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_b64_residue_len(const struct scf_64b *scf)
+static inline u32 get_b64_residue_len(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_B64_RESIDUE_LEN);
 }
@@ -1255,7 +1255,7 @@ static inline uint32_t get_b64_residue_len(const struct scf_64b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_b64_residue(const struct scf_64b *scf)
+static inline u32 get_b64_residue(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_B64_RESIDUE);
 }
@@ -1268,7 +1268,7 @@ static inline uint32_t get_b64_residue(const struct scf_64b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_residue_data(const struct scf_64b *scf)
+static inline u32 get_residue_data(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_RESIDUE_DATA);
 }
@@ -1285,9 +1285,9 @@ static inline uint32_t get_residue_data(const struct scf_64b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_pending_working_ptr(const struct scf_64b *scf)
+static inline u32 get_pending_working_ptr(const struct scf_64b *scf)
 {
-	uint16_t local_rev = dce_ip_rev;
+	u16 local_rev = dce_ip_rev;
 
 	if (local_rev == 0)
 		local_rev = DCE_DEFAULT_REV;
@@ -1296,7 +1296,7 @@ static inline uint32_t get_pending_working_ptr(const struct scf_64b *scf)
 		return GET_BF32_IDX(&scf->opaque_data32[0],
 					SCF_PENDING_WKG_PTR);
 	} else {
-		uint32_t val = 0;
+		u32 val = 0;
 		val = GET_BF32_IDX(&scf->opaque_data32[0], SCF_PENDING_WKG_PTR)
 				<< 8;
 		val |= GET_BF32_IDX(&scf->opaque_data32[0],
@@ -1313,7 +1313,7 @@ static inline uint32_t get_pending_working_ptr(const struct scf_64b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_history_len(const struct scf_64b *scf)
+static inline u32 get_history_len(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_HISTORY_LEN);
 }
@@ -1326,7 +1326,7 @@ static inline uint32_t get_history_len(const struct scf_64b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_susp(const struct scf_64b *scf)
+static inline u32 get_susp(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_SUSP);
 }
@@ -1339,7 +1339,7 @@ static inline uint32_t get_susp(const struct scf_64b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_terminated(const struct scf_64b *scf)
+static inline u32 get_terminated(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_TERMINATED);
 }
@@ -1352,7 +1352,7 @@ static inline uint32_t get_terminated(const struct scf_64b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_rbc(const struct scf_64b *scf)
+static inline u32 get_rbc(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_RBC);
 }
@@ -1365,7 +1365,7 @@ static inline uint32_t get_rbc(const struct scf_64b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_mcplt(const struct scf_64b *scf)
+static inline u32 get_mcplt(const struct scf_64b *scf)
 {
 	/* only in rev > 1.0 */
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_MCPLT);
@@ -1381,7 +1381,7 @@ static inline uint32_t get_mcplt(const struct scf_64b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_header_remaining(const struct scf_64b *scf)
+static inline u32 get_header_remaining(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_HEADER_REMAINING);
 }
@@ -1394,7 +1394,7 @@ static inline uint32_t get_header_remaining(const struct scf_64b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_crc16(const struct scf_64b *scf)
+static inline u32 get_crc16(const struct scf_64b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCF_CRC16);
 }
@@ -1462,7 +1462,7 @@ static inline uint32_t get_crc16(const struct scf_64b *scf)
  *
  * Returns the decomp_ctxt_ptr field in the second cache line.
  */
-static inline uint64_t get_decomp_ctxt_ptr_cl2(const struct scf_128b *scf)
+static inline u64 get_decomp_ctxt_ptr_cl2(const struct scf_128b *scf)
 {
 	return GET_BF64_IDX(&scf->opaque_data64[0], SCFCL2_DECOMP_CTXT_PTR);
 }
@@ -1478,7 +1478,7 @@ static inline uint64_t get_decomp_ctxt_ptr_cl2(const struct scf_128b *scf)
  *
  * Returns the decomp_total_out field in the second cache line.
  */
-static inline uint64_t get_decomp_total_out_cl2(const struct scf_128b *scf)
+static inline u64 get_decomp_total_out_cl2(const struct scf_128b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCFCL2_DECOMP_TOTAL_OUT);
 }
@@ -1497,9 +1497,9 @@ static inline uint64_t get_decomp_total_out_cl2(const struct scf_128b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_previous_code_len_cl2(const struct scf_128b *scf)
+static inline u32 get_previous_code_len_cl2(const struct scf_128b *scf)
 {
-	uint16_t local_rev = dce_ip_rev;
+	u16 local_rev = dce_ip_rev;
 
 	if (local_rev == 0)
 		local_rev = DCE_DEFAULT_REV;
@@ -1520,7 +1520,7 @@ static inline uint32_t get_previous_code_len_cl2(const struct scf_128b *scf)
  *
  * @scf: stream context frame, 128 bytes in size
  */
-static inline uint32_t get_bfinal_cl2(const struct scf_128b *scf)
+static inline u32 get_bfinal_cl2(const struct scf_128b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCFCL2_BFINAL);
 }
@@ -1533,7 +1533,7 @@ static inline uint32_t get_bfinal_cl2(const struct scf_128b *scf)
  *
  * @scf: stream context frame, 128 bytes in size
  */
-static inline uint32_t get_btype_cl2(const struct scf_128b *scf)
+static inline u32 get_btype_cl2(const struct scf_128b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCFCL2_BTYPE);
 }
@@ -1547,7 +1547,7 @@ static inline uint32_t get_btype_cl2(const struct scf_128b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_frame_parse_state_cl2(const struct scf_128b *scf)
+static inline u32 get_frame_parse_state_cl2(const struct scf_128b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCFCL2_FRAME_PARSE_STATE);
 }
@@ -1560,7 +1560,7 @@ static inline uint32_t get_frame_parse_state_cl2(const struct scf_128b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_num_code_len_cl2(const struct scf_128b *scf)
+static inline u32 get_num_code_len_cl2(const struct scf_128b *scf)
 {
 		return GET_BF32_IDX(&scf->opaque_data32[0],
 				SCFCL2_NUM_CODE_LEN);
@@ -1575,7 +1575,7 @@ static inline uint32_t get_num_code_len_cl2(const struct scf_128b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_ncbb_remaining_cl2(const struct scf_128b *scf)
+static inline u32 get_ncbb_remaining_cl2(const struct scf_128b *scf)
 {
 		return GET_BF32_IDX(&scf->opaque_data32[0],
 				SCFCL2_NCBB_REMAINING);
@@ -1589,7 +1589,7 @@ static inline uint32_t get_ncbb_remaining_cl2(const struct scf_128b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_hlit_cl2(const struct scf_128b *scf)
+static inline u32 get_hlit_cl2(const struct scf_128b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCFCL2_HLIT);
 }
@@ -1602,7 +1602,7 @@ static inline uint32_t get_hlit_cl2(const struct scf_128b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_hdist_cl2(const struct scf_128b *scf)
+static inline u32 get_hdist_cl2(const struct scf_128b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCFCL2_HDIST);
 }
@@ -1615,7 +1615,7 @@ static inline uint32_t get_hdist_cl2(const struct scf_128b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_hclen_cl2(const struct scf_128b *scf)
+static inline u32 get_hclen_cl2(const struct scf_128b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCFCL2_HCLEN);
 }
@@ -1628,7 +1628,7 @@ static inline uint32_t get_hclen_cl2(const struct scf_128b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint32_t get_huffman_rbc_cl2(const struct scf_128b *scf)
+static inline u32 get_huffman_rbc_cl2(const struct scf_128b *scf)
 {
 	return GET_BF32_IDX(&scf->opaque_data32[0], SCFCL2_HUFFMAN_RBC);
 }
@@ -1642,7 +1642,7 @@ static inline uint32_t get_huffman_rbc_cl2(const struct scf_128b *scf)
  *
  * @scf: stream context frame
  */
-static inline uint64_t get_huffman_residue_cl2(const struct scf_128b *scf)
+static inline u64 get_huffman_residue_cl2(const struct scf_128b *scf)
 {
 	return GET_BF64_IDX(&scf->opaque_data64[0], SCFCL2_HUFFMAN_RESIDUE);
 }

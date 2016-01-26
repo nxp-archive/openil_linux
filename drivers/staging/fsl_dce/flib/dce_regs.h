@@ -10,66 +10,66 @@
 /** @Description struct for defining dce CCSR registes */
 struct dce_regs {
 	/* DCE Global Common Configuration */
-	uint32_t cfg;		/* DCE configuration */
-	uint8_t reserved1[0x014-0x004];
-	uint32_t oll;		/* Output Length Limit */
-	uint8_t reserved2[0x024-0x018];
-	uint32_t hcl;		/* Hop Count Limit */
-	uint8_t reserved3[0x03c-0x028];
-	uint32_t idle;		/* DCE Idle status */
-	uint8_t reserved4[0x100-0x040];
+	u32 cfg;		/* DCE configuration */
+	u8 reserved1[0x014-0x004];
+	u32 oll;		/* Output Length Limit */
+	u8 reserved2[0x024-0x018];
+	u32 hcl;		/* Hop Count Limit */
+	u8 reserved3[0x03c-0x028];
+	u32 idle;		/* DCE Idle status */
+	u8 reserved4[0x100-0x040];
 
 	/* System Memory Configuration */
-	uint32_t liodnbr;	/* LIODN Base */
-	uint32_t srcidr;	/* Source ID Register */
-	uint32_t smcacr;	/* System Memory Cache Attribute Control */
-	uint32_t smpcr;		/* System Memory Priority Control */
-	uint32_t icir;		/* Internal Context Invalidate */
-	uint8_t reserved5[0x200-0x114];
+	u32 liodnbr;	/* LIODN Base */
+	u32 srcidr;	/* Source ID Register */
+	u32 smcacr;	/* System Memory Cache Attribute Control */
+	u32 smpcr;		/* System Memory Priority Control */
+	u32 icir;		/* Internal Context Invalidate */
+	u8 reserved5[0x200-0x114];
 
 	/* Statistics */
-	uint32_t cibc_h;	/* Compressor Input Bytes count High */
-	uint32_t cibc_l;	/* Compressor Input Bytes count Low */
-	uint32_t cobc_h;	/* Compressor Output Bytes count High */
-	uint32_t cobc_l;	/* Compressor Output Bytes count Low */
-	uint32_t dibc_h;	/* Decompressor Input Bytes count High */
-	uint32_t dibc_l;	/* Decompressor Input Bytes count Low */
-	uint32_t dobc_h;	/* Decompressor Output Bytes count High */
-	uint32_t dobc_l;	/* Decompressor Output Bytes count Low */
-	uint8_t reserved6[0x3f8-0x220];
+	u32 cibc_h;	/* Compressor Input Bytes count High */
+	u32 cibc_l;	/* Compressor Input Bytes count Low */
+	u32 cobc_h;	/* Compressor Output Bytes count High */
+	u32 cobc_l;	/* Compressor Output Bytes count Low */
+	u32 dibc_h;	/* Decompressor Input Bytes count High */
+	u32 dibc_l;	/* Decompressor Input Bytes count Low */
+	u32 dobc_h;	/* Decompressor Output Bytes count High */
+	u32 dobc_l;	/* Decompressor Output Bytes count Low */
+	u8 reserved6[0x3f8-0x220];
 
 	/* Block ID */
-	uint32_t ip_rev_1;	/* DCE IP Block Revision 1 */
-	uint32_t ip_rev_2;	/* DCE IP Block Revision 2 */
+	u32 ip_rev_1;	/* DCE IP Block Revision 1 */
+	u32 ip_rev_2;	/* DCE IP Block Revision 2 */
 
 	/* Interrupt */
-	uint32_t isr;		/* Interrupt Status */
-	uint32_t ier;		/* Interrupt Enable */
-	uint32_t isdr;		/* Interrupt Status Disable */
-	uint32_t iir;		/* Interrupt Inhibit */
-	uint32_t ifr;		/* Interrupt Force */
-	uint8_t reserved7[0x440-0x414];
+	u32 isr;		/* Interrupt Status */
+	u32 ier;		/* Interrupt Enable */
+	u32 isdr;		/* Interrupt Status Disable */
+	u32 iir;		/* Interrupt Inhibit */
+	u32 ifr;		/* Interrupt Force */
+	u8 reserved7[0x440-0x414];
 
 	/* Error status */
-	uint32_t ecc1bes;	/* ECC 1-Bit Error Status */
-	uint32_t ecc2bes;	/* ECC 2-Bit Error Status */
-	uint32_t eccaddr;	/* ECC Address */
-	uint32_t ecc1th;	/* ECC 1-Bit Threshold */
-	uint32_t dhecc1ec;	/*
+	u32 ecc1bes;	/* ECC 1-Bit Error Status */
+	u32 ecc2bes;	/* ECC 2-Bit Error Status */
+	u32 eccaddr;	/* ECC Address */
+	u32 ecc1th;	/* ECC 1-Bit Threshold */
+	u32 dhecc1ec;	/*
 				 * Decompression History memory ECC 1-Bit Error
 				 * Count
 				 */
-	uint32_t cxecc1ec;	/*
+	u32 cxecc1ec;	/*
 				 * Internal Context memory ECC 1-Bit Error
 				 * Count
 				 */
-	uint32_t cbecc1ec;	/* Internal Data memory ECC 1-Bit Error Count */
-	uint8_t reserved8[0x480-0x45C];
+	u32 cbecc1ec;	/* Internal Data memory ECC 1-Bit Error Count */
+	u8 reserved8[0x480-0x45C];
 	/* revision 1.1 */
-	uint32_t uwe_info_h;	/* Unreported Write Error Information High */
-	uint32_t uwe_info_l;	/* Unreported Write Error Information Low */
+	u32 uwe_info_h;	/* Unreported Write Error Information High */
+	u32 uwe_info_l;	/* Unreported Write Error Information Low */
 	/* pad out to 4k */
-	uint8_t padding[0x1000-0x488];
+	u8 padding[0x1000-0x488];
 };
 
 /* masks and shifts */
@@ -541,6 +541,6 @@ struct dce_regs {
 
 /* helper to get combine and shift SCRPH and L */
 #define DCE_GEN_SCRP(scrp_h, scrp_l) \
-	(((uint64_t)scrp_h << 32 | scrp_l) << DCE_UWE_INFO_L_SCRP_SHIFT)
+	(((u64)scrp_h << 32 | scrp_l) << DCE_UWE_INFO_L_SCRP_SHIFT)
 
 #endif /* FL_DCE_REGS_H */

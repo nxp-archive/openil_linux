@@ -11,7 +11,7 @@
  * get_dce_status - returns lowest 8 bits
  * @fd_status:  frame descriptor 32bit field
  */
-static inline enum dce_status fsl_dce_get_status(uint32_t fd_status)
+static inline enum dce_status fsl_dce_get_status(u32 fd_status)
 {
 	return (enum dce_status)
 		GET_BF32(fd_status, DCE_PROCESS_STATUS);
@@ -81,27 +81,27 @@ static inline void fsl_dce_statefull_compression_dma(struct scf_64b *scf,
 }
 
 /* DCE input command helpers */
-static inline void fsl_dce_cmd_set_process(uint32_t *cmd)
+static inline void fsl_dce_cmd_set_process(u32 *cmd)
 {
 	SET_BF32_TK(*cmd, DCE_CMD, PROCESS);
 }
 
-static inline void fsl_dce_cmd_set_ctx_invalidate(uint32_t *cmd)
+static inline void fsl_dce_cmd_set_ctx_invalidate(u32 *cmd)
 {
 	SET_BF32_TK(*cmd, DCE_CMD, CTX_INVALIDATE);
 }
 
-static inline void fsl_dce_cmd_set_nop(uint32_t *cmd)
+static inline void fsl_dce_cmd_set_nop(u32 *cmd)
 {
 	SET_BF32_TK(*cmd, DCE_CMD, NOP);
 }
 
 /* DCE process command helpers */
-static inline void fsl_dce_cmd_set_compression_effort_none(uint32_t *cmd)
+static inline void fsl_dce_cmd_set_compression_effort_none(u32 *cmd)
 {
 	SET_BF32_TK(*cmd, DCE_PROCESS_CE, NONE);
 }
-static inline void fsl_dce_cmd_set_compression_effort_statichuff(uint32_t *cmd)
+static inline void fsl_dce_cmd_set_compression_effort_statichuff(u32 *cmd)
 
 {
 	SET_BF32_TK(*cmd, DCE_PROCESS_CE, STATIC_HUFF_STRMATCH);
