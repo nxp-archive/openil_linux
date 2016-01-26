@@ -485,7 +485,7 @@ static enum qman_cb_dqrr_result cb_dqrr(struct qman_portal *portal,
 	enum dce_status status = dq->fd.status & DCE_PROCESS_STATUS_MASK;
 	struct fsl_dce_flow *flow = (struct fsl_dce_flow *)fq;
 
-	/* Put flow into DEAD state is a erious error is received ? */
+	/* Put flow into DEAD state if a serious error is received ? */
 	cb_helper(portal, flow, &dq->fd, status);
 	return qman_cb_dqrr_consume;
 }
