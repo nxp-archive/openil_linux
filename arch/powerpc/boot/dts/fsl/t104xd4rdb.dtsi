@@ -93,6 +93,7 @@
 	};
 
 	qportals: qman-portals@ff6000000 {
+		#address-cells = <1>;
 		ranges = <0x0 0xf 0xf6000000 0x2000000>;
 	};
 
