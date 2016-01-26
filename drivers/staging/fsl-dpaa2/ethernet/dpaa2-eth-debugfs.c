@@ -30,14 +30,12 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include <linux/module.h>
 #include <linux/debugfs.h>
 #include "dpaa2-eth.h"
 #include "dpaa2-eth-debugfs.h"
 
 #define DPAA2_ETH_DBG_ROOT "dpaa2-eth"
-
 
 static struct dentry *dpaa2_dbg_root;
 

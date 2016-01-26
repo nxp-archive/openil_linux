@@ -259,9 +259,9 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 
 	if (priv->ts_rx_en) {
 		struct skb_shared_hwtstamps *shhwtstamps = skb_hwtstamps(skb);
-		u64 *ns = (u64 *) (vaddr +
-				priv->buf_layout.private_data_size +
-				sizeof(struct dpaa2_fas));
+		u64 *ns = (u64 *)(vaddr +
+				  priv->buf_layout.private_data_size +
+				  sizeof(struct dpaa2_fas));
 
 		*ns = DPAA2_PTP_NOMINAL_FREQ_PERIOD_NS * (*ns);
 		memset(shhwtstamps, 0, sizeof(*shhwtstamps));
@@ -454,7 +454,7 @@ static int build_sg_fd(struct dpaa2_eth_priv *priv,
 	dpaa2_fd_set_len(fd, skb->len);
 
 	fd->simple.ctrl = DPAA2_FD_CTRL_ASAL | DPAA2_FD_CTRL_PTA |
-			 DPAA2_FD_CTRL_PTV1;
+			  DPAA2_FD_CTRL_PTV1;
 
 	return 0;
 
@@ -494,8 +494,7 @@ static int build_single_fd(struct dpaa2_eth_priv *priv,
 	skbh = (struct sk_buff **)buffer_start;
 	*skbh = skb;
 
-	addr = dma_map_single(dev,
-			      buffer_start,
+	addr = dma_map_single(dev, buffer_start,
 			      skb_tail_pointer(skb) - buffer_start,
 			      DMA_TO_DEVICE);
 	if (unlikely(dma_mapping_error(dev, addr)))
@@ -507,7 +506,7 @@ static int build_single_fd(struct dpaa2_eth_priv *priv,
 	dpaa2_fd_set_format(fd, dpaa2_fd_single);
 
 	fd->simple.ctrl = DPAA2_FD_CTRL_ASAL | DPAA2_FD_CTRL_PTA |
-			 DPAA2_FD_CTRL_PTV1;
+			  DPAA2_FD_CTRL_PTV1;
 
 	return 0;
 }
@@ -601,17 +600,11 @@ static int dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	struct dpaa2_fd fd;
 	struct rtnl_link_stats64 *percpu_stats;
 	struct dpaa2_eth_drv_stats *percpu_extras;
+	u16 queue_mapping, flow_id;
 	int err, i;
-	/* TxConf FQ selection primarily based on cpu affinity; this is
-	 * non-migratable context, so it's safe to call smp_processor_id().
-	 */
-	u16 queue_mapping = smp_processor_id() % priv->dpni_attrs.max_senders;
 
 	percpu_stats = this_cpu_ptr(priv->percpu_stats);
 	percpu_extras = this_cpu_ptr(priv->percpu_extras);
-
-	/* Setup the FD fields */
-	memset(&fd, 0, sizeof(fd));
 
 	if (unlikely(skb_headroom(skb) < DPAA2_ETH_NEEDED_HEADROOM(priv))) {
 		struct sk_buff *ns;
@@ -635,6 +628,9 @@ static int dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 		return NETDEV_TX_OK;
 	}
 
+	/* Setup the FD fields */
+	memset(&fd, 0, sizeof(fd));
+
 	if (skb_is_nonlinear(skb)) {
 		err = build_sg_fd(priv, skb, &fd);
 		percpu_extras->tx_sg_frames++;
@@ -651,10 +647,14 @@ static int dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	/* Tracing point */
 	trace_dpaa2_tx_fd(net_dev, &fd);
 
+	/* TxConf FQ selection primarily based on cpu affinity; this is
+	 * non-migratable context, so it's safe to call smp_processor_id().
+	 */
+	queue_mapping = smp_processor_id() % priv->dpni_attrs.max_senders;
+	flow_id = priv->fq[queue_mapping].flowid;
 	for (i = 0; i < (DPAA2_ETH_MAX_TX_QUEUES << 1); i++) {
 		err = dpaa2_io_service_enqueue_qd(NULL, priv->tx_qdid, 0,
-						 priv->fq[queue_mapping].flowid,
-						 &fd);
+						  flow_id, &fd);
 		if (err != -EBUSY)
 			break;
 	}
@@ -830,16 +830,13 @@ static int seed_pool(struct dpaa2_eth_priv *priv, u16 bpid)
 
 			if (new_count < DPAA2_ETH_BUFS_PER_CMD) {
 				preempt_enable();
-				goto out_of_memory;
+				return -ENOMEM;
 			}
 		}
 	}
 	preempt_enable();
 
 	return 0;
-
-out_of_memory:
-	return -ENOMEM;
 }
 
 /**
@@ -855,7 +852,7 @@ static void drain_bufs(struct dpaa2_eth_priv *priv, int count)
 
 	do {
 		ret = dpaa2_io_service_acquire(NULL, priv->dpbp_attrs.bpid,
-					      buf_array, count);
+					       buf_array, count);
 		if (ret < 0) {
 			netdev_err(priv->net_dev, "dpaa2_io_service_acquire() failed\n");
 			return;
@@ -1158,7 +1155,7 @@ static int dpaa2_eth_init(struct net_device *net_dev)
 {
 	u64 supported = 0;
 	u64 not_supported = 0;
-	const struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
+	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
 	u32 options = priv->dpni_attrs.options;
 
 	/* Capabilities listing */
@@ -1250,7 +1247,7 @@ static int dpaa2_eth_change_mtu(struct net_device *net_dev, int mtu)
 	err = dpni_set_max_frame_length(priv->mc_io, 0, priv->mc_token,
 					(u16)DPAA2_ETH_L2_MAX_FRM(mtu));
 	if (err) {
-		netdev_err(net_dev, "dpni_set_mfl() failed\n");
+		netdev_err(net_dev, "dpni_set_max_frame_length() failed\n");
 		return err;
 	}
 
@@ -1333,9 +1330,9 @@ static void dpaa2_eth_set_rx_mode(struct net_device *net_dev)
 	}
 
 	/* Adjust promisc settings due to flag combinations */
-	if (net_dev->flags & IFF_PROMISC) {
+	if (net_dev->flags & IFF_PROMISC)
 		goto force_promisc;
-	} else if (net_dev->flags & IFF_ALLMULTI) {
+	if (net_dev->flags & IFF_ALLMULTI) {
 		/* First, rebuild unicast filtering table. This should be done
 		 * in promisc mode, in order to avoid frame loss while we
 		 * progressively add entries to the table.
@@ -1404,19 +1401,18 @@ static int dpaa2_eth_set_features(struct net_device *net_dev,
 {
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
 	netdev_features_t changed = features ^ net_dev->features;
+	bool enable;
 	int err;
 
 	if (changed & NETIF_F_RXCSUM) {
-		bool enable = !!(features & NETIF_F_RXCSUM);
-
+		enable = !!(features & NETIF_F_RXCSUM);
 		err = set_rx_csum(priv, enable);
 		if (err)
 			return err;
 	}
 
 	if (changed & (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM)) {
-		bool enable = !!(features &
-				 (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM));
+		enable = !!(features & (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM));
 		err = set_tx_csum(priv, enable);
 		if (err)
 			return err;
@@ -1444,9 +1440,9 @@ static int dpaa2_eth_ts_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 		return -ERANGE;
 	}
 
-	if (config.rx_filter == HWTSTAMP_FILTER_NONE)
+	if (config.rx_filter == HWTSTAMP_FILTER_NONE) {
 		priv->ts_rx_en = false;
-	else {
+	} else {
 		priv->ts_rx_en = true;
 		/* TS is set for all frame types, not only those requested */
 		config.rx_filter = HWTSTAMP_FILTER_ALL;
@@ -1460,8 +1456,8 @@ static int dpaa2_eth_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
 	if (cmd == SIOCSHWTSTAMP)
 		return dpaa2_eth_ts_ioctl(dev, rq, cmd);
-	else
-		return -EINVAL;
+
+	return -EINVAL;
 }
 
 static const struct net_device_ops dpaa2_eth_ops = {
@@ -1495,7 +1491,6 @@ static void setup_fqs(struct dpaa2_eth_priv *priv)
 
 	/* We have one TxConf FQ per Tx flow */
 	for (i = 0; i < priv->dpni_attrs.max_senders; i++) {
-		priv->fq[priv->num_fqs].netdev_priv = priv;
 		priv->fq[priv->num_fqs].type = DPAA2_TX_CONF_FQ;
 		priv->fq[priv->num_fqs].consume = dpaa2_eth_tx_conf;
 		priv->fq[priv->num_fqs++].flowid = DPNI_NEW_FLOW_ID;
@@ -1506,7 +1501,6 @@ static void setup_fqs(struct dpaa2_eth_priv *priv)
 	 * We only support one traffic class for now.
 	 */
 	for (i = 0; i < dpaa2_eth_queue_count(priv); i++) {
-		priv->fq[priv->num_fqs].netdev_priv = priv;
 		priv->fq[priv->num_fqs].type = DPAA2_RX_FQ;
 		priv->fq[priv->num_fqs].consume = dpaa2_eth_rx;
 		priv->fq[priv->num_fqs++].flowid = (u16)i;
@@ -1514,7 +1508,6 @@ static void setup_fqs(struct dpaa2_eth_priv *priv)
 
 #ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
 	/* We have exactly one Rx error queue per DPNI */
-	priv->fq[priv->num_fqs].netdev_priv = priv;
 	priv->fq[priv->num_fqs].type = DPAA2_RX_ERR_FQ;
 	priv->fq[priv->num_fqs++].consume = dpaa2_eth_rx_err;
 #endif
@@ -1542,8 +1535,7 @@ static int check_obj_version(struct fsl_mc_device *ls_dev, u16 mc_version)
 
 	/* Check that the FLIB-defined version matches the one reported by MC */
 	if (mc_version != flib_version) {
-		dev_err(dev,
-			"%s FLIB version mismatch: MC reports %d, we have %d\n",
+		dev_err(dev, "%s FLIB version mismatch: MC reports %d, we have %d\n",
 			name, mc_version, flib_version);
 		return -EINVAL;
 	}
@@ -1891,7 +1883,7 @@ static int setup_dpni(struct fsl_mc_device *ls_dev)
 	ls_dev->mc_io = priv->mc_io;
 	ls_dev->mc_handle = priv->mc_token;
 
-	dma_mem =  kzalloc(DPAA2_EXT_CFG_SIZE, GFP_DMA | GFP_KERNEL);
+	dma_mem = kzalloc(DPAA2_EXT_CFG_SIZE, GFP_DMA | GFP_KERNEL);
 	if (!dma_mem)
 		goto err_alloc;
 
@@ -1938,6 +1930,7 @@ static int setup_dpni(struct fsl_mc_device *ls_dev)
 	priv->buf_layout.private_data_size = DPAA2_ETH_SWA_SIZE;
 	/* HW erratum mandates data alignment in multiples of 256 */
 	priv->buf_layout.data_align = DPAA2_ETH_RX_BUF_ALIGN;
+
 	/* ...rx, ... */
 	err = dpni_set_rx_buffer_layout(priv->mc_io, 0, priv->mc_token,
 					&priv->buf_layout);
@@ -2121,7 +2114,8 @@ static int setup_rx_err_flow(struct dpaa2_eth_priv *priv,
 	}
 
 	/* Get the FQID */
-	err = dpni_get_rx_err_queue(priv->mc_io, 0, priv->mc_token, &queue_attr);
+	err = dpni_get_rx_err_queue(priv->mc_io, 0, priv->mc_token,
+				    &queue_attr);
 	if (err) {
 		netdev_err(priv->net_dev, "dpni_get_rx_err_queue() failed\n");
 		return err;
@@ -2613,7 +2607,7 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 
 	/* DPNI initialization */
 	err = setup_dpni(dpni_dev);
-	if (err < 0)
+	if (err)
 		goto err_dpni_setup;
 
 	/* DPIO */

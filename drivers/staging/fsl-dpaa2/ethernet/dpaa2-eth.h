@@ -176,8 +176,6 @@ struct dpaa2_fas {
 					 DPAA2_FAS_BLE		| \
 					 DPAA2_FAS_L3CE		| \
 					 DPAA2_FAS_L4CE)
-/* Unsupported features in the ingress */
-#define DPAA2_ETH_RX_UNSUPP_MASK	DPAA2_FAS_MS
 /* Tx errors */
 #define DPAA2_ETH_TXCONF_ERR_MASK	(DPAA2_FAS_KSE		| \
 					 DPAA2_FAS_EOFHE	| \
@@ -223,9 +221,9 @@ struct dpaa2_eth_ch_stats {
 #define DPAA2_ETH_MAX_RX_QUEUES		16
 #define DPAA2_ETH_MAX_TX_QUEUES		NR_CPUS
 #define DPAA2_ETH_MAX_RX_ERR_QUEUES	1
-#define DPAA2_ETH_MAX_QUEUES	(DPAA2_ETH_MAX_RX_QUEUES + \
-				DPAA2_ETH_MAX_TX_QUEUES + \
-				DPAA2_ETH_MAX_RX_ERR_QUEUES)
+#define DPAA2_ETH_MAX_QUEUES		(DPAA2_ETH_MAX_RX_QUEUES + \
+					DPAA2_ETH_MAX_TX_QUEUES + \
+					DPAA2_ETH_MAX_RX_ERR_QUEUES)
 
 #define DPAA2_ETH_MAX_DPCONS		NR_CPUS
 
@@ -248,7 +246,6 @@ struct dpaa2_eth_fq {
 			struct dpaa2_eth_channel *,
 			const struct dpaa2_fd *,
 			struct napi_struct *);
-	struct dpaa2_eth_priv *netdev_priv;	/* backpointer */
 	struct dpaa2_eth_fq_stats stats;
 };
 

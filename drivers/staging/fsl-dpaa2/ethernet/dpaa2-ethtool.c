@@ -277,7 +277,7 @@ static void dpaa2_eth_get_ethtool_stats(struct net_device *net_dev,
 	for (j = 0; j < priv->num_fqs; j++) {
 		/* Print FQ instantaneous counts */
 		err = dpaa2_io_query_fq_count(NULL, priv->fq[j].fqid,
-					     &fcnt, &bcnt);
+					      &fcnt, &bcnt);
 		if (err) {
 			netdev_warn(net_dev, "FQ query error %d", err);
 			return;
