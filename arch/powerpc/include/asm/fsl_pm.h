@@ -11,6 +11,7 @@
 #ifndef __PPC_FSL_PM_H
 #define __PPC_FSL_PM_H
 #ifdef __KERNEL__
+#include <linux/suspend.h>
 
 #define E500_PM_PH10	1
 #define E500_PM_PH15	2
@@ -75,6 +76,15 @@ struct fsl_iomap {
 	void *cpld_base;
 	void *fpga_base;
 };
+
+#ifdef CONFIG_FSL_QORIQ_PM
+suspend_state_t pm_suspend_state(void);
+#else
+static inline suspend_state_t pm_suspend_state(void)
+{
+	return PM_SUSPEND_STANDBY;
+}
+#endif
 
 #endif /* __KERNEL__ */
 #endif /* __PPC_FSL_PM_H */

@@ -21,6 +21,7 @@
 
 static unsigned int pm_modes;
 static u32 wake_mask;
+static suspend_state_t pm_state;
 
 static int fsl_set_power_except(struct device_node *of_node)
 {
@@ -99,6 +100,8 @@ static int qoriq_suspend_enter(suspend_state_t state)
 
 static int qoriq_suspend_valid(suspend_state_t state)
 {
+	pm_state = state;
+
 	if (state == PM_SUSPEND_STANDBY && (pm_modes & FSL_PM_SLEEP))
 		return 1;
 
@@ -138,3 +141,9 @@ static int __init qoriq_suspend_init(void)
 	return 0;
 }
 arch_initcall(qoriq_suspend_init);
+
+suspend_state_t pm_suspend_state(void)
+{
+	return pm_state;
+}
+EXPORT_SYMBOL_GPL(pm_suspend_state);
