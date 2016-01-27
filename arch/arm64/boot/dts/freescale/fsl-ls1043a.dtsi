@@ -739,6 +739,7 @@
 			reg = <0x0 0x3000000 0x0 0x10000>;
 			interrupts = <0 61 0x4>;
 			dr_mode = "host";
+			configure-gfladj;
 		};
 
 		usb2: usb3@3100000 {
@@ -746,6 +747,7 @@
 			reg = <0x0 0x3100000 0x0 0x10000>;
 			interrupts = <0 63 0x4>;
 			dr_mode = "host";
+			configure-gfladj;
 		};
 
 		sata: sata@3200000 {
