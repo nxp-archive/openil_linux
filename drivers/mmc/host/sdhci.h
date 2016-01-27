@@ -542,6 +542,8 @@ struct sdhci_ops {
 	void	(*platform_init)(struct sdhci_host *host);
 	void    (*card_event)(struct sdhci_host *host);
 	void	(*voltage_switch)(struct sdhci_host *host);
+	void	(*signal_voltage_switch)(struct sdhci_host *host,
+					 unsigned char signal_voltage);
 };
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS

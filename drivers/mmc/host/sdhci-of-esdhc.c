@@ -27,11 +27,22 @@
 #define VENDOR_V_22	0x12
 #define VENDOR_V_23	0x13
 
+/* eSDHC Adapter Card Type */
+#define ESDHC_ADAPTER_TYPE_EMMC45	0x1	/* eMMC Card Rev4.5 */
+#define ESDHC_ADAPTER_TYPE_SDMMC_LEGACY	0x2	/* SD/MMC Legacy Card */
+#define ESDHC_ADAPTER_TYPE_EMMC44	0x3	/* eMMC Card Rev4.4 */
+#define ESDHC_ADAPTER_TYPE_RSV		0x4	/* Reserved */
+#define ESDHC_ADAPTER_TYPE_MMC		0x5	/* MMC Card */
+#define ESDHC_ADAPTER_TYPE_SD		0x6	/* SD Card Rev2.0 3.0 */
+#define ESDHC_NO_ADAPTER		0x7	/* No Card is Present*/
+
 struct sdhci_esdhc {
 	u8 vendor_ver;
 	u8 spec_ver;
 	u32 soc_ver;
 	u8 soc_rev;
+	u8 adapter_type;
+	unsigned int peripheral_clock;
 };
 
 /**
@@ -70,6 +81,22 @@ static u32 esdhc_readl_fixup(struct sdhci_host *host,
 			return ret;
 		}
 	}
+
+	if (spec_reg == SDHCI_CAPABILITIES_1) {
+		switch (esdhc->adapter_type) {
+		case ESDHC_ADAPTER_TYPE_EMMC44:
+			if (value & ESDHC_SPEED_MODE_DDR50) {
+				ret = value & ESDHC_SPEED_MODE_DDR50_SEL;
+				/* enable 1/8V DDR capable */
+				host->mmc->caps |= MMC_CAP_1_8V_DDR;
+				return ret;
+			}
+			break;
+		}
+		ret = value & (~ESDHC_SPEED_MODE_MASK);
+		return ret;
+	}
+
 	ret = value;
 	return ret;
 }
@@ -225,6 +252,8 @@ static u32 esdhc_writeb_fixup(struct sdhci_host *host,
 
 		/* Prevent SDHCI core from writing reserved bits (e.g. HISPD) */
 		ret &= ~ESDHC_HOST_CONTROL_RES;
+		ret &= ~SDHCI_CTRL_HISPD;
+		ret |= (old_value & SDHCI_CTRL_HISPD);
 		return ret;
 	}
 
@@ -237,7 +266,15 @@ static u32 esdhc_be_readl(struct sdhci_host *host, int reg)
 	u32 ret;
 	u32 value;
 
-	value = ioread32be(host->ioaddr + reg);
+	/*
+	 * The eSDHC CAPABILITIES_1 register has a large address offset
+	 * from the standard CAPABILITIES_1 register. So, we have to
+	 * fix this here rather than in fixup function.
+	 */
+	if (reg == SDHCI_CAPABILITIES_1)
+		value = ioread32be(host->ioaddr + ESDHC_CAPABILITIES_1);
+	else
+		value = ioread32be(host->ioaddr + reg);
 	ret = esdhc_readl_fixup(host, reg, value);
 
 	return ret;
@@ -248,7 +285,15 @@ static u32 esdhc_le_readl(struct sdhci_host *host, int reg)
 	u32 ret;
 	u32 value;
 
-	value = ioread32(host->ioaddr + reg);
+	/*
+	 * The eSDHC CAPABILITIES_1 register has a large address offset
+	 * from the standard CAPABILITIES_1 register. So, we have to
+	 * fix this here rather than in fixup function.
+	 */
+	if (reg == SDHCI_CAPABILITIES_1)
+		value = ioread32(host->ioaddr + ESDHC_CAPABILITIES_1);
+	else
+		value = ioread32(host->ioaddr + reg);
 	ret = esdhc_readl_fixup(host, reg, value);
 
 	return ret;
@@ -681,6 +726,109 @@ static const struct dev_pm_ops esdhc_pmops = {
 #define ESDHC_PMOPS NULL
 #endif
 
+static void esdhc_clock_control(struct sdhci_host *host, bool enable)
+{
+	u32 val;
+	u32 timeout;
+
+	val = sdhci_readl(host, ESDHC_SYSTEM_CONTROL);
+
+	if (enable)
+		val |= ESDHC_CLOCK_CRDEN;
+	else
+		val &= ~ESDHC_CLOCK_CRDEN;
+
+	sdhci_writel(host, val, ESDHC_SYSTEM_CONTROL);
+
+	timeout = 20;
+	val = ESDHC_CLOCK_STABLE;
+	while (!(sdhci_readl(host, ESDHC_PRESENT_STATE) & val)) {
+		if (timeout == 0) {
+			pr_err("%s: Internal clock never stabilised.\n",
+				mmc_hostname(host->mmc));
+			break;
+		}
+		timeout--;
+		mdelay(1);
+	}
+}
+
+static void esdhc_set_uhs_signaling(struct sdhci_host *host, unsigned int uhs)
+{
+	u16 ctrl_2;
+	u32 val;
+	u32 timeout;
+
+	ctrl_2 = sdhci_readw(host, SDHCI_HOST_CONTROL2);
+	/* Select Bus Speed Mode for host */
+	ctrl_2 &= ~SDHCI_CTRL_UHS_MASK;
+	if ((uhs == MMC_TIMING_MMC_HS200) ||
+		(uhs == MMC_TIMING_UHS_SDR104))
+		ctrl_2 |= SDHCI_CTRL_UHS_SDR104;
+	else if (uhs == MMC_TIMING_UHS_SDR12)
+		ctrl_2 |= SDHCI_CTRL_UHS_SDR12;
+	else if (uhs == MMC_TIMING_UHS_SDR25)
+		ctrl_2 |= SDHCI_CTRL_UHS_SDR25;
+	else if (uhs == MMC_TIMING_UHS_SDR50)
+		ctrl_2 |= SDHCI_CTRL_UHS_SDR50;
+	else if ((uhs == MMC_TIMING_UHS_DDR50) ||
+		 (uhs == MMC_TIMING_MMC_DDR52))
+		ctrl_2 |= SDHCI_CTRL_UHS_DDR50;
+	else if (uhs == MMC_TIMING_MMC_HS400)
+		ctrl_2 |= SDHCI_CTRL_HS400; /* Non-standard */
+
+	if ((uhs == MMC_TIMING_UHS_DDR50) ||
+	    (uhs == MMC_TIMING_MMC_DDR52)) {
+		esdhc_clock_control(host, false);
+		sdhci_writew(host, ctrl_2, SDHCI_HOST_CONTROL2);
+		val = sdhci_readl(host, ESDHC_CLOCK_CONTROL);
+		val |= (ESDHC_LPBK_CLK_SEL | ESDHC_CMD_CLK_CTL);
+		sdhci_writel(host, val, ESDHC_CLOCK_CONTROL);
+		esdhc_clock_control(host, true);
+
+		esdhc_clock_control(host, false);
+		val = sdhci_readl(host, ESDHC_DMA_SYSCTL);
+		val |= ESDHC_FLUSH_ASYNC_FIFO;
+		sdhci_writel(host, val, ESDHC_DMA_SYSCTL);
+		/* Wait max 20 ms */
+		timeout = 20;
+		val = ESDHC_FLUSH_ASYNC_FIFO;
+		while (sdhci_readl(host, ESDHC_DMA_SYSCTL) & val) {
+			if (timeout == 0) {
+				pr_err("%s: FAF bit is auto cleaned failed.\n",
+					mmc_hostname(host->mmc));
+
+				break;
+			}
+			timeout--;
+			mdelay(1);
+		}
+		esdhc_clock_control(host, true);
+	} else
+		sdhci_writew(host, ctrl_2, SDHCI_HOST_CONTROL2);
+}
+
+void esdhc_signal_voltage_switch(struct sdhci_host *host,
+				 unsigned char signal_voltage)
+{
+	u32 val;
+
+	val = sdhci_readl(host, ESDHC_PROCTL);
+
+	switch (signal_voltage) {
+	case MMC_SIGNAL_VOLTAGE_330:
+		val &= (~ESDHC_VOLT_SEL);
+		sdhci_writel(host, val, ESDHC_PROCTL);
+		break;
+	case MMC_SIGNAL_VOLTAGE_180:
+		val |= ESDHC_VOLT_SEL;
+		sdhci_writel(host, val, ESDHC_PROCTL);
+		break;
+	default:
+		return;
+	}
+}
+
 static const struct sdhci_ops sdhci_esdhc_be_ops = {
 	.read_l = esdhc_be_readl,
 	.read_w = esdhc_be_readw,
@@ -695,7 +843,8 @@ static const struct sdhci_ops sdhci_esdhc_be_ops = {
 	.adma_workaround = esdhc_of_adma_workaround,
 	.set_bus_width = esdhc_pltfm_set_bus_width,
 	.reset = esdhc_reset,
-	.set_uhs_signaling = sdhci_set_uhs_signaling,
+	.set_uhs_signaling = esdhc_set_uhs_signaling,
+	.signal_voltage_switch = esdhc_signal_voltage_switch,
 };
 
 static const struct sdhci_ops sdhci_esdhc_le_ops = {
@@ -712,7 +861,8 @@ static const struct sdhci_ops sdhci_esdhc_le_ops = {
 	.adma_workaround = esdhc_of_adma_workaround,
 	.set_bus_width = esdhc_pltfm_set_bus_width,
 	.reset = esdhc_reset,
-	.set_uhs_signaling = sdhci_set_uhs_signaling,
+	.set_uhs_signaling = esdhc_set_uhs_signaling,
+	.signal_voltage_switch = esdhc_signal_voltage_switch,
 };
 
 static const struct sdhci_pltfm_data sdhci_esdhc_be_pdata = {
@@ -733,6 +883,9 @@ static void esdhc_init(struct platform_device *pdev, struct sdhci_host *host)
 {
 	struct sdhci_pltfm_host *pltfm_host;
 	struct sdhci_esdhc *esdhc;
+	struct device_node *np;
+	const __be32 *val;
+	int size;
 	u16 host_ver;
 	u32 svr;
 
@@ -749,6 +902,15 @@ static void esdhc_init(struct platform_device *pdev, struct sdhci_host *host)
 	esdhc->vendor_ver = (host_ver & SDHCI_VENDOR_VER_MASK) >>
 			     SDHCI_VENDOR_VER_SHIFT;
 	esdhc->spec_ver = host_ver & SDHCI_SPEC_VER_MASK;
+
+	np = pdev->dev.of_node;
+	val = of_get_property(np, "adapter-type", &size);
+	if (val && size == sizeof(*val) && *val)
+		esdhc->adapter_type = be32_to_cpup(val);
+
+	val = of_get_property(np, "peripheral-frequency", &size);
+	if (val && size == sizeof(*val) && *val)
+		esdhc->peripheral_clock = be32_to_cpup(val);
 }
 
 static int sdhci_esdhc_probe(struct platform_device *pdev)
@@ -758,6 +920,7 @@ static int sdhci_esdhc_probe(struct platform_device *pdev)
 	struct sdhci_pltfm_host *pltfm_host;
 	struct sdhci_esdhc *esdhc;
 	int ret;
+	u32 val;
 
 	np = pdev->dev.of_node;
 
@@ -809,6 +972,16 @@ static int sdhci_esdhc_probe(struct platform_device *pdev)
 		goto err;
 
 	mmc_of_parse_voltage(np, &host->ocr_mask);
+
+	/* Select peripheral clock as the eSDHC clock */
+	if (esdhc->peripheral_clock) {
+		pltfm_host->clock = esdhc->peripheral_clock;
+		esdhc_clock_control(host, false);
+		val = sdhci_readl(host, ESDHC_DMA_SYSCTL);
+		val |= ESDHC_PERIPHERAL_CLK_SEL;
+		sdhci_writel(host, val, ESDHC_DMA_SYSCTL);
+		esdhc_clock_control(host, true);
+	}
 
 	ret = sdhci_add_host(host);
 	if (ret)
