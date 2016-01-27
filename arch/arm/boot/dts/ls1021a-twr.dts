@@ -142,6 +142,32 @@
 	status = "okay";
 };
 
+&dcu0 {
+	display = <&display>;
+	status = "okay";
+
+	display: display@0 {
+		bits-per-pixel = <24>;
+
+		display-timings {
+			native-mode = <&timing0>;
+			timing0: nl4827hc19 {
+				clock-frequency = <10870000>;
+				hactive = <480>;
+				vactive = <272>;
+				hback-porch = <2>;
+				hfront-porch = <2>;
+				vback-porch = <2>;
+				vfront-porch = <2>;
+				hsync-len = <41>;
+				vsync-len = <4>;
+				hsync-active = <1>;
+				vsync-active = <1>;
+			};
+		};
+	};
+};
+
 &i2c0 {
 	status = "okay";
 };
@@ -155,6 +181,12 @@
 		VDDA-supply = <&reg_3p3v>;
 		VDDIO-supply = <&reg_3p3v>;
 		clocks = <&sys_mclk 1>;
+	};
+
+	hdmi: sii9022a@39 {
+	      compatible = "fsl,sii902x";
+	      reg = <0x39>;
+	      interrupts = <GIC_SPI 167 IRQ_TYPE_EDGE_RISING>;
 	};
 };
 
