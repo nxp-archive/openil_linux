@@ -18,6 +18,7 @@
 #include <linux/of.h>
 #include <linux/delay.h>
 #include <linux/module.h>
+#include <linux/of_address.h>
 #include <linux/fsl/svr.h>
 #include <linux/fsl/guts.h>
 #include <linux/mmc/host.h>
@@ -35,6 +36,8 @@
 #define ESDHC_ADAPTER_TYPE_MMC		0x5	/* MMC Card */
 #define ESDHC_ADAPTER_TYPE_SD		0x6	/* SD Card Rev2.0 3.0 */
 #define ESDHC_NO_ADAPTER		0x7	/* No Card is Present*/
+
+static void esdhc_clock_control(struct sdhci_host *host, bool enable);
 
 struct sdhci_esdhc {
 	u8 vendor_ver;
@@ -65,6 +68,8 @@ static u32 esdhc_readl_fixup(struct sdhci_host *host,
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_esdhc *esdhc = pltfm_host->priv;
+	u32 clsl;
+	u32 dlsl;
 	u32 ret;
 
 	/*
@@ -88,6 +93,14 @@ static u32 esdhc_readl_fixup(struct sdhci_host *host,
 			if (value & ESDHC_SPEED_MODE_SDR104)
 				host->mmc->caps2 |= MMC_CAP2_HS200;
 			break;
+		case ESDHC_ADAPTER_TYPE_SDMMC_LEGACY:
+			if (value & ESDHC_SPEED_MODE_MASK) {
+				/* If it exists UHS-I support, enable SDR50 */
+				host->mmc->caps |= (MMC_CAP_UHS_SDR50 |
+						    MMC_CAP_UHS_SDR25 |
+						    MMC_CAP_UHS_SDR12);
+			}
+			break;
 		case ESDHC_ADAPTER_TYPE_EMMC44:
 			if (value & ESDHC_SPEED_MODE_DDR50) {
 				ret = value & ESDHC_SPEED_MODE_DDR50_SEL;
@@ -101,6 +114,14 @@ static u32 esdhc_readl_fixup(struct sdhci_host *host,
 		return ret;
 	}
 
+	if (spec_reg == SDHCI_PRESENT_STATE) {
+		clsl = value & ESDHC_CLSL_MASK;
+		dlsl = value & ESDHC_DLSL_MASK;
+		ret = value &
+		      (~((ESDHC_CLSL_MASK << 1) | (ESDHC_DLSL_MASK >> 4)));
+		ret = value | ((clsl << 1) | (dlsl >> 4));
+		return ret;
+	}
 	ret = value;
 	return ret;
 }
@@ -555,8 +576,10 @@ static void esdhc_of_set_clock(struct sdhci_host *host, unsigned int clock)
 
 	host->mmc->actual_clock = 0;
 
-	if (clock == 0)
+	if (clock == 0) {
+		esdhc_clock_control(host, false);
 		return;
+	}
 
 	/* Workaround to start pre_div at 2 for VNN < VENDOR_V_23 */
 	if (esdhc->vendor_ver < VENDOR_V_23)
@@ -812,9 +835,20 @@ static void esdhc_set_uhs_signaling(struct sdhci_host *host, unsigned int uhs)
 		sdhci_writew(host, ctrl_2, SDHCI_HOST_CONTROL2);
 }
 
+static const struct of_device_id scfg_device_ids[] = {
+	{ .compatible = "fsl,t1040-scfg", },
+	{}
+};
+#define SCFG_SDHCIOVSELCR	0x408
+#define SDHCIOVSELCR_TGLEN	0x80000000
+#define SDHCIOVSELCR_SDHC_VS	0x00000001
+
 void esdhc_signal_voltage_switch(struct sdhci_host *host,
 				 unsigned char signal_voltage)
 {
+	struct device_node *scfg_node;
+	void __iomem *scfg_base = NULL;
+	u32 scfg_sdhciovselcr;
 	u32 val;
 
 	val = sdhci_readl(host, ESDHC_PROCTL);
@@ -825,6 +859,18 @@ void esdhc_signal_voltage_switch(struct sdhci_host *host,
 		sdhci_writel(host, val, ESDHC_PROCTL);
 		break;
 	case MMC_SIGNAL_VOLTAGE_180:
+		scfg_node = of_find_matching_node(NULL, scfg_device_ids);
+		if (scfg_node) {
+			scfg_base = of_iomap(scfg_node, 0);
+			of_node_put(scfg_node);
+		}
+		if (scfg_base) {
+			scfg_sdhciovselcr = SDHCIOVSELCR_TGLEN |
+					    SDHCIOVSELCR_SDHC_VS;
+			iowrite32be(scfg_sdhciovselcr,
+				scfg_base + SCFG_SDHCIOVSELCR);
+			iounmap(scfg_base);
+		}
 		val |= ESDHC_VOLT_SEL;
 		sdhci_writel(host, val, ESDHC_PROCTL);
 		break;
