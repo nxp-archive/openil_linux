@@ -84,6 +84,10 @@ static u32 esdhc_readl_fixup(struct sdhci_host *host,
 
 	if (spec_reg == SDHCI_CAPABILITIES_1) {
 		switch (esdhc->adapter_type) {
+		case ESDHC_ADAPTER_TYPE_EMMC45:
+			if (value & ESDHC_SPEED_MODE_SDR104)
+				host->mmc->caps2 |= MMC_CAP2_HS200;
+			break;
 		case ESDHC_ADAPTER_TYPE_EMMC44:
 			if (value & ESDHC_SPEED_MODE_DDR50) {
 				ret = value & ESDHC_SPEED_MODE_DDR50_SEL;
@@ -829,6 +833,21 @@ void esdhc_signal_voltage_switch(struct sdhci_host *host,
 	}
 }
 
+void esdhc_set_tuning_block(struct sdhci_host *host)
+{
+	u32 val;
+
+	esdhc_clock_control(host, false);
+	val = sdhci_readl(host, ESDHC_DMA_SYSCTL);
+	val |= ESDHC_FLUSH_ASYNC_FIFO;
+	sdhci_writel(host, val, ESDHC_DMA_SYSCTL);
+
+	val = sdhci_readl(host, ESDHC_TBCTL);
+	val |= ESDHC_TB_EN;
+	sdhci_writel(host, val, ESDHC_TBCTL);
+	esdhc_clock_control(host, true);
+}
+
 static const struct sdhci_ops sdhci_esdhc_be_ops = {
 	.read_l = esdhc_be_readl,
 	.read_w = esdhc_be_readw,
@@ -845,6 +864,7 @@ static const struct sdhci_ops sdhci_esdhc_be_ops = {
 	.reset = esdhc_reset,
 	.set_uhs_signaling = esdhc_set_uhs_signaling,
 	.signal_voltage_switch = esdhc_signal_voltage_switch,
+	.set_tuning_block = esdhc_set_tuning_block,
 };
 
 static const struct sdhci_ops sdhci_esdhc_le_ops = {
@@ -863,6 +883,7 @@ static const struct sdhci_ops sdhci_esdhc_le_ops = {
 	.reset = esdhc_reset,
 	.set_uhs_signaling = esdhc_set_uhs_signaling,
 	.signal_voltage_switch = esdhc_signal_voltage_switch,
+	.set_tuning_block = esdhc_set_tuning_block,
 };
 
 static const struct sdhci_pltfm_data sdhci_esdhc_be_pdata = {
@@ -943,6 +964,8 @@ static int sdhci_esdhc_probe(struct platform_device *pdev)
 
 	if (esdhc->vendor_ver > VENDOR_V_22)
 		host->quirks &= ~SDHCI_QUIRK_NO_BUSY_IRQ;
+
+	host->quirks2 |= SDHCI_QUIRK2_DELAY_BETWEEN_TUNING_CYCLES;
 
 	if (of_device_is_compatible(np, "fsl,p5040-esdhc") ||
 	    of_device_is_compatible(np, "fsl,p5020-esdhc") ||
