@@ -41,6 +41,33 @@
 	#size-cells = <2>;
 	interrupt-parent = <&mpic>;
 
+	aliases {
+		sgmii_phy21 = &sgmiiphy21;
+		sgmii_phy22 = &sgmiiphy22;
+		sgmii_phy23 = &sgmiiphy23;
+		sgmii_phy24 = &sgmiiphy24;
+		sgmii_phy41 = &sgmiiphy41;
+		sgmii_phy42 = &sgmiiphy42;
+		sgmii_phy43 = &sgmiiphy43;
+		sgmii_phy44 = &sgmiiphy44;
+		ethernet0 = &enet0;
+		ethernet1 = &enet1;
+		ethernet2 = &enet2;
+		ethernet3 = &enet3;
+		ethernet4 = &enet4;
+		ethernet5 = &enet5;
+		ethernet6 = &enet6;
+		ethernet7 = &enet7;
+		ethernet8 = &enet8;
+		ethernet9 = &enet9;
+		ethernet10 = &enet10;
+		ethernet11 = &enet11;
+		ethernet12 = &enet12;
+		ethernet13 = &enet13;
+		ethernet14 = &enet14;
+		ethernet15 = &enet15;
+	};
+
 	ifc: localbus@ffe124000 {
 		reg = <0xf 0xfe124000 0 0x2000>;
 		ranges = <0 0 0xf 0xe8000000 0x08000000
@@ -69,23 +96,20 @@
 		device_type = "memory";
 	};
 
-	reserved-memory {
-		#address-cells = <2>;
-		#size-cells = <2>;
-		ranges;
-
-		bman_fbpr: bman-fbpr {
-			size = <0 0x1000000>;
-			alignment = <0 0x1000000>;
-		};
-	};
-
 	dcsr: dcsr@f00000000 {
 		ranges = <0x00000000 0xf 0x00000000 0x01072000>;
 	};
 
 	bportals: bman-portals@ff4000000 {
 		ranges = <0x0 0xf 0xf4000000 0x2000000>;
+	};
+
+	qportals: qman-portals@ff6000000 {
+		ranges = <0x0 0xf 0xf6000000 0x2000000>;
+	};
+
+	lportals: lac-portals@ff8000000 {
+		ranges = <0x0 0xf 0xf8000000 0x20000>;
 	};
 
 	soc: soc@ffe000000 {
@@ -118,6 +142,183 @@
 				compatible = "dallas,ds1374";
 				reg = <0x68>;
 				interrupts = <0x1 0x1 0 0>;
+			};
+			monitor@2f {
+				compatible = "w83793";
+				reg = <0x2f>;
+			};
+		};
+
+		fman0: fman@400000 {
+			enet0: ethernet@e0000 {
+				phy-handle = <&sgmiiphy21>;
+				phy-connection-type = "sgmii";
+			};
+
+			enet1: ethernet@e2000 {
+				phy-handle = <&sgmiiphy22>;
+				phy-connection-type = "sgmii";
+			};
+
+			enet2: ethernet@e4000 {
+				phy-handle = <&sgmiiphy23>;
+				phy-connection-type = "sgmii";
+			};
+
+			enet3: ethernet@e6000 {
+				phy-handle = <&sgmiiphy24>;
+				phy-connection-type = "sgmii";
+			};
+
+			enet4: ethernet@e8000 {
+				status = "disabled";
+			};
+
+			enet5: ethernet@ea000 {
+				status = "disabled";
+			};
+
+			enet6: ethernet@f0000 { /* FM1@TSEC9/FM1@TGEC1 */
+				phy-handle = <&xfiphy1>;
+				phy-connection-type = "xgmii";
+			};
+
+			enet7: ethernet@f2000 { /* FM1@TSEC10/FM1@TGEC2 */
+				phy-handle = <&xfiphy2>;
+				phy-connection-type = "xgmii";
+			};
+
+			mdio@fc000 {
+				status = "disabled";
+			};
+
+			mdio@fd000 {
+				status = "disabled";
+			};
+
+			fman0_oh2 {
+				status = "disabled";
+			};
+			fman0_oh3 {
+				status = "disabled";
+			};
+			fman0_oh4 {
+				status = "disabled";
+			};
+			fman0_oh5 {
+				status = "disabled";
+			};
+			fman0_oh6 {
+				status = "disabled";
+			};
+		};
+
+		fman1: fman@500000 {
+			enet8: ethernet@e0000 {
+				phy-handle = <&sgmiiphy41>;
+				phy-connection-type = "sgmii";
+			};
+
+			enet9: ethernet@e2000 {
+				phy-handle = <&sgmiiphy42>;
+				phy-connection-type = "sgmii";
+			};
+
+			enet10: ethernet@e4000 {
+				phy-handle = <&sgmiiphy43>;
+				phy-connection-type = "sgmii";
+			};
+
+			enet11: ethernet@e6000 {
+				phy-handle = <&sgmiiphy44>;
+				phy-connection-type = "sgmii";
+			};
+
+			enet12: ethernet@e8000 {
+				status = "disabled";
+			};
+
+			enet13: ethernet@ea000 {
+				status = "disabled";
+			};
+
+			enet14: ethernet@f0000 { /* FM2@TSEC9/FM2@TGEC1 */
+				phy-handle = <&xfiphy3>;
+				phy-connection-type = "xgmii";
+			};
+
+			enet15: ethernet@f2000 { /* FM2@TSEC10/FM2@TGEC2 */
+				phy-handle = <&xfiphy4>;
+				phy-connection-type = "xgmii";
+			};
+
+			mdio0: mdio@fc000 {
+				sgmiiphy21: ethernet-phy@0 {
+					reg = <0x0>;
+				};
+
+				sgmiiphy22: ethernet-phy@1 {
+					reg = <0x1>;
+				};
+
+				sgmiiphy23: ethernet-phy@2 {
+					reg = <0x2>;
+				};
+
+				sgmiiphy24: ethernet-phy@3 {
+					reg = <0x3>;
+				};
+
+				sgmiiphy41: ethernet-phy@4 {
+					reg = <0x4>;
+				};
+
+				sgmiiphy42: ethernet-phy@5 {
+					reg = <0x5>;
+				};
+
+				sgmiiphy43: ethernet-phy@6 {
+					reg = <0x6>;
+				};
+
+				sgmiiphy44: ethernet-phy@7 {
+					reg = <0x7>;
+				};
+			};
+
+			xmdio0: mdio@fd000 {
+				xfiphy1: ethernet-phy@10 {
+					compatible = "ethernet-phy-ieee802.3-c45";
+					reg = <0x10>;
+				};
+
+				xfiphy2: ethernet-phy@11 {
+					compatible = "ethernet-phy-ieee802.3-c45";
+					reg = <0x11>;
+				};
+
+				xfiphy3: ethernet-phy@13 {
+					compatible = "ethernet-phy-ieee802.3-c45";
+					reg = <0x13>;
+				};
+
+				xfiphy4: ethernet-phy@12 {
+					compatible = "ethernet-phy-ieee802.3-c45";
+					reg = <0x12>;
+				};
+			};
+
+			fman1_oh3 {
+				status = "disabled";
+			};
+			fman1_oh4 {
+				status = "disabled";
+			};
+			fman1_oh5 {
+				status = "disabled";
+			};
+			fman1_oh6 {
+				status = "disabled";
 			};
 		};
 
@@ -185,7 +386,6 @@
 				  0 0x00010000>;
 		};
 	};
-
 	rio: rapidio@ffe0c0000 {
 		reg = <0xf 0xfe0c0000 0 0x11000>;
 
@@ -196,6 +396,81 @@
 			ranges = <0 0 0xc 0x30000000 0 0x10000000>;
 		};
 	};
+
+	fsl,dpaa {
+		compatible = "fsl,t4240-dpaa", "fsl,dpaa";
+		ethernet@0 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet0>;
+		};
+		ethernet@1 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet1>;
+		};
+		ethernet@2 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet2>;
+		};
+		ethernet@3 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet3>;
+		};
+		ethernet@4 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet4>;
+			status = "disabled";
+		};
+		ethernet@5 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet5>;
+			status = "disabled";
+		};
+		ethernet@6 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet6>;
+		};
+		ethernet@7 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet7>;
+		};
+		ethernet@8 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet8>;
+		};
+		ethernet@9 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet9>;
+		};
+		ethernet@10 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet10>;
+		};
+		ethernet@11 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet11>;
+		};
+		ethernet@12 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet12>;
+			status = "disabled";
+		};
+		ethernet@13 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet13>;
+			status = "disabled";
+		};
+		ethernet@14 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet14>;
+		};
+		ethernet@15 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet15>;
+		};
+	};
 };
 
 /include/ "t4240si-post.dtsi"
+/include/ "qoriq-dpaa-res3.dtsi"
+/include/ "qoriq-qman-ceetm0.dtsi"
+/include/ "qoriq-qman-ceetm1.dtsi"
