@@ -435,4 +435,9 @@
 	raideng@320000 {
 		fsl,iommu-parent = <&pamu1>;
 	};
+
+/include/ "qoriq-rman-0.dtsi"
+	rman: rman@1e0000 {
+		fsl,qman-channels-id = <0x62 0x63>;
+	};
 };
