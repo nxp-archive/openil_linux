@@ -7,7 +7,8 @@ config NET_VENDOR_FREESCALE
 	default y
 	depends on FSL_SOC || QUICC_ENGINE || CPM1 || CPM2 || PPC_MPC512x || \
 		   M523x || M527x || M5272 || M528x || M520x || M532x || \
-		   ARCH_MXC || ARCH_MXS || (PPC_MPC52xx && PPC_BESTCOMM)
+		   ARCH_MXC || ARCH_MXS || (PPC_MPC52xx && PPC_BESTCOMM) || \
+		   ARCH_LAYERSCAPE
 	---help---
 	  If you have a network (Ethernet) card belonging to this class, say Y
 	  and read the Ethernet-HOWTO, available from
@@ -67,8 +68,8 @@ config FSL_XGMAC_MDIO
 	select PHYLIB
 	select OF_MDIO
 	---help---
-	  This driver supports the MDIO bus on the Fman 10G Ethernet MACs, and
-	  on the FMan mEMAC (which supports both Clauses 22 and 45)
+	  This driver supports the MDIO bus on the Fman 10G Ethernet MACs and
+	  on mEMAC (which supports both Clauses 22 and 45)
 
 config UCC_GETH
 	tristate "Freescale QE Gigabit Ethernet"
