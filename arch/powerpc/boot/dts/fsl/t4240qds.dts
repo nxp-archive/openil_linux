@@ -752,3 +752,5 @@
 
 /include/ "t4240si-post.dtsi"
 /include/ "qoriq-dpaa-res3.dtsi"
+/include/ "qoriq-qman-ceetm0.dtsi"
+/include/ "qoriq-qman-ceetm1.dtsi"

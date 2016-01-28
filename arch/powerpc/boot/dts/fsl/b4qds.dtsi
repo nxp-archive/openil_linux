@@ -218,3 +218,4 @@
 };
 
 /include/ "b4si-post.dtsi"
+/include/ "qoriq-qman-ceetm0.dtsi"
