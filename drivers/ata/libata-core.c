@@ -2099,6 +2099,21 @@ static int ata_dev_config_ncq(struct ata_device *dev,
 		dev->flags |= ATA_DFLAG_NCQ;
 	}
 
+	if ((ap->flags & ATA_FLAG_BROKENAA) &&
+		(ata_id_has_fpdma_aa(dev->id)) &&
+		(ata_id_enabled_fpdma_aa(dev->id))) {
+		err_mask = ata_dev_set_feature(dev, SETFEATURES_SATA_DISABLE,
+			SATA_FPDMA_AA);
+		if (err_mask) {
+			ata_dev_printk(dev, KERN_ERR, "failed to disable AA"
+				"(error_mask=0x%x)\n", err_mask);
+			/* turn off NCQ if failed disable SATA_FPDMA_AA */
+			hdepth = 1;
+			dev->flags &= ~ATA_DFLAG_NCQ;
+			dev->flags |= ATA_DFLAG_NCQ_OFF;
+		}
+	}
+
 	if (!(dev->horkage & ATA_HORKAGE_BROKEN_FPDMA_AA) &&
 		(ap->flags & ATA_FLAG_FPDMA_AA) &&
 		ata_id_has_fpdma_aa(dev->id)) {

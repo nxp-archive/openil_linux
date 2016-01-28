@@ -1,6 +1,7 @@
 #ifndef _ASM_POWERPC_CPUTHREADS_H
 #define _ASM_POWERPC_CPUTHREADS_H
 
+#ifndef __ASSEMBLY__
 #include <linux/cpumask.h>
 
 /*
@@ -92,6 +93,12 @@ static inline int cpu_last_thread_sibling(int cpu)
 }
 
 
+void book3e_start_thread(int thread, unsigned long addr);
+void book3e_stop_thread(int thread);
+
+#endif /* __ASSEMBLY__ */
+
+#define INVALID_THREAD_HWID	0x0fff
 
 #endif /* _ASM_POWERPC_CPUTHREADS_H */
 

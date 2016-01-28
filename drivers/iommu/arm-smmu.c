@@ -46,6 +46,16 @@
 
 #include "io-pgtable.h"
 
+#ifdef CONFIG_FSL_MC_BUS
+#include <../drivers/staging/fsl-mc/include/mc.h>
+#endif
+
+#ifdef CONFIG_PCI_LAYERSCAPE
+#include <../drivers/pci/host/pci-layerscape.h>
+#endif
+
+#include <asm/pgalloc.h>
+
 /* Maximum number of stream IDs assigned to a single device */
 #define MAX_MASTER_STREAMIDS		MAX_PHANDLE_ARGS
 
@@ -265,6 +275,7 @@ struct arm_smmu_smr {
 struct arm_smmu_master_cfg {
 	int				num_streamids;
 	u16				streamids[MAX_MASTER_STREAMIDS];
+	u16				mask;
 	struct arm_smmu_smr		*smrs;
 };
 
@@ -340,6 +351,9 @@ struct arm_smmu_domain {
 };
 
 static struct iommu_ops arm_smmu_ops;
+#ifdef CONFIG_FSL_MC_BUS
+static struct iommu_ops arm_fsl_mc_smmu_ops;
+#endif
 
 static DEFINE_SPINLOCK(arm_smmu_devices_lock);
 static LIST_HEAD(arm_smmu_devices);
@@ -353,6 +367,38 @@ static struct arm_smmu_option_prop arm_smmu_options[] = {
 	{ ARM_SMMU_OPT_SECURE_CFG_ACCESS, "calxeda,smmu-secure-config-access" },
 	{ 0, NULL},
 };
+#define CONFIG_AIOP_ERRATA
+#ifdef CONFIG_AIOP_ERRATA
+/*
+ * PL = 1, BMT = 1, VA = 1
+ */
+#define AIOP_SMR_VALUE 0x380
+/*
+ * Following should be set:
+ * SHCFG: 0x3
+ * MTCFG: 0x1
+ * MemAttr: 0xf
+ * Type: 0x1
+ * RACFG: 0x2
+ * WACFG: 0x2
+ */
+#define AIOP_S2CR_VALUE 0xA1FB00
+
+static void arm_smmu_aiop_attr_trans(struct arm_smmu_device *smmu)
+{
+	void __iomem *gr0_base = ARM_SMMU_GR0(smmu);
+	u16 mask = 0x7c7f;
+	int index;
+	u32 reg;
+	/* reserve one smr group for AIOP */
+	index = --smmu->num_mapping_groups;
+
+	reg = SMR_VALID | AIOP_SMR_VALUE << SMR_ID_SHIFT |
+		  mask << SMR_MASK_SHIFT;
+	writel(reg, gr0_base + ARM_SMMU_GR0_SMR(index));
+	writel(AIOP_S2CR_VALUE, gr0_base + ARM_SMMU_GR0_S2CR(index));
+}
+#endif
 
 static struct arm_smmu_domain *to_smmu_domain(struct iommu_domain *dom)
 {
@@ -382,6 +428,16 @@ static struct device_node *dev_get_dev_node(struct device *dev)
 			bus = bus->parent;
 		return bus->bridge->parent->of_node;
 	}
+
+#ifdef CONFIG_FSL_MC_BUS
+	if (dev->bus == &fsl_mc_bus_type) {
+		/*
+		 * Get to the MC device tree node.
+		 */
+		while (dev->bus == &fsl_mc_bus_type)
+			dev = dev->parent;
+	}
+#endif
 
 	return dev->of_node;
 }
@@ -803,7 +859,8 @@ static void arm_smmu_init_context_bank(struct arm_smmu_domain *smmu_domain,
 	}
 
 	/* SCTLR */
-	reg = SCTLR_CFCFG | SCTLR_CFIE | SCTLR_CFRE | SCTLR_M | SCTLR_EAE_SBOP;
+	/* Disable stall mode */
+	reg = SCTLR_CFIE | SCTLR_CFRE | SCTLR_M | SCTLR_EAE_SBOP;
 	if (stage1)
 		reg |= SCTLR_S1_ASIDPNE;
 #ifdef __BIG_ENDIAN
@@ -910,6 +967,9 @@ static int arm_smmu_init_domain_context(struct iommu_domain *domain,
 
 	/* Update our support page sizes to reflect the page table format */
 	arm_smmu_ops.pgsize_bitmap = pgtbl_cfg.pgsize_bitmap;
+#ifdef CONFIG_FSL_MC_BUS
+	arm_fsl_mc_smmu_ops.pgsize_bitmap = pgtbl_cfg.pgsize_bitmap;
+#endif
 
 	/* Initialise the context bank with our page table cfg */
 	arm_smmu_init_context_bank(smmu_domain, &pgtbl_cfg);
@@ -1033,7 +1093,7 @@ static int arm_smmu_master_configure_smrs(struct arm_smmu_device *smmu,
 
 		smrs[i] = (struct arm_smmu_smr) {
 			.idx	= idx,
-			.mask	= 0, /* We don't currently share SMRs */
+			.mask	= cfg->mask,
 			.id	= cfg->streamids[i],
 		};
 	}
@@ -1321,6 +1381,9 @@ static int arm_smmu_add_pci_device(struct pci_dev *pdev)
 	u16 sid;
 	struct iommu_group *group;
 	struct arm_smmu_master_cfg *cfg;
+#ifdef CONFIG_PCI_LAYERSCAPE
+       u32 streamid;
+#endif
 
 	group = iommu_group_get_for_dev(&pdev->dev);
 	if (IS_ERR(group))
@@ -1355,6 +1418,19 @@ static int arm_smmu_add_pci_device(struct pci_dev *pdev)
 	/* Avoid duplicate SIDs, as this can lead to SMR conflicts */
 	if (i == cfg->num_streamids)
 		cfg->streamids[cfg->num_streamids++] = sid;
+
+#ifdef CONFIG_PCI_LAYERSCAPE
+	streamid = set_pcie_streamid_translation(pdev, sid);
+	if (~streamid == 0) {
+		ret = -ENODEV;
+		goto out_put_group;
+	}
+	cfg->streamids[0] = streamid;
+	cfg->mask = 0x7c00;
+
+	pdev->dev_flags |= PCI_DEV_FLAGS_DMA_ALIAS_DEVID;
+	pdev->dma_alias_devid = streamid;
+#endif
 
 	return 0;
 out_put_group:
@@ -1457,6 +1533,91 @@ static struct iommu_ops arm_smmu_ops = {
 	.domain_set_attr	= arm_smmu_domain_set_attr,
 	.pgsize_bitmap		= -1UL, /* Restricted during device attach */
 };
+
+#ifdef CONFIG_FSL_MC_BUS
+
+static void arm_smmu_release_fsl_mc_iommudata(void *data)
+{
+	kfree(data);
+}
+
+/*
+ * IOMMU group creation and stream ID programming for
+ * the LS devices
+ *
+ */
+static int arm_fsl_mc_smmu_add_device(struct device *dev)
+{
+	struct device *cont_dev;
+	struct fsl_mc_device *mc_dev;
+	struct iommu_group *group;
+	struct arm_smmu_master_cfg *cfg;
+	int ret = 0;
+
+	mc_dev = to_fsl_mc_device(dev);
+	if (mc_dev->flags & FSL_MC_IS_DPRC)
+		cont_dev = dev;
+	else
+		cont_dev = mc_dev->dev.parent;
+
+	get_device(cont_dev);
+	group = iommu_group_get(cont_dev);
+	put_device(cont_dev);
+	if (!group) {
+		void (*releasefn)(void *) = NULL;
+
+		group = iommu_group_alloc();
+		if (IS_ERR(group))
+			return PTR_ERR(group);
+		/*
+		 * allocate the cfg for the container and associate it with
+		 * the iommu group. In the find cfg function we get the cfg
+		 * from the iommu group.
+		 */
+		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+		if (!cfg)
+			return -ENOMEM;
+
+		mc_dev = to_fsl_mc_device(cont_dev);
+		cfg->num_streamids = 1;
+		cfg->streamids[0] = mc_dev->icid;
+		cfg->mask = 0x7c00;
+		releasefn = arm_smmu_release_fsl_mc_iommudata;
+		iommu_group_set_iommudata(group, cfg, releasefn);
+		ret = iommu_group_add_device(group, cont_dev);
+	}
+
+	if (!ret && cont_dev != dev)
+		ret = iommu_group_add_device(group, dev);
+
+	iommu_group_put(group);
+
+	return ret;
+}
+
+static void arm_fsl_mc_smmu_remove_device(struct device *dev)
+{
+	iommu_group_remove_device(dev);
+
+}
+
+static struct iommu_ops arm_fsl_mc_smmu_ops = {
+	.capable		= arm_smmu_capable,
+	.domain_alloc		= arm_smmu_domain_alloc,
+	.domain_free		= arm_smmu_domain_free,
+	.attach_dev		= arm_smmu_attach_dev,
+	.detach_dev		= arm_smmu_detach_dev,
+	.map			= arm_smmu_map,
+	.unmap			= arm_smmu_unmap,
+	.map_sg			= default_iommu_map_sg,
+	.iova_to_phys		= arm_smmu_iova_to_phys,
+	.add_device		= arm_fsl_mc_smmu_add_device,
+	.remove_device		= arm_fsl_mc_smmu_remove_device,
+	.domain_get_attr	= arm_smmu_domain_get_attr,
+	.domain_set_attr	= arm_smmu_domain_set_attr,
+	.pgsize_bitmap	= -1UL, /* Restricted during device attach */
+};
+#endif
 
 static void arm_smmu_device_reset(struct arm_smmu_device *smmu)
 {
@@ -1804,6 +1965,10 @@ static int arm_smmu_device_dt_probe(struct platform_device *pdev)
 	spin_unlock(&arm_smmu_devices_lock);
 
 	arm_smmu_device_reset(smmu);
+		/* AIOP Rev1 errata work around */
+#ifdef CONFIG_AIOP_ERRATA
+		arm_smmu_aiop_attr_trans(smmu);
+#endif
 	return 0;
 
 out_free_irqs:
@@ -1900,6 +2065,10 @@ static int __init arm_smmu_init(void)
 		bus_set_iommu(&pci_bus_type, &arm_smmu_ops);
 #endif
 
+#ifdef CONFIG_FSL_MC_BUS
+	if (!iommu_present(&fsl_mc_bus_type))
+		bus_set_iommu(&fsl_mc_bus_type, &arm_fsl_mc_smmu_ops);
+#endif
 	return 0;
 }
 
