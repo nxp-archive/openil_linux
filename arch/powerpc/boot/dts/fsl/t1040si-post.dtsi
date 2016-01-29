@@ -393,7 +393,7 @@
 	};
 
 	rcpm: global-utilities@e2000 {
-		compatible = "fsl,t1040-rcpm", "fsl,qoriq-rcpm-2.0";
+		compatible = "fsl,t1040-rcpm", "fsl,qoriq-rcpm-2.1";
 		reg = <0xe2000 0x1000>;
 	};
 
@@ -405,6 +405,11 @@
 	serdes: serdes@ea000 {
 		compatible = "fsl,t1040-serdes";
 		reg	   = <0xea000 0x4000>;
+	};
+
+	scfg: global-utilities@fc000 {
+		compatible = "fsl,t1040-scfg";
+		reg = <0xfc000 0x1000>;
 	};
 
 /include/ "elo3-dma-0.dtsi"
@@ -420,12 +425,16 @@
 		fsl,iommu-parent = <&pamu0>;
 		fsl,liodn-reg = <&guts 0x530>; /* eSDHCLIODNR */
 		sdhci,auto-cmd12;
+		rcpm-wakeup = <&rcpm 0x00000080>;
 	};
 /include/ "qoriq-i2c-0.dtsi"
 /include/ "qoriq-i2c-1.dtsi"
 /include/ "qoriq-duart-0.dtsi"
 /include/ "qoriq-duart-1.dtsi"
 /include/ "qoriq-gpio-0.dtsi"
+	gpio@130000 {
+		rcpm-wakeup = <&rcpm 0x00000040>;
+	};
 /include/ "qoriq-gpio-1.dtsi"
 /include/ "qoriq-gpio-2.dtsi"
 /include/ "qoriq-gpio-3.dtsi"
@@ -435,6 +444,7 @@
 			fsl,iommu-parent = <&pamu0>;
 			fsl,liodn-reg = <&guts 0x520>; /* USB1LIODNR */
 			phy_type = "utmi";
+			rcpm-wakeup = <&rcpm 0x00000020>;
 			port0;
 		};
 /include/ "qoriq-usb2-dr-0.dtsi"
@@ -444,6 +454,7 @@
 			fsl,liodn-reg = <&guts 0x524>; /* USB2LIODNR */
 			dr_mode = "host";
 			phy_type = "utmi";
+			rcpm-wakeup = <&rcpm 0x00000010>;
 		};
 
 	display@180000 {

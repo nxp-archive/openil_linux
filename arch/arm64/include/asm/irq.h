@@ -5,6 +5,14 @@
 
 #include <asm-generic/irq.h>
 
+/*
+ * Use this value to indicate lack of interrupt
+ * capability
+ */
+#ifndef NO_IRQ
+#define NO_IRQ	((unsigned int)(-1))
+#endif
+
 struct pt_regs;
 
 extern void migrate_irqs(void);

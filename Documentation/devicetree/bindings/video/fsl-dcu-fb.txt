@@ -1,0 +1,69 @@
+* Freescale Display Control Unit (DCU)
+
+=== For dcu node ===
+Required properties:
+- compatible:		Should be one of "fsl,vf610-dcu" and "fsl,ls1021a-dcu".
+- reg:			Address and length of the register set for DCU.
+- interrupts:		Should contain DCU interrupts.
+- clocks:		From common clock binding: handle to DCU clock.
+- clock-names:		From common clock binding: Shall be "dcu".
+- display:		The phandle to display node.
+
+Optional properties:
+- tcon-controller:	The phandle of TCON controller.
+- scfg-controller:	The phandle of scfg node.
+
+=== For display sub-node ===
+Required properties:
+- bits-per-pixel:	<24> for RGB888.
+
+Required timing node for dispplay sub-node:
+- display-timings:	Refer to binding doc display-timing.txt for details.
+
+=== For TCON node ===
+Required properties:
+- compatible:		Should be "fsl,tcon".
+- reg:			Address and length of the register set for TCON.
+- clocks:		From common clock binding: handle to TCON clock.
+- clock-names:		From common clock binding: Shall be "tcon".
+
+Examples:
+
+dcu0: dcu@40058000 {
+	compatible = "fsl,vf610-dcu";
+	reg = <0x40058000 0x1200>;
+	interrupts = <0 30 0x04>;
+	clocks = <&clks VF610_CLK_DCU0>;
+	clock-names = "dcu";
+	tcon-controller = <&tcon0>;
+	scfg-controller = <&scfg>;
+	display = <&display>;
+
+	display: display@0 {
+		bits-per-pixel = <24>;
+
+		display-timings {
+			native-mode = <&timing0>;
+			timing0: nl4827hc19 {
+				clock-frequency = <10870000>;
+				hactive = <480>;
+				vactive = <272>;
+				hback-porch = <2>;
+				hfront-porch = <2>;
+				vback-porch = <1>;
+				vfront-porch = <1>;
+				hsync-len = <41>;
+				vsync-len = <2>;
+				hsync-active = <1>;
+				vsync-active = <1>;
+			};
+		};
+	};
+};
+
+tcon0: tcon@4003d000 {
+	compatible = "fsl,vf610-tcon";
+	reg = <0x4003d000 0x1000>;
+	clocks = <&clks VF610_CLK_TCON0>;
+	clock-names = "tcon";
+};
