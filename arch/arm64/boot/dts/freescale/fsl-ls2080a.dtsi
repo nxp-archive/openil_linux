@@ -413,6 +413,7 @@
 		reg = <0x0 0x3100000 0x0 0x10000>;
 		interrupts = <0 80 0x4>; /* Level high type */
 		dr_mode = "host";
+		configure-gfladj;
 	};
 
 	usb1: usb3@3110000 {
@@ -420,6 +421,7 @@
 		reg = <0x0 0x3110000 0x0 0x10000>;
 		interrupts = <0 81 0x4>; /* Level high type */
 		dr_mode = "host";
+		configure-gfladj;
 	};
 
 	smmu: iommu@5000000 {
