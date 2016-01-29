@@ -8,7 +8,7 @@ source "drivers/soc/versatile/Kconfig"
 
 config	FSL_SOC_DRIVERS
 	bool "Freescale Soc Drivers"
-	depends on FSL_SOC || ARCH_MXC
+	depends on FSL_SOC || ARCH_MXC || ARCH_LAYERSCAPE
 	default n
 	help
 	Say y here to enable Freescale Soc Device Drivers support.
