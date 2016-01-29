@@ -76,6 +76,7 @@
 
 		qman = &qman;
 		bman = &bman;
+		fman0 = &fman0;
 
 		raideng = &raideng;
 		raideng_jr0 = &raideng_jr0;
