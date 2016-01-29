@@ -15,8 +15,8 @@
 #ifndef __UCC_H__
 #define __UCC_H__
 
-#include <asm/immap_qe.h>
-#include <asm/qe.h>
+#include <soc/fsl/qe/immap_qe.h>
+#include <soc/fsl/qe/qe.h>
 
 #define STATISTICS
 
@@ -40,6 +40,10 @@ int ucc_set_type(unsigned int ucc_num, enum ucc_speed_type speed);
 int ucc_set_qe_mux_mii_mng(unsigned int ucc_num);
 
 int ucc_set_qe_mux_rxtx(unsigned int ucc_num, enum qe_clock clock,
+	enum comm_dir mode);
+int ucc_set_tdm_rxtx_clk(unsigned int tdm_num, enum qe_clock clock,
+	enum comm_dir mode);
+int ucc_set_tdm_rxtx_sync(unsigned int tdm_num, enum qe_clock clock,
 	enum comm_dir mode);
 
 int ucc_mux_set_grant_tsa_bkpt(unsigned int ucc_num, int set, u32 mask);

@@ -324,6 +324,8 @@ source "drivers/s390/net/Kconfig"
 
 source "drivers/net/usb/Kconfig"
 
+source "drivers/net/tdm/Kconfig"
+
 source "drivers/net/wireless/Kconfig"
 
 source "drivers/net/wimax/Kconfig"

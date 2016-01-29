@@ -16,12 +16,14 @@
  */
 #include <linux/errno.h>
 #include <linux/sched.h>
+#include <linux/wait.h>
 #include <linux/kernel.h>
 #include <linux/param.h>
 #include <linux/string.h>
 #include <linux/spinlock.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
+#include <linux/jiffies.h>
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/ioport.h>
@@ -31,14 +33,13 @@
 #include <asm/irq.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
-#include <asm/immap_qe.h>
-#include <asm/qe.h>
-#include <asm/prom.h>
-#include <asm/rheap.h>
+#include <soc/fsl/qe/immap_qe.h>
+#include <soc/fsl/qe/qe.h>
 
 static void qe_snums_init(void);
 static int qe_sdma_init(void);
 
+static DECLARE_WAIT_QUEUE_HEAD(wait_q);
 static DEFINE_SPINLOCK(qe_lock);
 DEFINE_SPINLOCK(cmxgcr_lock);
 EXPORT_SYMBOL(cmxgcr_lock);
@@ -69,8 +70,8 @@ static phys_addr_t qebase = -1;
 phys_addr_t get_qe_base(void)
 {
 	struct device_node *qe;
-	int size;
-	const u32 *prop;
+	int ret;
+	struct resource res;
 
 	if (qebase != -1)
 		return qebase;
@@ -82,9 +83,9 @@ phys_addr_t get_qe_base(void)
 			return qebase;
 	}
 
-	prop = of_get_property(qe, "reg", &size);
-	if (prop && size >= sizeof(*prop))
-		qebase = of_translate_address(qe, prop);
+	ret = of_address_to_resource(qe, 0, &res);
+	if (!ret)
+		qebase = res.start;
 	of_node_put(qe);
 
 	return qebase;
@@ -117,7 +118,7 @@ int qe_issue_cmd(u32 cmd, u32 device, u8 mcn_protocol, u32 cmd_input)
 
 	spin_lock_irqsave(&qe_lock, flags);
 	if (cmd == QE_RESET) {
-		out_be32(&qe_immr->cp.cecr, (u32) (cmd | QE_CR_FLG));
+		iowrite32be((u32)(cmd | QE_CR_FLG), &qe_immr->cp.cecr);
 	} else {
 		if (cmd == QE_ASSIGN_PAGE) {
 			/* Here device is the SNUM, not sub-block */
@@ -134,15 +135,15 @@ int qe_issue_cmd(u32 cmd, u32 device, u8 mcn_protocol, u32 cmd_input)
 				mcn_shift = QE_CR_MCN_NORMAL_SHIFT;
 		}
 
-		out_be32(&qe_immr->cp.cecdr, cmd_input);
-		out_be32(&qe_immr->cp.cecr,
-			 (cmd | QE_CR_FLG | ((u32) device << dev_shift) | (u32)
-			  mcn_protocol << mcn_shift));
+		iowrite32be(cmd_input, &qe_immr->cp.cecdr);
+		iowrite32be((cmd | QE_CR_FLG | ((u32)device << dev_shift) |
+			    (u32)mcn_protocol << mcn_shift), &qe_immr->cp.cecr);
 	}
 
 	/* wait for the QE_CR_FLG to clear */
-	ret = spin_event_timeout((in_be32(&qe_immr->cp.cecr) & QE_CR_FLG) == 0,
-			   100, 0);
+	ret = wait_event_timeout(wait_q,
+				 (ioread32be(&qe_immr->cp.cecr) & QE_CR_FLG)
+				 == 0, usecs_to_jiffies(100));
 	/* On timeout (e.g. failure), the expression will be false (ret == 0),
 	   otherwise it will be true (ret == 1). */
 	spin_unlock_irqrestore(&qe_lock, flags);
@@ -166,8 +167,8 @@ static unsigned int brg_clk = 0;
 unsigned int qe_get_brg_clk(void)
 {
 	struct device_node *qe;
-	int size;
-	const u32 *prop;
+	u32 val;
+	int ret;
 
 	if (brg_clk)
 		return brg_clk;
@@ -179,9 +180,9 @@ unsigned int qe_get_brg_clk(void)
 			return brg_clk;
 	}
 
-	prop = of_get_property(qe, "brg-frequency", &size);
-	if (prop && size == sizeof(*prop))
-		brg_clk = *prop;
+	ret = of_property_read_u32_index(qe, "brg-frequency", 0, &val);
+	if (!ret)
+		brg_clk = val;
 
 	of_node_put(qe);
 
@@ -221,7 +222,7 @@ int qe_setbrg(enum qe_clock brg, unsigned int rate, unsigned int multiplier)
 	tempval = ((divisor - 1) << QE_BRGC_DIVISOR_SHIFT) |
 		QE_BRGC_ENABLE | div16;
 
-	out_be32(&qe_immr->brg.brgc[brg - QE_BRG1], tempval);
+	iowrite32be(tempval, &qe_immr->brg.brgc[brg - QE_BRG1]);
 
 	return 0;
 }
@@ -238,6 +239,12 @@ enum qe_clock qe_clock_source(const char *source)
 
 	if (strcasecmp(source, "none") == 0)
 		return QE_CLK_NONE;
+
+	if (strcasecmp(source, "tsync_pin") == 0)
+		return QE_TSYNC_PIN;
+
+	if (strcasecmp(source, "rsync_pin") == 0)
+		return QE_RSYNC_PIN;
 
 	if (strncasecmp(source, "brg", 3) == 0) {
 		i = simple_strtoul(source + 3, NULL, 10);
@@ -349,9 +356,9 @@ static int qe_sdma_init(void)
 			return -ENOMEM;
 	}
 
-	out_be32(&sdma->sdebcr, (u32) sdma_buf_offset & QE_SDEBCR_BA_MASK);
- 	out_be32(&sdma->sdmr, (QE_SDMR_GLB_1_MSK |
- 					(0x1 << QE_SDMR_CEN_SHIFT)));
+	iowrite32be((u32)sdma_buf_offset & QE_SDEBCR_BA_MASK, &sdma->sdebcr);
+	iowrite32be((QE_SDMR_GLB_1_MSK | (0x1 << QE_SDMR_CEN_SHIFT)),
+		    &sdma->sdmr);
 
 	return 0;
 }
@@ -389,14 +396,14 @@ static void qe_upload_microcode(const void *base,
 			"uploading microcode '%s'\n", ucode->id);
 
 	/* Use auto-increment */
-	out_be32(&qe_immr->iram.iadd, be32_to_cpu(ucode->iram_offset) |
-		QE_IRAM_IADD_AIE | QE_IRAM_IADD_BADDR);
+	iowrite32be(be32_to_cpu(ucode->iram_offset) | QE_IRAM_IADD_AIE |
+		    QE_IRAM_IADD_BADDR, &qe_immr->iram.iadd);
 
 	for (i = 0; i < be32_to_cpu(ucode->count); i++)
-		out_be32(&qe_immr->iram.idata, be32_to_cpu(code[i]));
+		iowrite32be(be32_to_cpu(code[i]), &qe_immr->iram.idata);
 	
 	/* Set I-RAM Ready Register */
-	out_be32(&qe_immr->iram.iready, be32_to_cpu(QE_IRAM_READY));
+	iowrite32be(be32_to_cpu(QE_IRAM_READY), &qe_immr->iram.iready);
 }
 
 /*
@@ -481,7 +488,7 @@ int qe_upload_firmware(const struct qe_firmware *firmware)
 	 * If the microcode calls for it, split the I-RAM.
 	 */
 	if (!firmware->split)
-		setbits16(&qe_immr->cp.cercr, QE_CP_CERCR_CIR);
+		qe_setbits16(&qe_immr->cp.cercr, QE_CP_CERCR_CIR);
 
 	if (firmware->soc.model)
 		printk(KERN_INFO
@@ -515,11 +522,11 @@ int qe_upload_firmware(const struct qe_firmware *firmware)
 			u32 trap = be32_to_cpu(ucode->traps[j]);
 
 			if (trap)
-				out_be32(&qe_immr->rsp[i].tibcr[j], trap);
+				iowrite32be(trap, &qe_immr->rsp[i].tibcr[j]);
 		}
 
 		/* Enable traps */
-		out_be32(&qe_immr->rsp[i].eccr, be32_to_cpu(ucode->eccr));
+		iowrite32be(be32_to_cpu(ucode->eccr), &qe_immr->rsp[i].eccr);
 	}
 
 	qe_firmware_uploaded = 1;
@@ -638,9 +645,9 @@ EXPORT_SYMBOL(qe_get_num_of_risc);
 unsigned int qe_get_num_of_snums(void)
 {
 	struct device_node *qe;
-	int size;
 	unsigned int num_of_snums;
-	const u32 *prop;
+	u32 val;
+	int ret;
 
 	num_of_snums = 28; /* The default number of snum for threads is 28 */
 	qe = of_find_compatible_node(NULL, NULL, "fsl,qe");
@@ -654,9 +661,9 @@ unsigned int qe_get_num_of_snums(void)
 			return num_of_snums;
 	}
 
-	prop = of_get_property(qe, "fsl,qe-num-snums", &size);
-	if (prop && size == sizeof(*prop)) {
-		num_of_snums = *prop;
+	ret = of_property_read_u32_index(qe, "fsl,qe-num-snums", 0, &val);
+	if (!ret) {
+		num_of_snums = val;
 		if ((num_of_snums < 28) || (num_of_snums > QE_NUM_OF_SNUM)) {
 			/* No QE ever has fewer than 28 SNUMs */
 			pr_err("QE: number of snum is invalid\n");
@@ -670,6 +677,19 @@ unsigned int qe_get_num_of_snums(void)
 	return num_of_snums;
 }
 EXPORT_SYMBOL(qe_get_num_of_snums);
+
+static int __init qe_init(void)
+{
+	struct device_node *np;
+
+	np = of_find_compatible_node(NULL, NULL, "fsl,qe");
+	if (!np)
+		return -ENODEV;
+	qe_reset();
+	of_node_put(np);
+	return 0;
+}
+subsys_initcall(qe_init);
 
 #if defined(CONFIG_SUSPEND) && defined(CONFIG_PPC_85xx)
 static int qe_resume(struct platform_device *ofdev)

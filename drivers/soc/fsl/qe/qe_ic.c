@@ -14,9 +14,14 @@
  * option) any later version.
  */
 
+#include <linux/of_irq.h>
+#include <linux/of_address.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/irqdomain.h>
 #include <linux/errno.h>
+#include <linux/of_address.h>
+#include <linux/of_irq.h>
 #include <linux/reboot.h>
 #include <linux/slab.h>
 #include <linux/stddef.h>
@@ -26,10 +31,10 @@
 #include <linux/spinlock.h>
 #include <asm/irq.h>
 #include <asm/io.h>
-#include <asm/prom.h>
-#include <asm/qe_ic.h>
+#include <soc/fsl/qe/qe_ic.h>
 
 #include "qe_ic.h"
+#include "../../../irqchip/irqchip.h"
 
 static DEFINE_RAW_SPINLOCK(qe_ic_lock);
 
@@ -176,13 +181,13 @@ static struct qe_ic_info qe_ic_info[] = {
 
 static inline u32 qe_ic_read(volatile __be32  __iomem * base, unsigned int reg)
 {
-	return in_be32(base + (reg >> 2));
+	return ioread32be(base + (reg >> 2));
 }
 
 static inline void qe_ic_write(volatile __be32  __iomem * base, unsigned int reg,
 			       u32 value)
 {
-	out_be32(base + (reg >> 2), value);
+	iowrite32be(value, base + (reg >> 2));
 }
 
 static inline struct qe_ic *qe_ic_from_irq(unsigned int virq)
@@ -496,5 +501,19 @@ static int __init init_qe_ic_sysfs(void)
 	}
 	return 0;
 }
+
+static int __init qeic_of_init(void)
+{
+	struct device_node *np;
+
+	np = of_find_compatible_node(NULL, NULL, "fsl,qe-ic");
+	if (np) {
+		qe_ic_init(np, 0, qe_ic_cascade_low_mpic,
+			   qe_ic_cascade_high_mpic);
+		of_node_put(np);
+	}
+	return 0;
+}
+subsys_initcall(qeic_of_init);
 
 subsys_initcall(init_qe_ic_sysfs);

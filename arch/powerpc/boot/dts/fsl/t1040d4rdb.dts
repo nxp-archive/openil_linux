@@ -41,6 +41,22 @@
 	#address-cells = <2>;
 	#size-cells = <2>;
 	interrupt-parent = <&mpic>;
+
+	soc: soc@ffe000000 {
+		spi@110000 {
+			slic@1 {
+				compatible = "maxim,ds26522";
+				reg = <1>;
+				spi-max-frequency = <2000000>;
+			};
+
+			slic@2 {
+				compatible = "maxim,ds26522";
+				reg = <2>;
+				spi-max-frequency = <2000000>;
+			};
+		};
+	};
 };
 
 /include/ "t1040si-post.dtsi"
