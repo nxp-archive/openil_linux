@@ -1,7 +1,7 @@
 /*
  * P2041RDB Device Tree Source
  *
- * Copyright 2011 - 2014 Freescale Semiconductor Inc.
+ * Copyright 2011 - 2016 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -40,6 +40,25 @@
 	#address-cells = <2>;
 	#size-cells = <2>;
 	interrupt-parent = <&mpic>;
+
+	aliases {
+		ethernet0 = &enet0;
+		ethernet1 = &enet1;
+		ethernet2 = &enet2;
+		ethernet3 = &enet3;
+		ethernet4 = &enet4;
+		ethernet5 = &enet5;
+		phy_rgmii_0 = &phy_rgmii_0;
+		phy_rgmii_1 = &phy_rgmii_1;
+		phy_sgmii_2 = &phy_sgmii_2;
+		phy_sgmii_3 = &phy_sgmii_3;
+		phy_sgmii_4 = &phy_sgmii_4;
+		phy_sgmii_1c = &phy_sgmii_1c;
+		phy_sgmii_1d = &phy_sgmii_1d;
+		phy_sgmii_1e = &phy_sgmii_1e;
+		phy_sgmii_1f = &phy_sgmii_1f;
+		phy_xgmii_2 = &phy_xgmii_2;
+	};
 
 	memory {
 		device_type = "memory";
@@ -136,6 +155,118 @@
 
 		usb1: usb@211000 {
 			dr_mode = "host";
+		};
+
+		fman0: fman@400000 {
+			enet0: ethernet@e0000 {
+				tbi-handle = <&tbi0>;
+				phy-handle = <&phy_sgmii_2>;
+				phy-connection-type = "sgmii";
+			};
+
+			mdio0: mdio@e1120 {
+				tbi0: tbi-phy@8 {
+					reg = <0x8>;
+					device_type = "tbi-phy";
+				};
+
+				phy_rgmii_0: ethernet-phy@0 {
+					reg = <0x0>;
+				};
+				phy_rgmii_1: ethernet-phy@1 {
+					reg = <0x1>;
+				};
+				phy_sgmii_2: ethernet-phy@2 {
+					reg = <0x2>;
+				};
+				phy_sgmii_3: ethernet-phy@3 {
+					reg = <0x3>;
+				};
+				phy_sgmii_4: ethernet-phy@4 {
+					reg = <0x4>;
+				};
+				phy_sgmii_1c: ethernet-phy@1c {
+					reg = <0x1c>;
+				};
+				phy_sgmii_1d: ethernet-phy@1d {
+					reg = <0x1d>;
+				};
+				phy_sgmii_1e: ethernet-phy@1e {
+					reg = <0x1e>;
+				};
+				phy_sgmii_1f: ethernet-phy@1f {
+					reg = <0x1f>;
+				};
+			};
+
+			enet1: ethernet@e2000 {
+				tbi-handle = <&tbi1>;
+				phy-handle = <&phy_sgmii_3>;
+				phy-connection-type = "sgmii";
+			};
+
+			mdio@e3120 {
+				tbi1: tbi-phy@8 {
+					reg = <8>;
+					device_type = "tbi-phy";
+				};
+			};
+
+			enet2: ethernet@e4000 {
+				tbi-handle = <&tbi2>;
+				phy-handle = <&phy_sgmii_4>;
+				phy-connection-type = "sgmii";
+			};
+
+			mdio@e5120 {
+				tbi2: tbi-phy@8 {
+					reg = <8>;
+					device_type = "tbi-phy";
+				};
+			};
+
+			enet3: ethernet@e6000 {
+				tbi-handle = <&tbi3>;
+				phy-handle = <&phy_rgmii_1>;
+				phy-connection-type = "rgmii";
+			};
+
+			mdio@e7120 {
+				tbi3: tbi-phy@8 {
+					reg = <8>;
+					device_type = "tbi-phy";
+				};
+			};
+
+			enet4: ethernet@e8000 {
+				tbi-handle = <&tbi4>;
+				phy-handle = <&phy_rgmii_0>;
+				phy-connection-type = "rgmii";
+			};
+
+			mdio@e9120 {
+				tbi4: tbi-phy@8 {
+					reg = <8>;
+					device_type = "tbi-phy";
+				};
+			};
+
+			enet5: ethernet@f0000 {
+				/*
+				 * phy-handle will be updated by U-Boot to
+				 * reflect the actual slot the XAUI card is in.
+				 */
+				phy-handle = <&phy_xgmii_2>;
+				phy-connection-type = "xgmii";
+			};
+
+			mdio@f1000 {
+				/* XAUI card in slot 2 */
+				phy_xgmii_2: ethernet-phy@0 {
+					compatible = "ethernet-phy-ieee802.3-c45";
+					reg = <0x0>;
+				};
+			};
 		};
 	};
 
@@ -243,6 +374,35 @@
 				  0x01000000 0 0x00000000
 				  0x01000000 0 0x00000000
 				  0 0x00010000>;
+		};
+	};
+
+	fsl,dpaa {
+		compatible = "fsl,p2041-dpaa", "fsl,dpaa";
+
+		ethernet@0 {
+			compatible = "fsl,p2041-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet0>;
+		};
+		ethernet@1 {
+			compatible = "fsl,p2041-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet1>;
+		};
+		ethernet@2 {
+			compatible = "fsl,p2041-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet2>;
+		};
+		ethernet@3 {
+			compatible = "fsl,p2041-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet3>;
+		};
+		ethernet@4 {
+			compatible = "fsl,p2041-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet4>;
+		};
+		ethernet@5 {
+			compatible = "fsl,p2041-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet5>;
 		};
 	};
 };
