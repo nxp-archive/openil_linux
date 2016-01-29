@@ -21,11 +21,11 @@
 #include "fsl_pamu.h"
 
 #include <linux/fsl/guts.h>
+#include <linux/fsl/svr.h>
 #include <linux/interrupt.h>
 #include <linux/genalloc.h>
 #include <linux/syscore_ops.h>
 
-#include <asm/mpc85xx.h>
 #include <asm/fsl_kibo.h>
 #include <asm/reg.h>
 

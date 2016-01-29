@@ -24,10 +24,10 @@
 #include <linux/of_device.h>
 #include <linux/of_irq.h>
 #include <linux/syscore_ops.h>
+#include <linux/fsl/svr.h>
 #include <sysdev/fsl_soc.h>
 #include <asm/io.h>
 
-#include <asm/mpc85xx.h>
 #include <asm/mpic_timer.h>
 #include <asm/fsl_pm.h>
 
