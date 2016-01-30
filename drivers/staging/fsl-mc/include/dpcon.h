@@ -29,181 +29,189 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef __FSL_DPBP_H
-#define __FSL_DPBP_H
+#ifndef __FSL_DPCON_H
+#define __FSL_DPCON_H
 
-/* Data Path Buffer Pool API
- * Contains initialization APIs and runtime control APIs for DPBP
+/* Data Path Concentrator API
+ * Contains initialization APIs and runtime control APIs for DPCON
  */
 
 struct fsl_mc_io;
 
+/** General DPCON macros */
+
 /**
- * dpbp_open() - Open a control session for the specified object.
+ * Use it to disable notifications; see dpcon_set_notification()
+ */
+#define DPCON_INVALID_DPIO_ID		(int)(-1)
+
+/**
+ * dpcon_open() - Open a control session for the specified object
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @dpbp_id:	DPBP unique ID
+ * @dpcon_id:	DPCON unique ID
  * @token:	Returned token; use in subsequent API calls
  *
  * This function can be used to open a control session for an
  * already created object; an object may have been declared in
- * the DPL or by calling the dpbp_create function.
+ * the DPL or by calling the dpcon_create() function.
  * This function returns a unique authentication token,
  * associated with the specific object ID and the specific MC
  * portal; this token must be used in all subsequent commands for
- * this specific object
+ * this specific object.
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpbp_open(struct fsl_mc_io	*mc_io,
-	      uint32_t		cmd_flags,
-	      int		dpbp_id,
-	      uint16_t		*token);
+int dpcon_open(struct fsl_mc_io *mc_io,
+	       uint32_t	cmd_flags,
+	       int		dpcon_id,
+	       uint16_t	*token);
 
 /**
- * dpbp_close() - Close the control session of the object
+ * dpcon_close() - Close the control session of the object
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
+ * @token:	Token of DPCON object
  *
  * After this function is called, no further operations are
  * allowed on the object without opening a new control session.
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpbp_close(struct fsl_mc_io	*mc_io,
-	       uint32_t		cmd_flags,
-	       uint16_t	token);
+int dpcon_close(struct fsl_mc_io *mc_io,
+		uint32_t	cmd_flags,
+		uint16_t	token);
 
 /**
- * struct dpbp_cfg - Structure representing DPBP configuration
- * @options:	place holder
+ * struct dpcon_cfg - Structure representing DPCON configuration
+ * @num_priorities: Number of priorities for the DPCON channel (1-8)
  */
-struct dpbp_cfg {
-	uint32_t options;
+struct dpcon_cfg {
+	uint8_t num_priorities;
 };
 
 /**
- * dpbp_create() - Create the DPBP object.
+ * dpcon_create() - Create the DPCON object.
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @cfg:	Configuration structure
  * @token:	Returned token; use in subsequent API calls
  *
- * Create the DPBP object, allocate required resources and
+ * Create the DPCON object, allocate required resources and
  * perform required initialization.
  *
  * The object can be created either by declaring it in the
  * DPL file, or by calling this function.
+ *
  * This function returns a unique authentication token,
  * associated with the specific object ID and the specific MC
  * portal; this token must be used in all subsequent calls to
  * this specific object. For objects that are created using the
- * DPL file, call dpbp_open function to get an authentication
+ * DPL file, call dpcon_open() function to get an authentication
  * token first.
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpbp_create(struct fsl_mc_io	*mc_io,
-		uint32_t		cmd_flags,
-		const struct dpbp_cfg	*cfg,
-		uint16_t		*token);
+int dpcon_create(struct fsl_mc_io	*mc_io,
+		 uint32_t		cmd_flags,
+		 const struct dpcon_cfg *cfg,
+		 uint16_t		*token);
 
 /**
- * dpbp_destroy() - Destroy the DPBP object and release all its resources.
+ * dpcon_destroy() - Destroy the DPCON object and release all its resources.
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
+ * @token:	Token of DPCON object
  *
  * Return:	'0' on Success; error code otherwise.
  */
-int dpbp_destroy(struct fsl_mc_io	*mc_io,
+int dpcon_destroy(struct fsl_mc_io	*mc_io,
+		  uint32_t		cmd_flags,
+		  uint16_t		token);
+
+/**
+ * dpcon_enable() - Enable the DPCON
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPCON object
+ *
+ * Return:	'0' on Success; Error code otherwise
+ */
+int dpcon_enable(struct fsl_mc_io	*mc_io,
 		 uint32_t		cmd_flags,
 		 uint16_t		token);
 
 /**
- * dpbp_enable() - Enable the DPBP.
+ * dpcon_disable() - Disable the DPCON
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
+ * @token:	Token of DPCON object
  *
- * Return:	'0' on Success; Error code otherwise.
+ * Return:	'0' on Success; Error code otherwise
  */
-int dpbp_enable(struct fsl_mc_io	*mc_io,
-		uint32_t		cmd_flags,
-		uint16_t		token);
+int dpcon_disable(struct fsl_mc_io	*mc_io,
+		  uint32_t		cmd_flags,
+		  uint16_t		token);
 
 /**
- * dpbp_disable() - Disable the DPBP.
+ * dpcon_is_enabled() -	Check if the DPCON is enabled.
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
- *
- * Return:	'0' on Success; Error code otherwise.
- */
-int dpbp_disable(struct fsl_mc_io	*mc_io,
-		 uint32_t		cmd_flags,
-		 uint16_t		token);
-
-/**
- * dpbp_is_enabled() - Check if the DPBP is enabled.
- * @mc_io:	Pointer to MC portal's I/O object
- * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
+ * @token:	Token of DPCON object
  * @en:		Returns '1' if object is enabled; '0' otherwise
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpbp_is_enabled(struct fsl_mc_io	*mc_io,
-		    uint32_t		cmd_flags,
-		    uint16_t		token,
-		    int		*en);
+int dpcon_is_enabled(struct fsl_mc_io	*mc_io,
+		     uint32_t		cmd_flags,
+		     uint16_t		token,
+		     int		*en);
 
 /**
- * dpbp_reset() - Reset the DPBP, returns the object to initial state.
+ * dpcon_reset() - Reset the DPCON, returns the object to initial state.
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
+ * @token:	Token of DPCON object
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpbp_reset(struct fsl_mc_io	*mc_io,
-	       uint32_t		cmd_flags,
-	       uint16_t	token);
+int dpcon_reset(struct fsl_mc_io	*mc_io,
+		uint32_t		cmd_flags,
+		uint16_t		token);
 
 /**
- * struct dpbp_irq_cfg - IRQ configuration
+ * struct dpcon_irq_cfg - IRQ configuration
  * @addr:	Address that must be written to signal a message-based interrupt
  * @val:	Value to write into irq_addr address
  * @irq_num: A user defined number associated with this IRQ
  */
-struct dpbp_irq_cfg {
+struct dpcon_irq_cfg {
 	     uint64_t		addr;
 	     uint32_t		val;
 	     int		irq_num;
 };
 
 /**
- * dpbp_set_irq() - Set IRQ information for the DPBP to trigger an interrupt.
+ * dpcon_set_irq() - Set IRQ information for the DPCON to trigger an interrupt.
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
+ * @token:	Token of DPCON object
  * @irq_index:	Identifies the interrupt index to configure
  * @irq_cfg:	IRQ configuration
- *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpbp_set_irq(struct fsl_mc_io	*mc_io,
-		 uint32_t		cmd_flags,
-		 uint16_t		token,
-		 uint8_t		irq_index,
-		 struct dpbp_irq_cfg	*irq_cfg);
+int dpcon_set_irq(struct fsl_mc_io	*mc_io,
+		  uint32_t		cmd_flags,
+		  uint16_t		token,
+		  uint8_t		irq_index,
+		  struct dpcon_irq_cfg	*irq_cfg);
 
 /**
- * dpbp_get_irq() - Get IRQ information from the DPBP.
+ * dpcon_get_irq() - Get IRQ information from the DPCON.
+ *
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
+ * @token:	Token of DPCON object
  * @irq_index:	The interrupt index to configure
  * @type:	Interrupt type: 0 represents message interrupt
  *		type (both irq_addr and irq_val are valid)
@@ -211,20 +219,20 @@ int dpbp_set_irq(struct fsl_mc_io	*mc_io,
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpbp_get_irq(struct fsl_mc_io	*mc_io,
-		 uint32_t		cmd_flags,
-		 uint16_t		token,
-		 uint8_t		irq_index,
-		 int			*type,
-		 struct dpbp_irq_cfg	*irq_cfg);
+int dpcon_get_irq(struct fsl_mc_io	*mc_io,
+		  uint32_t		cmd_flags,
+		  uint16_t		token,
+		  uint8_t		irq_index,
+		  int			*type,
+		  struct dpcon_irq_cfg	*irq_cfg);
 
 /**
- * dpbp_set_irq_enable() - Set overall interrupt state.
+ * dpcon_set_irq_enable() - Set overall interrupt state.
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
+ * @token:	Token of DPCON object
  * @irq_index:	The interrupt index to configure
- * @en:	Interrupt state - enable = 1, disable = 0
+ * @en:		Interrupt state - enable = 1, disable = 0
  *
  * Allows GPP software to control when interrupts are generated.
  * Each interrupt can have up to 32 causes.  The enable/disable control's the
@@ -233,55 +241,55 @@ int dpbp_get_irq(struct fsl_mc_io	*mc_io,
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpbp_set_irq_enable(struct fsl_mc_io	*mc_io,
-			uint32_t		cmd_flags,
-			uint16_t		token,
-			uint8_t			irq_index,
-			uint8_t			en);
+int dpcon_set_irq_enable(struct fsl_mc_io	*mc_io,
+			 uint32_t		cmd_flags,
+			 uint16_t		token,
+			 uint8_t		irq_index,
+			 uint8_t		en);
 
 /**
- * dpbp_get_irq_enable() - Get overall interrupt state
+ * dpcon_get_irq_enable() - Get overall interrupt state.
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
+ * @token:	Token of DPCON object
  * @irq_index:	The interrupt index to configure
  * @en:		Returned interrupt state - enable = 1, disable = 0
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpbp_get_irq_enable(struct fsl_mc_io	*mc_io,
-			uint32_t		cmd_flags,
-			uint16_t		token,
-			uint8_t			irq_index,
-			uint8_t			*en);
+int dpcon_get_irq_enable(struct fsl_mc_io	*mc_io,
+			 uint32_t		cmd_flags,
+			 uint16_t		token,
+			 uint8_t		irq_index,
+			 uint8_t		*en);
 
 /**
- * dpbp_set_irq_mask() - Set interrupt mask.
+ * dpcon_set_irq_mask() - Set interrupt mask.
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
+ * @token:	Token of DPCON object
  * @irq_index:	The interrupt index to configure
  * @mask:	Event mask to trigger interrupt;
- *			each bit:
- *				0 = ignore event
- *				1 = consider event for asserting IRQ
+ *				each bit:
+ *					0 = ignore event
+ *					1 = consider event for asserting IRQ
  *
  * Every interrupt can have up to 32 causes and the interrupt model supports
  * masking/unmasking each cause independently
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpbp_set_irq_mask(struct fsl_mc_io	*mc_io,
-		      uint32_t		cmd_flags,
-		      uint16_t		token,
-		      uint8_t		irq_index,
-		      uint32_t		mask);
+int dpcon_set_irq_mask(struct fsl_mc_io *mc_io,
+		       uint32_t	cmd_flags,
+		       uint16_t		token,
+		       uint8_t		irq_index,
+		       uint32_t		mask);
 
 /**
- * dpbp_get_irq_mask() - Get interrupt mask.
+ * dpcon_get_irq_mask() - Get interrupt mask.
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
+ * @token:	Token of DPCON object
  * @irq_index:	The interrupt index to configure
  * @mask:	Returned event mask to trigger interrupt
  *
@@ -290,149 +298,110 @@ int dpbp_set_irq_mask(struct fsl_mc_io	*mc_io,
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpbp_get_irq_mask(struct fsl_mc_io	*mc_io,
-		      uint32_t		cmd_flags,
-		      uint16_t		token,
-		      uint8_t		irq_index,
-		      uint32_t		*mask);
+int dpcon_get_irq_mask(struct fsl_mc_io *mc_io,
+		       uint32_t	cmd_flags,
+		       uint16_t		token,
+		       uint8_t		irq_index,
+		       uint32_t		*mask);
 
 /**
- * dpbp_get_irq_status() - Get the current status of any pending interrupts.
- *
+ * dpcon_get_irq_status() - Get the current status of any pending interrupts.
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
+ * @token:	Token of DPCON object
  * @irq_index:	The interrupt index to configure
- * @status:	Returned interrupts status - one bit per cause:
+ * @status:	interrupts status - one bit per cause:
  *			0 = no interrupt pending
  *			1 = interrupt pending
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpbp_get_irq_status(struct fsl_mc_io	*mc_io,
-			uint32_t		cmd_flags,
-			uint16_t		token,
-			uint8_t			irq_index,
-			uint32_t		*status);
+int dpcon_get_irq_status(struct fsl_mc_io	*mc_io,
+			 uint32_t		cmd_flags,
+			 uint16_t		token,
+			 uint8_t		irq_index,
+			 uint32_t		*status);
 
 /**
- * dpbp_clear_irq_status() - Clear a pending interrupt's status
- *
+ * dpcon_clear_irq_status() - Clear a pending interrupt's status
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
+ * @token:	Token of DPCON object
  * @irq_index:	The interrupt index to configure
- * @status:	Bits to clear (W1C) - one bit per cause:
- *					0 = don't change
- *					1 = clear status bit
+ * @status:	bits to clear (W1C) - one bit per cause:
+ *			0 = don't change
+ *			1 = clear status bit
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpbp_clear_irq_status(struct fsl_mc_io	*mc_io,
-			  uint32_t		cmd_flags,
-			  uint16_t		token,
-			  uint8_t		irq_index,
-			  uint32_t		status);
+int dpcon_clear_irq_status(struct fsl_mc_io	*mc_io,
+			   uint32_t		cmd_flags,
+			   uint16_t		token,
+			   uint8_t		irq_index,
+			   uint32_t		status);
 
 /**
- * struct dpbp_attr - Structure representing DPBP attributes
- * @id:		DPBP object ID
- * @version:	DPBP version
- * @bpid:	Hardware buffer pool ID; should be used as an argument in
- *		acquire/release operations on buffers
+ * struct dpcon_attr - Structure representing DPCON attributes
+ * @id: DPCON object ID
+ * @version: DPCON version
+ * @qbman_ch_id: Channel ID to be used by dequeue operation
+ * @num_priorities: Number of priorities for the DPCON channel (1-8)
  */
-struct dpbp_attr {
+struct dpcon_attr {
 	int id;
 	/**
-	 * struct version - Structure representing DPBP version
-	 * @major:	DPBP major version
-	 * @minor:	DPBP minor version
+	 * struct version - DPCON version
+	 * @major: DPCON major version
+	 * @minor: DPCON minor version
 	 */
 	struct {
 		uint16_t major;
 		uint16_t minor;
 	} version;
-	uint16_t bpid;
+	uint16_t qbman_ch_id;
+	uint8_t num_priorities;
 };
 
 /**
- * dpbp_get_attributes - Retrieve DPBP attributes.
- *
+ * dpcon_get_attributes() - Retrieve DPCON attributes.
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
- * @attr:	Returned object's attributes
+ * @token:	Token of DPCON object
+ * @attr:	Object's attributes
  *
  * Return:	'0' on Success; Error code otherwise.
  */
-int dpbp_get_attributes(struct fsl_mc_io	*mc_io,
-			uint32_t	cmd_flags,
-			uint16_t		token,
-			struct dpbp_attr	*attr);
+int dpcon_get_attributes(struct fsl_mc_io	*mc_io,
+			 uint32_t		cmd_flags,
+			 uint16_t		token,
+			 struct dpcon_attr	*attr);
 
 /**
- *  DPBP notifications options
+ * struct dpcon_notification_cfg - Structure representing notification parameters
+ * @dpio_id:	DPIO object ID; must be configured with a notification channel;
+ *	to disable notifications set it to 'DPCON_INVALID_DPIO_ID';
+ * @priority:	Priority selection within the DPIO channel; valid values
+ *		are 0-7, depending on the number of priorities in that channel
+ * @user_ctx:	User context value provided with each CDAN message
  */
-
-/**
- * BPSCN write will attempt to allocate into a cache (coherent write)
- */
-#define DPBP_NOTIF_OPT_COHERENT_WRITE	0x00000001
-
-/**
- * struct dpbp_notification_cfg - Structure representing DPBP notifications
- *	towards software
- * @depletion_entry: below this threshold the pool is "depleted";
- *	set it to '0' to disable it
- * @depletion_exit: greater than or equal to this threshold the pool exit its
- *	"depleted" state
- * @surplus_entry: above this threshold the pool is in "surplus" state;
- *	set it to '0' to disable it
- * @surplus_exit: less than or equal to this threshold the pool exit its
- *	"surplus" state
- * @message_iova: MUST be given if either 'depletion_entry' or 'surplus_entry'
- *	is not '0' (enable); I/O virtual address (must be in DMA-able memory),
- *	must be 16B aligned.
- * @message_ctx: The context that will be part of the BPSCN message and will
- *	be written to 'message_iova'
- * @options: Mask of available options; use 'DPBP_NOTIF_OPT_<X>' values
- */
-struct dpbp_notification_cfg {
-	uint32_t	depletion_entry;
-	uint32_t	depletion_exit;
-	uint32_t	surplus_entry;
-	uint32_t	surplus_exit;
-	uint64_t	message_iova;
-	uint64_t	message_ctx;
-	uint16_t	options;
+struct dpcon_notification_cfg {
+	int		dpio_id;
+	uint8_t	priority;
+	uint64_t	user_ctx;
 };
 
 /**
- * dpbp_set_notifications() - Set notifications towards software
+ * dpcon_set_notification() - Set DPCON notification destination
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
- * @cfg:	notifications configuration
+ * @token:	Token of DPCON object
+ * @cfg:	Notification parameters
  *
- * Return:	'0' on Success; Error code otherwise.
+ * Return:	'0' on Success; Error code otherwise
  */
-int dpbp_set_notifications(struct fsl_mc_io	*mc_io,
-			   uint32_t		cmd_flags,
-			   uint16_t		token,
-			   struct dpbp_notification_cfg	*cfg);
+int dpcon_set_notification(struct fsl_mc_io			*mc_io,
+			   uint32_t				cmd_flags,
+			   uint16_t				token,
+			   struct dpcon_notification_cfg	*cfg);
 
-/**
- * dpbp_get_notifications() - Get the notifications configuration
- * @mc_io:	Pointer to MC portal's I/O object
- * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPBP object
- * @cfg:	notifications configuration
- *
- * Return:	'0' on Success; Error code otherwise.
- */
-int dpbp_get_notifications(struct fsl_mc_io	*mc_io,
-			   uint32_t		cmd_flags,
-			      uint16_t		token,
-			      struct dpbp_notification_cfg	*cfg);
-
-#endif /* __FSL_DPBP_H */
+#endif /* __FSL_DPCON_H */

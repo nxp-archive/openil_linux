@@ -111,7 +111,7 @@ static int __must_check fsl_mc_resource_pool_remove_device(struct fsl_mc_device
 		goto out;
 
 	resource = mc_dev->resource;
-	if (WARN_ON(resource->data != mc_dev))
+	if (WARN_ON(!resource || resource->data != mc_dev))
 		goto out;
 
 	mc_bus_dev = to_fsl_mc_device(mc_dev->dev.parent);
@@ -160,6 +160,7 @@ static const char *const fsl_mc_pool_type_strings[] = {
 	[FSL_MC_POOL_DPMCP] = "dpmcp",
 	[FSL_MC_POOL_DPBP] = "dpbp",
 	[FSL_MC_POOL_DPCON] = "dpcon",
+	[FSL_MC_POOL_IRQ] = "irq",
 };
 
 static int __must_check object_type_to_pool_type(const char *object_type,
@@ -284,12 +285,17 @@ int __must_check fsl_mc_portal_allocate(struct fsl_mc_device *mc_dev,
 	struct fsl_mc_bus *mc_bus;
 	phys_addr_t mc_portal_phys_addr;
 	size_t mc_portal_size;
-	struct fsl_mc_device *mc_adev;
+	struct fsl_mc_device *dpmcp_dev;
 	int error = -EINVAL;
 	struct fsl_mc_resource *resource = NULL;
 	struct fsl_mc_io *mc_io = NULL;
 
-	if (mc_dev->flags & FSL_MC_IS_DPRC) {
+	if (!mc_dev) {
+		if (WARN_ON(!fsl_mc_bus_type.dev_root))
+			return error;
+
+		mc_bus_dev = to_fsl_mc_device(fsl_mc_bus_type.dev_root);
+	} else if (mc_dev->flags & FSL_MC_IS_DPRC) {
 		mc_bus_dev = mc_dev;
 	} else {
 		if (WARN_ON(mc_dev->dev.parent->bus != &fsl_mc_bus_type))
@@ -304,23 +310,36 @@ int __must_check fsl_mc_portal_allocate(struct fsl_mc_device *mc_dev,
 	if (error < 0)
 		return error;
 
-	mc_adev = resource->data;
-	if (WARN_ON(!mc_adev))
+	error = -EINVAL;
+	dpmcp_dev = resource->data;
+	if (WARN_ON(!dpmcp_dev ||
+		    strcmp(dpmcp_dev->obj_desc.type, "dpmcp") != 0))
 		goto error_cleanup_resource;
 
-	if (WARN_ON(mc_adev->obj_desc.region_count == 0))
+	if (dpmcp_dev->obj_desc.ver_major < DPMCP_MIN_VER_MAJOR ||
+	    (dpmcp_dev->obj_desc.ver_major == DPMCP_MIN_VER_MAJOR &&
+	     dpmcp_dev->obj_desc.ver_minor < DPMCP_MIN_VER_MINOR)) {
+		dev_err(&dpmcp_dev->dev,
+			"ERROR: Version %d.%d of DPMCP not supported.\n",
+			dpmcp_dev->obj_desc.ver_major,
+			dpmcp_dev->obj_desc.ver_minor);
+		error = -ENOTSUPP;
+		goto error_cleanup_resource;
+	}
+
+	if (WARN_ON(dpmcp_dev->obj_desc.region_count == 0))
 		goto error_cleanup_resource;
 
-	mc_portal_phys_addr = mc_adev->regions[0].start;
-	mc_portal_size = mc_adev->regions[0].end -
-			 mc_adev->regions[0].start + 1;
+	mc_portal_phys_addr = dpmcp_dev->regions[0].start;
+	mc_portal_size = dpmcp_dev->regions[0].end -
+			 dpmcp_dev->regions[0].start + 1;
 
 	if (WARN_ON(mc_portal_size != mc_bus_dev->mc_io->portal_size))
 		goto error_cleanup_resource;
 
 	error = fsl_create_mc_io(&mc_bus_dev->dev,
 				 mc_portal_phys_addr,
-				 mc_portal_size, resource,
+				 mc_portal_size, dpmcp_dev,
 				 mc_io_flags, &mc_io);
 	if (error < 0)
 		goto error_cleanup_resource;
@@ -342,12 +361,26 @@ EXPORT_SYMBOL_GPL(fsl_mc_portal_allocate);
  */
 void fsl_mc_portal_free(struct fsl_mc_io *mc_io)
 {
+	struct fsl_mc_device *dpmcp_dev;
 	struct fsl_mc_resource *resource;
 
-	resource = mc_io->resource;
-	if (WARN_ON(resource->type != FSL_MC_POOL_DPMCP))
+	/*
+	 * Every mc_io obtained by calling fsl_mc_portal_allocate() is supposed
+	 * to have a DPMCP object associated with.
+	 */
+	dpmcp_dev = mc_io->dpmcp_dev;
+	if (WARN_ON(!dpmcp_dev))
 		return;
-	if (WARN_ON(!resource->data))
+	if (WARN_ON(strcmp(dpmcp_dev->obj_desc.type, "dpmcp") != 0))
+		return;
+	if (WARN_ON(dpmcp_dev->mc_io != mc_io))
+		return;
+
+	resource = dpmcp_dev->resource;
+	if (WARN_ON(!resource || resource->type != FSL_MC_POOL_DPMCP))
+		return;
+
+	if (WARN_ON(resource->data != dpmcp_dev))
 		return;
 
 	fsl_destroy_mc_io(mc_io);
@@ -363,31 +396,14 @@ EXPORT_SYMBOL_GPL(fsl_mc_portal_free);
 int fsl_mc_portal_reset(struct fsl_mc_io *mc_io)
 {
 	int error;
-	uint16_t token;
-	struct fsl_mc_resource *resource = mc_io->resource;
-	struct fsl_mc_device *mc_dev = resource->data;
+	struct fsl_mc_device *dpmcp_dev = mc_io->dpmcp_dev;
 
-	if (WARN_ON(resource->type != FSL_MC_POOL_DPMCP))
+	if (WARN_ON(!dpmcp_dev))
 		return -EINVAL;
 
-	if (WARN_ON(!mc_dev))
-		return -EINVAL;
-
-	error = dpmcp_open(mc_io, mc_dev->obj_desc.id, &token);
+	error = dpmcp_reset(mc_io, 0, dpmcp_dev->mc_handle);
 	if (error < 0) {
-		dev_err(&mc_dev->dev, "dpmcp_open() failed: %d\n", error);
-		return error;
-	}
-
-	error = dpmcp_reset(mc_io, token);
-	if (error < 0) {
-		dev_err(&mc_dev->dev, "dpmcp_reset() failed: %d\n", error);
-		return error;
-	}
-
-	error = dpmcp_close(mc_io, token);
-	if (error < 0) {
-		dev_err(&mc_dev->dev, "dpmcp_close() failed: %d\n", error);
+		dev_err(&dpmcp_dev->dev, "dpmcp_reset() failed: %d\n", error);
 		return error;
 	}
 
@@ -473,6 +489,124 @@ void fsl_mc_object_free(struct fsl_mc_device *mc_adev)
 EXPORT_SYMBOL_GPL(fsl_mc_object_free);
 
 /**
+ * It allocates the IRQs required by a given MC object device. The
+ * IRQs are allocated from the interrupt pool associated with the
+ * MC bus that contains the device, if the device is not a DPRC device.
+ * Otherwise, the IRQs are allocated from the interrupt pool associated
+ * with the MC bus that represents the DPRC device itself.
+ */
+int __must_check fsl_mc_allocate_irqs(struct fsl_mc_device *mc_dev)
+{
+	int i;
+	int irq_count;
+	int res_allocated_count = 0;
+	int error = -EINVAL;
+	struct fsl_mc_device_irq **irqs = NULL;
+	struct fsl_mc_bus *mc_bus;
+	struct fsl_mc_resource_pool *res_pool;
+	struct fsl_mc *mc = dev_get_drvdata(fsl_mc_bus_type.dev_root->parent);
+
+	if (!mc->gic_supported)
+		return -ENOTSUPP;
+
+	if (WARN_ON(mc_dev->irqs))
+		goto error;
+
+	irq_count = mc_dev->obj_desc.irq_count;
+	if (WARN_ON(irq_count == 0))
+		goto error;
+
+	if (strcmp(mc_dev->obj_desc.type, "dprc") == 0)
+		mc_bus = to_fsl_mc_bus(mc_dev);
+	else
+		mc_bus = to_fsl_mc_bus(to_fsl_mc_device(mc_dev->dev.parent));
+
+	if (WARN_ON(!mc_bus->irq_resources))
+		goto error;
+
+	res_pool = &mc_bus->resource_pools[FSL_MC_POOL_IRQ];
+	if (res_pool->free_count < irq_count) {
+		dev_err(&mc_dev->dev,
+			"Not able to allocate %u irqs for device\n", irq_count);
+		error = -ENOSPC;
+		goto error;
+	}
+
+	irqs = devm_kzalloc(&mc_dev->dev, irq_count * sizeof(irqs[0]),
+			    GFP_KERNEL);
+	if (!irqs) {
+		error = -ENOMEM;
+		dev_err(&mc_dev->dev, "No memory to allocate irqs[]\n");
+		goto error;
+	}
+
+	for (i = 0; i < irq_count; i++) {
+		struct fsl_mc_resource *resource;
+
+		error = fsl_mc_resource_allocate(mc_bus, FSL_MC_POOL_IRQ,
+						 &resource);
+		if (error < 0)
+			goto error;
+
+		irqs[i] = to_fsl_mc_irq(resource);
+		res_allocated_count++;
+
+		WARN_ON(irqs[i]->mc_dev);
+		irqs[i]->mc_dev = mc_dev;
+		irqs[i]->dev_irq_index = i;
+	}
+
+	mc_dev->irqs = irqs;
+	return 0;
+error:
+	for (i = 0; i < res_allocated_count; i++) {
+		irqs[i]->mc_dev = NULL;
+		fsl_mc_resource_free(&irqs[i]->resource);
+	}
+
+	if (irqs)
+		devm_kfree(&mc_dev->dev, irqs);
+
+	return error;
+}
+EXPORT_SYMBOL_GPL(fsl_mc_allocate_irqs);
+
+/*
+ * It frees the IRQs that were allocated for a MC object device, by
+ * returning them to the corresponding interrupt pool.
+ */
+void fsl_mc_free_irqs(struct fsl_mc_device *mc_dev)
+{
+	int i;
+	int irq_count;
+	struct fsl_mc_bus *mc_bus;
+	struct fsl_mc_device_irq **irqs = mc_dev->irqs;
+
+	if (WARN_ON(!irqs))
+		return;
+
+	irq_count = mc_dev->obj_desc.irq_count;
+
+	if (strcmp(mc_dev->obj_desc.type, "dprc") == 0)
+		mc_bus = to_fsl_mc_bus(mc_dev);
+	else
+		mc_bus = to_fsl_mc_bus(to_fsl_mc_device(mc_dev->dev.parent));
+
+	if (WARN_ON(!mc_bus->irq_resources))
+		return;
+
+	for (i = 0; i < irq_count; i++) {
+		WARN_ON(!irqs[i]->mc_dev);
+		irqs[i]->mc_dev = NULL;
+		fsl_mc_resource_free(&irqs[i]->resource);
+	}
+
+	devm_kfree(&mc_dev->dev, mc_dev->irqs);
+	mc_dev->irqs = NULL;
+}
+EXPORT_SYMBOL_GPL(fsl_mc_free_irqs);
+
+/**
  * fsl_mc_allocator_probe - callback invoked when an allocatable device is
  * being added to the system
  */
@@ -491,16 +625,31 @@ static int fsl_mc_allocator_probe(struct fsl_mc_device *mc_dev)
 		goto error;
 
 	mc_bus = to_fsl_mc_bus(mc_bus_dev);
-	error = object_type_to_pool_type(mc_dev->obj_desc.type, &pool_type);
-	if (error < 0)
-		goto error;
 
-	error = fsl_mc_resource_pool_add_device(mc_bus, pool_type, mc_dev);
-	if (error < 0)
-		goto error;
+	/*
+	 * If mc_dev is the DPMCP object for the parent DPRC's built-in
+	 * portal, we don't add this DPMCP to the DPMCP object pool,
+	 * but instead allocate it directly to the parent DPRC (mc_bus_dev):
+	 */
+	if (strcmp(mc_dev->obj_desc.type, "dpmcp") == 0 &&
+	    mc_dev->obj_desc.id == mc_bus->dprc_attr.portal_id) {
+		error = fsl_mc_io_set_dpmcp(mc_bus_dev->mc_io, mc_dev);
+		if (error < 0)
+			goto error;
+	} else {
+		error = object_type_to_pool_type(mc_dev->obj_desc.type,
+						 &pool_type);
+		if (error < 0)
+			goto error;
 
-	dev_info(&mc_dev->dev,
-		 "Allocatable MC object device bound to fsl_mc_allocator driver");
+		error = fsl_mc_resource_pool_add_device(mc_bus, pool_type,
+							mc_dev);
+		if (error < 0)
+			goto error;
+	}
+
+	dev_dbg(&mc_dev->dev,
+		"Allocatable MC object device bound to fsl_mc_allocator driver");
 	return 0;
 error:
 
@@ -513,40 +662,34 @@ error:
  */
 static int fsl_mc_allocator_remove(struct fsl_mc_device *mc_dev)
 {
-	int error = -EINVAL;
+	int error;
 
 	if (WARN_ON(!FSL_MC_IS_ALLOCATABLE(mc_dev->obj_desc.type)))
-		goto out;
+		return -EINVAL;
 
-	error = fsl_mc_resource_pool_remove_device(mc_dev);
-	if (error < 0)
-		goto out;
+	if (mc_dev->resource) {
+		error = fsl_mc_resource_pool_remove_device(mc_dev);
+		if (error < 0)
+			return error;
+	}
 
-	dev_info(&mc_dev->dev,
-		 "Allocatable MC object device unbound from fsl_mc_allocator driver");
-	error = 0;
-out:
-	return error;
+	dev_dbg(&mc_dev->dev,
+		"Allocatable MC object device unbound from fsl_mc_allocator driver");
+	return 0;
 }
 
 static const struct fsl_mc_device_match_id match_id_table[] = {
 	{
 	 .vendor = FSL_MC_VENDOR_FREESCALE,
 	 .obj_type = "dpbp",
-	 .ver_major = DPBP_VER_MAJOR,
-	 .ver_minor = DPBP_VER_MINOR
 	},
 	{
 	 .vendor = FSL_MC_VENDOR_FREESCALE,
 	 .obj_type = "dpmcp",
-	 .ver_major = DPMCP_VER_MAJOR,
-	 .ver_minor = DPMCP_VER_MINOR
 	},
 	{
 	 .vendor = FSL_MC_VENDOR_FREESCALE,
 	 .obj_type = "dpcon",
-	 .ver_major = DPCON_VER_MAJOR,
-	 .ver_minor = DPCON_VER_MINOR
 	},
 	{.vendor = 0x0},
 };
