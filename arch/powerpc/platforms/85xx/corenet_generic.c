@@ -35,6 +35,8 @@
 #include "smp.h"
 #include "mpc85xx.h"
 
+#include <linux/fsl_usdpaa.h>
+
 void __init corenet_gen_pic_init(void)
 {
 	struct mpic *mpic;
@@ -211,6 +213,36 @@ static int __init corenet_generic_probe(void)
 	return 0;
 }
 
+/* Early setup is required for large chunks of contiguous (and coarsely-aligned)
+ * memory. The following shoe-horns Q/Bman "init_early" calls into the
+ * platform setup to let them parse their CCSR nodes early on. */
+#ifdef CONFIG_FSL_QMAN_CONFIG
+void __init qman_init_early(void);
+#endif
+#ifdef CONFIG_FSL_BMAN_CONFIG
+void __init bman_init_early(void);
+#endif
+#ifdef CONFIG_FSL_PME2_CTRL
+void __init pme2_init_early(void);
+#endif
+
+static __init void corenet_ds_init_early(void)
+{
+#ifdef CONFIG_FSL_QMAN_CONFIG
+	qman_init_early();
+#endif
+#ifdef CONFIG_FSL_BMAN_CONFIG
+	bman_init_early();
+#endif
+#ifdef CONFIG_FSL_PME2_CTRL
+	pme2_init_early();
+#endif
+#ifdef CONFIG_FSL_USDPAA
+	fsl_usdpaa_init_early();
+#endif
+}
+
+
 define_machine(corenet_generic) {
 	.name			= "CoreNet Generic",
 	.probe			= corenet_generic_probe,
@@ -237,6 +269,7 @@ define_machine(corenet_generic) {
 #else
 	.power_save		= e500_idle,
 #endif
+	.init_early		= corenet_ds_init_early,
 };
 
 machine_arch_initcall(corenet_generic, corenet_gen_publish_devices);
