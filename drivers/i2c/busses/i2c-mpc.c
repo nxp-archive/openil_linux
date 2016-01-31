@@ -27,9 +27,9 @@
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
 #include <linux/delay.h>
+#include <linux/fsl/svr.h>
 
 #include <asm/mpc52xx.h>
-#include <asm/mpc85xx.h>
 #include <sysdev/fsl_soc.h>
 
 #define DRV_NAME "mpc-i2c"
@@ -109,7 +109,12 @@ static irqreturn_t mpc_i2c_isr(int irq, void *dev_id)
 static void mpc_i2c_fixup(struct mpc_i2c *i2c)
 {
 	int k;
-	u32 delay_val = 1000000 / i2c->real_clk + 1;
+	u32 delay_val;
+#ifdef CONFIG_PPC_85xx
+	delay_val = 65536 / (fsl_get_sys_freq() / 2000000);	/* 64K cycle */
+#else
+	delay_val = 1000000 / i2c->real_clk + 1;
+#endif
 
 	if (delay_val < 2)
 		delay_val = 2;
@@ -119,7 +124,11 @@ static void mpc_i2c_fixup(struct mpc_i2c *i2c)
 		writeccr(i2c, CCR_MSTA | CCR_MTX | CCR_MEN);
 		readb(i2c->base + MPC_I2C_DR);
 		writeccr(i2c, CCR_MEN);
+#ifdef CONFIG_PPC_85xx
+		udelay(delay_val);
+#else
 		udelay(delay_val << 1);
+#endif
 	}
 }
 

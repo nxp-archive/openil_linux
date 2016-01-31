@@ -41,3 +41,38 @@ Example:
 		fsl,mdio-pin = <12>;
 		fsl,mdc-pin = <13>;
 	};
+
+* HDLC
+
+Currently defined compatibles:
+- fsl,ucc_hdlc
+
+Properties for fsl,ucc_hdlc:
+rx-clock-name : which clock QE use for RX
+tx-clock-name : which clock QE use for TX
+fsl,rx-sync-clock : which pin QE use for RX sync
+fsl,tx-sync-clock : which pin QE use for TX sync
+fsl,tx-timeslot : tx timeslot
+fsl,rx-timeslot : rx timeslot
+fsl,tdm-framer-type : tdm framer type
+fsl,tdm-mode : tdm mode, normal or internal-loopback
+fsl,tdm-id : tdm ID
+fsl,siram-entry-id : SI RAM entry ID for the TDM
+fsl,tdm-interface : hdlc based on tdm-interface
+
+Example:
+
+	ucc@2000 {
+		compatible = "fsl,ucc_hdlc";
+		rx-clock-name = "clk8";
+		tx-clock-name = "clk9";
+		fsl,rx-sync-clock = "rsync_pin";
+		fsl,tx-sync-clock = "tsync_pin";
+		fsl,tx-timeslot = <0xfffffffe>;
+		fsl,rx-timeslot = <0xfffffffe>;
+		fsl,tdm-framer-type = "e1";
+		fsl,tdm-mode = "normal";
+		fsl,tdm-id = <0>;
+		fsl,siram-entry-id = <0>;
+		fsl,tdm-interface;
+	};

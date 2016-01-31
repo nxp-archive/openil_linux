@@ -24,6 +24,7 @@
 #define FSL_USB_VER_1_6		1
 #define FSL_USB_VER_2_2		2
 #define FSL_USB_VER_2_4		3
+#define FSL_USB_VER_2_5		4
 
 #include <linux/types.h>
 
@@ -64,6 +65,7 @@ enum fsl_usb2_phy_modes {
 	FSL_USB2_PHY_UTMI,
 	FSL_USB2_PHY_UTMI_WIDE,
 	FSL_USB2_PHY_SERIAL,
+	FSL_USB2_PHY_UTMI_DUAL,
 };
 
 struct clk;
@@ -92,6 +94,11 @@ struct fsl_usb2_platform_data {
 
 	unsigned	suspended:1;
 	unsigned	already_suspended:1;
+	unsigned	has_fsl_erratum_a005275:1;
+	unsigned	has_fsl_erratum_a006918:1;
+	unsigned	has_fsl_erratum_a005697:1;
+	unsigned	has_fsl_erratum_a007792:1;
+	unsigned	has_fsl_erratum_14:1;
 
 	/* register save area for suspend/resume */
 	u32		pm_command;

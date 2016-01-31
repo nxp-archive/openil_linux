@@ -49,3 +49,4 @@ obj-$(CONFIG_FB_TFT)		+= fbtft/
 obj-$(CONFIG_I2O)		+= i2o/
 obj-$(CONFIG_FSL_MC_BUS)	+= fsl-mc/
 obj-$(CONFIG_FSL_RMAN_UIO)	+= fsl_rman/
+obj-$(CONFIG_FSL_DPA)           += fsl_qbman/

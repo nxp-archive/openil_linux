@@ -147,6 +147,11 @@ static int of_platform_serial_setup(struct platform_device *ofdev,
 		break;
 	}
 
+#ifdef CONFIG_SERIAL_8250_FSL
+	if (of_device_is_compatible(np, "fsl,ns16550"))
+		port->handle_irq = fsl8250_handle_irq;
+#endif
+
 	return 0;
 out:
 	if (info->clk)

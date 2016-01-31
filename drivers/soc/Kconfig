@@ -1,5 +1,6 @@
 menu "SOC (System On Chip) specific Drivers"
 
+source "drivers/soc/fsl/qe/Kconfig"
 source "drivers/soc/mediatek/Kconfig"
 source "drivers/soc/qcom/Kconfig"
 source "drivers/soc/ti/Kconfig"
@@ -7,7 +8,7 @@ source "drivers/soc/versatile/Kconfig"
 
 config	FSL_SOC_DRIVERS
 	bool "Freescale Soc Drivers"
-	depends on FSL_SOC || ARCH_MXC
+	depends on FSL_SOC || ARCH_MXC || ARCH_LAYERSCAPE
 	default n
 	help
 	Say y here to enable Freescale Soc Device Drivers support.

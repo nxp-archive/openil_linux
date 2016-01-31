@@ -591,10 +591,10 @@ static struct iommu_group *get_pci_alias_group(struct pci_dev *pdev,
 			continue;
 
 		/* We alias them or they alias us */
-		if (((pdev->dev_flags & PCI_DEV_FLAGS_DMA_ALIAS_DEVFN) &&
-		     pdev->dma_alias_devfn == tmp->devfn) ||
-		    ((tmp->dev_flags & PCI_DEV_FLAGS_DMA_ALIAS_DEVFN) &&
-		     tmp->dma_alias_devfn == pdev->devfn)) {
+		if (((pdev->dev_flags & PCI_DEV_FLAGS_DMA_ALIAS_DEVID) &&
+		     (pdev->dma_alias_devid & 0xff) == tmp->devfn) ||
+		    ((tmp->dev_flags & PCI_DEV_FLAGS_DMA_ALIAS_DEVID) &&
+		     (tmp->dma_alias_devid & 0xff) == pdev->devfn)) {
 
 			group = get_pci_alias_group(tmp, devfns);
 			if (group) {
@@ -945,6 +945,16 @@ void iommu_detach_device(struct iommu_domain *domain, struct device *dev)
 }
 EXPORT_SYMBOL_GPL(iommu_detach_device);
 
+struct iommu_domain *iommu_get_dev_domain(struct device *dev)
+{
+	const struct iommu_ops *ops = dev->bus->iommu_ops;
+
+	if (unlikely(ops == NULL || ops->get_dev_iommu_domain == NULL))
+		return NULL;
+
+	return ops->get_dev_iommu_domain(dev);
+}
+EXPORT_SYMBOL_GPL(iommu_get_dev_domain);
 /*
  * IOMMU groups are really the natrual working unit of the IOMMU, but
  * the IOMMU API works on domains and devices.  Bridge that gap by

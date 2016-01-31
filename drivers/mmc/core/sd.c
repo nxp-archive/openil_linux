@@ -966,6 +966,15 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 			goto free_card;
 	}
 
+	/* If the signal voltage was switched to 1.8v,
+	 * it's needed to set 4bit width for card and host.
+	 */
+	if (host->ios.signal_voltage == MMC_SIGNAL_VOLTAGE_180) {
+		if (mmc_app_set_bus_width(card, MMC_BUS_WIDTH_4))
+			goto free_card;
+		mmc_set_bus_width(card->host, MMC_BUS_WIDTH_4);
+	}
+
 	err = mmc_sd_setup_card(host, card, oldcard != NULL);
 	if (err)
 		goto free_card;

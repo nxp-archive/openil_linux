@@ -1156,7 +1156,7 @@ config SERIAL_LANTIQ
 
 config SERIAL_QE
 	tristate "Freescale QUICC Engine serial port support"
-	depends on QUICC_ENGINE
+	select QUICC_ENGINE
 	select SERIAL_CORE
 	select FW_LOADER
 	default n
@@ -1524,6 +1524,7 @@ config SERIAL_FSL_LPUART_CONSOLE
 	bool "Console on Freescale lpuart serial port"
 	depends on SERIAL_FSL_LPUART=y
 	select SERIAL_CORE_CONSOLE
+	select SERIAL_EARLYCON
 	help
 	  If you have enabled the lpuart serial port on the Freescale SoCs,
 	  you can make it the console by answering Y to this option.
