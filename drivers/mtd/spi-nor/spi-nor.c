@@ -39,6 +39,7 @@
 
 #define SPI_NOR_MAX_ID_LEN	6
 #define SPI_NOR_MAX_ADDR_WIDTH	4
+#define SPI_NOR_MICRON_WRITE_ENABLE	0x7f
 
 struct flash_info {
 	char		*name;
@@ -1276,6 +1277,14 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 	ret = spi_nor_unprotect_on_powerup(nor);
 	if (ret)
 		return ret;
+
+	if (JEDEC_MFR(info) == SNOR_MFR_MICRON) {
+		ret = read_sr(nor);
+		ret &= SPI_NOR_MICRON_WRITE_ENABLE;
+
+		write_enable(nor);
+		write_sr(nor, ret);
+	}
 
 	if (!mtd->name)
 		mtd->name = dev_name(dev);
