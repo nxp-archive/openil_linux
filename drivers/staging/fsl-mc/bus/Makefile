@@ -14,4 +14,5 @@ mc-bus-driver-objs := mc-bus.o \
 		      dprc-driver.o \
 		      mc-allocator.o \
 		      dpmcp.o \
-		      dpbp.o
+		      dpbp.o \
+		      dpcon.o
