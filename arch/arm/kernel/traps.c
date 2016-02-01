@@ -510,11 +510,6 @@ asmlinkage void bad_mode(struct pt_regs *regs, int reason)
 	die("Oops - bad mode", regs, 0);
 	local_irq_disable();
 	panic("bad mode");
-
-#ifdef CONFIG_IPIPE
-	hard_local_irq_disable();
-	__ipipe_root_status &= ~IPIPE_STALL_FLAG;
-#endif
 }
 
 static int bad_syscall(int n, struct pt_regs *regs)
