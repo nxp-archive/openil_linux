@@ -1219,6 +1219,10 @@
 /include/ "qoriq-gpio-1.dtsi"
 /include/ "qoriq-gpio-2.dtsi"
 /include/ "qoriq-gpio-3.dtsi"
+/include/ "qoriq-rman-0.dtsi"
+	rman: rman@1e0000 {
+		fsl,qman-channels-id = <0x880 0x881>;
+	};
 /include/ "qoriq-usb2-mph-0.dtsi"
 		usb0: usb@210000 {
 			compatible = "fsl-usb2-mph-v2.5", "fsl-usb2-mph";
