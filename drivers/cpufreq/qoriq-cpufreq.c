@@ -287,6 +287,8 @@ static const struct of_device_id node_matches[] __initconst = {
 	{ .compatible = "fsl,p4080-clockgen", },
 	{ .compatible = "fsl,qoriq-clockgen-1.0", },
 	{ .compatible = "fsl,qoriq-clockgen-2.0", },
+	{ .compatible = "fsl,ls2080a-clockgen", },
+	{ .compatible = "fsl,ls1043a-clockgen", },
 	{}
 };
 
