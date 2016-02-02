@@ -1485,34 +1485,6 @@ static void cdan_cb(struct dpaa2_io_notification_ctx *ctx)
 	napi_schedule_irqoff(&ch->napi);
 }
 
-static void setup_fqs(struct dpaa2_eth_priv *priv)
-{
-	int i;
-
-	/* We have one TxConf FQ per Tx flow */
-	for (i = 0; i < priv->dpni_attrs.max_senders; i++) {
-		priv->fq[priv->num_fqs].type = DPAA2_TX_CONF_FQ;
-		priv->fq[priv->num_fqs].consume = dpaa2_eth_tx_conf;
-		priv->fq[priv->num_fqs++].flowid = DPNI_NEW_FLOW_ID;
-	}
-
-	/* The number of Rx queues (Rx distribution width) may be different from
-	 * the number of cores.
-	 * We only support one traffic class for now.
-	 */
-	for (i = 0; i < dpaa2_eth_queue_count(priv); i++) {
-		priv->fq[priv->num_fqs].type = DPAA2_RX_FQ;
-		priv->fq[priv->num_fqs].consume = dpaa2_eth_rx;
-		priv->fq[priv->num_fqs++].flowid = (u16)i;
-	}
-
-#ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
-	/* We have exactly one Rx error queue per DPNI */
-	priv->fq[priv->num_fqs].type = DPAA2_RX_ERR_FQ;
-	priv->fq[priv->num_fqs++].consume = dpaa2_eth_rx_err;
-#endif
-}
-
 static int check_obj_version(struct fsl_mc_device *ls_dev, u16 mc_version)
 {
 	char *name = ls_dev->obj_desc.type;
@@ -1798,6 +1770,37 @@ static void set_fq_affinity(struct dpaa2_eth_priv *priv)
 		}
 		fq->channel = get_affine_channel(priv, fq->target_cpu);
 	}
+}
+
+static void setup_fqs(struct dpaa2_eth_priv *priv)
+{
+	int i;
+
+	/* We have one TxConf FQ per Tx flow */
+	for (i = 0; i < priv->dpni_attrs.max_senders; i++) {
+		priv->fq[priv->num_fqs].type = DPAA2_TX_CONF_FQ;
+		priv->fq[priv->num_fqs].consume = dpaa2_eth_tx_conf;
+		priv->fq[priv->num_fqs++].flowid = DPNI_NEW_FLOW_ID;
+	}
+
+	/* The number of Rx queues (Rx distribution width) may be different from
+	 * the number of cores.
+	 * We only support one traffic class for now.
+	 */
+	for (i = 0; i < dpaa2_eth_queue_count(priv); i++) {
+		priv->fq[priv->num_fqs].type = DPAA2_RX_FQ;
+		priv->fq[priv->num_fqs].consume = dpaa2_eth_rx;
+		priv->fq[priv->num_fqs++].flowid = (u16)i;
+	}
+
+#ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
+	/* We have exactly one Rx error queue per DPNI */
+	priv->fq[priv->num_fqs].type = DPAA2_RX_ERR_FQ;
+	priv->fq[priv->num_fqs++].consume = dpaa2_eth_rx_err;
+#endif
+
+	/* For each FQ, decide on which core to process incoming frames */
+	set_fq_affinity(priv);
 }
 
 static int setup_dpbp(struct dpaa2_eth_priv *priv)
@@ -2617,7 +2620,6 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 
 	/* FQs */
 	setup_fqs(priv);
-	set_fq_affinity(priv);
 
 	/* DPBP */
 	err = setup_dpbp(priv);
