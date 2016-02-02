@@ -52,7 +52,7 @@ char dpaa2_ethtool_stats[][ETH_GSTRING_LEN] = {
 
 #define DPAA2_ETH_NUM_STATS	ARRAY_SIZE(dpaa2_ethtool_stats)
 
-/* To be kept in sync with 'struct dpaa2_eth_stats' */
+/* To be kept in sync with 'struct dpaa2_eth_drv_stats' */
 char dpaa2_ethtool_extras[][ETH_GSTRING_LEN] = {
 	/* per-cpu stats */
 
@@ -238,7 +238,7 @@ static void dpaa2_eth_get_ethtool_stats(struct net_device *net_dev,
 	u64 cdan = 0;
 	u64 portal_busy = 0, pull_err = 0;
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
-	struct dpaa2_eth_stats *extras;
+	struct dpaa2_eth_drv_stats *extras;
 	struct dpaa2_eth_ch_stats *ch_stats;
 
 	memset(data, 0,

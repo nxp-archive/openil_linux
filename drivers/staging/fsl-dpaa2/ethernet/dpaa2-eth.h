@@ -50,7 +50,7 @@
 #define DPAA2_ETH_STORE_SIZE		16
 
 /* Maximum receive frame size is 64K */
-#define DPAA2_ETH_MAX_SG_ENTRIES	((64 * 1024) / DPAA2_ETH_RX_BUFFER_SIZE)
+#define DPAA2_ETH_MAX_SG_ENTRIES	((64 * 1024) / DPAA2_ETH_RX_BUF_SIZE)
 
 /* Maximum acceptable MTU value. It is in direct relation with the MC-enforced
  * Max Frame Length (currently 10k).
@@ -83,14 +83,14 @@
 /* Hardware requires alignment for ingress/egress buffer addresses
  * and ingress buffer lengths.
  */
-#define DPAA2_ETH_RX_BUFFER_SIZE	2048
+#define DPAA2_ETH_RX_BUF_SIZE		2048
 #define DPAA2_ETH_TX_BUF_ALIGN		64
 #define DPAA2_ETH_RX_BUF_ALIGN		256
 #define DPAA2_ETH_NEEDED_HEADROOM(p_priv) \
 	((p_priv)->tx_data_offset + DPAA2_ETH_TX_BUF_ALIGN)
 
 #define DPAA2_ETH_BUF_RAW_SIZE \
-	(DPAA2_ETH_RX_BUFFER_SIZE + \
+	(DPAA2_ETH_RX_BUF_SIZE + \
 	SKB_DATA_ALIGN(sizeof(struct skb_shared_info)) + \
 	DPAA2_ETH_RX_BUF_ALIGN)
 
@@ -133,56 +133,56 @@ struct dpaa2_fas {
 } __packed;
 
 /* Debug frame, otherwise supposed to be discarded */
-#define DPAA2_ETH_FAS_DISC		0x80000000
+#define DPAA2_FAS_DISC			0x80000000
 /* MACSEC frame */
-#define DPAA2_ETH_FAS_MS		0x40000000
-#define DPAA2_ETH_FAS_PTP		0x08000000
+#define DPAA2_FAS_MS			0x40000000
+#define DPAA2_FAS_PTP			0x08000000
 /* Ethernet multicast frame */
-#define DPAA2_ETH_FAS_MC		0x04000000
+#define DPAA2_FAS_MC			0x04000000
 /* Ethernet broadcast frame */
-#define DPAA2_ETH_FAS_BC		0x02000000
-#define DPAA2_ETH_FAS_KSE		0x00040000
-#define DPAA2_ETH_FAS_EOFHE		0x00020000
-#define DPAA2_ETH_FAS_MNLE		0x00010000
-#define DPAA2_ETH_FAS_TIDE		0x00008000
-#define DPAA2_ETH_FAS_PIEE		0x00004000
+#define DPAA2_FAS_BC			0x02000000
+#define DPAA2_FAS_KSE			0x00040000
+#define DPAA2_FAS_EOFHE			0x00020000
+#define DPAA2_FAS_MNLE			0x00010000
+#define DPAA2_FAS_TIDE			0x00008000
+#define DPAA2_FAS_PIEE			0x00004000
 /* Frame length error */
-#define DPAA2_ETH_FAS_FLE		0x00002000
+#define DPAA2_FAS_FLE			0x00002000
 /* Frame physical error; our favourite pastime */
-#define DPAA2_ETH_FAS_FPE		0x00001000
-#define DPAA2_ETH_FAS_PTE		0x00000080
-#define DPAA2_ETH_FAS_ISP		0x00000040
-#define DPAA2_ETH_FAS_PHE		0x00000020
-#define DPAA2_ETH_FAS_BLE		0x00000010
+#define DPAA2_FAS_FPE			0x00001000
+#define DPAA2_FAS_PTE			0x00000080
+#define DPAA2_FAS_ISP			0x00000040
+#define DPAA2_FAS_PHE			0x00000020
+#define DPAA2_FAS_BLE			0x00000010
 /* L3 csum validation performed */
-#define DPAA2_ETH_FAS_L3CV		0x00000008
+#define DPAA2_FAS_L3CV			0x00000008
 /* L3 csum error */
-#define DPAA2_ETH_FAS_L3CE		0x00000004
+#define DPAA2_FAS_L3CE			0x00000004
 /* L4 csum validation performed */
-#define DPAA2_ETH_FAS_L4CV		0x00000002
+#define DPAA2_FAS_L4CV			0x00000002
 /* L4 csum error */
-#define DPAA2_ETH_FAS_L4CE		0x00000001
+#define DPAA2_FAS_L4CE			0x00000001
 /* These bits always signal errors */
-#define DPAA2_ETH_RX_ERR_MASK		(DPAA2_ETH_FAS_KSE	| \
-					 DPAA2_ETH_FAS_EOFHE	| \
-					 DPAA2_ETH_FAS_MNLE	| \
-					 DPAA2_ETH_FAS_TIDE	| \
-					 DPAA2_ETH_FAS_PIEE	| \
-					 DPAA2_ETH_FAS_FLE	| \
-					 DPAA2_ETH_FAS_FPE	| \
-					 DPAA2_ETH_FAS_PTE	| \
-					 DPAA2_ETH_FAS_ISP	| \
-					 DPAA2_ETH_FAS_PHE	| \
-					 DPAA2_ETH_FAS_BLE	| \
-					 DPAA2_ETH_FAS_L3CE	| \
-					 DPAA2_ETH_FAS_L4CE)
+#define DPAA2_ETH_RX_ERR_MASK		(DPAA2_FAS_KSE		| \
+					 DPAA2_FAS_EOFHE	| \
+					 DPAA2_FAS_MNLE		| \
+					 DPAA2_FAS_TIDE		| \
+					 DPAA2_FAS_PIEE		| \
+					 DPAA2_FAS_FLE		| \
+					 DPAA2_FAS_FPE		| \
+					 DPAA2_FAS_PTE		| \
+					 DPAA2_FAS_ISP		| \
+					 DPAA2_FAS_PHE		| \
+					 DPAA2_FAS_BLE		| \
+					 DPAA2_FAS_L3CE		| \
+					 DPAA2_FAS_L4CE)
 /* Unsupported features in the ingress */
-#define DPAA2_ETH_RX_UNSUPP_MASK	DPAA2_ETH_FAS_MS
+#define DPAA2_ETH_RX_UNSUPP_MASK	DPAA2_FAS_MS
 /* Tx errors */
-#define DPAA2_ETH_TXCONF_ERR_MASK	(DPAA2_ETH_FAS_KSE	| \
-					 DPAA2_ETH_FAS_EOFHE	| \
-					 DPAA2_ETH_FAS_MNLE	| \
-					 DPAA2_ETH_FAS_TIDE)
+#define DPAA2_ETH_TXCONF_ERR_MASK	(DPAA2_FAS_KSE		| \
+					 DPAA2_FAS_EOFHE	| \
+					 DPAA2_FAS_MNLE		| \
+					 DPAA2_FAS_TIDE)
 
 /* Time in milliseconds between link state updates */
 #define DPAA2_ETH_LINK_STATE_REFRESH	1000
@@ -190,7 +190,7 @@ struct dpaa2_fas {
 /* Driver statistics, other than those in struct rtnl_link_stats64.
  * These are usually collected per-CPU and aggregated by ethtool.
  */
-struct dpaa2_eth_stats {
+struct dpaa2_eth_drv_stats {
 	__u64	tx_conf_frames;
 	__u64	tx_conf_bytes;
 	__u64	tx_sg_frames;
@@ -306,7 +306,7 @@ struct dpaa2_eth_priv {
 	/* Standard statistics */
 	struct rtnl_link_stats64 __percpu *percpu_stats;
 	/* Extra stats, in addition to the ones known by the kernel */
-	struct dpaa2_eth_stats __percpu *percpu_extras;
+	struct dpaa2_eth_drv_stats __percpu *percpu_extras;
 	u32 msg_enable;	/* net_device message level */
 
 	u16 mc_token;

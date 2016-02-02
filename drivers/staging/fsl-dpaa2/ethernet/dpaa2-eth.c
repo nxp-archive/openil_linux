@@ -72,8 +72,8 @@ static void validate_rx_csum(struct dpaa2_eth_priv *priv,
 		return;
 
 	/* Read checksum validation bits */
-	if (!((fd_status & DPAA2_ETH_FAS_L3CV) &&
-	      (fd_status & DPAA2_ETH_FAS_L4CV)))
+	if (!((fd_status & DPAA2_FAS_L3CV) &&
+	      (fd_status & DPAA2_FAS_L4CV)))
 		return;
 
 	/* Inform the stack there's no need to compute L3/L4 csum anymore */
@@ -104,7 +104,7 @@ static void free_rx_fd(struct dpaa2_eth_priv *priv,
 		dpaa2_sg_le_to_cpu(&sgt[i]);
 
 		addr = dpaa2_sg_get_addr(&sgt[i]);
-		dma_unmap_single(dev, addr, DPAA2_ETH_RX_BUFFER_SIZE,
+		dma_unmap_single(dev, addr, DPAA2_ETH_RX_BUF_SIZE,
 				 DMA_FROM_DEVICE);
 
 		sg_vaddr = phys_to_virt(addr);
@@ -128,7 +128,7 @@ static struct sk_buff *build_linear_skb(struct dpaa2_eth_priv *priv,
 	u16 fd_offset = dpaa2_fd_get_offset(fd);
 	u32 fd_length = dpaa2_fd_get_len(fd);
 
-	skb = build_skb(fd_vaddr, DPAA2_ETH_RX_BUFFER_SIZE +
+	skb = build_skb(fd_vaddr, DPAA2_ETH_RX_BUF_SIZE +
 			SKB_DATA_ALIGN(sizeof(struct skb_shared_info)));
 	if (unlikely(!skb))
 		return NULL;
@@ -167,7 +167,7 @@ static struct sk_buff *build_frag_skb(struct dpaa2_eth_priv *priv,
 
 		/* Get the address, offset and length from the S/G entry */
 		sg_addr = dpaa2_sg_get_addr(sge);
-		dma_unmap_single(dev, sg_addr, DPAA2_ETH_RX_BUFFER_SIZE,
+		dma_unmap_single(dev, sg_addr, DPAA2_ETH_RX_BUF_SIZE,
 				 DMA_FROM_DEVICE);
 
 		sg_vaddr = phys_to_virt(sg_addr);
@@ -175,7 +175,7 @@ static struct sk_buff *build_frag_skb(struct dpaa2_eth_priv *priv,
 
 		if (i == 0) {
 			/* We build the skb around the first data buffer */
-			skb = build_skb(sg_vaddr, DPAA2_ETH_RX_BUFFER_SIZE +
+			skb = build_skb(sg_vaddr, DPAA2_ETH_RX_BUF_SIZE +
 				SKB_DATA_ALIGN(sizeof(struct skb_shared_info)));
 			if (unlikely(!skb))
 				return NULL;
@@ -198,7 +198,7 @@ static struct sk_buff *build_frag_skb(struct dpaa2_eth_priv *priv,
 				(page_address(page) - page_address(head_page));
 
 			skb_add_rx_frag(skb, i - 1, head_page, page_offset,
-					sg_length, DPAA2_ETH_RX_BUFFER_SIZE);
+					sg_length, DPAA2_ETH_RX_BUF_SIZE);
 		}
 
 		if (dpaa2_sg_is_final(sge))
@@ -221,7 +221,7 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 	void *vaddr;
 	struct sk_buff *skb;
 	struct rtnl_link_stats64 *percpu_stats;
-	struct dpaa2_eth_stats *percpu_extras;
+	struct dpaa2_eth_drv_stats *percpu_extras;
 	struct device *dev = priv->net_dev->dev.parent;
 	struct dpaa2_fas *fas;
 	u32 status = 0;
@@ -229,7 +229,7 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 	/* Tracing point */
 	trace_dpaa2_rx_fd(priv->net_dev, fd);
 
-	dma_unmap_single(dev, addr, DPAA2_ETH_RX_BUFFER_SIZE, DMA_FROM_DEVICE);
+	dma_unmap_single(dev, addr, DPAA2_ETH_RX_BUF_SIZE, DMA_FROM_DEVICE);
 	vaddr = phys_to_virt(addr);
 
 	prefetch(vaddr + priv->buf_layout.private_data_size);
@@ -306,7 +306,7 @@ static void dpaa2_eth_rx_err(struct dpaa2_eth_priv *priv,
 	struct dpaa2_fas *fas;
 	u32 status = 0;
 
-	dma_unmap_single(dev, addr, DPAA2_ETH_RX_BUFFER_SIZE, DMA_FROM_DEVICE);
+	dma_unmap_single(dev, addr, DPAA2_ETH_RX_BUF_SIZE, DMA_FROM_DEVICE);
 	vaddr = phys_to_virt(addr);
 
 	if (fd->simple.frc & DPAA2_FD_FRC_FASV) {
@@ -600,7 +600,7 @@ static int dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
 	struct dpaa2_fd fd;
 	struct rtnl_link_stats64 *percpu_stats;
-	struct dpaa2_eth_stats *percpu_extras;
+	struct dpaa2_eth_drv_stats *percpu_extras;
 	int err, i;
 	/* TxConf FQ selection primarily based on cpu affinity; this is
 	 * non-migratable context, so it's safe to call smp_processor_id().
@@ -683,7 +683,7 @@ static void dpaa2_eth_tx_conf(struct dpaa2_eth_priv *priv,
 			      struct napi_struct *napi __always_unused)
 {
 	struct rtnl_link_stats64 *percpu_stats;
-	struct dpaa2_eth_stats *percpu_extras;
+	struct dpaa2_eth_drv_stats *percpu_extras;
 	u32 status = 0;
 
 	/* Tracing point */
@@ -773,7 +773,7 @@ static int add_bufs(struct dpaa2_eth_priv *priv, u16 bpid)
 
 		buf = PTR_ALIGN(buf, DPAA2_ETH_RX_BUF_ALIGN);
 
-		addr = dma_map_single(dev, buf, DPAA2_ETH_RX_BUFFER_SIZE,
+		addr = dma_map_single(dev, buf, DPAA2_ETH_RX_BUF_SIZE,
 				      DMA_FROM_DEVICE);
 		if (unlikely(dma_mapping_error(dev, addr)))
 			goto err_map;
@@ -783,7 +783,7 @@ static int add_bufs(struct dpaa2_eth_priv *priv, u16 bpid)
 		/* tracing point */
 		trace_dpaa2_eth_buf_seed(priv->net_dev,
 					 buf, DPAA2_ETH_BUF_RAW_SIZE,
-					 addr, DPAA2_ETH_RX_BUFFER_SIZE,
+					 addr, DPAA2_ETH_RX_BUF_SIZE,
 					 bpid);
 	}
 
@@ -863,7 +863,7 @@ static void drain_bufs(struct dpaa2_eth_priv *priv, int count)
 		for (i = 0; i < ret; i++) {
 			/* Same logic as on regular Rx path */
 			dma_unmap_single(dev, buf_array[i],
-					 DPAA2_ETH_RX_BUFFER_SIZE,
+					 DPAA2_ETH_RX_BUF_SIZE,
 					 DMA_FROM_DEVICE);
 			vaddr = phys_to_virt(buf_array[i]);
 			put_page(virt_to_head_page(vaddr));
@@ -2144,7 +2144,7 @@ static int bind_dpni(struct dpaa2_eth_priv *priv)
 	pools_params.num_dpbp = 1;
 	pools_params.pools[0].dpbp_id = priv->dpbp_dev->obj_desc.id;
 	pools_params.pools[0].backup_pool = 0;
-	pools_params.pools[0].buffer_size = DPAA2_ETH_RX_BUFFER_SIZE;
+	pools_params.pools[0].buffer_size = DPAA2_ETH_RX_BUF_SIZE;
 	err = dpni_set_pools(priv->mc_io, 0, priv->mc_token, &pools_params);
 	if (err) {
 		dev_err(dev, "dpni_set_pools() failed\n");

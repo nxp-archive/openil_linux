@@ -45,7 +45,7 @@ static int dpaa2_dbg_cpu_show(struct seq_file *file, void *offset)
 {
 	struct dpaa2_eth_priv *priv = (struct dpaa2_eth_priv *)file->private;
 	struct rtnl_link_stats64 *stats;
-	struct dpaa2_eth_stats *extras;
+	struct dpaa2_eth_drv_stats *extras;
 	int i;
 
 	seq_printf(file, "Per-CPU stats for %s\n", priv->net_dev->name);
@@ -200,7 +200,7 @@ static ssize_t dpaa2_dbg_reset_write(struct file *file, const char __user *buf,
 {
 	struct dpaa2_eth_priv *priv = file->private_data;
 	struct rtnl_link_stats64 *percpu_stats;
-	struct dpaa2_eth_stats *percpu_extras;
+	struct dpaa2_eth_drv_stats *percpu_extras;
 	struct dpaa2_eth_fq *fq;
 	struct dpaa2_eth_channel *ch;
 	int i;
