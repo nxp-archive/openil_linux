@@ -183,6 +183,10 @@
 		shunt-resistor = <1000>;
 	};
 
+	adt7461@4c {
+		compatible = "adi,adt7461";
+		reg = <0x4c>;
+	};
 };
 
 &i2c1 {
