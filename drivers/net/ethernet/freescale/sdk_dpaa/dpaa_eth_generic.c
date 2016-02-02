@@ -747,6 +747,7 @@ static int __hot dpa_generic_tx(struct sk_buff *skb, struct net_device *netdev)
 		if (unlikely(err < 0))
 			goto sg_failed;
 		percpu_priv->tx_frag_skbuffs++;
+		addr = qm_fd_addr(&fd);
 	} else {
 		if (unlikely(skb_headroom(skb) < priv->tx_headroom)) {
 			struct sk_buff *skb_new;
