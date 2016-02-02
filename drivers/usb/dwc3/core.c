@@ -908,6 +908,19 @@ static int dwc3_probe(struct platform_device *pdev)
 		dwc3_writel(dwc->regs, DWC3_GFLADJ, GFLADJ_30MHZ_REG_SEL |
 			    GFLADJ_30MHZ(GFLADJ_30MHZ_DEFAULT));
 
+	/* Change burst beat and outstanding pipelined transfers requests */
+	dwc3_writel(dwc->regs, DWC3_GSBUSCFG0,
+		(dwc3_readl(dwc->regs, DWC3_GSBUSCFG0) & ~0xff) | 0xf);
+	dwc3_writel(dwc->regs, DWC3_GSBUSCFG1,
+		dwc3_readl(dwc->regs, DWC3_GSBUSCFG1) | 0xf00);
+
+	/* Enable Snooping */
+	if (node && of_dma_is_coherent(node)) {
+		dwc3_writel(dwc->regs, DWC3_GSBUSCFG0,
+				dwc3_readl(dwc->regs, DWC3_GSBUSCFG0) | 0x22220000);
+		dev_dbg(dev, "enabled snooping for usb\n");
+	}
+
 	if (IS_ENABLED(CONFIG_USB_DWC3_HOST))
 		dwc->dr_mode = USB_DR_MODE_HOST;
 	else if (IS_ENABLED(CONFIG_USB_DWC3_GADGET))
