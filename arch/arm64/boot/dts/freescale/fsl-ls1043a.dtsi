@@ -796,6 +796,7 @@
 			reg = <0x0 0x2f00000 0x0 0x10000>;
 			interrupts = <0 60 0x4>;
 			dr_mode = "host";
+			configure-gfladj;
 		};
 
 		usb1: usb3@3000000 {

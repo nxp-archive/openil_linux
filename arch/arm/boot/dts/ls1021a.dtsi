@@ -661,6 +661,7 @@
 			interrupts = <GIC_SPI 93 IRQ_TYPE_LEVEL_HIGH>;
 			dr_mode = "host";
 			configure-gfladj;
+			dma-coherent;
 		};
 	};
 
