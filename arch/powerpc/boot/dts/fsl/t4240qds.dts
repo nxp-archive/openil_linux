@@ -129,6 +129,8 @@
 		};
 
 		board-control@3,0 {
+			#address-cells = <1>;
+			#size-cells = <1>;
 			compatible = "fsl,t4240qds-fpga", "fsl,fpga-qixis";
 			reg = <3 0 0x300>;
 			ranges = <0 3 0 0x300>;
@@ -291,6 +293,25 @@
 
 	memory {
 		device_type = "memory";
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		bman_fbpr: bman-fbpr {
+			size = <0 0x1000000>;
+			alignment = <0 0x1000000>;
+		};
+		qman_fqd: qman-fqd {
+			size = <0 0x400000>;
+			alignment = <0 0x400000>;
+		};
+		qman_pfdr: qman-pfdr {
+			size = <0 0x2000000>;
+			alignment = <0 0x2000000>;
+		};
 	};
 
 	dcsr: dcsr@f00000000 {
