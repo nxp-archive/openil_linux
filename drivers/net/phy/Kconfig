@@ -213,6 +213,11 @@ config MDIO_BUS_MUX_MMIOREG
 	  the FPGA's registers.
 
 	  Currently, only 8-bit registers are supported.
+config FSL_10GBASE_KR
+	tristate "Support for 10GBASE-KR on Freescale XFI interface"
+	depends on OF_MDIO
+	help
+	  This module provides a driver for Freescale XFI's 10GBASE-KR.
 
 config MDIO_BCM_UNIMAC
 	tristate "Broadcom UniMAC MDIO bus controller"
