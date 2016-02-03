@@ -27,7 +27,7 @@ u32 guts_get_svr(void)
 {
 	u32 svr = 0;
 
-	if (!(guts->regs)) {
+	if ((!guts) || (!(guts->regs))) {
 #ifdef CONFIG_PPC
 		svr =  mfspr(SPRN_SVR);
 #endif
