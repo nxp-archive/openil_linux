@@ -59,10 +59,10 @@
 		serial4 = &lpuart4;
 		serial5 = &lpuart5;
 
-		gpio0 = &gpio1;
-		gpio1 = &gpio2;
-		gpio2 = &gpio3;
-		gpio3 = &gpio4;
+		gpio0 = &gpio0;
+		gpio1 = &gpio1;
+		gpio2 = &gpio2;
+		gpio3 = &gpio3;
 
 		sgmii_riser_s1_p1 = &sgmii_phy_s1_p1;
 		sgmii_riser_s2_p1 = &sgmii_phy_s2_p1;
