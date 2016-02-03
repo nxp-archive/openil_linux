@@ -91,6 +91,8 @@ static const struct of_device_id guts_of_match[] = {
 	{ .compatible = "fsl,bsc9132-guts", },
 	/* For Layerscape Series SOCs */
 	{ .compatible = "fsl,ls1021a-dcfg", },
+	{ .compatible = "fsl,ls1043a-dcfg", },
+	{ .compatible = "fsl,ls2080a-dcfg", },
 	{}
 };
 MODULE_DEVICE_TABLE(of, guts_of_match);
