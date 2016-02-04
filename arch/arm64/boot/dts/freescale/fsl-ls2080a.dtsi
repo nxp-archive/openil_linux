@@ -239,18 +239,15 @@
 	};
 
 	dspi: dspi@2100000 {
-		compatible = "fsl,vf610-dspi";
+		compatible = "fsl,ls2085a-dspi", "fsl,ls2080a-dspi";
 		#address-cells = <1>;
 		#size-cells = <0>;
 		reg = <0x0 0x2100000 0x0 0x10000>;
 		interrupts = <0 26 0x4>; /* Level high type */
-		tcfq-mode;
 		clocks = <&clockgen 4 3>;
 		clock-names = "dspi";
 		spi-num-chipselects = <5>;
 		bus-num = <0>;
-		spi-cpol;
-		spi-cpha;
 	};
 
 	i2c0: i2c@2000000 {
