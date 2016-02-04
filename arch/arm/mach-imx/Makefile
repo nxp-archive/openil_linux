@@ -97,6 +97,10 @@ obj-$(CONFIG_SOC_IMX6) += suspend-imx6.o
 endif
 obj-$(CONFIG_SOC_IMX6) += pm-imx6.o
 
+ifeq ($(CONFIG_PM),y)
+obj-$(CONFIG_SOC_LS1021A) += pm-ls1.o sleep_fsm.o sleep-ls1.o
+endif
+
 obj-$(CONFIG_SOC_IMX50) += mach-imx50.o
 obj-$(CONFIG_SOC_IMX51) += mach-imx51.o
 obj-$(CONFIG_SOC_IMX53) += mach-imx53.o

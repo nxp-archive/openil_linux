@@ -106,10 +106,10 @@ static int map_subwins(int liodn, struct fsl_dma_domain *dma_domain)
 			spin_lock_irqsave(&iommu_lock, flags);
 			ret = pamu_config_spaace(liodn, dma_domain->win_cnt, i,
 						 sub_win_ptr[i].size,
-						 ~(u32)0,
+						 sub_win_ptr[i].omi,
 						 rpn,
 						 dma_domain->snoop_id,
-						 dma_domain->stash_id,
+						 sub_win_ptr[i].stash_id,
 						 (i > 0) ? 1 : 0,
 						 sub_win_ptr[i].prot);
 			spin_unlock_irqrestore(&iommu_lock, flags);
@@ -134,9 +134,9 @@ static int map_win(int liodn, struct fsl_dma_domain *dma_domain)
 	spin_lock_irqsave(&iommu_lock, flags);
 	ret = pamu_config_ppaace(liodn, wnd_addr,
 				 wnd->size,
-				 ~(u32)0,
+				 wnd->omi,
 				 wnd->paddr >> PAMU_PAGE_SHIFT,
-				 dma_domain->snoop_id, dma_domain->stash_id,
+				 dma_domain->snoop_id, wnd->stash_id,
 				 0, wnd->prot);
 	spin_unlock_irqrestore(&iommu_lock, flags);
 	if (ret)
@@ -165,10 +165,10 @@ static int update_liodn(int liodn, struct fsl_dma_domain *dma_domain, u32 wnd_nr
 	if (dma_domain->win_cnt > 1) {
 		ret = pamu_config_spaace(liodn, dma_domain->win_cnt, wnd_nr,
 					 wnd->size,
-					 ~(u32)0,
+					 wnd->omi,
 					 wnd->paddr >> PAMU_PAGE_SHIFT,
 					 dma_domain->snoop_id,
-					 dma_domain->stash_id,
+					 wnd->stash_id,
 					 (wnd_nr > 0) ? 1 : 0,
 					 wnd->prot);
 		if (ret)
@@ -181,9 +181,9 @@ static int update_liodn(int liodn, struct fsl_dma_domain *dma_domain, u32 wnd_nr
 
 		ret = pamu_config_ppaace(liodn, wnd_addr,
 					 wnd->size,
-					 ~(u32)0,
+					 wnd->omi,
 					 wnd->paddr >> PAMU_PAGE_SHIFT,
-					 dma_domain->snoop_id, dma_domain->stash_id,
+					 dma_domain->snoop_id, wnd->stash_id,
 					 0, wnd->prot);
 		if (ret)
 			pr_debug("Window reconfiguration failed for liodn %d\n",
@@ -195,31 +195,56 @@ static int update_liodn(int liodn, struct fsl_dma_domain *dma_domain, u32 wnd_nr
 	return ret;
 }
 
-static int update_liodn_stash(int liodn, struct fsl_dma_domain *dma_domain,
-			      u32 val)
+struct pamu_attr_info {
+	u32 window;
+	int field;
+	u32 value;
+};
+
+static int update_liodn_attr(int liodn, struct fsl_dma_domain *dma_domain,
+			     struct pamu_attr_info *attr_info)
 {
 	int ret = 0, i;
-	unsigned long flags;
 
-	spin_lock_irqsave(&iommu_lock, flags);
-	if (!dma_domain->win_arr) {
-		pr_debug("Windows not configured, stash destination update failed for liodn %d\n",
-			 liodn);
-		spin_unlock_irqrestore(&iommu_lock, flags);
-		return -EINVAL;
+	spin_lock(&iommu_lock);
+
+	if (~attr_info->window == 0) {
+		for (i = 0; i < dma_domain->win_cnt; i++) {
+			ret = pamu_update_paace_field(liodn, i,
+						      attr_info->field,
+						      attr_info->value);
+			if (ret)
+				break;
+		}
+	} else {
+		ret = pamu_update_paace_field(liodn, attr_info->window,
+					      attr_info->field,
+					      attr_info->value);
 	}
 
-	for (i = 0; i < dma_domain->win_cnt; i++) {
-		ret = pamu_update_paace_stash(liodn, i, val);
-		if (ret) {
-			pr_debug("Failed to update SPAACE %d field for liodn %d\n ",
-				 i, liodn);
-			spin_unlock_irqrestore(&iommu_lock, flags);
-			return ret;
+	spin_unlock(&iommu_lock);
+
+	return ret;
+}
+
+/*
+ * Update attribute  for all LIODNs associated with the domain
+ *
+ */
+static int update_domain_attr(struct fsl_dma_domain *dma_domain,
+				 struct pamu_attr_info *attr_info)
+{
+	struct device_domain_info *info;
+	int ret = 0;
+
+	if (!list_empty(&dma_domain->devices)) {
+		list_for_each_entry(info, &dma_domain->devices, link) {
+			ret = update_liodn_attr(info->liodn, dma_domain,
+						attr_info);
+			if (ret)
+				break;
 		}
 	}
-
-	spin_unlock_irqrestore(&iommu_lock, flags);
 
 	return ret;
 }
@@ -251,7 +276,7 @@ static int pamu_set_liodn(int liodn, struct device *dev,
 	if (!ret)
 		ret = pamu_config_ppaace(liodn, window_addr, window_size, omi_index,
 					 0, dma_domain->snoop_id,
-					 dma_domain->stash_id, win_cnt, 0);
+					 ~(u32)0, win_cnt, 0);
 	spin_unlock_irqrestore(&iommu_lock, flags);
 	if (ret) {
 		pr_debug("PAACE configuration failed for liodn %d, win_cnt =%d\n",
@@ -268,7 +293,7 @@ static int pamu_set_liodn(int liodn, struct device *dev,
 				ret = pamu_config_spaace(liodn, win_cnt, i,
 							 subwin_size, omi_index,
 							 0, dma_domain->snoop_id,
-							 dma_domain->stash_id,
+							 ~(u32)0,
 							 0, 0);
 			spin_unlock_irqrestore(&iommu_lock, flags);
 			if (ret) {
@@ -310,7 +335,6 @@ static struct fsl_dma_domain *iommu_alloc_dma_domain(void)
 	if (!domain)
 		return NULL;
 
-	domain->stash_id = ~(u32)0;
 	domain->snoop_id = ~(u32)0;
 	domain->win_cnt = pamu_get_max_subwin_cnt();
 	domain->geom_size = 0;
@@ -322,17 +346,57 @@ static struct fsl_dma_domain *iommu_alloc_dma_domain(void)
 	return domain;
 }
 
+/* Disable device DMA capability and enable default DMA window */
+static void disable_device_dma(struct device_domain_info *info,
+				int enable_dma_window)
+{
+#ifdef CONFIG_PCI
+	if (info->dev->bus == &pci_bus_type) {
+		struct pci_dev *pdev = NULL;
+
+		pdev = to_pci_dev(info->dev);
+		pci_clear_master(pdev);
+	}
+#endif
+
+	if (enable_dma_window)
+		enable_default_dma_window(info->liodn);
+}
+
+static int check_for_shared_liodn(struct device_domain_info *info)
+{
+	struct device_domain_info *tmp;
+
+	/*
+	 * Sanity check, to ensure that this is not a
+	 * shared LIODN. In case of a PCIe controller
+	 * it's possible that all PCIe devices share
+	 * the same LIODN.
+	 */
+	list_for_each_entry(tmp, &info->domain->devices, link) {
+		if (info->liodn == tmp->liodn)
+			return 1;
+	}
+
+	return 0;
+}
+
 static void remove_device_ref(struct device_domain_info *info, u32 win_cnt)
 {
 	unsigned long flags;
+	int enable_dma_window = 0;
 
 	list_del(&info->link);
 	spin_lock_irqsave(&iommu_lock, flags);
-	if (win_cnt > 1)
-		pamu_free_subwins(info->liodn);
-	pamu_disable_liodn(info->liodn);
+	if (!check_for_shared_liodn(info)) {
+		if (win_cnt > 1)
+			pamu_free_subwins(info->liodn);
+		pamu_disable_liodn(info->liodn);
+		enable_dma_window = 1;
+	}
 	spin_unlock_irqrestore(&iommu_lock, flags);
 	spin_lock_irqsave(&device_domain_lock, flags);
+	disable_device_dma(info, enable_dma_window);
 	info->dev->archdata.iommu_domain = NULL;
 	kmem_cache_free(iommu_devinfo_cache, info);
 	spin_unlock_irqrestore(&device_domain_lock, flags);
@@ -447,21 +511,6 @@ static int pamu_set_domain_geometry(struct fsl_dma_domain *dma_domain,
 	list_for_each_entry(info, &dma_domain->devices, link) {
 		ret = pamu_set_liodn(info->liodn, info->dev, dma_domain,
 				     geom_attr, win_cnt);
-		if (ret)
-			break;
-	}
-
-	return ret;
-}
-
-/* Update stash destination for all LIODNs associated with the domain */
-static int update_domain_stash(struct fsl_dma_domain *dma_domain, u32 val)
-{
-	struct device_domain_info *info;
-	int ret = 0;
-
-	list_for_each_entry(info, &dma_domain->devices, link) {
-		ret = update_liodn_stash(info->liodn, dma_domain, val);
 		if (ret)
 			break;
 	}
@@ -654,21 +703,14 @@ static int handle_attach_device(struct fsl_dma_domain *dma_domain,
 	return ret;
 }
 
-static int fsl_pamu_attach_device(struct iommu_domain *domain,
-				  struct device *dev)
+static struct device *get_dma_device(struct device *dev)
 {
-	struct fsl_dma_domain *dma_domain = to_fsl_dma_domain(domain);
-	const u32 *liodn;
-	u32 liodn_cnt;
-	int len, ret = 0;
-	struct pci_dev *pdev = NULL;
-	struct pci_controller *pci_ctl;
-
-	/*
-	 * Use LIODN of the PCI controller while attaching a
-	 * PCI device.
-	 */
+	struct device *dma_dev = dev;
+#ifdef CONFIG_PCI
 	if (dev_is_pci(dev)) {
+		struct pci_controller *pci_ctl;
+		struct pci_dev *pdev;
+
 		pdev = to_pci_dev(dev);
 		pci_ctl = pci_bus_to_host(pdev->bus);
 		/*
@@ -676,16 +718,30 @@ static int fsl_pamu_attach_device(struct iommu_domain *domain,
 		 * so we can get the LIODN programmed by
 		 * u-boot.
 		 */
-		dev = pci_ctl->parent;
+		dma_dev = pci_ctl->parent;
 	}
+#endif
+	return  dma_dev;
+}
 
-	liodn = of_get_property(dev->of_node, "fsl,liodn", &len);
+static int fsl_pamu_attach_device(struct iommu_domain *domain,
+				  struct device *dev)
+{
+	struct fsl_dma_domain *dma_domain = to_fsl_dma_domain(domain);
+	struct device *dma_dev;
+	const u32 *liodn;
+	u32 liodn_cnt;
+	int len, ret = 0;
+
+	dma_dev = get_dma_device(dev);	
+
+	liodn = of_get_property(dma_dev->of_node, "fsl,liodn", &len);
 	if (liodn) {
 		liodn_cnt = len / sizeof(u32);
 		ret = handle_attach_device(dma_domain, dev, liodn, liodn_cnt);
 	} else {
 		pr_debug("missing fsl,liodn property at %s\n",
-			 dev->of_node->full_name);
+			 dma_dev->of_node->full_name);
 		ret = -EINVAL;
 	}
 
@@ -696,27 +752,13 @@ static void fsl_pamu_detach_device(struct iommu_domain *domain,
 				   struct device *dev)
 {
 	struct fsl_dma_domain *dma_domain = to_fsl_dma_domain(domain);
+	struct device *dma_dev;
 	const u32 *prop;
 	int len;
-	struct pci_dev *pdev = NULL;
-	struct pci_controller *pci_ctl;
 
-	/*
-	 * Use LIODN of the PCI controller while detaching a
-	 * PCI device.
-	 */
-	if (dev_is_pci(dev)) {
-		pdev = to_pci_dev(dev);
-		pci_ctl = pci_bus_to_host(pdev->bus);
-		/*
-		 * make dev point to pci controller device
-		 * so we can get the LIODN programmed by
-		 * u-boot.
-		 */
-		dev = pci_ctl->parent;
-	}
+	dma_dev = get_dma_device(dev);
 
-	prop = of_get_property(dev->of_node, "fsl,liodn", &len);
+	prop = of_get_property(dma_dev->of_node, "fsl,liodn", &len);
 	if (prop)
 		detach_device(dev, dma_domain);
 	else
@@ -759,27 +801,101 @@ static  int configure_domain_geometry(struct iommu_domain *domain, void *data)
 	return 0;
 }
 
-/* Set the domain stash attribute */
-static int configure_domain_stash(struct fsl_dma_domain *dma_domain, void *data)
+static inline int check_attr_window(u32 wnd, struct fsl_dma_domain *dma_domain)
 {
-	struct pamu_stash_attribute *stash_attr = data;
+	return (~wnd != 0) && (wnd >= dma_domain->win_cnt);
+}
+
+/* Set the domain operation mapping attribute */
+static int configure_domain_op_map(struct fsl_dma_domain *dma_domain,
+				    void *data)
+{
+	struct dma_window *wnd;
 	unsigned long flags;
-	int ret;
+	struct pamu_attr_info attr_info;
+	int ret, i;
+	struct pamu_omi_attribute *omi_attr = data;
 
 	spin_lock_irqsave(&dma_domain->domain_lock, flags);
 
-	memcpy(&dma_domain->dma_stash, stash_attr,
-	       sizeof(struct pamu_stash_attribute));
+	if (!dma_domain->win_arr) {
+		pr_err("Number of windows not configured\n");
+		spin_unlock_irqrestore(&dma_domain->domain_lock, flags);
+		return -ENODEV;
+	}
 
-	dma_domain->stash_id = get_stash_id(stash_attr->cache,
-					    stash_attr->cpu);
-	if (dma_domain->stash_id == ~(u32)0) {
-		pr_debug("Invalid stash attributes\n");
+	if (omi_attr->omi >= OMI_MAX ||
+		check_attr_window(omi_attr->window, dma_domain)) {
+		pr_err("Invalid operation mapping index\n");
 		spin_unlock_irqrestore(&dma_domain->domain_lock, flags);
 		return -EINVAL;
 	}
 
-	ret = update_domain_stash(dma_domain, dma_domain->stash_id);
+	if (~omi_attr->window == 0) {
+		wnd = &dma_domain->win_arr[0];
+		for (i = 0; i < dma_domain->win_cnt; i++)
+			wnd[i].omi = omi_attr->omi;
+	} else {
+		wnd = &dma_domain->win_arr[omi_attr->window];
+		wnd->omi = omi_attr->omi;
+	}
+
+	attr_info.window = omi_attr->window;
+	attr_info.field = PAACE_OMI_FIELD;
+	attr_info.value = omi_attr->omi;
+	ret = update_domain_attr(dma_domain, &attr_info);
+
+	spin_unlock_irqrestore(&dma_domain->domain_lock, flags);
+
+	return ret;
+}
+
+/* Set the domain stash attribute */
+static int configure_domain_stash(struct fsl_dma_domain *dma_domain, void *data)
+{
+	struct pamu_stash_attribute *stash_attr = data;
+	struct dma_window *wnd;
+	unsigned long flags;
+	u32 stash_id;
+	int ret;
+	int i;
+	struct pamu_attr_info attr_info;
+
+	spin_lock_irqsave(&dma_domain->domain_lock, flags);
+
+	if (!dma_domain->win_arr) {
+		pr_err("Number of windows not configured\n");
+		spin_unlock_irqrestore(&dma_domain->domain_lock, flags);
+		return -ENODEV;
+	}
+
+	stash_id = get_stash_id(stash_attr->cache, stash_attr->cpu);
+	if ((~stash_id == 0) ||
+	     check_attr_window(stash_attr->window, dma_domain)) {
+		pr_err("Invalid stash attributes\n");
+		spin_unlock_irqrestore(&dma_domain->domain_lock, flags);
+		return -EINVAL;
+	}
+
+	if (~stash_attr->window == 0) {
+		wnd = &dma_domain->win_arr[0];
+		for (i = 0; i < dma_domain->win_cnt; i++) {
+			wnd[i].stash_id = stash_id;
+			memcpy(&wnd[i].stash_attr, stash_attr,
+			       sizeof(wnd[i].stash_attr));
+			wnd[i].stash_attr.window = i;
+		}
+	} else {
+		wnd = &dma_domain->win_arr[stash_attr->window];
+		wnd->stash_id = stash_id;
+		memcpy(&wnd->stash_attr,
+		       stash_attr, sizeof(wnd->stash_attr));
+	}
+
+	attr_info.window = stash_attr->window;
+	attr_info.field = PAACE_STASH_FIELD;
+	attr_info.value = stash_id;
+	ret = update_domain_attr(dma_domain, &attr_info);
 
 	spin_unlock_irqrestore(&dma_domain->domain_lock, flags);
 
@@ -830,6 +946,9 @@ static int fsl_pamu_set_domain_attr(struct iommu_domain *domain,
 	case DOMAIN_ATTR_FSL_PAMU_ENABLE:
 		ret = configure_domain_dma_state(dma_domain, *(int *)data);
 		break;
+	case DOMAIN_ATTR_FSL_PAMU_OP_MAP:
+		ret = configure_domain_op_map(dma_domain, data);
+		break;
 	default:
 		pr_debug("Unsupported attribute type\n");
 		ret = -EINVAL;
@@ -846,16 +965,37 @@ static int fsl_pamu_get_domain_attr(struct iommu_domain *domain,
 	int ret = 0;
 
 	switch (attr_type) {
-	case DOMAIN_ATTR_FSL_PAMU_STASH:
-		memcpy(data, &dma_domain->dma_stash,
-		       sizeof(struct pamu_stash_attribute));
-		break;
 	case DOMAIN_ATTR_FSL_PAMU_ENABLE:
 		*(int *)data = dma_domain->enabled;
 		break;
 	case DOMAIN_ATTR_FSL_PAMUV1:
 		*(int *)data = DOMAIN_ATTR_FSL_PAMUV1;
 		break;
+	case DOMAIN_ATTR_FSL_PAMU_STASH: {
+		struct pamu_stash_attribute *stash_attr = data;
+		struct dma_window *wnd;
+
+		if (stash_attr->window >= dma_domain->win_cnt ||
+		    ~stash_attr->window == 0)
+			return -EINVAL;
+
+		wnd = &dma_domain->win_arr[stash_attr->window];
+		memcpy(stash_attr, &wnd->stash_attr,
+		       sizeof(struct pamu_stash_attribute));
+		break;
+	}
+	case DOMAIN_ATTR_FSL_PAMU_OP_MAP: {
+		struct pamu_omi_attribute *omi_attr = data;
+		struct dma_window *wnd;
+
+		if (omi_attr->window >= dma_domain->win_cnt ||
+		    ~omi_attr->window == 0)
+			return -EINVAL;
+
+		wnd = &dma_domain->win_arr[omi_attr->window];
+		omi_attr->omi = wnd->omi;
+		break;
+	}
 	default:
 		pr_debug("Unsupported attribute type\n");
 		ret = -EINVAL;
@@ -876,6 +1016,7 @@ static struct iommu_group *get_device_iommu_group(struct device *dev)
 	return group;
 }
 
+#ifdef CONFIG_PCI
 static  bool check_pci_ctl_endpt_part(struct pci_controller *pci_ctl)
 {
 	u32 version;
@@ -913,12 +1054,17 @@ static struct iommu_group *get_shared_pci_device_group(struct pci_dev *pdev)
 	return NULL;
 }
 
-static struct iommu_group *get_pci_device_group(struct pci_dev *pdev)
+static struct iommu_group *get_pci_device_group(struct device *dev)
 {
 	struct pci_controller *pci_ctl;
 	bool pci_endpt_partioning;
 	struct iommu_group *group = NULL;
+	struct pci_dev *pdev;
 
+	pdev = to_pci_dev(dev);
+	/* Don't create device groups for virtual PCI bridges */
+	if (pdev->subordinate)
+		return NULL;
 	pci_ctl = pci_bus_to_host(pdev->bus);
 	pci_endpt_partioning = check_pci_ctl_endpt_part(pci_ctl);
 	/* We can partition PCIe devices so assign device group to the device */
@@ -955,11 +1101,11 @@ static struct iommu_group *get_pci_device_group(struct pci_dev *pdev)
 
 	return group;
 }
+#endif
 
 static int fsl_pamu_add_device(struct device *dev)
 {
 	struct iommu_group *group = ERR_PTR(-ENODEV);
-	struct pci_dev *pdev;
 	const u32 *prop;
 	int ret = 0, len;
 
@@ -967,21 +1113,17 @@ static int fsl_pamu_add_device(struct device *dev)
 	 * For platform devices we allocate a separate group for
 	 * each of the devices.
 	 */
-	if (dev_is_pci(dev)) {
-		pdev = to_pci_dev(dev);
-		/* Don't create device groups for virtual PCI bridges */
-		if (pdev->subordinate)
-			return 0;
-
-		group = get_pci_device_group(pdev);
-
-	} else {
+	if (dev->bus == &platform_bus_type) {
 		prop = of_get_property(dev->of_node, "fsl,liodn", &len);
 		if (prop)
 			group = get_device_iommu_group(dev);
+#ifdef CONFIG_PCI
+	} else {
+		group = get_pci_device_group(dev);
+#endif
 	}
 
-	if (IS_ERR(group))
+	if (!group || IS_ERR(group))
 		return PTR_ERR(group);
 
 	/*
@@ -999,6 +1141,16 @@ static int fsl_pamu_add_device(struct device *dev)
 static void fsl_pamu_remove_device(struct device *dev)
 {
 	iommu_group_remove_device(dev);
+}
+
+static void dma_domain_init_windows(struct fsl_dma_domain *dma_domain)
+{
+	int i;
+
+	for (i = 0; i < dma_domain->win_cnt; i++) {
+		dma_domain->win_arr[i].stash_id = ~(u32)0;
+		dma_domain->win_arr[i].omi = ~(u32)0;
+	}
 }
 
 static int fsl_pamu_set_windows(struct iommu_domain *domain, u32 w_count)
@@ -1044,6 +1196,7 @@ static int fsl_pamu_set_windows(struct iommu_domain *domain, u32 w_count)
 			return -ENOMEM;
 		}
 		dma_domain->win_cnt = w_count;
+		dma_domain_init_windows(dma_domain);
 	}
 	spin_unlock_irqrestore(&dma_domain->domain_lock, flags);
 
@@ -1055,6 +1208,17 @@ static u32 fsl_pamu_get_windows(struct iommu_domain *domain)
 	struct fsl_dma_domain *dma_domain = to_fsl_dma_domain(domain);
 
 	return dma_domain->win_cnt;
+}
+
+static struct iommu_domain *fsl_get_dev_domain(struct device *dev)
+{
+	struct device_domain_info *info;
+
+	info = dev->archdata.iommu_domain;
+	if (info && info->domain)
+		return &info->domain->iommu_domain;
+
+	return NULL;
 }
 
 static const struct iommu_ops fsl_pamu_ops = {
@@ -1072,6 +1236,7 @@ static const struct iommu_ops fsl_pamu_ops = {
 	.domain_get_attr = fsl_pamu_get_domain_attr,
 	.add_device	= fsl_pamu_add_device,
 	.remove_device	= fsl_pamu_remove_device,
+	.get_dev_iommu_domain = fsl_get_dev_domain,
 };
 
 int __init pamu_domain_init(void)
@@ -1083,7 +1248,9 @@ int __init pamu_domain_init(void)
 		return ret;
 
 	bus_set_iommu(&platform_bus_type, &fsl_pamu_ops);
+#ifdef CONFIG_PCI
 	bus_set_iommu(&pci_bus_type, &fsl_pamu_ops);
+#endif
 
 	return ret;
 }

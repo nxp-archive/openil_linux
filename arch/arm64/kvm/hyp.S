@@ -17,8 +17,10 @@
 
 #include <linux/linkage.h>
 
+#include <asm/alternative.h>
 #include <asm/asm-offsets.h>
 #include <asm/assembler.h>
+#include <asm/cpufeature.h>
 #include <asm/debug-monitors.h>
 #include <asm/esr.h>
 #include <asm/fpsimdmacros.h>
@@ -947,13 +949,15 @@ ENTRY(__kvm_vcpu_run)
 	// Guest context
 	add	x2, x0, #VCPU_CONTEXT
 
+	// We must restore the 32-bit state before the sysregs, thanks
+	// to Cortex-A57 erratum #852523.
+	restore_guest_32bit_state
 	bl __restore_sysregs
 	bl __restore_fpsimd
 
 	skip_debug_state x3, 1f
 	bl	__restore_debug
 1:
-	restore_guest_32bit_state
 	restore_guest_regs
 
 	// That's it, no more messing around.
@@ -1207,9 +1211,15 @@ el1_trap:
 	b.ne	1f		// Not an abort we care about
 
 	/* This is an abort. Check for permission fault */
+alternative_if_not ARM64_WORKAROUND_834220
 	and	x2, x1, #ESR_ELx_FSC_TYPE
 	cmp	x2, #FSC_PERM
 	b.ne	1f		// Not a permission fault
+alternative_else
+	nop			// Use the permission fault path to
+	nop			// check for a valid S1 translation,
+	nop			// regardless of the ESR value.
+alternative_endif
 
 	/*
 	 * Check for Stage-1 page table walk, which is guaranteed

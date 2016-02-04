@@ -224,6 +224,23 @@ config SGI_XP
 	  this feature will allow for direct communication between SSIs
 	  based on a network adapter and DMA messaging.
 
+config FSL_USDPAA
+        bool "Freescale USDPAA process driver"
+        depends on FSL_DPA
+        default y
+        help
+          This driver provides user-space access to kernel-managed
+          resource interfaces for USDPAA applications, on the assumption
+          that each process will open this device once. Specifically, this
+          device exposes functionality that would be awkward if exposed
+          via the portal devices - ie. this device exposes functionality
+          that is inherently process-wide rather than portal-specific.
+          This device is necessary for obtaining access to DMA memory and
+          for allocation of Qman and Bman resources. In short, if you wish
+          to use USDPAA applications, you need this.
+
+          If unsure, say Y.
+
 config CS5535_MFGPT
 	tristate "CS5535/CS5536 Geode Multi-Function General Purpose Timer (MFGPT) support"
 	depends on MFD_CS5535

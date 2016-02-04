@@ -378,6 +378,15 @@ int clk_set_parent(struct clk *clk, struct clk *parent);
 struct clk *clk_get_parent(struct clk *clk);
 
 /**
+ * clk_get_num_parents - get number of possible parents
+ * @clk: clock source
+ *
+ * Returns the number of possible parents of this clock,
+ * which can then be enumerated using clk_get_parent_by_index().
+ */
+unsigned int clk_get_num_parents(struct clk *clk);
+
+/**
  * clk_get_sys - get a clock based upon the device name
  * @dev_id: device name
  * @con_id: connection ID
@@ -445,6 +454,11 @@ static inline int clk_set_parent(struct clk *clk, struct clk *parent)
 static inline struct clk *clk_get_parent(struct clk *clk)
 {
 	return NULL;
+}
+
+static inline unsigned int clk_get_num_parents(struct clk *clk)
+{
+	return 0;
 }
 
 #endif

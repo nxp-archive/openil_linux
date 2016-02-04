@@ -39,6 +39,14 @@
 #include <linux/errno.h>
 #include <linux/io.h>
 #include <linux/dma-mapping.h>
+#include <linux/completion.h>
+#include <linux/mutex.h>
+#include <linux/spinlock.h>
+
+/**
+ * Bit masks for a MC I/O object (struct fsl_mc_io) flags
+ */
+#define FSL_MC_IO_ATOMIC_CONTEXT_PORTAL	0x0001
 
 struct fsl_mc_resource;
 struct mc_command;
@@ -50,26 +58,70 @@ struct mc_command;
  * @portal_size: MC command portal size in bytes
  * @portal_phys_addr: MC command portal physical address
  * @portal_virt_addr: MC command portal virtual address
- * @resource: generic resource associated with the MC portal if
- * the MC portal came from a resource pool, or NULL if the MC portal
- * is permanently bound to a device (e.g., a DPRC)
+ * @dpmcp_dev: pointer to the DPMCP device associated with the MC portal.
+ * @mc_command_done_irq_armed: Flag indicating that the MC command done IRQ
+ * is currently armed.
+ * @mc_command_done_completion: Completion variable to be signaled when an MC
+ * command sent to the MC fw is completed.
+ *
+ * Fields are only meaningful if the FSL_MC_IO_ATOMIC_CONTEXT_PORTAL flag is not
+ * set:
+ * @mutex: Mutex to serialize mc_send_command() calls that use the same MC
+ * portal, if the fsl_mc_io object was created with the
+ * FSL_MC_IO_ATOMIC_CONTEXT_PORTAL flag off. mc_send_command() calls for this
+ * fsl_mc_io object must be made only from non-atomic context.
+ * @mc_command_done_completion: Linux completion variable to be signaled
+ * when a DPMCP command completion interrupts is received.
+ * @mc_command_done_irq_armed: Boolean flag that indicates if interrupts have
+ * been successfully configured for the corresponding DPMCP object.
+ *
+ * Fields are only meaningful if the FSL_MC_IO_ATOMIC_CONTEXT_PORTAL flag is
+ * set:
+ * @spinlock: Spinlock to serialize mc_send_command() calls that use the same MC
+ * portal, if the fsl_mc_io object was created with the
+ * FSL_MC_IO_ATOMIC_CONTEXT_PORTAL flag on. mc_send_command() calls for this
+ * fsl_mc_io object can be made from atomic or non-atomic context.
  */
 struct fsl_mc_io {
 	struct device *dev;
-	uint32_t flags;
-	uint32_t portal_size;
+	uint16_t flags;
+	uint16_t portal_size;
 	phys_addr_t portal_phys_addr;
 	void __iomem *portal_virt_addr;
-	struct fsl_mc_resource *resource;
+	struct fsl_mc_device *dpmcp_dev;
+	union {
+		/*
+		 * These fields are only meaningful if the
+		 * FSL_MC_IO_ATOMIC_CONTEXT_PORTAL flag is not set
+		 */
+		struct {
+			struct mutex mutex; /* serializes mc_send_command() */
+			struct completion mc_command_done_completion;
+			bool mc_command_done_irq_armed;
+		};
+
+		/*
+		 * This field is only meaningful if the
+		 * FSL_MC_IO_ATOMIC_CONTEXT_PORTAL flag is set
+		 */
+		spinlock_t spinlock;	/* serializes mc_send_command() */
+	};
 };
 
 int __must_check fsl_create_mc_io(struct device *dev,
 				  phys_addr_t mc_portal_phys_addr,
 				  uint32_t mc_portal_size,
-				  struct fsl_mc_resource *resource,
+				  struct fsl_mc_device *dpmcp_dev,
 				  uint32_t flags, struct fsl_mc_io **new_mc_io);
 
 void fsl_destroy_mc_io(struct fsl_mc_io *mc_io);
+
+int fsl_mc_io_set_dpmcp(struct fsl_mc_io *mc_io,
+			struct fsl_mc_device *dpmcp_dev);
+
+void fsl_mc_io_unset_dpmcp(struct fsl_mc_io *mc_io);
+
+int fsl_mc_io_setup_dpmcp_irq(struct fsl_mc_io *mc_io);
 
 int mc_send_command(struct fsl_mc_io *mc_io, struct mc_command *cmd);
 

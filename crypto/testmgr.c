@@ -114,6 +114,13 @@ struct drbg_test_suite {
 	unsigned int count;
 };
 
+struct tls_test_suite {
+	struct {
+		struct tls_testvec *vecs;
+		unsigned int count;
+	} enc, dec;
+};
+
 struct alg_test_desc {
 	const char *alg;
 	int (*test)(const struct alg_test_desc *desc, const char *driver,
@@ -128,6 +135,7 @@ struct alg_test_desc {
 		struct hash_test_suite hash;
 		struct cprng_test_suite cprng;
 		struct drbg_test_suite drbg;
+		struct tls_test_suite tls;
 	} suite;
 };
 
@@ -826,6 +834,208 @@ static int test_aead(struct crypto_aead *tfm, int enc,
 	}
 
 	return 0;
+}
+
+static int __test_tls(struct crypto_aead *tfm, int enc,
+		       struct tls_testvec *template, unsigned int tcount,
+		       const bool diff_dst)
+{
+	const char *algo = crypto_tfm_alg_driver_name(crypto_aead_tfm(tfm));
+	unsigned int i, rlen;
+	int ret = -ENOMEM;
+	char *q;
+	char *key;
+	struct aead_request *req;
+	struct scatterlist *sg;
+	struct scatterlist *asg;
+	struct scatterlist *sgout;
+	const char *e, *d;
+	struct tcrypt_result result;
+	void *input;
+	void *output;
+	void *assoc;
+	char iv[MAX_IVLEN];
+	char *xbuf[XBUFSIZE];
+	char *xoutbuf[XBUFSIZE];
+	char *axbuf[XBUFSIZE];
+
+	if (testmgr_alloc_buf(xbuf))
+		goto out_noxbuf;
+	if (testmgr_alloc_buf(axbuf))
+		goto out_noaxbuf;
+
+	if (diff_dst && testmgr_alloc_buf(xoutbuf))
+		goto out_nooutbuf;
+
+	sg = kmalloc(sizeof(*sg) * 8 * (diff_dst ? 3 : 2), GFP_KERNEL);
+	if (!sg)
+		goto out_nosg;
+
+	asg = sg + 8;
+	sgout = sg + 16;
+
+	d = diff_dst ? "-ddst" : "";
+	e = enc ? "encryption" : "decryption";
+
+	init_completion(&result.completion);
+	req = aead_request_alloc(tfm, GFP_KERNEL);
+	if (!req) {
+		pr_err("alg: tls%s: Failed to allocate request for %s\n",
+		       d, algo);
+		goto out;
+	}
+
+	aead_request_set_callback(req, CRYPTO_TFM_REQ_MAY_BACKLOG,
+				  tcrypt_complete, &result);
+
+	for (i = 0; i < tcount; i++) {
+		input = xbuf[0];
+		assoc = axbuf[0];
+
+		ret = -EINVAL;
+		if (WARN_ON(template[i].ilen > PAGE_SIZE ||
+			    template[i].alen > PAGE_SIZE))
+			goto out;
+
+		memcpy(input, template[i].input, template[i].ilen);
+		memcpy(assoc, template[i].assoc, template[i].alen);
+		if (template[i].iv)
+			memcpy(iv, template[i].iv, MAX_IVLEN);
+		else
+			memset(iv, 0, MAX_IVLEN);
+
+		crypto_aead_clear_flags(tfm, ~0);
+		key = template[i].key;
+
+		ret = crypto_aead_setkey(tfm, key, template[i].klen);
+		if (!ret == template[i].fail) {
+			pr_err("alg: tls%s: setkey failed on test %d for %s: flags=%x\n",
+			       d, i, algo, crypto_aead_get_flags(tfm));
+			goto out;
+		}
+		if (ret)
+			continue;
+
+		/* Allocate enough space in the input and output scatterlists.
+		 * They must accomodate the result for in-place encryption and
+		 * different-place decryption
+		 */
+		rlen = max(template[i].ilen, template[i].rlen);
+		if (diff_dst) {
+			output = xoutbuf[0];
+			sg_init_one(&sg[0], input, template[i].ilen);
+			sg_init_one(&sgout[0], output, rlen);
+		} else {
+			output = input;
+			sg_init_one(&sg[0], input, rlen);
+		}
+
+		sg_init_one(&asg[0], assoc, template[i].alen);
+		aead_request_set_assoc(req, asg, template[i].alen);
+		aead_request_set_crypt(req, sg, (diff_dst) ? sgout : sg,
+				       template[i].ilen, iv);
+
+		ret = enc ? crypto_aead_encrypt(req) : crypto_aead_decrypt(req);
+
+		switch (ret) {
+		case 0:
+			if (template[i].novrfy) {
+				/* verification was supposed to fail */
+				pr_err("alg: tls%s: %s failed on test %d for %s: ret was 0, expected -EBADMSG\n",
+				       d, e, i, algo);
+				/* so really, we got a bad message */
+				ret = -EBADMSG;
+				goto out;
+			}
+			break;
+		case -EINPROGRESS:
+		case -EBUSY:
+			/* The result is not ready yet. We wait for it and then
+			 * check if the request succeeded or not
+			 */
+			ret = wait_for_completion_interruptible(
+						&result.completion);
+			if (!ret && !result.err) {
+				reinit_completion(&result.completion);
+				break;
+			} else {
+				ret = result.err;
+			}
+			/* fall through */
+		case -EBADMSG:
+			/* verification failure was expected */
+			if (template[i].novrfy)
+				continue;
+			/* fall through */
+		default:
+			pr_err("alg: tls%s: %s failed on test %d for %s: ret=%d\n",
+			       d, e, i, algo, -ret);
+			goto out;
+		}
+
+		q = output;
+		if (memcmp(q, template[i].result, template[i].rlen)) {
+			pr_err("alg: tls%s: Test %d failed on %s for %s\n",
+			       d, i, e, algo);
+			hexdump(q, template[i].rlen);
+			pr_err("should be:\n");
+			hexdump(template[i].result, template[i].rlen);
+			ret = -EINVAL;
+			goto out;
+		}
+	}
+
+out:
+	aead_request_free(req);
+	kfree(sg);
+out_nosg:
+	if (diff_dst)
+		testmgr_free_buf(xoutbuf);
+out_nooutbuf:
+	testmgr_free_buf(axbuf);
+out_noaxbuf:
+	testmgr_free_buf(xbuf);
+out_noxbuf:
+	return ret;
+}
+
+static int test_tls(struct crypto_aead *tfm, int enc,
+		struct tls_testvec *template, unsigned int tcount)
+{
+	int ret;
+	/* test 'dst == src' case */
+	ret = __test_tls(tfm, enc, template, tcount, false);
+	if (ret)
+		return ret;
+	/* test 'dst != src' case */
+	return __test_tls(tfm, enc, template, tcount, true);
+}
+
+static int alg_test_tls(const struct alg_test_desc *desc, const char *driver,
+			 u32 type, u32 mask)
+{
+	struct crypto_aead *tfm;
+	int err = 0;
+
+	tfm = crypto_alloc_aead(driver, type, mask);
+	if (IS_ERR(tfm)) {
+		pr_err("alg: aead: Failed to load transform for %s: %ld\n",
+		       driver, PTR_ERR(tfm));
+		return PTR_ERR(tfm);
+	}
+	if (desc->suite.tls.enc.vecs) {
+		err = test_tls(tfm, ENCRYPT, desc->suite.tls.enc.vecs,
+				desc->suite.tls.enc.count);
+		if (err)
+			goto out;
+	}
+	if (!err && desc->suite.tls.dec.vecs)
+		err = test_tls(tfm, DECRYPT, desc->suite.tls.dec.vecs,
+				desc->suite.tls.dec.count);
+
+out:
+	crypto_free_aead(tfm);
+	return err;
 }
 
 static int test_cipher(struct crypto_cipher *tfm, int enc,
@@ -3460,6 +3670,21 @@ static const struct alg_test_desc alg_test_descs[] = {
 			.hash = {
 				.vecs = tgr192_tv_template,
 				.count = TGR192_TEST_VECTORS
+			}
+		}
+	}, {
+		.alg = "tls10(hmac(sha1),cbc(aes))",
+		.test = alg_test_tls,
+		.suite = {
+			.tls = {
+				.enc = {
+					.vecs = tls_enc_tv_template,
+					.count = TLS_ENC_TEST_VECTORS
+				},
+				.dec = {
+					.vecs = tls_dec_tv_template,
+					.count = TLS_DEC_TEST_VECTORS
+				}
 			}
 		}
 	}, {

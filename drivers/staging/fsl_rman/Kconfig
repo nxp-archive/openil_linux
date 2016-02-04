@@ -1,0 +1,4 @@
+config FSL_RMAN_UIO
+	bool "Freescale RapidIO Message Manager support"
+	depends on UIO
+	default y

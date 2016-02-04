@@ -302,6 +302,8 @@ static int ehci_bus_suspend (struct usb_hcd *hcd)
 						USB_PORT_STAT_HIGH_SPEED)
 				fs_idle_delay = true;
 			ehci_writel(ehci, t2, reg);
+			if (ehci_has_fsl_susp_errata(ehci))
+				usleep_range(10000, 20000);
 			changed = 1;
 		}
 	}
@@ -1221,6 +1223,13 @@ int ehci_hub_control(
 				ehci->reset_done [wIndex] = jiffies
 						+ msecs_to_jiffies (50);
 			}
+
+			/* Force full-speed connect for FSL high-speed erratum;
+			 * disable HS Chirp by setting PFSC bit
+			 */
+			if (ehci_has_fsl_hs_errata(ehci))
+				temp |= (1 << PORTSC_FSL_PFSC);
+
 			ehci_writel(ehci, temp, status_reg);
 			break;
 
