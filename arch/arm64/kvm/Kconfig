@@ -51,4 +51,6 @@ config KVM_ARM_MAX_VCPUS
 	  large, so only choose a reasonable number that you expect to
 	  actually use.
 
+source drivers/vhost/Kconfig
+
 endif # VIRTUALIZATION
