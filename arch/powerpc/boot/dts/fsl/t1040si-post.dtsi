@@ -667,6 +667,61 @@
 /include/ "qoriq-sec5.0-0.dtsi"
 /include/ "qoriq-qman3.dtsi"
 /include/ "qoriq-bman1.dtsi"
+/include/ "qoriq-fman3l-0.dtsi"
+/include/ "qoriq-fman3-0-1g-0.dtsi"
+/include/ "qoriq-fman3-0-1g-1.dtsi"
+/include/ "qoriq-fman3-0-1g-2.dtsi"
+/include/ "qoriq-fman3-0-1g-3.dtsi"
+/include/ "qoriq-fman3-0-1g-4.dtsi"
+	fman0: fman@400000 {
+		/* tx - 1g - 0 */
+		port@a8000 {
+			fsl,qman-channel-id = <0x802>;
+		};
+		/* tx - 1g - 1 */
+		port@a9000 {
+			fsl,qman-channel-id = <0x803>;
+		};
+		/* tx - 1g - 2 */
+		port@aa000 {
+			fsl,qman-channel-id = <0x804>;
+		};
+		/* tx - 1g - 3 */
+		port@ab000 {
+			fsl,qman-channel-id = <0x805>;
+		};
+		/* tx - 1g - 4 */
+		port@ac000 {
+			fsl,qman-channel-id = <0x806>;
+		};
+		/* offline - 1 */
+		port@82000 {
+			fsl,qman-channel-id = <0x809>;
+		};
+		/* offline - 2 */
+		port@83000 {
+			fsl,qman-channel-id = <0x80a>;
+		};
+		/* offline - 3 */
+		port@84000 {
+			fsl,qman-channel-id = <0x80b>;
+		};
+		/* offline - 4 */
+		port@85000 {
+			fsl,qman-channel-id = <0x80c>;
+		};
+		/* offline - 5 */
+		port@86000 {
+			fsl,qman-channel-id = <0x80d>;
+		};
+		/* offline - 6 */
+		port@87000 {
+			fsl,qman-channel-id = <0x80e>;
+		};
+		mdio@fd000 {
+			status = "disabled";
+		};
+	};
 };
 
 &qe {
