@@ -50,6 +50,14 @@
 		serial1 = &serial1;
 		serial2 = &serial2;
 		serial3 = &serial3;
+		crypto = &crypto;
+		qman = &qman;
+		bman = &bman;
+		fman0 = &fman0;
+		ethernet0 = &fm1mac1;
+		ethernet1 = &fm1mac2;
+		ethernet2 = &fm1mac3;
+		ethernet3 = &fm1mac4;
 		pci0 = &pci0;
 		usb0 = &usb0;
 		dma0 = &dma0;
