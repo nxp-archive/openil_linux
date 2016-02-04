@@ -533,6 +533,20 @@
 			status = "disabled";
 		};
 
+		qspi: quadspi@1550000 {
+			compatible = "fsl,ls1043a-qspi", "fsl,ls1021a-qspi";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x1550000 0x0 0x10000>,
+				<0x0 0x40000000 0x0 0x4000000>;
+			reg-names = "QuadSPI", "QuadSPI-memory";
+			interrupts = <0 99 0x4>;
+			clock-names = "qspi_en", "qspi";
+			clocks = <&clockgen 4 0>, <&clockgen 4 0>;
+			big-endian;
+			status = "disabled";
+		};
+
 		i2c0: i2c@2180000 {
 			compatible = "fsl,vf610-i2c";
 			#address-cells = <1>;
@@ -608,8 +622,8 @@
 			clocks = <&clockgen 4 0>;
 		};
 
-		gpio1: gpio@2300000 {
-			compatible = "fsl,ls1043a-gpio";
+		gpio0: gpio@2300000 {
+			compatible = "fsl,qoriq-gpio";
 			reg = <0x0 0x2300000 0x0 0x10000>;
 			interrupts = <0 66 0x4>;
 			gpio-controller;
@@ -618,8 +632,8 @@
 			#interrupt-cells = <2>;
 		};
 
-		gpio2: gpio@2310000 {
-			compatible = "fsl,ls1043a-gpio";
+		gpio1: gpio@2310000 {
+			compatible = "fsl,qoriq-gpio";
 			reg = <0x0 0x2310000 0x0 0x10000>;
 			interrupts = <0 67 0x4>;
 			gpio-controller;
@@ -628,8 +642,8 @@
 			#interrupt-cells = <2>;
 		};
 
-		gpio3: gpio@2320000 {
-			compatible = "fsl,ls1043a-gpio";
+		gpio2: gpio@2320000 {
+			compatible = "fsl,qoriq-gpio";
 			reg = <0x0 0x2320000 0x0 0x10000>;
 			interrupts = <0 68 0x4>;
 			gpio-controller;
@@ -638,8 +652,8 @@
 			#interrupt-cells = <2>;
 		};
 
-		gpio4: gpio@2330000 {
-			compatible = "fsl,ls1043a-gpio";
+		gpio3: gpio@2330000 {
+			compatible = "fsl,qoriq-gpio";
 			reg = <0x0 0x2330000 0x0 0x10000>;
 			interrupts = <0 134 0x4>;
 			gpio-controller;
@@ -796,6 +810,7 @@
 			reg = <0x0 0x2f00000 0x0 0x10000>;
 			interrupts = <0 60 0x4>;
 			dr_mode = "host";
+			configure-gfladj;
 		};
 
 		usb1: usb3@3000000 {
@@ -819,6 +834,18 @@
 			reg = <0x0 0x3200000 0x0 0x10000>;
 			interrupts = <0 69 0x4>;
 			clocks = <&clockgen 4 0>;
+		};
+
+		qdma: qdma@8380000 {
+			compatible = "fsl,ls1021a-qdma", "fsl,ls1043a-qdma";
+			reg = <0x0 0x838f000 0x0 0x11000 /* Controller regs */
+			       0x0 0x83a0000 0x0 0x40000>; /* Block regs */
+			interrupts = <0 152 0x4>,
+				     <0 39 0x4>;
+			interrupt-names = "qdma-error", "qdma-queue";
+			channels = <8>;
+			queues = <2>;
+			big-endian;
 		};
 
 		msi1: msi-controller1@1571000 {

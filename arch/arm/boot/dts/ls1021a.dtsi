@@ -119,6 +119,24 @@
 
 		};
 
+		msi1: msi-controller1@1570e00 {
+			compatible = "fsl,1s1021a-msi";
+			reg = <0x0 0x1570e00 0x0 0x4>,
+			      <0x0 0x1570e04 0x0 0x4>;
+			reg-names = "msiir", "msir";
+			msi-controller;
+			interrupts =  <GIC_SPI 179 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		msi2: msi-controller2@1570e08 {
+			compatible = "fsl,1s1021a-msi";
+			reg = <0x0 0x1570e08 0x0 0x4>,
+			      <0x0 0x1570e0c 0x0 0x4>;
+			reg-names = "msiir", "msir";
+			msi-controller;
+			interrupts = <GIC_SPI 180 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
 		ifc: ifc@1530000 {
 			compatible = "fsl,ifc", "simple-bus";
 			reg = <0x0 0x1530000 0x0 0x10000>;
@@ -198,6 +216,7 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 			ranges = <0x0 0x0 0x1ee1000 0x10000>;
+			compatible = "fsl,ls1021a-clockgen";
 
 			sysclk: sysclk {
 				compatible = "fixed-clock";
@@ -233,7 +252,7 @@
 		};
 
 		dspi0: dspi@2100000 {
-			compatible = "fsl,vf610-dspi";
+			compatible = "fsl,ls1021a-v1.0-dspi";
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x2100000 0x0 0x10000>;
@@ -246,7 +265,7 @@
 		};
 
 		dspi1: dspi@2110000 {
-			compatible = "fsl,vf610-dspi";
+			compatible = "fsl,ls1021a-v1.0-dspi";
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x2110000 0x0 0x10000>;
@@ -255,6 +274,21 @@
 			clocks = <&platform_clk 1>;
 			spi-num-chipselects = <5>;
 			big-endian;
+			status = "disabled";
+		};
+
+		qspi: quadspi@1550000 {
+			compatible = "fsl,ls1021a-qspi";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x1550000 0x0 0x10000>,
+				<0x0 0x40000000 0x0 0x4000000>;
+			reg-names = "QuadSPI", "QuadSPI-memory";
+			interrupts = <GIC_SPI 131 IRQ_TYPE_LEVEL_HIGH>;
+			clock-names = "qspi_en", "qspi";
+			clocks = <&platform_clk 1>, <&platform_clk 1>;
+			big-endian;
+			amba-base = <0x40000000>;
 			status = "disabled";
 		};
 
@@ -507,6 +541,18 @@
 				 <&platform_clk 1>;
 		};
 
+		qdma: qdma@8390000 {
+			compatible = "fsl,ls1021a-qdma";
+			reg = <0x0 0x8398000 0x0 0x2000 /* Controller regs */
+			       0x0 0x839a000 0x0 0x2000>; /* Block regs */
+			interrupts = <GIC_SPI 185 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 76 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "qdma-error", "qdma-queue";
+			channels = <8>;
+			queues = <2>;
+			big-endian;
+		};
+
 		dcu0: dcu@2ce0000 {
 			compatible = "fsl,ls1021a-dcu";
 			reg = <0x0 0x2ce0000 0x0 0x10000>;
@@ -628,6 +674,7 @@
 			interrupts = <GIC_SPI 93 IRQ_TYPE_LEVEL_HIGH>;
 			dr_mode = "host";
 			configure-gfladj;
+			dma-coherent;
 		};
 	};
 
@@ -651,6 +698,54 @@
 		dcsr-rcpm@222000 {
 			compatible = "fsl,ls1021a-dcsr-rcpm";
 			reg = <0x222000 0x1000 0x223000 0x1000>;
+		};
+
+		pcie@3400000 {
+			compatible = "fsl,ls1021a-pcie", "snps,dw-pcie";
+			reg = <0x00 0x03400000 0x0 0x00010000   /* controller registers */
+			       0x40 0x00000000 0x0 0x00002000>; /* configuration space */
+			reg-names = "regs", "config";
+			interrupts = <GIC_SPI 177 IRQ_TYPE_LEVEL_HIGH>; /* controller interrupt */
+			interrupt-names = "intr";
+			fsl,pcie-scfg = <&scfg 0>;
+			#address-cells = <3>;
+			#size-cells = <2>;
+			device_type = "pci";
+			num-lanes = <4>;
+			bus-range = <0x0 0xff>;
+			ranges = <0x81000000 0x0 0x00000000 0x40 0x00010000 0x0 0x00010000   /* downstream I/O */
+				  0x82000000 0x0 0x40000000 0x40 0x40000000 0x0 0x40000000>; /* non-prefetchable memory */
+			msi-parent = <&msi1>;
+			#interrupt-cells = <1>;
+			interrupt-map-mask = <0 0 0 7>;
+			interrupt-map = <0000 0 0 1 &gic GIC_SPI 91  IRQ_TYPE_LEVEL_HIGH>,
+					<0000 0 0 2 &gic GIC_SPI 188 IRQ_TYPE_LEVEL_HIGH>,
+					<0000 0 0 3 &gic GIC_SPI 190 IRQ_TYPE_LEVEL_HIGH>,
+					<0000 0 0 4 &gic GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		pcie@3500000 {
+			compatible = "fsl,ls1021a-pcie", "snps,dw-pcie";
+			reg = <0x00 0x03500000 0x0 0x00010000   /* controller registers */
+			       0x48 0x00000000 0x0 0x00002000>; /* configuration space */
+			reg-names = "regs", "config";
+			interrupts = <GIC_SPI 178 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "intr";
+			fsl,pcie-scfg = <&scfg 1>;
+			#address-cells = <3>;
+			#size-cells = <2>;
+			device_type = "pci";
+			num-lanes = <4>;
+			bus-range = <0x0 0xff>;
+			ranges = <0x81000000 0x0 0x00000000 0x48 0x00010000 0x0 0x00010000   /* downstream I/O */
+				  0x82000000 0x0 0x40000000 0x48 0x40000000 0x0 0x40000000>; /* non-prefetchable memory */
+			msi-parent = <&msi2>;
+			#interrupt-cells = <1>;
+			interrupt-map-mask = <0 0 0 7>;
+			interrupt-map = <0000 0 0 1 &gic GIC_SPI 92  IRQ_TYPE_LEVEL_HIGH>,
+					<0000 0 0 2 &gic GIC_SPI 189 IRQ_TYPE_LEVEL_HIGH>,
+					<0000 0 0 3 &gic GIC_SPI 191 IRQ_TYPE_LEVEL_HIGH>,
+					<0000 0 0 4 &gic GIC_SPI 193 IRQ_TYPE_LEVEL_HIGH>;
 		};
 	};
 };
