@@ -1127,10 +1127,14 @@ static int __test_skcipher(struct crypto_ablkcipher *tfm, int enc,
 	const char *e, *d;
 	struct tcrypt_result result;
 	void *data;
-	char iv[MAX_IVLEN];
+	char *iv;
 	char *xbuf[XBUFSIZE];
 	char *xoutbuf[XBUFSIZE];
 	int ret = -ENOMEM;
+
+	iv = kmalloc(MAX_IVLEN, GFP_KERNEL);
+	if (!iv)
+		goto out_noiv;
 
 	if (testmgr_alloc_buf(xbuf))
 		goto out_nobuf;
@@ -1355,6 +1359,8 @@ out:
 out_nooutbuf:
 	testmgr_free_buf(xbuf);
 out_nobuf:
+	kfree(iv);
+out_noiv:
 	return ret;
 }
 
