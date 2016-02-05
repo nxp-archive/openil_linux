@@ -4243,6 +4243,12 @@ S:	Maintained
 F:	drivers/staging/fsl-mc/bus/mc-ioctl.h
 F:	drivers/staging/fsl-mc/bus/mc-restool.c
 
+FREESCALE DPAA2 CAAM DRIVER
+M:	Horia Geantă <horia.geanta@freescale.com>
+L:	linux-crypto@vger.kernel.org
+S:	Maintained
+F:	drivers/crypto/dpaa2-caam/
+
 FREEVXFS FILESYSTEM
 M:	Christoph Hellwig <hch@infradead.org>
 W:	ftp://ftp.openlinux.org/pub/people/hch/vxfs
