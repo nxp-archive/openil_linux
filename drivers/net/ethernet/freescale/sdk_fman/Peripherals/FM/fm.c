@@ -47,7 +47,7 @@
 #include "fm_common.h"
 #include "fm_ipc.h"
 #include "fm.h"
-#include <asm/mpc85xx.h>
+#include <linux/fsl/svr.h>
 #include "fsl_fman.h"
 
 
