@@ -51,7 +51,7 @@
 #include <linux/cdev.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
-#include <asm/mpc85xx.h>
+#include <linux/fsl/svr.h>
 
 #include "sprint_ext.h"
 #include "fm_common.h"
