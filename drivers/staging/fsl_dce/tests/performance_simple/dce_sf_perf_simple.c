@@ -517,7 +517,7 @@ static int read_file(const char *file, char **data, int *data_len)
 	 * If we can't read the file, it's no good.
 	 * If we can't write the file, use it read-only.
 	 */
-	if (!(filp->f_op->read || filp->f_op->aio_read)) {
+	if (!filp->f_op->read) {
 		pr_err("file not readable: %s\n", file);
 		goto out;
 	}

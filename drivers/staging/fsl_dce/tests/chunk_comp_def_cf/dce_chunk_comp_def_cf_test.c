@@ -674,7 +674,6 @@ static int compression_stateless_truncation_deflate_compoundframes_init(void)
 	struct dce_test_ctx *test_ctx;
 	struct cpumask backup_mask = current->cpus_allowed;
 	struct cpumask new_mask = *qman_affine_cpus();
-	char big_buf[200];
 
 	struct test_meta_info_t test_meta_info_array[] = {
 		{
@@ -715,9 +714,8 @@ static int compression_stateless_truncation_deflate_compoundframes_init(void)
 		},
 	};
 
-	cpumask_scnprintf(big_buf, 200, &new_mask);
-
-	pr_info("DCE TEST Start, cpu_mask = %s\n", big_buf);
+	pr_info("DCE TEST Start, cpu_mask = %*pb[l]\n",
+		cpumask_pr_args(&new_mask));
 
 	/* need to control on which cpu this module runs on */
 	test_ctx = kzalloc(sizeof(*test_ctx), GFP_KERNEL);
