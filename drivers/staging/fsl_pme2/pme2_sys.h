@@ -53,6 +53,8 @@
 #include <linux/device.h>
 #include <linux/uio_driver.h>
 #include <linux/smp.h>
+#include <linux/of_irq.h>
+#include <linux/of_address.h>
 #include <sysdev/fsl_soc.h>
 #include <linux/fsl_hypervisor.h>
 #include <linux/fsl_bman.h>
