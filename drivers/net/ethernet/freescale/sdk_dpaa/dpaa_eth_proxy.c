@@ -228,6 +228,15 @@ int dpa_proxy_set_rx_mode(struct proxy_device *proxy_dev,
 	struct mac_device *mac_dev = proxy_dev->mac_dev;
 	int _errno;
 
+	if (!!(net_dev->flags & IFF_PROMISC) != mac_dev->promisc) {
+		mac_dev->promisc = !mac_dev->promisc;
+		_errno = mac_dev->set_promisc(mac_dev->get_mac_handle(mac_dev),
+				mac_dev->promisc);
+		if (unlikely(_errno < 0))
+			netdev_err(net_dev, "mac_dev->set_promisc() = %d\n",
+					_errno);
+	}
+
 	_errno = mac_dev->set_multi(net_dev, mac_dev);
 	if (unlikely(_errno < 0))
 		return _errno;
