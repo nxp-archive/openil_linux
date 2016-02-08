@@ -60,7 +60,7 @@
 #include <asm/uaccess.h>
 #include <asm/errno.h>
 #include <sysdev/fsl_soc.h>
-#include <asm/mpc85xx.h>
+#include <linux/fsl/svr.h>
 
 #if defined(CONFIG_COMPAT)
 #include <linux/compat.h>
