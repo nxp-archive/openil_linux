@@ -113,6 +113,41 @@
 			};
 		};
 
+		l2switch: l2switch@800000 {
+			port@100000 {
+				phy-connection-type = "qsgmii";
+				phy-handle = <&phy_qsgmii_0>;
+				};
+			port@110000 {
+				phy-connection-type = "qsgmii";
+				phy-handle = <&phy_qsgmii_1>;
+			};
+			port@120000 {
+				phy-connection-type = "qsgmii";
+				phy-handle = <&phy_qsgmii_2>;
+			};
+			port@130000 {
+				phy-connection-type = "qsgmii";
+				phy-handle = <&phy_qsgmii_3>;
+			};
+			port@140000 {
+				phy-connection-type = "qsgmii";
+				phy-handle = <&phy_qsgmii_4>;
+			};
+			port@150000 {
+				phy-connection-type = "qsgmii";
+				phy-handle = <&phy_qsgmii_5>;
+			};
+			port@160000 {
+				phy-connection-type = "qsgmii";
+				phy-handle = <&phy_qsgmii_6>;
+			};
+			port@170000 {
+				phy-connection-type = "qsgmii";
+				phy-handle = <&phy_qsgmii_7>;
+			};
+		};
+
 		spi@110000 {
 			slic@1 {
 				compatible = "maxim,ds26522";

@@ -722,6 +722,7 @@
 			status = "disabled";
 		};
 	};
+/include/ "qoriq-l2switch-0.dtsi"
 };
 
 &qe {
