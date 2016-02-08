@@ -128,6 +128,7 @@ struct ablkcipher_walk {
 extern const struct crypto_type crypto_ablkcipher_type;
 extern const struct crypto_type crypto_aead_type;
 extern const struct crypto_type crypto_blkcipher_type;
+extern const struct crypto_type crypto_pkc_type;
 
 void crypto_mod_put(struct crypto_alg *alg);
 
@@ -230,6 +231,11 @@ static inline struct ablkcipher_alg *crypto_ablkcipher_alg(
 }
 
 static inline void *crypto_ablkcipher_ctx(struct crypto_ablkcipher *tfm)
+{
+	return crypto_tfm_ctx(&tfm->base);
+}
+
+static inline void *crypto_pkc_ctx(struct crypto_pkc *tfm)
 {
 	return crypto_tfm_ctx(&tfm->base);
 }
@@ -416,4 +422,10 @@ static inline void crypto_yield(u32 flags)
 		cond_resched();
 }
 
+/* RSA Request Completion handler */
+static inline void pkc_request_complete(struct pkc_request *req,
+					int err)
+{
+	req->base.complete(&req->base, err);
+}
 #endif	/* _CRYPTO_ALGAPI_H */

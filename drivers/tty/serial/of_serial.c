@@ -147,6 +147,11 @@ static int of_platform_serial_setup(struct platform_device *ofdev,
 		break;
 	}
 
+#ifdef CONFIG_SERIAL_8250_FSL
+	if (of_device_is_compatible(np, "fsl,ns16550"))
+		port->handle_irq = fsl8250_handle_irq;
+#endif
+
 	return 0;
 out:
 	if (info->clk)
@@ -353,6 +358,7 @@ static struct platform_driver of_platform_serial_driver = {
 	.driver = {
 		.name = "of_serial",
 		.of_match_table = of_platform_serial_table,
+		.pm = &of_serial_pm_ops,
 	},
 	.probe = of_platform_serial_probe,
 	.remove = of_platform_serial_remove,

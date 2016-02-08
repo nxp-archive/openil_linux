@@ -32,6 +32,23 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <dt-bindings/thermal/thermal.h>
+
+&bman_fbpr {
+	compatible = "fsl,bman-fbpr";
+	alloc-ranges = <0 0 0x10000 0>;
+};
+
+&qman_fqd {
+	compatible = "fsl,qman-fqd";
+	alloc-ranges = <0 0 0x10000 0>;
+};
+
+&qman_pfdr {
+	compatible = "fsl,qman-pfdr";
+	alloc-ranges = <0 0 0x10000 0>;
+};
+
 &ifc {
 	#address-cells = <2>;
 	#size-cells = <1>;
@@ -439,7 +456,7 @@
 	};
 
 	rcpm: global-utilities@e2000 {
-		compatible = "fsl,t1024-rcpm", "fsl,qoriq-rcpm-2.0";
+		compatible = "fsl,t1024-rcpm", "fsl,qoriq-rcpm-2.1";
 		reg = <0xe2000 0x1000>;
 	};
 
@@ -451,6 +468,90 @@
 	serdes: serdes@ea000 {
 		compatible = "fsl,t1024-serdes";
 		reg	   = <0xea000 0x4000>;
+	};
+
+	tmu: tmu@f0000 {
+		compatible = "fsl,qoriq-tmu";
+		reg = <0xf0000 0x1000>;
+		interrupts = <18 2 0 0>;
+		fsl,tmu-range = <0xb0000 0xa0026 0x80048 0x30061>;
+		fsl,tmu-calibration = <0x00000000 0x0000000f
+				       0x00000001 0x00000017
+				       0x00000002 0x0000001e
+				       0x00000003 0x00000026
+				       0x00000004 0x0000002e
+				       0x00000005 0x00000035
+				       0x00000006 0x0000003d
+				       0x00000007 0x00000044
+				       0x00000008 0x0000004c
+				       0x00000009 0x00000053
+				       0x0000000a 0x0000005b
+				       0x0000000b 0x00000064
+
+				       0x00010000 0x00000011
+				       0x00010001 0x0000001c
+				       0x00010002 0x00000024
+				       0x00010003 0x0000002b
+				       0x00010004 0x00000034
+				       0x00010005 0x00000039
+				       0x00010006 0x00000042
+				       0x00010007 0x0000004c
+				       0x00010008 0x00000051
+				       0x00010009 0x0000005a
+				       0x0001000a 0x00000063
+
+				       0x00020000 0x00000013
+				       0x00020001 0x00000019
+				       0x00020002 0x00000024
+				       0x00020003 0x0000002c
+				       0x00020004 0x00000035
+				       0x00020005 0x0000003d
+				       0x00020006 0x00000046
+				       0x00020007 0x00000050
+				       0x00020008 0x00000059
+
+				       0x00030000 0x00000002
+				       0x00030001 0x0000000d
+				       0x00030002 0x00000019
+				       0x00030003 0x00000024>;
+		#thermal-sensor-cells = <0>;
+	};
+
+	thermal-zones {
+		cpu_thermal: cpu-thermal {
+			polling-delay-passive = <1000>;
+			polling-delay = <5000>;
+
+			thermal-sensors = <&tmu>;
+
+			trips {
+				cpu_alert: cpu-alert {
+					temperature = <85000>;
+					hysteresis = <2000>;
+					type = "passive";
+				};
+				cpu_crit: cpu-crit {
+					temperature = <95000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+
+			cooling-maps {
+				map0 {
+					trip = <&cpu_alert>;
+					cooling-device =
+						<&cpu0 THERMAL_NO_LIMIT
+							THERMAL_NO_LIMIT>;
+				};
+				map1 {
+					trip = <&cpu_alert>;
+					cooling-device =
+						<&cpu1 THERMAL_NO_LIMIT
+							THERMAL_NO_LIMIT>;
+				};
+			};
+		};
 	};
 
 	scfg: global-utilities@fc000 {
@@ -472,7 +573,7 @@
 		fsl,iommu-parent = <&pamu0>;
 		fsl,liodn-reg = <&guts 0x530>; /* eSDHCLIODNR */
 		sdhci,auto-cmd12;
-		sleep = <&rcpm 0x00000080>;
+		rcpm-wakeup = <&rcpm 0x00000080>;
 	};
 /include/ "qoriq-i2c-0.dtsi"
 /include/ "qoriq-i2c-1.dtsi"
@@ -480,7 +581,7 @@
 /include/ "qoriq-duart-1.dtsi"
 /include/ "qoriq-gpio-0.dtsi"
 	gpio@130000 {
-		sleep = <&rcpm 0x00000040>;
+		rcpm-wakeup = <&rcpm 0x00000040>;
 	};
 /include/ "qoriq-gpio-1.dtsi"
 /include/ "qoriq-gpio-2.dtsi"
@@ -491,7 +592,7 @@
 			fsl,iommu-parent = <&pamu0>;
 			fsl,liodn-reg = <&guts 0x520>; /* USB1LIODNR */
 			phy_type = "utmi";
-			sleep = <&rcpm 0x00000020>;
+			rcpm-wakeup = <&rcpm 0x00000020>;
 			port0;
 		};
 /include/ "qoriq-usb2-dr-0.dtsi"
@@ -501,7 +602,7 @@
 			fsl,liodn-reg = <&guts 0x524>; /* USB2LIODNR */
 			dr_mode = "host";
 			phy_type = "utmi";
-			sleep = <&rcpm 0x00000010>;
+			rcpm-wakeup = <&rcpm 0x00000010>;
 		};
 /include/ "qoriq-sata2-0.dtsi"
 sata@220000 {

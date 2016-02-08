@@ -23,6 +23,7 @@
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/of_platform.h>
 #include <linux/phy.h>
 #include <linux/spi/spi.h>
@@ -246,4 +247,45 @@ void fsl_hv_halt(void)
 	pr_info("hv exit\n");
 	fh_partition_stop(-1);
 }
+#endif
+
+#ifdef CONFIG_KVM
+static const struct of_device_id cpc_matches[] = {
+	{ .compatible = "fsl,b4860-l3-cache-controller" },
+	{ .compatible = "fsl,t2080-l3-cache-controller" },
+	{ .compatible = "fsl,t4240-l3-cache-controller" },
+	{}
+};
+
+static int __init cpc_disable_sole_data(void)
+{
+	struct device_node *node;
+	u32 __iomem *regs;
+	int i;
+
+	for_each_matching_node(node, cpc_matches) {
+		i = 0;
+
+		for (;;) {
+			regs = of_iomap(node, i++);
+			if (!regs)
+				break;
+
+			/*
+			 * Set undocumented bit to disable CPC sole data
+			 * mode, making it safe to use the LRAT with KVM
+			 * guests, which could otherwise hang the host (under
+			 * certain usage patterns) by accessing memory with
+			 * the M bit unset.  The guest still needs to set the
+			 * M bit to operate properly, but this removes a DoS
+			 * vector.
+			 */
+			setbits32(regs + 0xf00 / 4, 0x4000);
+			iounmap(regs);
+		}
+	}
+
+	return 0;
+}
+arch_initcall(cpc_disable_sole_data);
 #endif

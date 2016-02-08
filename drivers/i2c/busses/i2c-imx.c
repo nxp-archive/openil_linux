@@ -409,6 +409,32 @@ static void i2c_imx_dma_free(struct imx_i2c_struct *i2c_imx)
 	dma->chan_using = NULL;
 }
 
+/*
+ * When a system reset does not cause all I2C devices to be reset, it is
+ * sometimes necessary to force the I2C module to become the I2C bus master
+ * out of reset and drive SCL A slave can hold bus low to cause bus hang.
+ * Thus, SDA can be driven low by another I2C device while this I2C module
+ * is coming out of reset and will stay low indefinitely.
+ * The I2C master has to generate 9 clock pulses to get the bus free or idle.
+ */
+static void imx_i2c_fixup(struct imx_i2c_struct *i2c_imx)
+{
+	int k;
+	u32 delay_val = 1000000 / i2c_imx->cur_clk + 1;
+
+	if (delay_val < 2)
+		delay_val = 2;
+
+	for (k = 9; k; k--) {
+		imx_i2c_write_reg(I2CR_IEN, i2c_imx, IMX_I2C_I2CR);
+		imx_i2c_write_reg((I2CR_MSTA | I2CR_MTX) & (~I2CR_IEN),
+				  i2c_imx, IMX_I2C_I2CR);
+		imx_i2c_read_reg(i2c_imx, IMX_I2C_I2DR);
+		imx_i2c_write_reg(0, i2c_imx, IMX_I2C_I2CR);
+		udelay(delay_val << 1);
+	}
+}
+
 /** Functions for IMX I2C adapter driver ***************************************
 *******************************************************************************/
 
@@ -434,8 +460,15 @@ static int i2c_imx_bus_busy(struct imx_i2c_struct *i2c_imx, int for_busy)
 		if (!for_busy && !(temp & I2SR_IBB))
 			break;
 		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			u8 status = imx_i2c_read_reg(i2c_imx, IMX_I2C_I2SR);
+
 			dev_dbg(&i2c_imx->adapter.dev,
 				"<%s> I2C bus is busy\n", __func__);
+			if ((status & (I2SR_ICF | I2SR_IBB | I2CR_TXAK)) != 0) {
+				imx_i2c_write_reg(status & ~I2SR_IAL, i2c_imx,
+						  IMX_I2C_I2CR);
+				imx_i2c_fixup(i2c_imx);
+			}
 			return -ETIMEDOUT;
 		}
 		schedule();
@@ -894,6 +927,13 @@ static int i2c_imx_xfer(struct i2c_adapter *adapter,
 
 	dev_dbg(&i2c_imx->adapter.dev, "<%s>\n", __func__);
 
+	/* workround for ERR010027: ensure that the I2C BUS is idle
+	   before switching to master mode and attempting a Start cycle
+	 */
+	result =  i2c_imx_bus_busy(i2c_imx, 0);
+	if (result)
+		goto fail0;
+
 	/* Start I2C transfer */
 	result = i2c_imx_start(i2c_imx);
 	if (result)
@@ -1024,7 +1064,7 @@ static int i2c_imx_probe(struct platform_device *pdev)
 		return ret;
 	}
 	/* Request IRQ */
-	ret = devm_request_irq(&pdev->dev, irq, i2c_imx_isr, 0,
+	ret = devm_request_irq(&pdev->dev, irq, i2c_imx_isr, IRQF_SHARED,
 				pdev->name, i2c_imx);
 	if (ret) {
 		dev_err(&pdev->dev, "can't claim irq %d\n", irq);

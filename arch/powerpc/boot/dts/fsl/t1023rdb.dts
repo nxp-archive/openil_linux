@@ -41,6 +41,25 @@
 	#size-cells = <2>;
 	interrupt-parent = <&mpic>;
 
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		bman_fbpr: bman-fbpr {
+			size = <0 0x1000000>;
+			alignment = <0 0x1000000>;
+		};
+		qman_fqd: qman-fqd {
+			size = <0 0x400000>;
+			alignment = <0 0x400000>;
+		};
+		qman_pfdr: qman-pfdr {
+			size = <0 0x2000000>;
+			alignment = <0 0x2000000>;
+		};
+	};
+
 	ifc: localbus@ffe124000 {
 		reg = <0xf 0xfe124000 0 0x2000>;
 		ranges = <0 0 0xf 0xe8000000 0x08000000
@@ -121,28 +140,28 @@
 		};
 
 		fman0: fman@400000 {
-			sleep = <&rcpm 0x00000008>;
+			rcpm-wakeup = <&rcpm 0x00000008>;
 
 			fm1mac1: ethernet@e0000 {
 				phy-handle = <&sgmii_rtk_phy2>;
 				phy-connection-type = "sgmii";
-				sleep = <&rcpm 0x80000000>;
+				rcpm-wakeup = <&rcpm 0x80000000>;
 			};
 
 			fm1mac2: ethernet@e2000 {
-				sleep = <&rcpm 0x40000000>;
+				rcpm-wakeup = <&rcpm 0x40000000>;
 			};
 
 			fm1mac3: ethernet@e4000 {
 				phy-handle = <&sgmii_aqr_phy3>;
 				phy-connection-type = "sgmii-2500";
-				sleep = <&rcpm 0x20000000>;
+				rcpm-wakeup = <&rcpm 0x20000000>;
 			};
 
 			fm1mac4: ethernet@e6000 {
 				phy-handle = <&rgmii_rtk_phy1>;
 				phy-connection-type = "rgmii";
-				sleep = <&rcpm 0x10000000>;
+				rcpm-wakeup = <&rcpm 0x10000000>;
 			};
 
 			mdio0: mdio@fc000 {
@@ -247,5 +266,5 @@
 	};
 };
 
-/include/ "t1023si-post.dtsi"
+#include "t1023si-post.dtsi"
 /include/ "qoriq-dpaa-res3.dtsi"

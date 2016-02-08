@@ -1,0 +1,17 @@
+Device-Tree bindings for framebuffer hdmi driver
+
+Required properties:
+- compatible: 	Should be "fsl,sii902x".
+- reg: 		The I2C address of the device.
+- interrupts:	Interrupt number to the cpu.
+
+Example:
+
+&i2c1 {
+       status = "okay";
+       hdmi: sii9022a@39 {
+             compatible = "fsl,sii902x";
+             reg = <0x39>;
+             interrupts = <GIC_SPI 167 IRQ_TYPE_EDGE_RISING>;
+       };
+};

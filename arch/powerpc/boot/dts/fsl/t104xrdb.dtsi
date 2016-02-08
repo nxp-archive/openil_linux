@@ -42,6 +42,14 @@
 			size = <0 0x1000000>;
 			alignment = <0 0x1000000>;
 		};
+		qman_fqd: qman-fqd {
+			size = <0 0x400000>;
+			alignment = <0 0x400000>;
+		};
+		qman_pfdr: qman-pfdr {
+			size = <0 0x2000000>;
+			alignment = <0 0x2000000>;
+		};
 	};
 
 	ifc: localbus@ffe124000 {
@@ -81,6 +89,11 @@
 
 	bportals: bman-portals@ff4000000 {
 		ranges = <0x0 0xf 0xf4000000 0x2000000>;
+	};
+
+	qportals: qman-portals@ff6000000 {
+		#address-cells = <1>;
+		ranges = <0x0 0xf 0xf6000000 0x2000000>;
 	};
 
 	soc: soc@ffe000000 {
@@ -172,6 +185,50 @@
 				  0x01000000 0 0x00000000
 				  0x01000000 0 0x00000000
 				  0 0x00010000>;
+		};
+	};
+
+	qe: qe@ffe140000 {
+		ranges = <0x0 0xf 0xfe140000 0x40000>;
+		reg = <0xf 0xfe140000 0 0x480>;
+		brg-frequency = <0>;
+		bus-frequency = <0>;
+
+		si1: si@700 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "fsl,qe-si";
+			reg = <0x700 0x80>;
+		};
+
+		siram1: siram@1000 {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "fsl,qe-siram";
+			reg = <0x1000 0x800>;
+		};
+
+		ucc_hdlc: ucc@2000 {
+			compatible = "fsl,ucc_hdlc";
+			rx-clock-name = "clk8";
+			tx-clock-name = "clk9";
+			fsl,rx-sync-clock = "rsync_pin";
+			fsl,tx-sync-clock = "tsync_pin";
+			fsl,tx-timeslot = <0xfffffffe>;
+			fsl,rx-timeslot = <0xfffffffe>;
+			fsl,tdm-framer-type = "e1";
+			fsl,tdm-mode = "normal";
+			fsl,tdm-id = <0>;
+			fsl,siram-entry-id = <0>;
+			fsl,tdm-interface;
+		};
+
+		ucc_serial: ucc@2200 {
+			device_type = "serial";
+			compatible = "ucc_uart";
+			port-number = <0>;
+			rx-clock-name = "brg2";
+			tx-clock-name = "brg2";
 		};
 	};
 };

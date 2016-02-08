@@ -176,10 +176,12 @@ config ARCH_EXYNOS7
 	help
 	  This enables support for Samsung Exynos7 SoC family
 
-config ARCH_FSL_LS2085A
-	bool "Freescale LS2085A SOC"
+config ARCH_LAYERSCAPE
+	bool "Freescale Layerscape SoC family"
+	select PCI_LAYERSCAPE if PCI
+	select LS1_MSI if PCI_MSI
 	help
-	  This enables support for Freescale LS2085A SOC.
+	  This enables support for Freescale Layerscape SoC family
 
 config ARCH_MEDIATEK
 	bool "Mediatek MT65xx & MT81xx ARMv8 SoC"
@@ -382,6 +384,27 @@ config ARM64_ERRATUM_832075
 
 	  The workaround is to promote device loads to use Load-Acquire
 	  semantics.
+	  Please note that this does not necessarily enable the workaround,
+	  as it depends on the alternative framework, which will only patch
+	  the kernel if an affected CPU is detected.
+
+	  If unsure, say Y.
+
+config ARM64_ERRATUM_834220
+	bool "Cortex-A57: 834220: Stage 2 translation fault might be incorrectly reported in presence of a Stage 1 fault"
+	depends on KVM
+	default y
+	help
+	  This option adds an alternative code sequence to work around ARM
+	  erratum 834220 on Cortex-A57 parts up to r1p2.
+
+	  Affected Cortex-A57 parts might report a Stage 2 translation
+	  fault as the result of a Stage 1 fault for load crossing a
+	  page boundary when there is a permission or device memory
+	  alignment fault at Stage 1 and a translation fault at Stage 2.
+
+	  The workaround is to verify that the Stage 1 translation
+	  doesn't generate a fault before handling the Stage 2 fault.
 	  Please note that this does not necessarily enable the workaround,
 	  as it depends on the alternative framework, which will only patch
 	  the kernel if an affected CPU is detected.

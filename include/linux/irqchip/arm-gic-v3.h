@@ -360,6 +360,7 @@
 #ifndef __ASSEMBLY__
 
 #include <linux/stringify.h>
+#include <linux/msi.h>
 
 /*
  * We need a value to serve as a irq-type for LPIs. Choose one that will
@@ -388,6 +389,8 @@ struct irq_domain;
 int its_cpu_init(void);
 int its_init(struct device_node *node, struct rdists *rdists,
 	     struct irq_domain *domain);
+int __its_msi_prepare(struct irq_domain *domain, u32 dev_id,
+	struct device *dev, int nvec, msi_alloc_info_t *info);
 
 #endif
 

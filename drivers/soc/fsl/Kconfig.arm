@@ -1,0 +1,16 @@
+#
+# Freescale ARM SOC Drivers
+#
+
+config	LS1_SOC_DRIVERS
+	bool "LS1021A Soc Drivers"
+	depends on SOC_LS1021A
+	default n
+	help
+	Say y here to enable Freescale LS1021A Soc Device Drivers support.
+	The Soc Drivers provides the device driver that is a specific block
+	or feature on LS1021A platform.
+
+if LS1_SOC_DRIVERS
+	source "drivers/soc/fsl/ls1/Kconfig"
+endif

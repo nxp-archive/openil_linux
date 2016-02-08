@@ -4,6 +4,8 @@
  * Copyright 2008-2012 Freescale Semiconductor, Inc.
  */
 
+#ifndef _DESC_CONSTR_H_
+#define _DESC_CONSTR_H_
 #include "desc.h"
 
 #define IMMEDIATE (1 << 23)
@@ -165,6 +167,7 @@ static inline u32 *append_##cmd(u32 *desc, u32 options) \
 }
 APPEND_CMD_RET(jump, JUMP)
 APPEND_CMD_RET(move, MOVE)
+APPEND_CMD_RET(moveb, MOVEB)
 
 static inline void set_jump_tgt_here(u32 *desc, u32 *jump_cmd)
 {
@@ -367,7 +370,7 @@ do { \
 	if (upper) \
 		append_u64(desc, data); \
 	else \
-		append_u32(desc, data); \
+		append_u32(desc, lower_32_bits(data)); \
 } while (0)
 
 #define append_math_add_imm_u64(desc, dest, src0, src1, data) \
@@ -388,3 +391,4 @@ do { \
 	APPEND_MATH_IMM_u64(LSHIFT, desc, dest, src0, src1, data)
 #define append_math_rshift_imm_u64(desc, dest, src0, src1, data) \
 	APPEND_MATH_IMM_u64(RSHIFT, desc, dest, src0, src1, data)
+#endif
