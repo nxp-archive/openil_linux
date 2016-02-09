@@ -4249,6 +4249,12 @@ L:	linux-crypto@vger.kernel.org
 S:	Maintained
 F:	drivers/crypto/dpaa2-caam/
 
+FREESCALE DPAA2 ETHERNET SWITCH DRIVER
+M:	Alex Marginean <Alexandru.Marginean@freescale.com>
+L:	linux-kernel@vger.kernel.org
+S:	Maintained
+F:	drivers/staging/fsl-dpaa2/ethsw/
+
 FREESCALE DPAA2 MAC/PHY INTERFACE DRIVER
 M:	Alex Marginean <Alexandru.Marginean@freescale.com>
 L:	linux-kernel@vger.kernel.org
