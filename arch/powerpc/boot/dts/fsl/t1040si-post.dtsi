@@ -723,6 +723,79 @@
 		};
 	};
 /include/ "qoriq-l2switch-0.dtsi"
+	l2switch@800000 {
+		interrupts = <26 2 0 0>;
+
+		port@100000 {
+			tbi-handle = <&swtbi4>;
+		};
+		port@110000 {
+			tbi-handle = <&swtbi5>;
+		};
+		port@120000 {
+			tbi-handle = <&swtbi6>;
+		};
+		port@130000 {
+			tbi-handle = <&swtbi7>;
+		};
+		port@140000 {
+			tbi-handle = <&swtbi8>;
+		};
+		port@150000 {
+			tbi-handle = <&swtbi9>;
+		};
+		port@160000 {
+			tbi-handle = <&swtbi10>;
+		};
+		port@170000 {
+			tbi-handle = <&swtbi11>;
+		};
+		port@180000 {
+			fixed-link = <2 1 2500 0 0>;
+			phy-connection-type = "sgmii";
+		};
+		port@190000 {
+			fixed-link = <3 1 2500 0 0>;
+			phy-connection-type = "sgmii";
+		};
+		mdio@700ac {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "vitesse-9953-mdio";
+			swtbi4: tbi-phy@4 {
+				reg = <0x4>;
+				device_type = "tbi-phy";
+			};
+			swtbi5: tbi-phy@5 {
+				reg = <0x5>;
+				device_type = "tbi-phy";
+			};
+			swtbi6: tbi-phy@6 {
+				reg = <0x6>;
+				device_type = "tbi-phy";
+			};
+			swtbi7: tbi-phy@7 {
+				reg = <0x7>;
+				device_type = "tbi-phy";
+			};
+			swtbi8: tbi-phy@8 {
+				reg = <0x8>;
+				device_type = "tbi-phy";
+			};
+			swtbi9: tbi-phy@9 {
+				reg = <0x9>;
+				device_type = "tbi-phy";
+			};
+			swtbi10: tbi-phy@a {
+				reg = <0xa>;
+				device_type = "tbi-phy";
+			};
+			swtbi11: tbi-phy@b {
+				reg = <0xb>;
+				device_type = "tbi-phy";
+			};
+		};
+	};
 };
 
 &qe {
