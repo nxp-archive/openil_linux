@@ -430,7 +430,15 @@ interrupt_base:
 		  unknown_exception, EXC_XFER_EE)
 
 	/* Watchdog Timer Interrupt */
-#ifdef CONFIG_BOOKE_WDT
+#ifdef CONFIG_FSL_ERRATUM_A_006184
+	START_EXCEPTION(WatchdogTimer)
+	mtspr	SPRN_SPRG_WSCRATCH_CRIT, r3
+	lis	r3, TSR_WIS@h
+	mtspr	SPRN_TSR, r3
+	/* use WSCRATCH to avoid any potential problems with KVM paravirt */
+	mfspr	r3, SPRN_SPRG_WSCRATCH_CRIT
+	rfci
+#elif defined(CONFIG_BOOKE_WDT)
 	CRITICAL_EXCEPTION(0x3200, WATCHDOG, WatchdogTimer, WatchdogException)
 #else
 	CRITICAL_EXCEPTION(0x3200, WATCHDOG, WatchdogTimer, unknown_exception)
