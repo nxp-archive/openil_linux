@@ -1,3 +1,6 @@
-if ARM
+config FSL_GUTS
+	bool
+
+if ARM || ARM64
 source "drivers/soc/fsl/Kconfig.arm"
 endif

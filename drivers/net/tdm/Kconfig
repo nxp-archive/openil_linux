@@ -1,0 +1,16 @@
+#
+# TDM Network devices configuration
+#
+menuconfig TDM_NET_DRIVERS
+	tristate "TDM Network Drivers"
+
+if TDM_NET_DRIVERS
+
+config SLIC_DS26522
+	tristate "SLIC MAXIM DS26522 CARD SUPPORT"
+	default n
+	---help---
+	  This module initializes and configures the slic maxim card
+	  in T1 or E1 mode.
+
+endif

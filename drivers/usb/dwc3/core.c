@@ -809,6 +809,8 @@ static int dwc3_probe(struct platform_device *pdev)
 
 		dwc->needs_fifo_resize = of_property_read_bool(node,
 				"tx-fifo-resize");
+		dwc->configure_gfladj =
+			of_property_read_bool(node, "configure-gfladj");
 		dwc->dr_mode = of_usb_get_dr_mode(node);
 
 		dwc->disable_scramble_quirk = of_property_read_bool(node,
@@ -899,6 +901,24 @@ static int dwc3_probe(struct platform_device *pdev)
 		dev_err(dwc->dev, "failed to allocate event buffers\n");
 		ret = -ENOMEM;
 		goto err1;
+	}
+
+	/* Adjust Frame Length */
+	if (dwc->configure_gfladj)
+		dwc3_writel(dwc->regs, DWC3_GFLADJ, GFLADJ_30MHZ_REG_SEL |
+			    GFLADJ_30MHZ(GFLADJ_30MHZ_DEFAULT));
+
+	/* Change burst beat and outstanding pipelined transfers requests */
+	dwc3_writel(dwc->regs, DWC3_GSBUSCFG0,
+		(dwc3_readl(dwc->regs, DWC3_GSBUSCFG0) & ~0xff) | 0xf);
+	dwc3_writel(dwc->regs, DWC3_GSBUSCFG1,
+		dwc3_readl(dwc->regs, DWC3_GSBUSCFG1) | 0xf00);
+
+	/* Enable Snooping */
+	if (node && of_dma_is_coherent(node)) {
+		dwc3_writel(dwc->regs, DWC3_GSBUSCFG0,
+				dwc3_readl(dwc->regs, DWC3_GSBUSCFG0) | 0x22220000);
+		dev_dbg(dev, "enabled snooping for usb\n");
 	}
 
 	if (IS_ENABLED(CONFIG_USB_DWC3_HOST))

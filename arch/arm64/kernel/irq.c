@@ -57,6 +57,14 @@ void __init init_IRQ(void)
 		panic("No interrupt controller found.");
 }
 
+irq_hw_number_t virq_to_hw(unsigned int virq)
+{
+	struct irq_data *irq_data = irq_get_irq_data(virq);
+
+	return WARN_ON(!irq_data) ? 0 : irq_data->hwirq;
+}
+EXPORT_SYMBOL_GPL(virq_to_hw);
+
 #ifdef CONFIG_HOTPLUG_CPU
 static bool migrate_one_irq(struct irq_desc *desc)
 {

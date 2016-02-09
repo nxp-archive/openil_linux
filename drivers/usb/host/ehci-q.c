@@ -902,7 +902,11 @@ qh_make (
 		break;
 
 	case USB_SPEED_HIGH:		/* no TT involved */
-		info1 |= QH_HIGH_SPEED;
+		if (!ehci_has_fsl_hs_errata(ehci))
+			info1 |= QH_HIGH_SPEED;
+		else
+			info1 |= QH_FULL_SPEED;
+
 		if (type == PIPE_CONTROL) {
 			info1 |= (EHCI_TUNE_RL_HS << 28);
 			info1 |= 64 << 16;	/* usb2 fixed maxpacket */

@@ -27,7 +27,7 @@
 #include <asm/udbg.h>
 #include <asm/mpic.h>
 #include <asm/ehv_pic.h>
-#include <asm/qe_ic.h>
+#include <soc/fsl/qe/qe_ic.h>
 
 #include <linux/of_platform.h>
 #include <sysdev/fsl_soc.h>
@@ -35,13 +35,17 @@
 #include "smp.h"
 #include "mpc85xx.h"
 
+#include <linux/fsl_usdpaa.h>
+
 void __init corenet_gen_pic_init(void)
 {
 	struct mpic *mpic;
 	unsigned int flags = MPIC_BIG_ENDIAN | MPIC_SINGLE_DEST_CPU |
 		MPIC_NO_RESET;
 
+#ifdef CONFIG_QUICC_ENGINE
 	struct device_node *np;
+#endif
 
 	if (ppc_md.get_irq == mpic_get_coreint_irq)
 		flags |= MPIC_ENABLE_COREINT;
@@ -51,12 +55,14 @@ void __init corenet_gen_pic_init(void)
 
 	mpic_init(mpic);
 
+#ifdef CONFIG_QUICC_ENGINE
 	np = of_find_compatible_node(NULL, NULL, "fsl,qe-ic");
 	if (np) {
 		qe_ic_init(np, 0, qe_ic_cascade_low_mpic,
 				qe_ic_cascade_high_mpic);
 		of_node_put(np);
 	}
+#endif
 }
 
 /*
@@ -114,9 +120,11 @@ static const struct of_device_id of_device_ids[] = {
 	{
 		.compatible	= "fsl,qoriq-pcie-v3.0",
 	},
+#ifdef CONFIG_QUICC_ENGINE
 	{
 		.compatible	= "fsl,qe",
 	},
+#endif
 	{
 		.compatible    = "fsl,fman",
 	},
@@ -205,6 +213,36 @@ static int __init corenet_generic_probe(void)
 	return 0;
 }
 
+/* Early setup is required for large chunks of contiguous (and coarsely-aligned)
+ * memory. The following shoe-horns Q/Bman "init_early" calls into the
+ * platform setup to let them parse their CCSR nodes early on. */
+#ifdef CONFIG_FSL_QMAN_CONFIG
+void __init qman_init_early(void);
+#endif
+#ifdef CONFIG_FSL_BMAN_CONFIG
+void __init bman_init_early(void);
+#endif
+#ifdef CONFIG_FSL_PME2_CTRL
+void __init pme2_init_early(void);
+#endif
+
+static __init void corenet_ds_init_early(void)
+{
+#ifdef CONFIG_FSL_QMAN_CONFIG
+	qman_init_early();
+#endif
+#ifdef CONFIG_FSL_BMAN_CONFIG
+	bman_init_early();
+#endif
+#ifdef CONFIG_FSL_PME2_CTRL
+	pme2_init_early();
+#endif
+#ifdef CONFIG_FSL_USDPAA
+	fsl_usdpaa_init_early();
+#endif
+}
+
+
 define_machine(corenet_generic) {
 	.name			= "CoreNet Generic",
 	.probe			= corenet_generic_probe,
@@ -231,6 +269,7 @@ define_machine(corenet_generic) {
 #else
 	.power_save		= e500_idle,
 #endif
+	.init_early		= corenet_ds_init_early,
 };
 
 machine_arch_initcall(corenet_generic, corenet_gen_publish_devices);

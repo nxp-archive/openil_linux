@@ -28,6 +28,7 @@
 struct	ls_reboot_priv {
 	struct device *dev;
 	u32 *rstcr;
+	bool is_big_endian;
 };
 
 static struct ls_reboot_priv	*ls_reboot_priv;
@@ -39,9 +40,15 @@ static void ls_reboot(enum reboot_mode reboot_mode, const char *cmd)
 	unsigned long timeout;
 
 	if (ls_reboot_priv) {
-		val = readl(priv->rstcr);
-		val |= 0x02;
-		writel(val, priv->rstcr);
+		if (priv->is_big_endian) {
+			val = ioread32be(priv->rstcr);
+			val |= 0x02;
+			iowrite32be(val, priv->rstcr);
+		} else {
+			val = readl(priv->rstcr);
+			val |= 0x02;
+			writel(val, priv->rstcr);
+		}
 	}
 
 	timeout = jiffies + HZ;
@@ -65,6 +72,11 @@ static int ls_reboot_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "can not map resource\n");
 		return -ENODEV;
 	}
+
+	if (of_get_property(pdev->dev.of_node, "big-endian", NULL))
+		ls_reboot_priv->is_big_endian = true;
+	else
+		ls_reboot_priv->is_big_endian = false;
 
 	ls_reboot_priv->dev = &pdev->dev;
 
