@@ -47,9 +47,9 @@
 #ifdef CONFIG_FSL_DPAA_1588
 #include "dpaa_1588.h"
 #endif
-#ifdef CONFIG_FSL_DPAA_ETH_DEBUGFS
+#ifdef CONFIG_FSL_DPAA_DBG_LOOP
 #include "dpaa_debugfs.h"
-#endif /* CONFIG_FSL_DPAA_ETH_DEBUGFS */
+#endif /* CONFIG_FSL_DPAA_DBG_LOOP */
 #include "mac.h"
 
 /* DPAA platforms benefit from hardware-assisted queue management */
@@ -135,14 +135,14 @@ int dpa_netdev_init(struct net_device *net_dev,
 		return err;
 	}
 
-#ifdef CONFIG_FSL_DPAA_ETH_DEBUGFS
+#ifdef CONFIG_FSL_DPAA_DBG_LOOP
 	/* create debugfs entry for this net_device */
 	err = dpa_netdev_debugfs_create(net_dev);
 	if (err) {
 		unregister_netdev(net_dev);
 		return err;
 	}
-#endif /* CONFIG_FSL_DPAA_ETH_DEBUGFS */
+#endif /* CONFIG_FSL_DPAA_DBG_LOOP */
 
 	return 0;
 }
@@ -527,10 +527,10 @@ int __cold dpa_remove(struct platform_device *of_dev)
 	if (priv->buf_layout)
 		devm_kfree(dev, priv->buf_layout);
 
-#ifdef CONFIG_FSL_DPAA_ETH_DEBUGFS
+#ifdef CONFIG_FSL_DPAA_DBG_LOOP
 	/* remove debugfs entry for this net_device */
 	dpa_netdev_debugfs_remove(net_dev);
-#endif /* CONFIG_FSL_DPAA_ETH_DEBUGFS */
+#endif /* CONFIG_FSL_DPAA_DBG_LOOP */
 
 #ifdef CONFIG_FSL_DPAA_1588
 	if (priv->tsu && priv->tsu->valid)

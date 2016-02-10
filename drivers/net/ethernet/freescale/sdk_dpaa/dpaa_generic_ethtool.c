@@ -65,8 +65,6 @@ static void __cold dpa_generic_get_drvinfo(struct net_device *net_dev,
 
 	strncpy(drvinfo->driver, KBUILD_MODNAME,
 		sizeof(drvinfo->driver) - 1)[sizeof(drvinfo->driver)-1] = 0;
-	strncpy(drvinfo->version, VERSION,
-		sizeof(drvinfo->driver) - 1)[sizeof(drvinfo->version)-1] = 0;
 	_errno = snprintf(drvinfo->fw_version, sizeof(drvinfo->fw_version),
 			  "%X", 0);
 
@@ -99,20 +97,6 @@ static int __cold dpa_generic_nway_reset(struct net_device *net_dev)
 	return -ENODEV;
 }
 
-static void __cold dpa_generic_get_ringparam(struct net_device *net_dev,
-		struct ethtool_ringparam *et_ringparam)
-{
-	et_ringparam->rx_max_pending	   = 0;
-	et_ringparam->rx_mini_max_pending  = 0;
-	et_ringparam->rx_jumbo_max_pending = 0;
-	et_ringparam->tx_max_pending	   = 0;
-
-	et_ringparam->rx_pending	   = 0;
-	et_ringparam->rx_mini_pending	   = 0;
-	et_ringparam->rx_jumbo_pending	   = 0;
-	et_ringparam->tx_pending	   = 0;
-}
-
 const struct ethtool_ops dpa_generic_ethtool_ops = {
 	.get_settings = dpa_generic_get_settings,
 	.set_settings = dpa_generic_set_settings,
@@ -120,6 +104,5 @@ const struct ethtool_ops dpa_generic_ethtool_ops = {
 	.get_msglevel = dpa_generic_get_msglevel,
 	.set_msglevel = dpa_generic_set_msglevel,
 	.nway_reset = dpa_generic_nway_reset,
-	.get_ringparam = dpa_generic_get_ringparam,
 	.get_link = ethtool_op_get_link,
 };
