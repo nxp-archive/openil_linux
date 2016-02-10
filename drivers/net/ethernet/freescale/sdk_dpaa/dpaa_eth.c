@@ -232,7 +232,8 @@ dpa_csum_validation(const struct dpa_priv_s	*priv,
 	if (unlikely(!frm))
 		return;
 
-	dma_unmap_single(dpa_bp->dev, addr, dpa_bp->size, DMA_BIDIRECTIONAL);
+	dma_sync_single_for_cpu(dpa_bp->dev, addr, DPA_RX_PRIV_DATA_SIZE +
+				DPA_PARSE_RESULTS_SIZE, DMA_BIDIRECTIONAL);
 
 	parse_result = (fm_prs_result_t *)(frm + DPA_RX_PRIV_DATA_SIZE);
 
