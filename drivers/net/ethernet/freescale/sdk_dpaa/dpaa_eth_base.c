@@ -235,7 +235,7 @@ EXPORT_SYMBOL(dpa_bp_create);
 
 static int __init __cold dpa_advanced_load(void)
 {
-	pr_info(DPA_DESCRIPTION " (" VERSION ")\n");
+	pr_info(DPA_DESCRIPTION "\n");
 
 	return 0;
 }

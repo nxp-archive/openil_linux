@@ -65,9 +65,9 @@
 #include "mac.h"
 #include "dpaa_eth.h"
 #include "dpaa_eth_common.h"
-#ifdef CONFIG_FSL_DPAA_ETH_DEBUGFS
+#ifdef CONFIG_FSL_DPAA_DBG_LOOP
 #include "dpaa_debugfs.h"
-#endif /* CONFIG_FSL_DPAA_ETH_DEBUGFS */
+#endif /* CONFIG_FSL_DPAA_DBG_LOOP */
 
 /* CREATE_TRACE_POINTS only needs to be defined once. Other dpa files
  * using trace events only need to #include <trace/events/sched.h>
@@ -232,7 +232,8 @@ dpa_csum_validation(const struct dpa_priv_s	*priv,
 	if (unlikely(!frm))
 		return;
 
-	dma_unmap_single(dpa_bp->dev, addr, dpa_bp->size, DMA_BIDIRECTIONAL);
+	dma_sync_single_for_cpu(dpa_bp->dev, addr, DPA_RX_PRIV_DATA_SIZE +
+				DPA_PARSE_RESULTS_SIZE, DMA_BIDIRECTIONAL);
 
 	parse_result = (fm_prs_result_t *)(frm + DPA_RX_PRIV_DATA_SIZE);
 
@@ -1131,11 +1132,11 @@ static int __init __cold dpa_load(void)
 {
 	int	 _errno;
 
-	pr_info(DPA_DESCRIPTION " (" VERSION ")\n");
+	pr_info(DPA_DESCRIPTION "\n");
 
-#ifdef CONFIG_FSL_DPAA_ETH_DEBUGFS
+#ifdef CONFIG_FSL_DPAA_DBG_LOOP
 	dpa_debugfs_module_init();
-#endif /* CONFIG_FSL_DPAA_ETH_DEBUGFS */
+#endif /* CONFIG_FSL_DPAA_DBG_LOOP */
 
 	/* initialise dpaa_eth mirror values */
 	dpa_rx_extra_headroom = fm_get_rx_extra_headroom();
@@ -1167,9 +1168,9 @@ static void __exit __cold dpa_unload(void)
 
 	platform_driver_unregister(&dpa_driver);
 
-#ifdef CONFIG_FSL_DPAA_ETH_DEBUGFS
+#ifdef CONFIG_FSL_DPAA_DBG_LOOP
 	dpa_debugfs_module_exit();
-#endif /* CONFIG_FSL_DPAA_ETH_DEBUGFS */
+#endif /* CONFIG_FSL_DPAA_DBG_LOOP */
 
 	/* Only one channel is used and needs to be relased after all
 	 * interfaces are removed

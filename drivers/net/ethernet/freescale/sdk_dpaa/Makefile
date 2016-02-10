@@ -12,7 +12,7 @@ obj-$(CONFIG_FSL_SDK_DPAA_ETH) += fsl_mac.o fsl_dpa.o
 obj-$(CONFIG_PTP_1588_CLOCK_DPAA) += dpaa_ptp.o
 
 fsl_dpa-objs += dpaa_ethtool.o dpaa_eth_sysfs.o dpaa_eth.o dpaa_eth_sg.o dpaa_eth_common.o
-ifeq ($(CONFIG_FSL_DPAA_ETH_DEBUGFS),y)
+ifeq ($(CONFIG_FSL_DPAA_DBG_LOOP),y)
 fsl_dpa-objs += dpaa_debugfs.o
 endif
 ifeq ($(CONFIG_FSL_DPAA_1588),y)

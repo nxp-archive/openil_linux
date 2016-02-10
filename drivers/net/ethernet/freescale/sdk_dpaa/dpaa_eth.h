@@ -346,9 +346,6 @@ struct dpa_priv_s {
 	uint16_t		 channel;	/* "fsl,qman-channel-id" */
 	struct list_head	 dpa_fq_list;
 
-#ifdef CONFIG_FSL_DPAA_ETH_DEBUGFS
-	struct dentry		*debugfs_file;
-#endif /* CONFIG_FSL_DPAA_ETH_DEBUGFS */
 #ifdef CONFIG_FSL_DPAA_DBG_LOOP
 	struct dentry		*debugfs_loop_file;
 #endif

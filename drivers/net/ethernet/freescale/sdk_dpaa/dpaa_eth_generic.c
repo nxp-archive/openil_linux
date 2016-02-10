@@ -7,10 +7,6 @@
  *     * Redistributions in binary form must reproduce the above copyright
  *	 notice, this list of conditions and the following disclaimer in the
  *	 documentation and/or other materials provided with the distribution.
- *     * Neither the name of Freescale Semiconductor nor the
- *	 names of its contributors may be used to endorse or promote products
- *	 derived from this software without specific prior written permission.
-
  *
  * ALTERNATIVELY, this software may be distributed under the terms of the
  * GNU General Public License ("GPL") as published by the Free Software
@@ -29,21 +25,6 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* "generic" flavour of DPAA Ethernet driver, called oNIC
- *
- * TODO:
- *	1. This file should be conditionally compiled. For the moment it is
- *	compiled by default.
- *	2. Tx multiqueues (ndo_select queue, alloc_etherdev_mq)
- *	3. Fetch the buffer layouts from OH ports.
- *	4. Make the drive generic (can connect with multiple OH ports,
- *	remove '2' hardcode from oh_ports, buffer_layout, etc.).
- *	5. Multiple buffer pools for RX (up to 4 supported on HW)
- *	6. Different queue initializations (enable taildrop)
- *	7. ethtool
- *	8. Recycling (draining buffer pool = default buffer pool)
- */
-
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/kthread.h>
@@ -51,6 +32,7 @@
 #include <linux/if_vlan.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
+#include <linux/percpu.h>
 
 #include "dpaa_eth.h"
 #include "dpaa_eth_common.h"
@@ -62,6 +44,7 @@
 #define DPA_GENERIC_SKB_COPY_MAX_SIZE	256
 #define DPA_GENERIC_NAPI_WEIGHT		64
 #define DPA_GENERIC_DESCRIPTION "FSL DPAA Generic Ethernet driver"
+#define DPA_GENERIC_BUFFER_QUOTA       	4
 
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION(DPA_GENERIC_DESCRIPTION);
@@ -90,6 +73,7 @@ static void dpa_generic_ern(struct qman_portal *portal,
 static int __hot dpa_generic_tx(struct sk_buff *skb,
 				struct net_device *netdev);
 static void dpa_generic_drain_bp(struct dpa_bp *bp, u8 nbuf);
+static void dpa_generic_drain_sg_bp(struct dpa_bp *sg_bp, u8 nbuf);
 
 static const struct net_device_ops dpa_generic_ops = {
 	.ndo_open = dpa_generic_start,
@@ -108,10 +92,11 @@ static void dpa_generic_draining_timer(unsigned long arg)
 {
 	struct dpa_generic_priv_s *priv = (struct dpa_generic_priv_s *)arg;
 
-	/* drain in pairs of 4 buffers */
-	dpa_generic_drain_bp(priv->draining_tx_bp, 4);
+	dpa_generic_drain_bp(priv->draining_tx_bp, DPA_GENERIC_BUFFER_QUOTA);
+	dpa_generic_drain_sg_bp(priv->draining_tx_sg_bp,
+			DPA_GENERIC_BUFFER_QUOTA);
 
-	if (atomic_read(&priv->ifup))
+	if (priv->net_dev->flags & IFF_UP)
 		mod_timer(&(priv->timer), jiffies + 1);
 }
 
@@ -177,7 +162,7 @@ static int get_port_ref(struct device_node *dev_node,
 		  struct fm_port **port)
 {
 	struct platform_device *port_of_dev = NULL;
-	struct device *op_dev = NULL;
+	struct device *oh_dev = NULL;
 	struct device_node *port_node = NULL;
 
 	port_node = of_parse_phandle(dev_node, "fsl,fman-oh-port", 0);
@@ -191,8 +176,8 @@ static int get_port_ref(struct device_node *dev_node,
 		return -EINVAL;
 
 	/* get the reference to oh port from FMD */
-	op_dev = &port_of_dev->dev;
-	*port = fm_port_bind(op_dev);
+	oh_dev = &port_of_dev->dev;
+	*port = fm_port_bind(oh_dev);
 
 	if (*port == NULL)
 		return -EINVAL;
@@ -226,7 +211,7 @@ static void dpaa_generic_napi_disable(struct dpa_generic_priv_s *priv)
 	}
 }
 
-static struct device_node *get_rx_op_port_node(struct platform_device *_of_dev)
+static struct device_node *get_rx_oh_port_node(struct platform_device *_of_dev)
 {
 	struct device *dev = &_of_dev->dev;
 	struct device_node *port_node = NULL;
@@ -261,7 +246,6 @@ static int __cold dpa_generic_start(struct net_device *netdev)
 	netif_tx_start_all_queues(netdev);
 
 	mod_timer(&priv->timer, jiffies + 100);
-	atomic_dec(&priv->ifup);
 
 	return 0;
 }
@@ -272,8 +256,6 @@ static int __cold dpa_generic_stop(struct net_device *netdev)
 
 	netif_tx_stop_all_queues(netdev);
 	dpaa_generic_napi_disable(priv);
-
-	atomic_inc_not_zero(&priv->ifup);
 
 	return 0;
 }
@@ -371,6 +353,7 @@ dpa_generic_rx_dqrr(struct qman_portal *portal,
 	 * enough
 	 */
 	dpa_generic_drain_bp(priv->draining_tx_bp, 1);
+	dpa_generic_drain_sg_bp(priv->draining_tx_sg_bp, 1);
 
 	if (unlikely(dpaa_eth_napi_schedule(percpu_priv, portal)))
 		return qman_cb_dqrr_stop;
@@ -384,11 +367,7 @@ dpa_generic_rx_dqrr(struct qman_portal *portal,
 		goto qman_consume;
 	}
 
-	skbh = (struct sk_buff **)phys_to_virt(addr);
-	/* according to the last common code (bp refill) the skb pointer is set
-	 * to another address shifted by sizeof(struct sk_buff) to the left
-	 */
-	skb = *(skbh - 1);
+	DPA_READ_SKB_PTR(skb, skbh, phys_to_virt(addr), -1);
 
 	if (unlikely(fd_status & FM_FD_STAT_RX_ERRORS) != 0) {
 		if (netif_msg_hw(priv) && net_ratelimit())
@@ -408,7 +387,6 @@ dpa_generic_rx_dqrr(struct qman_portal *portal,
 	}
 
 	bp = dpa_bpid2pool(fd->bpid);
-	/* TODO add bp check on hot path? */
 
 	/* find out the pad */
 	skb_addr = virt_to_phys(skb->head);
@@ -450,6 +428,45 @@ qman_consume:
 	return qman_cb_dqrr_consume;
 }
 
+static void dpa_generic_drain_sg_bp(struct dpa_bp *sgbp, u8 nbuf)
+{
+	int ret;
+	struct bm_buffer bmb[8];
+
+	do {
+		ret = bman_acquire(sgbp->pool, bmb, nbuf, 0);
+	} while (ret >= 0);
+}
+
+inline void dpa_release_sg(struct sk_buff *skb, dma_addr_t addr,
+		struct dpa_bp *bp)
+{
+	struct qm_sg_entry *sgt = phys_to_virt(addr + DPA_DEFAULT_TX_HEADROOM);
+	int nr_frags = skb_shinfo(skb)->nr_frags;
+	dma_addr_t sg_addr;
+	int j;
+
+	dma_unmap_single(bp->dev, addr, DPA_DEFAULT_TX_HEADROOM +
+			sizeof(struct qm_sg_entry) * (1 + nr_frags),
+			DMA_BIDIRECTIONAL);
+
+	for (j = 0; j <= nr_frags; j++) {
+		DPA_BUG_ON(sgt[j].extension);
+		sg_addr = qm_sg_addr(&sgt[j]);
+		dma_unmap_page(bp->dev, sg_addr,
+				sgt[j].length, DMA_BIDIRECTIONAL);
+	}
+
+	dev_kfree_skb_any(skb);
+}
+
+inline void dpa_release_contig(struct sk_buff *skb, dma_addr_t addr,
+		struct dpa_bp *bp)
+{
+	dma_unmap_single(bp->dev, addr, bp->size, DMA_BIDIRECTIONAL);
+	dev_kfree_skb_any(skb);
+}
+
 static void dpa_generic_drain_bp(struct dpa_bp *bp, u8 nbuf)
 {
 	int ret, i;
@@ -464,11 +481,15 @@ static void dpa_generic_drain_bp(struct dpa_bp *bp, u8 nbuf)
 		ret = bman_acquire(bp->pool, bmb, nbuf, 0);
 		if (ret > 0) {
 			for (i = 0; i < nbuf; i++) {
-				addr = bm_buf_addr(&bmb[i]);
+				addr = bm_buffer_get64(&bmb[i]);
 				skbh = (struct sk_buff **)phys_to_virt(addr);
 				dma_unmap_single(bp->dev, addr, bp->size,
 						DMA_TO_DEVICE);
-				dev_kfree_skb_any(*skbh);
+
+				if (skb_is_nonlinear(*skbh))
+					dpa_release_sg(*skbh, addr, bp);
+				else
+					dpa_release_contig(*skbh, addr, bp);
 			}
 			count -= i;
 		}
@@ -582,6 +603,128 @@ return_error:
 	return retval;
 }
 
+static inline int generic_skb_to_sg_fd(struct dpa_generic_priv_s *priv,
+		struct sk_buff *skb, struct qm_fd *fd)
+{
+	struct dpa_bp *dpa_bp = priv->draining_tx_bp;
+	struct dpa_bp *dpa_sg_bp = priv->draining_tx_sg_bp;
+	dma_addr_t addr;
+	struct sk_buff **skbh;
+	struct net_device *net_dev = priv->net_dev;
+	int err;
+
+	struct qm_sg_entry *sgt;
+	void *sgt_buf;
+	void *buffer_start;
+	skb_frag_t *frag;
+	int i, j;
+	const enum dma_data_direction dma_dir = DMA_BIDIRECTIONAL;
+	const int nr_frags = skb_shinfo(skb)->nr_frags;
+
+	memset(fd, 0, sizeof(*fd));
+	fd->format = qm_fd_sg;
+
+	/* get a page frag to store the SGTable */
+	sgt_buf = netdev_alloc_frag(priv->tx_headroom +
+			sizeof(struct qm_sg_entry) * (1 + nr_frags));
+	if (unlikely(!sgt_buf)) {
+		dev_err(dpa_bp->dev, "netdev_alloc_frag() failed\n");
+		return -ENOMEM;
+	}
+
+	memset(sgt_buf, 0, priv->tx_headroom +
+			sizeof(struct qm_sg_entry) * (1 + nr_frags));
+
+	/* do this before dma_map_single(DMA_TO_DEVICE), because we may need to
+	 * write into the skb.
+	 */
+	err = dpa_generic_tx_csum(priv, skb, fd,
+			sgt_buf + DPA_TX_PRIV_DATA_SIZE);
+	if (unlikely(err < 0)) {
+		if (netif_msg_tx_err(priv) && net_ratelimit())
+			netdev_err(net_dev, "HW csum error: %d\n", err);
+		goto csum_failed;
+	}
+
+	sgt = (struct qm_sg_entry *)(sgt_buf + priv->tx_headroom);
+	sgt[0].bpid = dpa_sg_bp->bpid;
+	sgt[0].offset = 0;
+	sgt[0].length = skb_headlen(skb);
+	sgt[0].extension = 0;
+	sgt[0].final = 0;
+
+	addr = dma_map_single(dpa_sg_bp->dev, skb->data, sgt[0].length,
+			dma_dir);
+	if (unlikely(dma_mapping_error(dpa_sg_bp->dev, addr))) {
+		dev_err(dpa_sg_bp->dev, "DMA mapping failed");
+		err = -EINVAL;
+		goto sg0_map_failed;
+	}
+
+	sgt[0].addr_hi = (uint8_t)upper_32_bits(addr);
+	sgt[0].addr_lo = cpu_to_be32(lower_32_bits(addr));
+
+	/* populate the rest of SGT entries */
+	for (i = 1; i <= nr_frags; i++) {
+		frag = &skb_shinfo(skb)->frags[i - 1];
+		sgt[i].bpid = dpa_sg_bp->bpid;
+		sgt[i].offset = 0;
+		sgt[i].length = frag->size;
+		sgt[i].extension = 0;
+		sgt[i].final = 0;
+
+		DPA_BUG_ON(!skb_frag_page(frag));
+		addr = skb_frag_dma_map(dpa_bp->dev, frag, 0, sgt[i].length,
+				dma_dir);
+		if (unlikely(dma_mapping_error(dpa_sg_bp->dev, addr))) {
+			dev_err(dpa_sg_bp->dev, "DMA mapping failed");
+			err = -EINVAL;
+			goto sg_map_failed;
+		}
+
+		/* keep the offset in the address */
+		sgt[i].addr_hi = (uint8_t)upper_32_bits(addr);
+		sgt[i].addr_lo = cpu_to_be32(lower_32_bits(addr));
+	}
+	sgt[i - 1].final = 1;
+
+	fd->length20 = skb->len;
+	fd->offset = priv->tx_headroom;
+
+	/* DMA map the SGT page */
+	buffer_start = (void *)sgt - dpa_fd_offset(fd);
+	/* Can't write at "negative" offset in buffer_start, because this skb
+	 * may not have been allocated by us.
+	 */
+	DPA_WRITE_SKB_PTR(skb, skbh, buffer_start, 0);
+
+	addr = dma_map_single(dpa_bp->dev, buffer_start,
+			priv->tx_headroom + sizeof(struct qm_sg_entry) * (1 + nr_frags),
+			dma_dir);
+	if (unlikely(dma_mapping_error(dpa_bp->dev, addr))) {
+		dev_err(dpa_bp->dev, "DMA mapping failed");
+		err = -EINVAL;
+		goto sgt_map_failed;
+	}
+
+	fd->bpid = dpa_bp->bpid;
+	fd->addr_hi = (uint8_t)upper_32_bits(addr);
+	fd->addr_lo = lower_32_bits(addr);
+
+	return 0;
+
+sgt_map_failed:
+sg_map_failed:
+	for (j = 0; j < i; j++)
+		dma_unmap_page(dpa_sg_bp->dev, qm_sg_addr(&sgt[j]),
+				be32_to_cpu(sgt[j].length), dma_dir);
+sg0_map_failed:
+csum_failed:
+	put_page(virt_to_head_page(sgt_buf));
+
+	return err;
+}
+
 static int __hot dpa_generic_tx(struct sk_buff *skb, struct net_device *netdev)
 {
 	struct dpa_generic_priv_s *priv = netdev_priv(netdev);
@@ -589,65 +732,73 @@ static int __hot dpa_generic_tx(struct sk_buff *skb, struct net_device *netdev)
 		raw_cpu_ptr(priv->percpu_priv);
 	struct rtnl_link_stats64 *percpu_stats = &percpu_priv->stats;
 	struct dpa_bp *bp = priv->draining_tx_bp;
+	struct dpa_bp *sg_bp = priv->draining_tx_sg_bp;
 	struct sk_buff **skbh = NULL;
 	dma_addr_t addr;
 	struct qm_fd fd;
 	int queue_mapping;
 	struct qman_fq *egress_fq;
+	const bool nonlinear = skb_is_nonlinear(skb);
 	int i = 0, err = 0;
 	int *countptr;
 
-	if (unlikely(skb_headroom(skb) < priv->tx_headroom)) {
-		struct sk_buff *skb_new;
+	if (nonlinear && skb_shinfo(skb)->nr_frags < DPA_SGT_MAX_ENTRIES) {
+		err = generic_skb_to_sg_fd(priv, skb, &fd);
+		if (unlikely(err < 0))
+			goto sg_failed;
+		percpu_priv->tx_frag_skbuffs++;
+		addr = qm_fd_addr(&fd);
+	} else {
+		if (unlikely(skb_headroom(skb) < priv->tx_headroom)) {
+			struct sk_buff *skb_new;
 
-		skb_new = skb_realloc_headroom(skb, priv->tx_headroom);
-		if (unlikely(!skb_new)) {
-			percpu_stats->tx_errors++;
+			skb_new = skb_realloc_headroom(skb, priv->tx_headroom);
+			if (unlikely(!skb_new)) {
+				percpu_stats->tx_errors++;
+				kfree_skb(skb);
+				goto done;
+			}
+
 			kfree_skb(skb);
-			goto done;
+			skb = skb_new;
 		}
-		kfree_skb(skb);
-		skb = skb_new;
+
+		clear_fd(&fd);
+
+		/* store skb backpointer to release the skb later */
+		skbh = (struct sk_buff **)(skb->data - priv->tx_headroom);
+		*skbh = skb;
+
+		/* do this before dma_map_single(), because we may need to write
+		 * into the skb.
+		 */
+		err = dpa_generic_tx_csum(priv, skb, &fd,
+				((char *)skbh) + DPA_TX_PRIV_DATA_SIZE);
+		if (unlikely(err < 0)) {
+			if (netif_msg_tx_err(priv) && net_ratelimit())
+				netdev_err(netdev, "HW csum error: %d\n", err);
+			return err;
+		}
+
+		addr = dma_map_single(bp->dev, skbh,
+				skb->len + priv->tx_headroom, DMA_TO_DEVICE);
+		if (unlikely(dma_mapping_error(bp->dev, addr))) {
+			if (netif_msg_tx_err(priv)  && net_ratelimit())
+				netdev_err(netdev, "dma_map_single() failed\n");
+			goto dma_mapping_failed;
+		}
+
+		fd.format = qm_fd_contig;
+		fd.length20 = skb->len;
+		fd.offset = priv->tx_headroom;
+		fd.addr_hi = (uint8_t)upper_32_bits(addr);
+		fd.addr_lo = lower_32_bits(addr);
+		/* fd.cmd |= FM_FD_CMD_FCO; */
+		fd.bpid = bp->bpid;
 	}
-
-	clear_fd(&fd);
-
-	/* store skb backpointer to release the skb later */
-	skbh = (struct sk_buff **)(skb->data - priv->tx_headroom);
-	*skbh = skb;
-
-	/* TODO check if skb->len + priv->tx_headroom < bp->size */
-
-	/* Enable L3/L4 hardware checksum computation.
-	 *
-	 * We must do this before dma_map_single(), because we may
-	 * need to write into the skb.
-	 */
-	err = dpa_generic_tx_csum(priv, skb, &fd,
-				 ((char *)skbh) + DPA_TX_PRIV_DATA_SIZE);
-	if (unlikely(err < 0)) {
-		if (netif_msg_tx_err(priv) && net_ratelimit())
-			netdev_err(netdev, "HW csum error: %d\n", err);
-		return err;
-	}
-
-	addr = dma_map_single(bp->dev, skbh,
-			skb->len + priv->tx_headroom, DMA_TO_DEVICE);
-	if (unlikely(dma_mapping_error(bp->dev, addr))) {
-		if (netif_msg_tx_err(priv)  && net_ratelimit())
-			netdev_err(netdev, "dma_map_single() failed\n");
-		goto dma_mapping_failed;
-	}
-
-	fd.format = qm_fd_contig;
-	fd.length20 = skb->len;
-	fd.offset = priv->tx_headroom;
-	fd.addr_hi = (uint8_t)upper_32_bits(addr);
-	fd.addr_lo = lower_32_bits(addr);
-	/* fd.cmd |= FM_FD_CMD_FCO; */
-	fd.bpid = bp->bpid;
 
 	dpa_generic_drain_bp(bp, 1);
+	dpa_generic_drain_sg_bp(sg_bp, 1);
 
 	queue_mapping = dpa_get_queue_mapping(skb);
 	egress_fq = priv->egress_fqs[queue_mapping];
@@ -674,6 +825,7 @@ static int __hot dpa_generic_tx(struct sk_buff *skb, struct net_device *netdev)
 
 xmit_failed:
 	dma_unmap_single(bp->dev, addr, fd.offset + fd.length20, DMA_TO_DEVICE);
+sg_failed:
 dma_mapping_failed:
 	percpu_stats->tx_errors++;
 	dev_kfree_skb(skb);
@@ -743,7 +895,7 @@ static int dpa_generic_netdev_init(struct device_node *dpa_node,
 		return -EINVAL;
 	}
 
-	netdev->hw_features |= NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM;
+	netdev->hw_features |= NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM | NETIF_F_SG;
 	netdev->priv_flags |= IFF_LIVE_ADDR_CHANGE;
 	netdev->features |= netdev->hw_features;
 	netdev->vlan_features = netdev->features;
@@ -826,7 +978,7 @@ static struct list_head *dpa_generic_fq_probe(struct platform_device *_of_dev,
 	INIT_LIST_HEAD(list);
 
 	/* RX queues (RX error, RX default) are specified in Rx O/H port node */
-	oh_node = get_rx_op_port_node(_of_dev);
+	oh_node = get_rx_oh_port_node(_of_dev);
 	fqids_off = of_get_property(oh_node, "fsl,qman-frame-queues-oh", &lenp);
 	if (fqids_off == NULL) {
 		dev_err(dev, "Need Rx FQ definition in dts for generic devices\n");
@@ -929,7 +1081,7 @@ static int dpa_generic_rx_bp_probe(struct platform_device *_of_dev,
 	int na = 0, ns = 0;
 	int err = 0, i = 0;
 
-	oh_node = get_rx_op_port_node(_of_dev);
+	oh_node = get_rx_oh_port_node(_of_dev);
 
 	bp_count = of_count_phandle_with_args(oh_node,
 			"fsl,bman-buffer-pools", NULL);
@@ -941,13 +1093,15 @@ static int dpa_generic_rx_bp_probe(struct platform_device *_of_dev,
 	bp = devm_kzalloc(dev, bp_count * sizeof(*bp), GFP_KERNEL);
 	if (unlikely(bp == NULL)) {
 		dev_err(dev, "devm_kzalloc() failed\n");
-		return -ENOMEM;
+		err = -ENOMEM;
+		goto _return_of_node_put;
 	}
 
 	dev_node = of_find_node_by_path("/");
 	if (unlikely(dev_node == NULL)) {
 		dev_err(dev, "of_find_node_by_path(/) failed\n");
-		return -EINVAL;
+		err = -EINVAL;
+		goto _return_of_node_put;
 	}
 
 	na = of_n_addr_cells(dev_node);
@@ -960,7 +1114,8 @@ static int dpa_generic_rx_bp_probe(struct platform_device *_of_dev,
 				"fsl,bman-buffer-pools", i);
 		if (dev_node == NULL) {
 			dev_err(dev, "Cannot find buffer pool node in the device tree\n");
-			return -EFAULT;
+			err = -EINVAL;
+			goto _return_of_node_put;
 		}
 
 		err = of_property_read_u32(dev_node, "fsl,bpid", &bpid);
@@ -986,7 +1141,7 @@ static int dpa_generic_rx_bp_probe(struct platform_device *_of_dev,
 		}
 
 		bp[i].percpu_count = devm_alloc_percpu(dev,
-						       *bp[i].percpu_count);
+				*bp[i].percpu_count);
 	}
 
 	of_node_put(oh_node);
@@ -1025,11 +1180,13 @@ _return_of_node_put:
 static int dpa_generic_tx_bp_probe(struct platform_device *_of_dev,
 				   struct fm_port *tx_port,
 				   struct dpa_bp **draining_tx_bp,
+				   struct dpa_bp **draining_tx_sg_bp,
 				   struct dpa_buffer_layout_s **tx_buf_layout)
 {
 	struct device *dev = &_of_dev->dev;
 	struct fm_port_params params;
 	struct dpa_bp *bp = NULL;
+	struct dpa_bp *bp_sg = NULL;
 	struct dpa_buffer_layout_s *buf_layout = NULL;
 
 	buf_layout = devm_kzalloc(dev, sizeof(*buf_layout), GFP_KERNEL);
@@ -1058,6 +1215,19 @@ static int dpa_generic_tx_bp_probe(struct platform_device *_of_dev,
 	bp->target_count = CONFIG_FSL_DPAA_ETH_MAX_BUF_COUNT;
 
 	*draining_tx_bp = bp;
+
+	bp_sg = devm_kzalloc(dev, sizeof(*bp_sg), GFP_KERNEL);
+	if (unlikely(bp_sg == NULL)) {
+		dev_err(dev, "devm_kzalloc() failed\n");
+		return -ENOMEM;
+	}
+
+	bp_sg->size = dpa_bp_size(buf_layout);
+	bp_sg->percpu_count = alloc_percpu(*bp_sg->percpu_count);
+	bp_sg->target_count = CONFIG_FSL_DPAA_ETH_MAX_BUF_COUNT;
+
+	*draining_tx_sg_bp = bp_sg;
+
 	*tx_buf_layout = buf_layout;
 
 	return 0;
@@ -1145,12 +1315,8 @@ static inline void dpa_generic_setup_egress(
 	fq->fq_base = *template;
 	fq->net_dev = priv->net_dev;
 
-	if (port) {
-		fq->flags = QMAN_FQ_FLAG_TO_DCPORTAL;
-		fq->channel = fm_get_tx_port_channel(port);
-	} else {
-		fq->flags = QMAN_FQ_FLAG_NO_MODIFY;
-	}
+	fq->flags = QMAN_FQ_FLAG_TO_DCPORTAL;
+	fq->channel = fm_get_tx_port_channel(port);
 }
 
 static void dpa_generic_fq_setup(struct dpa_generic_priv_s *priv,
@@ -1216,8 +1382,6 @@ static int dpa_generic_fq_init(struct dpa_fq *dpa_fq, int disable_buff_dealloc)
 	if (dpa_fq->fqid == 0)
 		dpa_fq->flags |= QMAN_FQ_FLAG_DYNAMIC_FQID;
 
-	dpa_fq->init = !(dpa_fq->flags & QMAN_FQ_FLAG_NO_MODIFY);
-
 	_errno = qman_create_fq(dpa_fq->fqid, dpa_fq->flags, &dpa_fq->fq_base);
 	if (_errno) {
 		dev_err(dev, "qman_create_fq() failed\n");
@@ -1225,47 +1389,45 @@ static int dpa_generic_fq_init(struct dpa_fq *dpa_fq, int disable_buff_dealloc)
 	}
 	fq = &dpa_fq->fq_base;
 
-	if (dpa_fq->init) {
-		initfq.we_mask = QM_INITFQ_WE_FQCTRL;
-		/* FIXME: why would we want to keep an empty FQ in cache? */
-		initfq.fqd.fq_ctrl = QM_FQCTRL_PREFERINCACHE;
+	initfq.we_mask = QM_INITFQ_WE_FQCTRL;
+	/* FIXME: why would we want to keep an empty FQ in cache? */
+	initfq.fqd.fq_ctrl = QM_FQCTRL_PREFERINCACHE;
 
-		/* FQ placement */
-		initfq.we_mask |= QM_INITFQ_WE_DESTWQ;
+	/* FQ placement */
+	initfq.we_mask |= QM_INITFQ_WE_DESTWQ;
 
-		initfq.fqd.dest.channel	= dpa_fq->channel;
-		initfq.fqd.dest.wq = dpa_fq->wq;
+	initfq.fqd.dest.channel	= dpa_fq->channel;
+	initfq.fqd.dest.wq = dpa_fq->wq;
 
-		if (dpa_fq->fq_type == FQ_TYPE_TX && !disable_buff_dealloc) {
-			initfq.we_mask |= QM_INITFQ_WE_CONTEXTA;
-			/* ContextA: A2V=1 (contextA A2 field is valid)
-			 * ContextA A2: EBD=1 (deallocate buffers inside FMan)
-			 */
-			initfq.fqd.context_a.hi = 0x10000000;
-			initfq.fqd.context_a.lo = 0x80000000;
-		}
+	if (dpa_fq->fq_type == FQ_TYPE_TX && !disable_buff_dealloc) {
+		initfq.we_mask |= QM_INITFQ_WE_CONTEXTA;
+		/* ContextA: A2V=1 (contextA A2 field is valid)
+		 * ContextA A2: EBD=1 (deallocate buffers inside FMan)
+		 */
+		initfq.fqd.context_a.hi = 0x10000000;
+		initfq.fqd.context_a.lo = 0x80000000;
+	}
 
-		/* Initialization common to all ingress queues */
-		if (dpa_fq->flags & QMAN_FQ_FLAG_NO_ENQUEUE) {
-			initfq.we_mask |= QM_INITFQ_WE_CONTEXTA;
-			initfq.fqd.fq_ctrl |=
-				QM_FQCTRL_CTXASTASHING | QM_FQCTRL_AVOIDBLOCK;
-			initfq.fqd.context_a.stashing.exclusive =
-				QM_STASHING_EXCL_DATA | QM_STASHING_EXCL_CTX |
-				QM_STASHING_EXCL_ANNOTATION;
-			initfq.fqd.context_a.stashing.data_cl = 2;
-			initfq.fqd.context_a.stashing.annotation_cl = 1;
-			initfq.fqd.context_a.stashing.context_cl =
-				DIV_ROUND_UP(sizeof(struct qman_fq), 64);
-		}
+	/* Initialization common to all ingress queues */
+	if (dpa_fq->flags & QMAN_FQ_FLAG_NO_ENQUEUE) {
+		initfq.we_mask |= QM_INITFQ_WE_CONTEXTA;
+		initfq.fqd.fq_ctrl |=
+			QM_FQCTRL_CTXASTASHING | QM_FQCTRL_AVOIDBLOCK;
+		initfq.fqd.context_a.stashing.exclusive =
+			QM_STASHING_EXCL_DATA | QM_STASHING_EXCL_CTX |
+			QM_STASHING_EXCL_ANNOTATION;
+		initfq.fqd.context_a.stashing.data_cl = 2;
+		initfq.fqd.context_a.stashing.annotation_cl = 1;
+		initfq.fqd.context_a.stashing.context_cl =
+			DIV_ROUND_UP(sizeof(struct qman_fq), 64);
+	}
 
-		_errno = qman_init_fq(fq, QMAN_INITFQ_FLAG_SCHED, &initfq);
-		if (_errno < 0) {
-			dev_err(dev, "qman_init_fq(%u) = %d\n",
-					qman_fq_fqid(fq), _errno);
-			qman_destroy_fq(fq, 0);
-			return _errno;
-		}
+	_errno = qman_init_fq(fq, QMAN_INITFQ_FLAG_SCHED, &initfq);
+	if (_errno < 0) {
+		dev_err(dev, "qman_init_fq(%u) = %d\n",
+				qman_fq_fqid(fq), _errno);
+		qman_destroy_fq(fq, 0);
+		return _errno;
 	}
 
 	dpa_fq->fqid = qman_fq_fqid(fq);
@@ -1318,6 +1480,7 @@ static int dpa_generic_bp_create(struct net_device *net_dev,
 				 struct dpa_bp *rx_bp,
 				 struct dpa_buffer_layout_s *rx_buf_layout,
 				 struct dpa_bp *draining_tx_bp,
+				 struct dpa_bp *draining_tx_sg_bp,
 				 struct dpa_buffer_layout_s *tx_buf_layout)
 {
 	struct dpa_generic_priv_s *priv = netdev_priv(net_dev);
@@ -1328,50 +1491,32 @@ static int dpa_generic_bp_create(struct net_device *net_dev,
 	priv->rx_bp = rx_bp;
 	priv->rx_buf_layout = rx_buf_layout;
 	priv->draining_tx_bp = draining_tx_bp;
+	priv->draining_tx_sg_bp = draining_tx_sg_bp;
 	priv->tx_buf_layout = tx_buf_layout;
 
 	err = dpa_bp_alloc(priv->rx_bp);
 	if (err < 0) {
-		/* _dpa_bp_free(priv->rx_bp); */
 		priv->rx_bp = NULL;
 		return err;
 	}
 
 	err = dpa_bp_alloc(priv->draining_tx_bp);
 	if (err < 0) {
-		/* _dpa_bp_free(priv->draining_tx_bp); */
 		priv->draining_tx_bp = NULL;
+		return err;
+	}
+
+	err = dpa_bp_alloc(priv->draining_tx_sg_bp);
+	if (err < 0) {
+		priv->draining_tx_sg_bp = NULL;
 		return err;
 	}
 
 	return 0;
 }
 
-static void dpa_generic_bp_free(struct dpa_generic_priv_s *priv)
+static void dpa_generic_relase_bp(struct dpa_bp *bp)
 {
-	struct dpa_bp *bp = NULL;
-	int i = 0;
-
-	/* release the rx bpools */
-	for (i = 0; i < priv->rx_bp_count; i++) {
-		bp = &priv->rx_bp[i];
-		if (!bp)
-			continue;
-
-		if (!atomic_dec_and_test(&bp->refs))
-			continue;
-
-		if (bp->free_buf_cb)
-			dpa_bp_drain(bp);
-
-		bman_free_pool(bp->pool);
-
-		if (bp->dev)
-			platform_device_unregister(to_platform_device(bp->dev));
-	}
-
-	/* release the tx draining bpool */
-	bp = priv->draining_tx_bp;
 	if (!bp)
 		return;
 
@@ -1385,6 +1530,19 @@ static void dpa_generic_bp_free(struct dpa_generic_priv_s *priv)
 
 	if (bp->dev)
 		platform_device_unregister(to_platform_device(bp->dev));
+}
+
+static void dpa_generic_bp_free(struct dpa_generic_priv_s *priv)
+{
+	int i = 0;
+
+	/* release the rx bpools */
+	for (i = 0; i < priv->rx_bp_count; i++)
+		dpa_generic_relase_bp(&priv->rx_bp[i]);
+
+	/* release the tx draining bpools */
+	dpa_generic_relase_bp(priv->draining_tx_bp);
+	dpa_generic_relase_bp(priv->draining_tx_sg_bp);
 }
 
 static int dpa_generic_remove(struct platform_device *of_dev)
@@ -1429,6 +1587,7 @@ static int dpa_generic_eth_probe(struct platform_device *_of_dev)
 	int rx_bp_count = 0;
 	int disable_buff_dealloc = 0;
 	struct dpa_bp *rx_bp = NULL, *draining_tx_bp = NULL;
+	struct dpa_bp *draining_tx_sg_bp = NULL;
 	struct dpa_buffer_layout_s *rx_buf_layout = NULL, *tx_buf_layout = NULL;
 	struct list_head *dpa_fq_list;
 	static u8 generic_idx;
@@ -1448,7 +1607,7 @@ static int dpa_generic_eth_probe(struct platform_device *_of_dev)
 		return err;
 
 	err = dpa_generic_tx_bp_probe(_of_dev, tx_port, &draining_tx_bp,
-			&tx_buf_layout);
+			&draining_tx_sg_bp, &tx_buf_layout);
 	if (err < 0)
 		return err;
 
@@ -1476,12 +1635,11 @@ static int dpa_generic_eth_probe(struct platform_device *_of_dev)
 	priv->tx_headroom = DPA_DEFAULT_TX_HEADROOM;
 
 	init_timer(&priv->timer);
-	atomic_set(&priv->ifup, 0);
 	priv->timer.data = (unsigned long)priv;
 	priv->timer.function = dpa_generic_draining_timer;
 
 	err = dpa_generic_bp_create(netdev, rx_bp_count, rx_bp, rx_buf_layout,
-			draining_tx_bp, tx_buf_layout);
+			draining_tx_bp, draining_tx_sg_bp, tx_buf_layout);
 	if (err < 0)
 		goto bp_create_failed;
 
@@ -1532,11 +1690,9 @@ alloc_percpu_failed:
 	if (netdev)
 		dpa_fq_free(dev, &priv->dpa_fq_list);
 fq_create_failed:
-	if (netdev) {
-		/* _dpa_bp_free(priv->rx_bp); */
-		/* _dpa_bp_free(priv->draining_tx_bp); */
-	}
 bp_create_failed:
+	if (netdev)
+		dpa_generic_bp_free(priv);
 	dev_set_drvdata(dev, NULL);
 	if (netdev)
 		free_netdev(netdev);
@@ -1548,7 +1704,7 @@ static int __init __cold dpa_generic_load(void)
 {
 	int	 _errno;
 
-	pr_info(KBUILD_MODNAME ": " DPA_GENERIC_DESCRIPTION " (" VERSION ")\n");
+	pr_info(KBUILD_MODNAME ": " DPA_GENERIC_DESCRIPTION "\n");
 
 #ifdef CONFIG_FSL_DPAA_ETH_DEBUGFS
 	dpa_generic_debugfs_module_init();

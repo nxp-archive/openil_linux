@@ -880,7 +880,7 @@ static int __init __cold dpa_shared_load(void)
 {
 	int	 _errno;
 
-	pr_info(DPA_DESCRIPTION " (" VERSION ")\n");
+	pr_info(DPA_DESCRIPTION "\n");
 
 	/* Initialize dpaa_eth mirror values */
 	dpa_rx_extra_headroom = fm_get_rx_extra_headroom();

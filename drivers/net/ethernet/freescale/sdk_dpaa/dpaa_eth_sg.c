@@ -742,6 +742,9 @@ int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 		return -ENOMEM;
 	}
 
+	memset(sgt_buf, 0, priv->tx_headroom +
+		sizeof(struct qm_sg_entry) * (1 + nr_frags));
+
 	/* Enable L3/L4 hardware checksum computation.
 	 *
 	 * We must do this before dma_map_single(DMA_TO_DEVICE), because we may
