@@ -243,6 +243,10 @@ static int __cold memac_init(struct mac_device *mac_dev)
 		goto _return;
 	}
 
+	fm_mac_set_handle(mac_dev->fm_dev, priv->fm_mac,
+		(macdev2enetinterface(mac_dev) != e_ENET_MODE_XGMII_10000) ?
+			param.macId : param.macId + FM_MAX_NUM_OF_1G_MACS);
+
 	_errno = fm_mac_config_max_frame_length(priv->fm_mac, fm_get_max_frm());
 	if (unlikely(_errno < 0))
 		goto _return_fm_mac_free;
