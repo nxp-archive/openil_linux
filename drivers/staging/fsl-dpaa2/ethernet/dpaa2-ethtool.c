@@ -63,12 +63,12 @@ char dpaa2_ethtool_extras[][ETH_GSTRING_LEN] = {
 	"rx sg frames",
 	"rx sg bytes",
 	/* how many times we had to retry the enqueue command */
-	"tx portal busy",
+	"enqueue portal busy",
 
 	/* Channel stats */
 
 	/* How many times we had to retry the volatile dequeue command */
-	"portal busy",
+	"dequeue portal busy",
 	/* Number of notifications received */
 	"cdan",
 #ifdef CONFIG_FSL_QBMAN_DEBUG
