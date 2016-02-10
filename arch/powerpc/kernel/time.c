@@ -530,6 +530,9 @@ void timer_interrupt(struct pt_regs * regs)
 	struct pt_regs *old_regs;
 	u64 *next_tb = this_cpu_ptr(&decrementers_next_tb);
 
+#ifdef CONFIG_FSL_ERRATUM_A_006184
+	mtspr(SPRN_TSR, TSR_ENW);
+#endif
 	/* Ensure a positive value is written to the decrementer, or else
 	 * some CPUs will continue to take decrementer exceptions.
 	 */
@@ -689,7 +692,15 @@ static void start_cpu_decrementer(void)
 	mtspr(SPRN_TSR, TSR_ENW | TSR_WIS | TSR_DIS | TSR_FIS);
 
 	/* Enable decrementer interrupt */
+#ifdef CONFIG_FSL_ERRATUM_A_006184
+#define WDTP(x)		((((x)&0x3)<<30)|(((x)&0x3c)<<15))
+	{
+		u32 period = WDTP(CONFIG_FSL_ERRATUM_A_006184_PERIOD);
+		mtspr(SPRN_TCR, TCR_DIE | TCR_WIE | period);
+	}
+#else
 	mtspr(SPRN_TCR, TCR_DIE);
+#endif
 #endif /* defined(CONFIG_BOOKE) || defined(CONFIG_40x) */
 }
 

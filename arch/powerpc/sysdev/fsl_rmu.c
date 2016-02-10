@@ -461,6 +461,7 @@ pw_done:
 		tmp = in_be32(rio_regs_win + RIO_LTLEDCSR);
 		pr_debug("RIO_LTLEDCSR = 0x%x\n", tmp);
 		fsl_rio_port_error_handler(0);
+		fsl_rio_port_error_handler(1);
 	}
 
 	if (epwisr & RIO_EPWISR_PINT2) {

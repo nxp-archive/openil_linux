@@ -204,6 +204,7 @@ config CRYPTO_DEV_HIFN_795X_RNG
 	  on the HIFN 795x crypto adapters.
 
 source drivers/crypto/caam/Kconfig
+source drivers/crypto/dpaa2-caam/Kconfig
 
 config CRYPTO_DEV_TALITOS
 	tristate "Talitos Freescale Security Engine (SEC)"
