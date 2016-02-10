@@ -320,6 +320,10 @@ PHY
   devm_usb_get_phy()
   devm_usb_put_phy()
 
+PER-CPU MEM
+  devm_alloc_percpu()
+  devm_free_percpu()
+
 PINCTRL
   devm_pinctrl_get()
   devm_pinctrl_put()
