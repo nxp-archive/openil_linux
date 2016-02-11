@@ -52,4 +52,5 @@ obj-$(CONFIG_FSL_RMAN_UIO)	+= fsl_rman/
 obj-$(CONFIG_FSL_DPA)           += fsl_qbman/
 obj-$(CONFIG_FSL_DPAA2)		+= fsl-dpaa2/
 obj-$(CONFIG_FSL_DCE)		+= fsl_dce/
+obj-$(CONFIG_FSL_PME2)          += fsl_pme2/
 
