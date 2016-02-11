@@ -35,11 +35,7 @@ fsl_advanced-objs += dpaa_eth_base.o
 fsl_proxy-objs += dpaa_eth_proxy.o
 fsl_dpa_shared-objs += dpaa_eth_shared.o
 fsl_dpa_macless-objs += dpaa_eth_macless.o
-fsl_dpa_macsec-objs += dpaa_eth_macsec.o
-
-ifeq ($(CONFIG_FSL_DPAA_MACSEC_DEBUGFS),y)
-fsl_dpa_macsec-objs += dpaa_debugfs_macsec.o
-endif
+fsl_dpa_macsec-objs += dpaa_eth_macsec.o dpaa_macsec_ethtool.o
 
 ifeq ($(CONFIG_FSL_DPAA_OFFLINE_PORTS),y)
 obj-$(CONFIG_FSL_SDK_DPAA_ETH) += fsl_oh.o
@@ -53,9 +49,6 @@ ifeq ($(CONFIG_FSL_DPAA_GENERIC_DRIVER),y)
 obj-$(CONFIG_FSL_SDK_DPAA_ETH) += fsl_generic.o
 
 fsl_generic-objs += dpaa_eth_generic.o dpaa_eth_generic_sysfs.o dpaa_generic_ethtool.o
-ifeq ($(CONFIG_FSL_DPAA_ETH_DEBUGFS),y)
-fsl_generic-objs += dpaa_generic_debugfs.o
-endif
 endif
 
 # Needed by the tracing framework

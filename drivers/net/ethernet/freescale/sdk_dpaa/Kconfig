@@ -154,13 +154,6 @@ config FSL_DPAA_ETH_DEBUGFS
 	---help---
 	  This option compiles debugfs code for the DPAA Ethernet driver.
 
-config FSL_DPAA_MACSEC_DEBUGFS
-	bool "DPAA MACSEC debugfs interface"
-	default y
-	depends on DEBUG_FS && FSL_DPAA_MACSEC
-	---help---
-	  This option compiles debugfs code for the DPAA Ethernet MACSEC driver.
-
 config FSL_DPAA_ETH_DEBUG
 	bool "DPAA Ethernet Debug Support"
 	depends on FSL_SDK_DPAA_ETH

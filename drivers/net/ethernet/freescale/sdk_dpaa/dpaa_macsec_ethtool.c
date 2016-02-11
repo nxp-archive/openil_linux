@@ -1,4 +1,4 @@
-/* Copyright 2008-2012 Freescale Semiconductor, Inc.
+/* Copyright 2015 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -29,22 +29,12 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifdef CONFIG_FSL_DPAA_ETH_DEBUG
-#define pr_fmt(fmt) \
-	KBUILD_MODNAME ": %s:%hu:%s() " fmt, \
-	KBUILD_BASENAME".c", __LINE__, __func__
-#else
-#define pr_fmt(fmt) \
-	KBUILD_MODNAME ": " fmt
-#endif
-
 #include <linux/string.h>
 
 #include "dpaa_eth.h"
-#include "dpaa_eth_common.h"
-#include "dpaa_eth_generic.h"
+#include "dpaa_eth_macsec.h"
 
-static const char dpa_stats_percpu[][ETH_GSTRING_LEN] = {
+static const char dpa_macsec_stats_percpu[][ETH_GSTRING_LEN] = {
 	"interrupts",
 	"rx packets",
 	"tx packets",
@@ -54,10 +44,11 @@ static const char dpa_stats_percpu[][ETH_GSTRING_LEN] = {
 	"tx error",
 	"rx error",
 	"bp count",
-	"bp draining count"
+	"tx macsec",
+	"rx macsec"
 };
 
-static char dpa_stats_global[][ETH_GSTRING_LEN] = {
+static char dpa_macsec_stats_global[][ETH_GSTRING_LEN] = {
 	/* dpa rx errors */
 	"rx dma error",
 	"rx frame physical error",
@@ -74,82 +65,19 @@ static char dpa_stats_global[][ETH_GSTRING_LEN] = {
 	"qman fq tdrop",
 	"qman fq retired",
 	"qman orp disabled",
+
+	/* congestion related stats */
+	"congestion time (ms)",
+	"entered congestion",
+	"congested (0/1)"
 };
 
-#define DPA_STATS_PERCPU_LEN ARRAY_SIZE(dpa_stats_percpu)
-#define DPA_STATS_GLOBAL_LEN ARRAY_SIZE(dpa_stats_global)
+#define DPA_MACSEC_STATS_PERCPU_LEN ARRAY_SIZE(dpa_macsec_stats_percpu)
+#define DPA_MACSEC_STATS_GLOBAL_LEN ARRAY_SIZE(dpa_macsec_stats_global)
 
-static int __cold dpa_generic_get_settings(struct net_device *net_dev,
-					   struct ethtool_cmd *et_cmd)
-{
-	netdev_info(net_dev, "This interface does not have a MAC device in its control\n");
-	return -ENODEV;
-}
-
-static int __cold dpa_generic_set_settings(struct net_device *net_dev,
-					   struct ethtool_cmd *et_cmd)
-{
-	netdev_info(net_dev, "This interface does not have a MAC device in its control\n");
-	return -ENODEV;
-}
-
-static void __cold dpa_generic_get_drvinfo(struct net_device *net_dev,
-					   struct ethtool_drvinfo *drvinfo)
-{
-	int		 _errno;
-
-	strncpy(drvinfo->driver, KBUILD_MODNAME,
-		sizeof(drvinfo->driver) - 1)[sizeof(drvinfo->driver)-1] = 0;
-	_errno = snprintf(drvinfo->fw_version, sizeof(drvinfo->fw_version),
-			  "%X", 0);
-
-	if (unlikely(_errno >= sizeof(drvinfo->fw_version))) {
-		/* Truncated output */
-		netdev_notice(net_dev, "snprintf() = %d\n", _errno);
-	} else if (unlikely(_errno < 0)) {
-		netdev_warn(net_dev, "snprintf() = %d\n", _errno);
-		memset(drvinfo->fw_version, 0, sizeof(drvinfo->fw_version));
-	}
-	strncpy(drvinfo->bus_info, dev_name(net_dev->dev.parent->parent),
-		sizeof(drvinfo->bus_info)-1)[sizeof(drvinfo->bus_info)-1] = 0;
-}
-
-static uint32_t __cold dpa_generic_get_msglevel(struct net_device *net_dev)
-{
-	return ((struct dpa_generic_priv_s *)netdev_priv(net_dev))->msg_enable;
-}
-
-static void __cold dpa_generic_set_msglevel(struct net_device *net_dev,
-					    uint32_t msg_enable)
-{
-	((struct dpa_generic_priv_s *)netdev_priv(net_dev))->msg_enable =
-		msg_enable;
-}
-
-static int __cold dpa_generic_nway_reset(struct net_device *net_dev)
-{
-	netdev_info(net_dev, "This interface does not have a MAC device in its control\n");
-	return -ENODEV;
-}
-
-static int dpa_generic_get_sset_count(struct net_device *net_dev, int type)
-{
-	unsigned int total_stats, num_stats;
-
-	num_stats   = num_online_cpus() + 1;
-	total_stats = num_stats * DPA_STATS_PERCPU_LEN + DPA_STATS_GLOBAL_LEN;
-
-	switch (type) {
-	case ETH_SS_STATS:
-		return total_stats;
-	default:
-		return -EOPNOTSUPP;
-	}
-}
-
-static void copy_stats(struct dpa_percpu_priv_s *percpu_priv,
-		       int num_cpus, int crr_cpu, u64 bp_count,
-		       u64 bp_drain_count, u64 *data)
+static void copy_stats(struct dpa_percpu_priv_s *percpu_priv, int num_cpus,
+		       int crr_cpu, u64 bp_count, u64 tx_macsec,
+		       u64 rx_macsec, u64 *data)
 {
 	int num_values = num_cpus + 1;
 	int crr = 0;
@@ -182,30 +110,56 @@ static void copy_stats(struct dpa_percpu_priv_s *percpu_priv,
 	data[crr * num_values + crr_cpu] = bp_count;
 	data[crr++ * num_values + num_cpus] += bp_count;
 
-	data[crr * num_values + crr_cpu] = bp_drain_count;
-	data[crr++ * num_values + num_cpus] += bp_drain_count;
+	data[crr * num_values + crr_cpu] = tx_macsec;
+	data[crr++ * num_values + num_cpus] += tx_macsec;
+
+	data[crr * num_values + crr_cpu] = rx_macsec;
+	data[crr++ * num_values + num_cpus] += rx_macsec;
 }
 
-static void dpa_generic_get_ethtool_stats(struct net_device *net_dev,
-					  struct ethtool_stats *stats,
-					  u64 *data)
+int dpa_macsec_get_sset_count(struct net_device *net_dev, int type)
 {
+	unsigned int total_stats, num_stats;
+
+	num_stats   = num_online_cpus() + 1;
+	total_stats = num_stats * DPA_MACSEC_STATS_PERCPU_LEN +
+		DPA_MACSEC_STATS_GLOBAL_LEN;
+
+	switch (type) {
+	case ETH_SS_STATS:
+		return total_stats;
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
+void dpa_macsec_get_ethtool_stats(struct net_device *net_dev,
+				  struct ethtool_stats *stats, u64 *data)
+{
+	u64 bp_count, bp_total, cg_time, cg_num, cg_status;
+	struct macsec_percpu_priv_s *percpu_priv_macsec;
 	struct dpa_percpu_priv_s *percpu_priv;
-	struct dpa_bp *dpa_bp, *drain_bp;
-	struct dpa_generic_priv_s *priv;
+	struct macsec_priv_s *macsec_priv;
+	struct qm_mcr_querycgr query_cgr;
 	struct dpa_rx_errors rx_errors;
 	struct dpa_ern_cnt ern_cnt;
+	struct dpa_priv_s *priv;
 	unsigned int num_cpus, offset;
-	u64 bp_cnt, drain_cnt;
+	struct dpa_bp *dpa_bp;
 	int total_stats, i;
 
-	total_stats  = dpa_generic_get_sset_count(net_dev, ETH_SS_STATS);
-	priv         = netdev_priv(net_dev);
-	drain_bp = priv->draining_tx_bp;
-	dpa_bp       = priv->rx_bp;
+	macsec_priv = dpa_macsec_get_priv(net_dev);
+	if (unlikely(!macsec_priv)) {
+		pr_err("selected macsec_priv is NULL\n");
+		return;
+	}
+
+	total_stats = dpa_macsec_get_sset_count(net_dev, ETH_SS_STATS);
+	priv     = netdev_priv(net_dev);
+	dpa_bp   = priv->dpa_bp;
 	num_cpus = num_online_cpus();
-	drain_cnt = 0;
-	bp_cnt = 0;
+	bp_count = 0;
+	bp_total = 0;
 
 	memset(&rx_errors, 0, sizeof(struct dpa_rx_errors));
 	memset(&ern_cnt, 0, sizeof(struct dpa_ern_cnt));
@@ -213,12 +167,10 @@ static void dpa_generic_get_ethtool_stats(struct net_device *net_dev,
 
 	for_each_online_cpu(i) {
 		percpu_priv = per_cpu_ptr(priv->percpu_priv, i);
+		percpu_priv_macsec = per_cpu_ptr(macsec_priv->percpu_priv, i);
 
 		if (dpa_bp->percpu_count)
-			bp_cnt = *(per_cpu_ptr(dpa_bp->percpu_count, i));
-
-		if (drain_bp->percpu_count)
-			drain_cnt = *(per_cpu_ptr(drain_bp->percpu_count, i));
+			bp_count = *(per_cpu_ptr(dpa_bp->percpu_count, i));
 
 		rx_errors.dme += percpu_priv->rx_errors.dme;
 		rx_errors.fpe += percpu_priv->rx_errors.fpe;
@@ -235,18 +187,39 @@ static void dpa_generic_get_ethtool_stats(struct net_device *net_dev,
 		ern_cnt.fq_retired   += percpu_priv->ern_cnt.fq_retired;
 		ern_cnt.orp_zero     += percpu_priv->ern_cnt.orp_zero;
 
-		copy_stats(percpu_priv, num_cpus, i, bp_cnt, drain_cnt, data);
+		copy_stats(percpu_priv, num_cpus, i, bp_count,
+			   percpu_priv_macsec->tx_macsec,
+			   percpu_priv_macsec->rx_macsec,
+			   data);
 	}
 
-	offset = (num_cpus + 1) * DPA_STATS_PERCPU_LEN;
+	offset = (num_cpus + 1) * DPA_MACSEC_STATS_PERCPU_LEN;
 	memcpy(data + offset, &rx_errors, sizeof(struct dpa_rx_errors));
 
 	offset += sizeof(struct dpa_rx_errors) / sizeof(u64);
 	memcpy(data + offset, &ern_cnt, sizeof(struct dpa_ern_cnt));
+
+	/* gather congestion related counters */
+	cg_num    = 0;
+	cg_status = 0;
+	cg_time   = jiffies_to_msecs(priv->cgr_data.congested_jiffies);
+	if (qman_query_cgr(&priv->cgr_data.cgr, &query_cgr) == 0) {
+		cg_num    = priv->cgr_data.cgr_congested_count;
+		cg_status = query_cgr.cgr.cs;
+
+		/* reset congestion stats (like QMan API does */
+		priv->cgr_data.congested_jiffies   = 0;
+		priv->cgr_data.cgr_congested_count = 0;
+	}
+
+	offset += sizeof(struct dpa_ern_cnt) / sizeof(u64);
+	data[offset++] = cg_time;
+	data[offset++] = cg_num;
+	data[offset++] = cg_status;
 }
 
-static void dpa_generic_get_strings(struct net_device *net_dev,
-				    u32 stringset, u8 *data)
+void dpa_macsec_get_strings(struct net_device *net_dev,
+			    u32 stringset, u8 *data)
 {
 	unsigned int i, j, num_cpus, size;
 	char string_cpu[ETH_GSTRING_LEN];
@@ -254,32 +227,20 @@ static void dpa_generic_get_strings(struct net_device *net_dev,
 
 	strings   = data;
 	num_cpus  = num_online_cpus();
-	size      = DPA_STATS_GLOBAL_LEN * ETH_GSTRING_LEN;
+	size      = DPA_MACSEC_STATS_GLOBAL_LEN * ETH_GSTRING_LEN;
 
-	for (i = 0; i < DPA_STATS_PERCPU_LEN; i++) {
+	for (i = 0; i < DPA_MACSEC_STATS_PERCPU_LEN; i++) {
 		for (j = 0; j < num_cpus; j++) {
 			snprintf(string_cpu, ETH_GSTRING_LEN, "%s [CPU %d]",
-				 dpa_stats_percpu[i], j);
+				 dpa_macsec_stats_percpu[i], j);
 			memcpy(strings, string_cpu, ETH_GSTRING_LEN);
 			strings += ETH_GSTRING_LEN;
 		}
 		snprintf(string_cpu, ETH_GSTRING_LEN, "%s [TOTAL]",
-			 dpa_stats_percpu[i]);
+			 dpa_macsec_stats_percpu[i]);
 		memcpy(strings, string_cpu, ETH_GSTRING_LEN);
 		strings += ETH_GSTRING_LEN;
 	}
-	memcpy(strings, dpa_stats_global, size);
+	memcpy(strings, dpa_macsec_stats_global, size);
 }
 
-const struct ethtool_ops dpa_generic_ethtool_ops = {
-	.get_settings = dpa_generic_get_settings,
-	.set_settings = dpa_generic_set_settings,
-	.get_drvinfo = dpa_generic_get_drvinfo,
-	.get_msglevel = dpa_generic_get_msglevel,
-	.set_msglevel = dpa_generic_set_msglevel,
-	.nway_reset = dpa_generic_nway_reset,
-	.get_link = ethtool_op_get_link,
-	.get_sset_count = dpa_generic_get_sset_count,
-	.get_ethtool_stats = dpa_generic_get_ethtool_stats,
-	.get_strings = dpa_generic_get_strings,
-};
