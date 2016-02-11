@@ -683,6 +683,14 @@ END_FTR_SECTION_IFSET(CPU_FTR_ALTIVEC)
 			   fixed_interval, unknown_exception, ACK_FIT)
 
 /* Watchdog Timer Interrupt */
+#ifdef CONFIG_FSL_ERRATUM_A_006184
+	START_EXCEPTION(watchdog)
+	mtspr	SPRN_SPRG_CRIT_SCRATCH, r3
+	lis	r3, TSR_WIS@h
+	mtspr	SPRN_TSR, r3
+	mfspr	r3, SPRN_SPRG_CRIT_SCRATCH
+	rfci
+#else
 	START_EXCEPTION(watchdog);
 	CRIT_EXCEPTION_PROLOG(0x9f0, BOOKE_INTERRUPT_WATCHDOG,
 			      PROLOG_ADDITION_NONE)
@@ -697,6 +705,7 @@ END_FTR_SECTION_IFSET(CPU_FTR_ALTIVEC)
 	bl	unknown_exception
 #endif
 	b	ret_from_crit_except
+#endif
 
 /* System Call Interrupt */
 	START_EXCEPTION(system_call)

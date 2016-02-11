@@ -27,7 +27,7 @@ u32 guts_get_svr(void)
 {
 	u32 svr = 0;
 
-	if (!(guts->regs)) {
+	if ((!guts) || (!(guts->regs))) {
 #ifdef CONFIG_PPC
 		svr =  mfspr(SPRN_SVR);
 #endif
@@ -91,6 +91,8 @@ static const struct of_device_id guts_of_match[] = {
 	{ .compatible = "fsl,bsc9132-guts", },
 	/* For Layerscape Series SOCs */
 	{ .compatible = "fsl,ls1021a-dcfg", },
+	{ .compatible = "fsl,ls1043a-dcfg", },
+	{ .compatible = "fsl,ls2080a-dcfg", },
 	{}
 };
 MODULE_DEVICE_TABLE(of, guts_of_match);
