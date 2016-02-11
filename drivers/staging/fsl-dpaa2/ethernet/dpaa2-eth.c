@@ -920,6 +920,7 @@ static int __dpaa2_eth_pull_channel(struct dpaa2_eth_channel *ch)
 	do {
 		err = dpaa2_io_service_pull_channel(NULL, ch->ch_id, ch->store);
 		dequeues++;
+		cpu_relax();
 	} while (err == -EBUSY);
 
 	ch->stats.dequeue_portal_busy += dequeues;
@@ -961,6 +962,7 @@ static int dpaa2_eth_poll(struct napi_struct *napi, int budget)
 		/* Re-enable data available notifications */
 		do {
 			err = dpaa2_io_service_rearm(NULL, &ch->nctx);
+			cpu_relax();
 		} while (err == -EBUSY);
 	}
 
