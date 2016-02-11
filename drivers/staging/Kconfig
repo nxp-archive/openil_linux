@@ -118,4 +118,6 @@ source "drivers/staging/fsl_qbman/Kconfig"
 
 source "drivers/staging/fsl-dpaa2/Kconfig"
 
+source "drivers/staging/fsl_dce/Kconfig"
+
 endif # STAGING
