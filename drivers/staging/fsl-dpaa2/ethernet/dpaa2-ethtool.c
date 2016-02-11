@@ -69,6 +69,7 @@ char dpaa2_ethtool_extras[][ETH_GSTRING_LEN] = {
 
 	/* How many times we had to retry the volatile dequeue command */
 	"dequeue portal busy",
+	"channel pull errors",
 	/* Number of notifications received */
 	"cdan",
 #ifdef CONFIG_FSL_QBMAN_DEBUG
@@ -236,7 +237,7 @@ static void dpaa2_get_ethtool_stats(struct net_device *net_dev,
 	u32 buf_cnt;
 #endif
 	u64 cdan = 0;
-	u64 portal_busy = 0;
+	u64 portal_busy = 0, pull_err = 0;
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
 	struct dpaa2_eth_stats *extras;
 	struct dpaa2_eth_ch_stats *ch_stats;
@@ -266,9 +267,11 @@ static void dpaa2_get_ethtool_stats(struct net_device *net_dev,
 		ch_stats = &priv->channel[j]->stats;
 		cdan += ch_stats->cdan;
 		portal_busy += ch_stats->dequeue_portal_busy;
+		pull_err += ch_stats->pull_err;
 	}
 
 	*(data + i++) = portal_busy;
+	*(data + i++) = pull_err;
 	*(data + i++) = cdan;
 
 #ifdef CONFIG_FSL_QBMAN_DEBUG

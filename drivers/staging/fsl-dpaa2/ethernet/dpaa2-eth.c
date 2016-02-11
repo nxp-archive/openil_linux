@@ -924,6 +924,8 @@ static int __dpaa2_eth_pull_channel(struct dpaa2_eth_channel *ch)
 	} while (err == -EBUSY);
 
 	ch->stats.dequeue_portal_busy += dequeues;
+	if (unlikely(err))
+		ch->stats.pull_err++;
 
 	return err;
 }

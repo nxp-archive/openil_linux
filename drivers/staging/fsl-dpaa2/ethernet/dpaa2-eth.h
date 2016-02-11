@@ -215,6 +215,8 @@ struct dpaa2_eth_ch_stats {
 	__u64 cdan;
 	/* Number of frames received on queues from this channel */
 	__u64 frames;
+	/* Pull errors */
+	__u64 pull_err;
 };
 
 /* Maximum number of Rx queues associated with a DPNI */
