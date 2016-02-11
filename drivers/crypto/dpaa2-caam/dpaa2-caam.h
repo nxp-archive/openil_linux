@@ -275,6 +275,15 @@ struct caam_hash_state {
 	int current_buf;
 };
 
+struct caam_export_state {
+	u8 buf[CAAM_MAX_HASH_BLOCK_SIZE];
+	u8 caam_ctx[MAX_CTX_LEN];
+	int buflen;
+	int (*update)(struct ahash_request *req);
+	int (*final)(struct ahash_request *req);
+	int (*finup)(struct ahash_request *req);
+};
+
 /**
  * dpaa2_caam_enqueue() - enqueue a crypto request
  * @dev: device associated with the DPSECI object
