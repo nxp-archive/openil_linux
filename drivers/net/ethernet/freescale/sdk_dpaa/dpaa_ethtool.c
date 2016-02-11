@@ -51,6 +51,7 @@ static const char dpa_stats_percpu[][ETH_GSTRING_LEN] = {
 	"tx recycled",
 	"tx confirm",
 	"tx S/G",
+	"rx S/G",
 	"tx error",
 	"rx error",
 	"bp count"
@@ -411,6 +412,9 @@ static void copy_stats(struct dpa_percpu_priv_s *percpu_priv, int num_cpus,
 
 	data[crr_stat * num_stat_values + crr_cpu] = percpu_priv->tx_frag_skbuffs;
 	data[crr_stat++ * num_stat_values + num_cpus] += percpu_priv->tx_frag_skbuffs;
+
+	data[crr_stat * num_stat_values + crr_cpu] = percpu_priv->rx_sg;
+	data[crr_stat++ * num_stat_values + num_cpus] += percpu_priv->rx_sg;
 
 	data[crr_stat * num_stat_values + crr_cpu] = percpu_priv->stats.tx_errors;
 	data[crr_stat++ * num_stat_values + num_cpus] += percpu_priv->stats.tx_errors;
