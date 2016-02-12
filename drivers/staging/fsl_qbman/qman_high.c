@@ -125,6 +125,15 @@ struct qman_portal {
 	u8 alloced;
 	/* power management data */
 	u32 save_isdr;
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	/* Keep a shadow copy of the DQRR on LE systems
+	   as the SW needs to do byteswaps of read only
+	   memory.  Must be aligned to the size of the
+	   ring to ensure easy index calcualtions based
+	   on address */
+	struct qm_dqrr_entry shadow_dqrr[QM_DQRR_SIZE]
+	            __attribute__((aligned(512)));
+#endif
 };
 
 #ifdef CONFIG_FSL_DPA_PORTAL_SHARE
@@ -280,6 +289,103 @@ static inline struct qman_fq *get_fq_table_entry(u32 entry)
 	return qman_fq_lookup_table[entry];
 }
 #endif
+
+static inline void cpu_to_hw_fqd(struct qm_fqd *fqd)
+{
+	/* Byteswap the FQD to HW format */
+	fqd->fq_ctrl = cpu_to_be16(fqd->fq_ctrl);
+	fqd->dest_wq = cpu_to_be16(fqd->dest_wq);
+	fqd->ics_cred = cpu_to_be16(fqd->ics_cred);
+	fqd->context_b = cpu_to_be32(fqd->context_b);
+	fqd->context_a.opaque = cpu_to_be64(fqd->context_a.opaque);
+}
+
+static inline void hw_fqd_to_cpu(struct qm_fqd *fqd)
+{
+	/* Byteswap the FQD to CPU format */
+	fqd->fq_ctrl = be16_to_cpu(fqd->fq_ctrl);
+	fqd->dest_wq = be16_to_cpu(fqd->dest_wq);
+	fqd->ics_cred = be16_to_cpu(fqd->ics_cred);
+	fqd->context_b = be32_to_cpu(fqd->context_b);
+	fqd->context_a.opaque = be64_to_cpu(fqd->context_a.opaque);
+}
+
+/* Swap a 40 bit address */
+static inline u64 cpu_to_be40(u64 in)
+{
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	return in;
+#else
+	u64 out = 0;
+	u8 *p = (u8 *) &out;
+	p[0] = in >> 32;
+	p[1] = in >> 24;
+	p[2] = in >> 16;
+	p[3] = in >> 8;
+	p[4] = in >> 0;
+	return out;
+#endif
+}
+static inline u64 be40_to_cpu(u64 in)
+{
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	return in;
+#else
+	u64 out = 0;
+	u8 *pout = (u8 *) &out;
+	u8 *pin = (u8 *) &in;
+	pout[0] = pin[4];
+	pout[1] = pin[3];
+	pout[2] = pin[2];
+	pout[3] = pin[1];
+	pout[4] = pin[0];
+	return out;
+#endif
+}
+
+/* Swap a 24 bit value */
+static inline u32 cpu_to_be24(u32 in)
+{
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	return in;
+#else
+	u32 out = 0;
+	u8 *p = (u8 *) &out;
+	p[0] = in >> 16;
+	p[1] = in >> 8;
+	p[2] = in >> 0;
+	return out;
+#endif
+}
+
+static inline u32 be24_to_cpu(u32 in)
+{
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	return in;
+#else
+	u32 out = 0;
+	u8 *pout = (u8 *) &out;
+	u8 *pin = (u8 *) &in;
+	pout[0] = pin[2];
+	pout[1] = pin[1];
+	pout[2] = pin[0];
+	return out;
+#endif
+}
+
+static inline void cpu_to_hw_fd(struct qm_fd *fd)
+{
+	fd->addr = cpu_to_be40(fd->addr);
+	fd->status = cpu_to_be32(fd->status);
+	fd->opaque = cpu_to_be32(fd->opaque);
+}
+
+static inline void hw_fd_to_cpu(struct qm_fd *fd)
+{
+	fd->addr = be40_to_cpu(fd->addr);
+	fd->status = be32_to_cpu(fd->status);
+	fd->opaque = be32_to_cpu(fd->opaque);
+}
 
 /* In the case that slow- and fast-path handling are both done by qman_poll()
  * (ie. because there is no interrupt handling), we ought to balance how often
@@ -500,15 +606,21 @@ struct qman_portal *qman_create_portal(
 	portal->cb_dc_ern = NULL;
 	sprintf(buf, "qportal-%d", config->public_cfg.channel);
 	portal->pdev = platform_device_alloc(buf, -1);
-	if (!portal->pdev)
+	if (!portal->pdev) {
+		pr_err("qman_portal - platform_device_alloc() failed\n");
 		goto fail_devalloc;
-	if (dma_set_mask(&portal->pdev->dev, DMA_BIT_MASK(40)))
+	}
+	if (dma_set_mask(&portal->pdev->dev, DMA_BIT_MASK(40))) {
+		pr_err("qman_portal - dma_set_mask() failed\n");
 		goto fail_devadd;
+	}
 	portal->pdev->dev.pm_domain = &qman_portal_device_pm_domain;
 	portal->pdev->dev.platform_data = portal;
 	ret = platform_device_add(portal->pdev);
-	if (ret)
+	if (ret) {
+		pr_err("qman_portal - platform_device_add() failed\n");
 		goto fail_devadd;
+	}
 	dpa_rbtree_init(&portal->retire_table);
 	isdr = 0xffffffff;
 	qm_isr_disable_write(__p, isdr);
@@ -858,7 +970,7 @@ mr_loop:
 			case QM_MR_VERB_FQRN:
 			case QM_MR_VERB_FQRL:
 				/* Lookup in the retirement table */
-				fq = table_find_fq(p, msg->fq.fqid);
+				fq = table_find_fq(p, be32_to_cpu(msg->fq.fqid));
 				BUG_ON(!fq);
 				fq_state_change(p, fq, msg, verb);
 				if (fq->cb.fqs)
@@ -867,9 +979,11 @@ mr_loop:
 			case QM_MR_VERB_FQPN:
 				/* Parked */
 #ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
-				fq = get_fq_table_entry(msg->fq.contextB);
+				fq = get_fq_table_entry(
+					be32_to_cpu(msg->fq.contextB));
 #else
-				fq = (void *)(uintptr_t)msg->fq.contextB;
+				fq = (void *)(uintptr_t)
+					be32_to_cpu(msg->fq.contextB);
 #endif
 				fq_state_change(p, fq, msg, verb);
 				if (fq->cb.fqs)
@@ -895,9 +1009,10 @@ mr_loop:
 		} else {
 			/* Its a software ERN */
 #ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
-			fq = get_fq_table_entry(msg->ern.tag);
+			pr_info("ROY\n");
+			fq = get_fq_table_entry(be32_to_cpu(msg->ern.tag));
 #else
-			fq = (void *)(uintptr_t)msg->ern.tag;
+			fq = (void *)(uintptr_t)be32_to_cpu(msg->ern.tag);
 #endif
 			fq->cb.ern(p, fq, msg);
 		}
@@ -960,12 +1075,27 @@ static inline unsigned int __poll_portal_fast(struct qman_portal *p,
 	struct qman_fq *fq;
 	enum qman_cb_dqrr_result res;
 	unsigned int limit = 0;
-
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	struct qm_dqrr_entry *shadow;
+#endif
 loop:
 	qm_dqrr_pvb_update(&p->p);
 	dq = qm_dqrr_current(&p->p);
 	if (!dq)
 		goto done;
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	/* If running on an LE system the fields of the
+	   dequeue entry must be swapped.  Because the
+	   QMan HW will ignore writes the DQRR entry is
+	   copied and the index stored within the copy */
+	shadow = &p->shadow_dqrr[DQRR_PTR2IDX(dq)];
+	*shadow = *dq;
+	dq = shadow;
+	shadow->fqid = be32_to_cpu(shadow->fqid);
+	shadow->contextB = be32_to_cpu(shadow->contextB);
+	shadow->seqnum = be16_to_cpu(shadow->seqnum);
+	hw_fd_to_cpu(&shadow->fd);
+#endif
 	if (dq->stat & QM_DQRR_STAT_UNSCHEDULED) {
 		/* VDQCR: don't trust contextB as the FQ may have been
 		 * configured for h/w consumption and we're draining it
@@ -994,6 +1124,7 @@ loop:
 #endif
 		/* Now let the callback do its stuff */
 		res = fq->cb.dqrr(p, fq, dq);
+
 		/* The callback can request that we exit without consuming this
 		 * entry nor advancing; */
 		if (res == qman_cb_dqrr_stop)
@@ -1082,6 +1213,7 @@ int qman_p_irqsource_remove(struct qman_portal *p, u32 bits)
 	bits &= QM_PIRQ_VISIBLE;
 	clear_bits(bits, &p->irq_sources);
 	qm_isr_enable_write(&p->p, p->irq_sources);
+
 	ier = qm_isr_enable_read(&p->p);
 	/* Using "~ier" (rather than "bits" or "~p->irq_sources") creates a
 	 * data-dependency, ie. to protect against re-ordering. */
@@ -1368,7 +1500,7 @@ int qman_create_fq(u32 fqid, u32 flags, struct qman_fq *fq)
 	p = get_affine_portal();
 	PORTAL_IRQ_LOCK(p, irqflags);
 	mcc = qm_mc_start(&p->p);
-	mcc->queryfq.fqid = fqid;
+	mcc->queryfq.fqid = cpu_to_be32(fqid);
 	qm_mc_commit(&p->p, QM_MCC_VERB_QUERYFQ);
 	while (!(mcr = qm_mc_result(&p->p)))
 		cpu_relax();
@@ -1378,8 +1510,9 @@ int qman_create_fq(u32 fqid, u32 flags, struct qman_fq *fq)
 		goto err;
 	}
 	fqd = mcr->queryfq.fqd;
+	hw_fqd_to_cpu(&fqd);
 	mcc = qm_mc_start(&p->p);
-	mcc->queryfq_np.fqid = fqid;
+	mcc->queryfq_np.fqid = cpu_to_be32(fqid);
 	qm_mc_commit(&p->p, QM_MCC_VERB_QUERYFQ_NP);
 	while (!(mcr = qm_mc_result(&p->p)))
 		cpu_relax();
@@ -1500,8 +1633,9 @@ int qman_init_fq(struct qman_fq *fq, u32 flags, struct qm_mcc_initfq *opts)
 	mcc = qm_mc_start(&p->p);
 	if (opts)
 		mcc->initfq = *opts;
-	mcc->initfq.fqid = fq->fqid;
+	mcc->initfq.fqid = cpu_to_be32(fq->fqid);
 	mcc->initfq.count = 0;
+
 	/* If the FQ does *not* have the TO_DCPORTAL flag, contextB is set as a
 	 * demux pointer. Otherwise, the caller-provided value is allowed to
 	 * stand, don't overwrite it. */
@@ -1532,6 +1666,8 @@ int qman_init_fq(struct qman_fq *fq, u32 flags, struct qm_mcc_initfq *opts)
 			mcc->initfq.fqd.dest.wq = 4;
 		}
 	}
+	mcc->initfq.we_mask = cpu_to_be16(mcc->initfq.we_mask);
+	cpu_to_hw_fqd(&mcc->initfq.fqd);
 	qm_mc_commit(&p->p, myverb);
 	while (!(mcr = qm_mc_result(&p->p)))
 		cpu_relax();
@@ -1587,7 +1723,7 @@ int qman_schedule_fq(struct qman_fq *fq)
 		goto out;
 	}
 	mcc = qm_mc_start(&p->p);
-	mcc->alterfq.fqid = fq->fqid;
+	mcc->alterfq.fqid = cpu_to_be32(fq->fqid);
 	qm_mc_commit(&p->p, QM_MCC_VERB_ALTER_SCHED);
 	while (!(mcr = qm_mc_result(&p->p)))
 		cpu_relax();
@@ -1635,7 +1771,7 @@ int qman_retire_fq(struct qman_fq *fq, u32 *flags)
 	if (rval)
 		goto out;
 	mcc = qm_mc_start(&p->p);
-	mcc->alterfq.fqid = fq->fqid;
+	mcc->alterfq.fqid = cpu_to_be32(fq->fqid);
 	qm_mc_commit(&p->p, QM_MCC_VERB_ALTER_RETIRE);
 	while (!(mcr = qm_mc_result(&p->p)))
 		cpu_relax();
@@ -1718,7 +1854,7 @@ int qman_oos_fq(struct qman_fq *fq)
 		goto out;
 	}
 	mcc = qm_mc_start(&p->p);
-	mcc->alterfq.fqid = fq->fqid;
+	mcc->alterfq.fqid = cpu_to_be32(fq->fqid);
 	qm_mc_commit(&p->p, QM_MCC_VERB_ALTER_OOS);
 	while (!(mcr = qm_mc_result(&p->p)))
 		cpu_relax();
@@ -1800,14 +1936,15 @@ int qman_query_fq(struct qman_fq *fq, struct qm_fqd *fqd)
 
 	PORTAL_IRQ_LOCK(p, irqflags);
 	mcc = qm_mc_start(&p->p);
-	mcc->queryfq.fqid = fq->fqid;
+	mcc->queryfq.fqid = cpu_to_be32(fq->fqid);
 	qm_mc_commit(&p->p, QM_MCC_VERB_QUERYFQ);
 	while (!(mcr = qm_mc_result(&p->p)))
 		cpu_relax();
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_MCR_VERB_QUERYFQ);
 	res = mcr->result;
 	if (res == QM_MCR_RESULT_OK)
-		*fqd = mcr->queryfq.fqd;
+		memcpy_fromio(fqd, &mcr->queryfq.fqd, sizeof(*fqd));
+	hw_fqd_to_cpu(fqd);
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
 	if (res != QM_MCR_RESULT_OK)
@@ -1826,14 +1963,35 @@ int qman_query_fq_np(struct qman_fq *fq, struct qm_mcr_queryfq_np *np)
 
 	PORTAL_IRQ_LOCK(p, irqflags);
 	mcc = qm_mc_start(&p->p);
-	mcc->queryfq.fqid = fq->fqid;
+	mcc->queryfq.fqid = cpu_to_be32(fq->fqid);
 	qm_mc_commit(&p->p, QM_MCC_VERB_QUERYFQ_NP);
 	while (!(mcr = qm_mc_result(&p->p)))
 		cpu_relax();
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_MCR_VERB_QUERYFQ_NP);
 	res = mcr->result;
-	if (res == QM_MCR_RESULT_OK)
-		*np = mcr->queryfq_np;
+	if (res == QM_MCR_RESULT_OK) {
+		memcpy_fromio(np, &mcr->queryfq_np, sizeof(*np));
+		np->fqd_link = be24_to_cpu(np->fqd_link);
+		np->odp_seq = be16_to_cpu(np->odp_seq);
+		np->orp_nesn = be16_to_cpu(np->orp_nesn);
+		np->orp_ea_hseq  = be16_to_cpu(np->orp_ea_hseq);
+		np->orp_ea_tseq  = be16_to_cpu(np->orp_ea_tseq);
+		np->orp_ea_hptr = be24_to_cpu(np->orp_ea_hptr);
+		np->orp_ea_tptr = be24_to_cpu(np->orp_ea_tptr);
+		np->pfdr_hptr = be24_to_cpu(np->pfdr_hptr);
+		np->pfdr_tptr = be24_to_cpu(np->pfdr_tptr);
+		np->ics_surp = be16_to_cpu(np->ics_surp);
+		np->byte_cnt = be32_to_cpu(np->byte_cnt);
+		np->frm_cnt = be24_to_cpu(np->frm_cnt);
+		np->ra1_sfdr = be16_to_cpu(np->ra1_sfdr);
+		np->ra2_sfdr = be16_to_cpu(np->ra2_sfdr);
+		np->od1_sfdr = be16_to_cpu(np->od1_sfdr);
+		np->od2_sfdr = be16_to_cpu(np->od2_sfdr);
+		np->od3_sfdr = be16_to_cpu(np->od3_sfdr);
+
+
+	}
+
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
 	if (res == QM_MCR_RESULT_ERR_FQID)
@@ -1863,7 +2021,7 @@ int qman_query_wq(u8 query_dedicated, struct qm_mcr_querywq *wq)
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == myverb);
 	res = mcr->result;
 	if (res == QM_MCR_RESULT_OK)
-		*wq = mcr->querywq;
+		memcpy_fromio(wq, &mcr->querywq, sizeof(*wq));
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
 	if (res != QM_MCR_RESULT_OK) {
@@ -1894,7 +2052,7 @@ int qman_testwrite_cgr(struct qman_cgr *cgr, u64 i_bcnt,
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_MCC_VERB_CGRTESTWRITE);
 	res = mcr->result;
 	if (res == QM_MCR_RESULT_OK)
-		*result = mcr->cgrtestwrite;
+		memcpy_fromio(result,  &mcr->cgrtestwrite, sizeof(*result));
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
 	if (res != QM_MCR_RESULT_OK) {
@@ -1912,6 +2070,7 @@ int qman_query_cgr(struct qman_cgr *cgr, struct qm_mcr_querycgr *cgrd)
 	struct qman_portal *p = get_affine_portal();
 	unsigned long irqflags __maybe_unused;
 	u8 res;
+	int i;
 
 	PORTAL_IRQ_LOCK(p, irqflags);
 	mcc = qm_mc_start(&p->p);
@@ -1922,13 +2081,23 @@ int qman_query_cgr(struct qman_cgr *cgr, struct qm_mcr_querycgr *cgrd)
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_MCC_VERB_QUERYCGR);
 	res = mcr->result;
 	if (res == QM_MCR_RESULT_OK)
-		*cgrd = mcr->querycgr;
+		memcpy_fromio(cgrd, &mcr->querycgr, sizeof(*cgrd));
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
 	if (res != QM_MCR_RESULT_OK) {
 		pr_err("QUERY_CGR failed: %s\n", mcr_result_str(res));
 		return -EIO;
 	}
+	cgrd->cgr.wr_parm_g.word =
+		be32_to_cpu(cgrd->cgr.wr_parm_g.word);
+	cgrd->cgr.wr_parm_y.word =
+		be32_to_cpu(cgrd->cgr.wr_parm_y.word);
+	cgrd->cgr.wr_parm_r.word =
+		be32_to_cpu(cgrd->cgr.wr_parm_r.word);
+	cgrd->cgr.cscn_targ =  be32_to_cpu(cgrd->cgr.cscn_targ);
+	cgrd->cgr.__cs_thres = be16_to_cpu(cgrd->cgr.__cs_thres);
+	for (i = 0; i < ARRAY_SIZE(cgrd->cscn_targ_swp); i++)
+			be32_to_cpus(&cgrd->cscn_targ_swp[i]);
 	return 0;
 }
 EXPORT_SYMBOL(qman_query_cgr);
@@ -1939,6 +2108,7 @@ int qman_query_congestion(struct qm_mcr_querycongestion *congestion)
 	struct qman_portal *p = get_affine_portal();
 	unsigned long irqflags __maybe_unused;
 	u8 res;
+	int i;
 
 	PORTAL_IRQ_LOCK(p, irqflags);
 	qm_mc_start(&p->p);
@@ -1949,13 +2119,17 @@ int qman_query_congestion(struct qm_mcr_querycongestion *congestion)
 			QM_MCC_VERB_QUERYCONGESTION);
 	res = mcr->result;
 	if (res == QM_MCR_RESULT_OK)
-		*congestion = mcr->querycongestion;
+		memcpy_fromio(congestion, &mcr->querycongestion,
+			      sizeof(*congestion));
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
 	if (res != QM_MCR_RESULT_OK) {
 		pr_err("QUERY_CONGESTION failed: %s\n", mcr_result_str(res));
 		return -EIO;
 	}
+
+	for (i = 0; i < ARRAY_SIZE(congestion->state.__state); i++)
+			be32_to_cpus(&congestion->state.__state[i]);
 	return 0;
 }
 EXPORT_SYMBOL(qman_query_congestion);
@@ -2185,13 +2359,14 @@ static inline struct qm_eqcr_entry *try_p_eq_start(struct qman_portal *p,
 			((flags & QMAN_ENQUEUE_FLAG_DCA_PARK) ?
 					QM_EQCR_DCA_PARK : 0) |
 			((flags >> 8) & QM_EQCR_DCA_IDXMASK);
-	eq->fqid = fq->fqid;
+	eq->fqid = cpu_to_be32(fq->fqid);
 #ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
-	eq->tag = fq->key;
+	eq->tag = cpu_to_be32(fq->key);
 #else
-	eq->tag = (u32)(uintptr_t)fq;
+	eq->tag = cpu_to_be32((u32)(uintptr_t)fq);
 #endif
 	eq->fd = *fd;
+	cpu_to_hw_fd(&eq->fd);
 	return eq;
 }
 
@@ -2365,8 +2540,8 @@ int qman_p_enqueue_orp(struct qman_portal *p, struct qman_fq *fq,
 			/* No need to check 4 QMAN_ENQUEUE_FLAG_HOLE */
 			orp_seqnum &= ~QM_EQCR_SEQNUM_NESN;
 	}
-	eq->seqnum = orp_seqnum;
-	eq->orp = orp->fqid;
+	eq->seqnum = cpu_to_be16(orp_seqnum);
+	eq->orp = cpu_to_be32(orp->fqid);
 	/* Note: QM_EQCR_VERB_INTERRUPT == QMAN_ENQUEUE_FLAG_WAIT_SYNC */
 	qm_eqcr_pvb_commit(&p->p, QM_EQCR_VERB_ORP |
 		((flags & (QMAN_ENQUEUE_FLAG_HOLE | QMAN_ENQUEUE_FLAG_NESN)) ?
@@ -2415,8 +2590,8 @@ int qman_enqueue_orp(struct qman_fq *fq, const struct qm_fd *fd, u32 flags,
 			/* No need to check 4 QMAN_ENQUEUE_FLAG_HOLE */
 			orp_seqnum &= ~QM_EQCR_SEQNUM_NESN;
 	}
-	eq->seqnum = orp_seqnum;
-	eq->orp = orp->fqid;
+	eq->seqnum = cpu_to_be16(orp_seqnum);
+	eq->orp = cpu_to_be32(orp->fqid);
 	/* Note: QM_EQCR_VERB_INTERRUPT == QMAN_ENQUEUE_FLAG_WAIT_SYNC */
 	qm_eqcr_pvb_commit(&p->p, QM_EQCR_VERB_ORP |
 		((flags & (QMAN_ENQUEUE_FLAG_HOLE | QMAN_ENQUEUE_FLAG_NESN)) ?
@@ -2538,6 +2713,16 @@ int qman_modify_cgr(struct qman_cgr *cgr, u32 flags,
 	mcc = qm_mc_start(&p->p);
 	if (opts)
 		mcc->initcgr = *opts;
+	mcc->initcgr.we_mask = cpu_to_be16(mcc->initcgr.we_mask);
+	mcc->initcgr.cgr.wr_parm_g.word =
+		cpu_to_be32(mcc->initcgr.cgr.wr_parm_g.word);
+	mcc->initcgr.cgr.wr_parm_y.word =
+		cpu_to_be32(mcc->initcgr.cgr.wr_parm_y.word);
+	mcc->initcgr.cgr.wr_parm_r.word =
+		cpu_to_be32(mcc->initcgr.cgr.wr_parm_r.word);
+	mcc->initcgr.cgr.cscn_targ =  cpu_to_be32(mcc->initcgr.cgr.cscn_targ);
+	mcc->initcgr.cgr.__cs_thres = cpu_to_be16(mcc->initcgr.cgr.__cs_thres);
+
 	mcc->initcgr.cgid = cgr->cgrid;
 	if (flags & QMAN_CGR_FLAG_USE_INIT)
 		verb = QM_MCC_VERB_INITCGR;

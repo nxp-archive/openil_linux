@@ -150,6 +150,7 @@ enum qm_fd_format {
 struct qm_fd {
 	union {
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u8 dd:2;	/* dynamic debug */
 			u8 liodn_offset:6;
 			u8 bpid:8;	/* Buffer Pool ID */
@@ -157,6 +158,15 @@ struct qm_fd {
 			u8 __reserved:4;
 			u8 addr_hi;	/* high 8-bits of 40-bit address */
 			u32 addr_lo;	/* low 32-bits of 40-bit address */
+#else
+			u8 liodn_offset:6;
+			u8 dd:2;	/* dynamic debug */
+			u8 bpid:8;	/* Buffer Pool ID */
+			u8 __reserved:4;
+			u8 eliodn_offset:4;
+			u8 addr_hi;	/* high 8-bits of 40-bit address */
+			u32 addr_lo;	/* low 32-bits of 40-bit address */
+#endif
 		};
 		struct {
 			u64 __notaddress:24;
@@ -239,17 +249,33 @@ struct qm_sg_entry {
 			u32 addr_lo;	/* low 32-bits of 40-bit address */
 		};
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u64 __notaddress:24;
 			u64 addr:40;
+#else
+			u64 addr:40;
+			u64 __notaddress:24;
+#endif
 		};
 	};
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 	u32 extension:1;	/* Extension bit */
 	u32 final:1;		/* Final bit */
 	u32 length:30;
+#else
+	u32 length:30;
+	u32 final:1;		/* Final bit */
+	u32 extension:1;	/* Extension bit */
+#endif
 	u8 __reserved2;
 	u8 bpid;
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 	u16 __reserved3:3;
 	u16 offset:13;
+#else
+	u16 offset:13;
+	u16 __reserved3:3;
+#endif
 } __packed;
 static inline u64 qm_sg_entry_get64(const struct qm_sg_entry *sg)
 {
@@ -332,9 +358,15 @@ struct qm_mr_entry {
 			struct qm_fd fd;
 		} __packed ern;
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u8 colour:2;	/* See QM_MR_DCERN_COLOUR_* */
 			u8 __reserved1:3;
 			enum qm_dc_portal portal:3;
+#else
+			enum qm_dc_portal portal:3;
+			u8 __reserved1:3;
+			u8 colour:2;	/* See QM_MR_DCERN_COLOUR_* */
+#endif
 			u16 __reserved2;
 			u8 rc;		/* Rejection Code */
 			u32 __reserved3:24;
@@ -387,21 +419,39 @@ struct qm_mr_entry {
 struct qm_fqd_stashing {
 	/* See QM_STASHING_EXCL_<...> */
 	u8 exclusive;
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 	u8 __reserved1:2;
 	/* Numbers of cachelines */
 	u8 annotation_cl:2;
 	u8 data_cl:2;
 	u8 context_cl:2;
+#else
+	u8 context_cl:2;
+	u8 data_cl:2;
+	u8 annotation_cl:2;
+	u8 __reserved1:2;
+#endif
 } __packed;
 struct qm_fqd_taildrop {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 	u16 __reserved1:3;
 	u16 mant:8;
 	u16 exp:5;
+#else
+	u16 exp:5;
+	u16 mant:8;
+	u16 __reserved1:3;
+#endif
 } __packed;
 struct qm_fqd_oac {
 	/* See QM_OAC_<...> */
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 	u8 oac:2; /* "Overhead Accounting Control" */
 	u8 __reserved1:6;
+#else
+	u8 __reserved1:6;
+	u8 oac:2; /* "Overhead Accounting Control" */
+#endif
 	/* Two's-complement value (-128 to +127) */
 	signed char oal; /* "Overhead Accounting Length" */
 } __packed;
@@ -409,10 +459,17 @@ struct qm_fqd {
 	union {
 		u8 orpc;
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u8 __reserved1:2;
 			u8 orprws:3;
 			u8 oa:1;
 			u8 olws:2;
+#else
+			u8 olws:2;
+			u8 oa:1;
+			u8 orprws:3;
+			u8 __reserved1:2;
+#endif
 		} __packed;
 	};
 	u8 cgid;
@@ -420,12 +477,22 @@ struct qm_fqd {
 	union {
 		u16 dest_wq;
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u16 channel:13; /* qm_channel */
 			u16 wq:3;
+#else
+			u16 wq:3;
+			u16 channel:13; /* qm_channel */
+#endif
 		} __packed dest;
 	};
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 	u16 __reserved2:1;
 	u16 ics_cred:15;
+#else
+	u16 __reserved2:1;
+	u16 ics_cred:15;
+#endif
 	/* For "Initialize Frame Queue" commands, the write-enable mask
 	 * determines whether 'td' or 'oac_init' is observed. For query
 	 * commands, this field is always 'td', and 'oac_query' (below) reflects
@@ -439,17 +506,28 @@ struct qm_fqd {
 		/* Treat it as 64-bit opaque */
 		u64 opaque;
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u32 hi;
 			u32 lo;
+#else
+			u32 lo;
+			u32 hi;
+#endif
 		};
 		/* Treat it as s/w portal stashing config */
 		/* See 1.5.6.7.1: "FQD Context_A field used for [...] */
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			struct qm_fqd_stashing stashing;
 			/* 48-bit address of FQ context to
 			 * stash, must be cacheline-aligned */
 			u16 context_hi;
 			u32 context_lo;
+#else
+			u32 context_lo;
+			u16 context_hi;
+			struct qm_fqd_stashing stashing;
+#endif
 		} __packed;
 	} context_a;
 	struct qm_fqd_oac oac_query;
@@ -544,11 +622,19 @@ struct qm_cgr_wr_parm {
 	union {
 		u32 word;
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u32 MA:8;
 			u32 Mn:5;
 			u32 SA:7; /* must be between 64-127 */
 			u32 Sn:6;
 			u32 Pn:6;
+#else
+			u32 Pn:6;
+			u32 Sn:6;
+			u32 SA:7; /* must be between 64-127 */
+			u32 Mn:5;
+			u32 MA:8;
+#endif
 		} __packed;
 	};
 } __packed;
@@ -559,9 +645,15 @@ struct qm_cgr_wr_parm {
  *   CS threshold = TA * (2 ^ Tn)
  */
 struct qm_cgr_cs_thres {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 	u16 __reserved:3;
 	u16 TA:8;
 	u16 Tn:5;
+#else
+	u16 Tn:5;
+	u16 TA:8;
+	u16 __reserved:3;
+#endif
 } __packed;
 /* This identical structure of CGR fields is present in the "Init/Modify CGR"
  * commands and the "Query CGR" result. It's suctioned out here into its own
@@ -576,14 +668,23 @@ struct __qm_mc_cgr {
 	u8 cscn_en;	/* boolean, use QM_CGR_EN */
 	union {
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u16 cscn_targ_upd_ctrl; /* use QM_CSCN_TARG_UDP_ */
 			u16 cscn_targ_dcp_low;  /* CSCN_TARG_DCP low-16bits */
+#else
+			u16 cscn_targ_dcp_low;  /* CSCN_TARG_DCP low-16bits */
+			u16 cscn_targ_upd_ctrl; /* use QM_CSCN_TARG_UDP_ */
+#endif
 		};
 		u32 cscn_targ;	/* use QM_CGR_TARG_* */
 	};
 	u8 cstd_en;	/* boolean, use QM_CGR_EN */
 	u8 cs;		/* boolean, only used in query response */
-	struct qm_cgr_cs_thres cs_thres; /* use qm_cgr_cs_thres_set64() */
+	union {
+		/* use qm_cgr_cs_thres_set64() */
+		struct qm_cgr_cs_thres cs_thres;
+		u16 __cs_thres;
+	};
 	u8 mode;	/* QMAN_CGR_MODE_FRAME not supported in rev1.0 */
 } __packed;
 #define QM_CGR_EN		0x01 /* For wr_en_*, cscn_en, cstd_en */
@@ -679,8 +780,13 @@ struct qm_mcc_querywq {
 	union {
 		u16 channel_wq; /* ignores wq (3 lsbits) */
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u16 id:13; /* qm_channel */
 			u16 __reserved1:3;
+#else
+			u16 __reserved1:3;
+			u16 id:13; /* qm_channel */
+#endif
 		} __packed channel;
 	};
 	u8 __reserved2[60];
@@ -779,8 +885,13 @@ struct qm_mcc_ceetm_mapping_shaper_tcfc_config {
 			u8 __reserved2[58];
 		} __packed channel_mapping;
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u8 map_reserved:5;
 			u8 map_lni_id:3;
+#else
+			u8 map_lni_id:3;
+			u8 map_reserved:5;
+#endif
 			u8 __reserved2[58];
 		} __packed sp_mapping;
 		struct {
@@ -988,6 +1099,7 @@ struct qm_mcr_queryfq {
 struct qm_mcr_queryfq_np {
 	u8 __reserved1;
 	u8 state;	/* QM_MCR_NP_STATE_*** */
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 	u8 __reserved2;
 	u32 fqd_link:24;
 	u16 __reserved3:2;
@@ -1020,7 +1132,52 @@ struct qm_mcr_queryfq_np {
 	u16 od1_sfdr;	/* QM_MCR_NP_OD1_*** */
 	u16 od2_sfdr;	/* QM_MCR_NP_OD2_*** */
 	u16 od3_sfdr;	/* QM_MCR_NP_OD3_*** */
+#else
+	u8 __reserved2;
+	u32 fqd_link:24;
+
+	u16 odp_seq:14;
+	u16 __reserved3:2;
+
+	u16 orp_nesn:14;
+	u16 __reserved4:2;
+
+	u16 orp_ea_hseq:15;
+	u16 __reserved5:1;
+
+	u16 orp_ea_tseq:15;
+	u16 __reserved6:1;
+
+	u8 __reserved7;
+	u32 orp_ea_hptr:24;
+
+	u8 __reserved8;
+	u32 orp_ea_tptr:24;
+
+	u8 __reserved9;
+	u32 pfdr_hptr:24;
+
+	u8 __reserved10;
+	u32 pfdr_tptr:24;
+
+	u8 __reserved11[5];
+	u8 is:1;
+	u8 __reserved12:7;
+	u16 ics_surp;
+	u32 byte_cnt;
+	u8 __reserved13;
+	u32 frm_cnt:24;
+	u32 __reserved14;
+	u16 ra1_sfdr;	/* QM_MCR_NP_RA1_*** */
+	u16 ra2_sfdr;	/* QM_MCR_NP_RA2_*** */
+	u16 __reserved15;
+	u16 od1_sfdr;	/* QM_MCR_NP_OD1_*** */
+	u16 od2_sfdr;	/* QM_MCR_NP_OD2_*** */
+	u16 od3_sfdr;	/* QM_MCR_NP_OD3_*** */
+#endif
 } __packed;
+
+
 struct qm_mcr_alterfq {
 	u8 fqs;		/* Frame Queue Status */
 	u8 __reserved1[61];

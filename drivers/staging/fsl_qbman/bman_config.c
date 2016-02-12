@@ -31,6 +31,7 @@
 
 #include <asm/cacheflush.h>
 #include "bman_private.h"
+#include <linux/of_reserved_mem.h>
 
 /* Last updated for v00.79 of the BG */
 
@@ -248,61 +249,16 @@ static struct device_node *bm_node;
 static dma_addr_t fbpr_a;
 static size_t fbpr_sz = DEFAULT_FBPR_SZ;
 
-/* Parse the <name> property to extract the memory location and size and
- * memblock_reserve() it. If it isn't supplied, memblock_alloc() the default
- * size. Also flush this memory range from data cache so that BMAN originated
- * transactions for this memory region could be marked non-coherent.
- */
-static __init int parse_mem_property(struct device_node *node, const char *name,
-				dma_addr_t *addr, size_t *sz, int zero)
+static int bman_fbpr(struct reserved_mem *rmem)
 {
-	const u32 *pint;
-	int ret;
-	unsigned long vaddr;
+	fbpr_a = rmem->base;
+	fbpr_sz = rmem->size;
 
-	pint = of_get_property(node, name, &ret);
-	if (!pint || (ret != 16)) {
-		pr_info("No %s property '%s', using memblock_alloc(%016zx)\n",
-				node->full_name, name, *sz);
-		*addr = memblock_alloc(*sz, *sz);
-		vaddr = (unsigned long)phys_to_virt(*addr);
-		if (zero)
-			memset((void *)vaddr, 0, *sz);
-		flush_dcache_range(vaddr, vaddr + *sz);
-		return 0;
-	}
-	pr_info("Using %s property '%s'\n", node->full_name, name);
-	/* If using a "zero-pma", don't try to zero it, even if you asked */
-	if (zero && of_find_property(node, "zero-pma", &ret)) {
-		pr_info("  it's a 'zero-pma', not zeroing from s/w\n");
-		zero = 0;
-	}
-	*addr = ((u64)pint[0] << 32) | (u64)pint[1];
-	*sz = ((u64)pint[2] << 32) | (u64)pint[3];
-	/* Keep things simple, it's either all in the DRAM range or it's all
-	 * outside. */
-	if (*addr < memblock_end_of_DRAM()) {
-		BUG_ON((u64)*addr + (u64)*sz > memblock_end_of_DRAM());
-		if (memblock_reserve(*addr, *sz) < 0) {
-			pr_err("Failed to reserve %s\n", name);
-			return -ENOMEM;
-		}
-		vaddr = (unsigned long)phys_to_virt(*addr);
-		if (zero)
-			memset((void *)vaddr, 0, *sz);
-		flush_dcache_range(vaddr, vaddr + *sz);
-	} else if (zero) {
-		/* map as cacheable, non-guarded */
-		void __iomem *tmpp = ioremap_prot(*addr, *sz, 0);
-		if (!tmpp)
-			return -ENOMEM;
-		memset_io(tmpp, 0, *sz);
-		vaddr = (unsigned long)tmpp;
-		flush_dcache_range(vaddr, vaddr + *sz);
-		iounmap(tmpp);
-	}
+	WARN_ON(!(fbpr_a && fbpr_sz));
+
 	return 0;
 }
+RESERVEDMEM_OF_DECLARE(bman_fbpr, "fsl,bman-fbpr", bman_fbpr);
 
 static int __init fsl_bman_init(struct device_node *node)
 {
@@ -322,11 +278,6 @@ static int __init fsl_bman_init(struct device_node *node)
 	s = of_get_property(node, "fsl,hv-claimable", &ret);
 	if (s && !strcmp(s, "standby"))
 		standby = 1;
-	if (!standby) {
-		ret = parse_mem_property(node, "fsl,bman-fbpr",
-					&fbpr_a, &fbpr_sz, 0);
-		BUG_ON(ret);
-	}
 	/* Global configuration */
 	regs = ioremap(res.start, res.end - res.start + 1);
 	bm = bm_create(regs);
@@ -363,13 +314,14 @@ int bm_pool_set(u32 bpid, const u32 *thresholds)
 {
 	if (!bm)
 		return -ENODEV;
-	bm_set_pool(bm, bpid, thresholds[0], thresholds[1],
-		thresholds[2], thresholds[3]);
+	bm_set_pool(bm, bpid, thresholds[0],
+		    thresholds[1], thresholds[2],
+		    thresholds[3]);
 	return 0;
 }
 EXPORT_SYMBOL(bm_pool_set);
 
-__init void bman_init_early(void)
+__init int bman_init_early(void)
 {
 	struct device_node *dn;
 	int ret;
@@ -386,7 +338,10 @@ __init void bman_init_early(void)
 			BUG_ON(ret);
 		}
 	}
+	return 0;
 }
+postcore_initcall_sync(bman_init_early);
+
 
 static void log_edata_bits(u32 bit_count)
 {
@@ -464,7 +419,7 @@ static int __bind_irq(void)
 	int ret, err_irq;
 
 	err_irq = of_irq_to_resource(bm_node, 0, NULL);
-	if (err_irq == NO_IRQ) {
+	if (err_irq == 0) {
 		pr_info("Can't get %s property '%s'\n", bm_node->full_name,
 			"interrupts");
 		return -ENODEV;
@@ -494,6 +449,8 @@ int bman_init_ccsr(struct device_node *node)
 		return -EINVAL;
 	/* FBPR memory */
 	bm_set_memory(bm, fbpr_a, 0, fbpr_sz);
+	pr_info("bman-fbpr addr 0x%llx size 0x%zx\n", fbpr_a, fbpr_sz);
+
 	ret = __bind_irq();
 	if (ret)
 		return ret;

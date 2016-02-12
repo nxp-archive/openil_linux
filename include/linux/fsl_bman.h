@@ -87,15 +87,28 @@ struct bm_mc_result;	/* MC result */
 struct bm_buffer {
 	union {
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u8 __reserved1;
 			u8 bpid;
 			u16 hi; /* High 16-bits of 48-bit address */
 			u32 lo; /* Low 32-bits of 48-bit address */
+#else
+			u32 lo;
+			u16 hi;
+			u8 bpid;
+			u8 __reserved;
+#endif
 		};
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u64 __notaddress:16;
 			u64 addr:48;
+#else
+			u64 addr:48;
+			u64 __notaddress:16;
+#endif
 		};
+		u64 opaque;
 	};
 } __aligned(8);
 static inline u64 bm_buffer_get64(const struct bm_buffer *buf)

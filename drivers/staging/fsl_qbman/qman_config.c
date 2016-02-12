@@ -31,6 +31,8 @@
 
 #include <asm/cacheflush.h>
 #include "qman_private.h"
+#include <linux/highmem.h>
+#include <linux/of_reserved_mem.h>
 
 /* Last updated for v00.800 of the BG */
 
@@ -428,6 +430,28 @@ static struct device_node *qm_node;
 static dma_addr_t fqd_a, pfdr_a;
 static size_t fqd_sz = DEFAULT_FQD_SZ, pfdr_sz = DEFAULT_PFDR_SZ;
 
+static int qman_fqd(struct reserved_mem *rmem)
+{
+	fqd_a = rmem->base;
+	fqd_sz = rmem->size;
+
+	WARN_ON(!(fqd_a && fqd_sz));
+
+	return 0;
+}
+RESERVEDMEM_OF_DECLARE(qman_fqd, "fsl,qman-fqd", qman_fqd);
+
+static int qman_pfdr(struct reserved_mem *rmem)
+{
+	pfdr_a = rmem->base;
+	pfdr_sz = rmem->size;
+
+	WARN_ON(!(pfdr_a && pfdr_sz));
+
+	return 0;
+}
+RESERVEDMEM_OF_DECLARE(qman_fbpr, "fsl,qman-pfdr", qman_pfdr);
+
 /* Parse the <name> property to extract the memory location and size and
  * memblock_reserve() it. If it isn't supplied, memblock_alloc() the default
  * size. Also flush this memory range from data cache so that QMAN originated
@@ -436,51 +460,30 @@ static size_t fqd_sz = DEFAULT_FQD_SZ, pfdr_sz = DEFAULT_PFDR_SZ;
 static __init int parse_mem_property(struct device_node *node, const char *name,
 				dma_addr_t *addr, size_t *sz, int zero)
 {
-	const u32 *pint;
 	int ret;
-	unsigned long vaddr;
 
-	pint = of_get_property(node, name, &ret);
-	if (!pint || (ret != 16)) {
-		pr_info("No %s property '%s', using memblock_alloc(%016zx)\n",
-				node->full_name, name, *sz);
-		*addr = memblock_alloc(*sz, *sz);
-		vaddr = (unsigned long)phys_to_virt(*addr);
-		if (zero)
-			memset((void *)vaddr, 0, *sz);
-		flush_dcache_range(vaddr, vaddr + *sz);
-		return 0;
-	}
-	pr_info("Using %s property '%s'\n", node->full_name, name);
 	/* If using a "zero-pma", don't try to zero it, even if you asked */
 	if (zero && of_find_property(node, "zero-pma", &ret)) {
 		pr_info("  it's a 'zero-pma', not zeroing from s/w\n");
 		zero = 0;
 	}
-	*addr = ((u64)pint[0] << 32) | (u64)pint[1];
-	*sz = ((u64)pint[2] << 32) | (u64)pint[3];
-	/* Keep things simple, it's either all in the DRAM range or it's all
-	 * outside. */
-	if (*addr < memblock_end_of_DRAM()) {
-		BUG_ON((u64)*addr + (u64)*sz > memblock_end_of_DRAM());
-		if (memblock_reserve(*addr, *sz) < 0) {
-			pr_err("Failed to reserve %s\n", name);
-			return -ENOMEM;
-		}
-		vaddr = (unsigned long)phys_to_virt(*addr);
-		if (zero)
-			memset(phys_to_virt(*addr), 0, *sz);
-		flush_dcache_range(vaddr, vaddr + *sz);
-	} else if (zero) {
+
+	if (zero) {
 		/* map as cacheable, non-guarded */
-		void __iomem *tmpp = ioremap_prot(*addr, *sz, 0);
+#ifdef CONFIG_ARM64
+		void __iomem *tmpp = ioremap_cache(*addr, *sz);
+#else
+		void __iomem *tmpp = ioremap(*addr, *sz);
+#endif
+
 		if (!tmpp)
 			return -ENOMEM;
 		memset_io(tmpp, 0, *sz);
-		vaddr = (unsigned long)tmpp;
-		flush_dcache_range(vaddr, vaddr + *sz);
+		flush_dcache_range((unsigned long)tmpp,
+				   (unsigned long)tmpp + *sz);
 		iounmap(tmpp);
 	}
+
 	return 0;
 }
 
@@ -509,9 +512,11 @@ static int __init fsl_qman_init(struct device_node *node)
 	if (!standby) {
 		ret = parse_mem_property(node, "fsl,qman-fqd",
 					&fqd_a, &fqd_sz, 1);
+		pr_info("qman-fqd addr 0x%llx size 0x%zx\n", fqd_a, fqd_sz);
 		BUG_ON(ret);
 		ret = parse_mem_property(node, "fsl,qman-pfdr",
 					&pfdr_a, &pfdr_sz, 0);
+		pr_info("qman-pfdr addr 0x%llx size 0x%zx\n", pfdr_a, pfdr_sz);
 		BUG_ON(ret);
 	}
 	/* Global configuration */
@@ -538,6 +543,8 @@ static int __init fsl_qman_init(struct device_node *node)
 			qman_ip_rev = QMAN_REV30;
 		else if ((major == 3) && (minor == 1))
 			qman_ip_rev = QMAN_REV31;
+		else if ((major == 3) && (minor == 2))
+			qman_ip_rev = QMAN_REV32;
 		else {
 			pr_warn("unknown Qman version, default to rev1.1\n");
 			qman_ip_rev = QMAN_REV11;
@@ -557,7 +564,7 @@ int qman_have_ccsr(void)
 	return qm ? 1 : 0;
 }
 
-__init void qman_init_early(void)
+__init int qman_init_early(void)
 {
 	struct device_node *dn;
 	int ret;
@@ -574,7 +581,9 @@ __init void qman_init_early(void)
 			BUG_ON(ret);
 		}
 	}
+	return 0;
 }
+postcore_initcall_sync(qman_init_early);
 
 static void log_edata_bits(u32 bit_count)
 {
@@ -679,7 +688,7 @@ static int __bind_irq(void)
 	int ret, err_irq;
 
 	err_irq = of_irq_to_resource(qm_node, 0, NULL);
-	if (err_irq == NO_IRQ) {
+	if (err_irq == 0) {
 		pr_info("Can't get %s property '%s'\n", qm_node->full_name,
 			"interrupts");
 		return -ENODEV;
@@ -705,6 +714,11 @@ int qman_init_ccsr(struct device_node *node)
 		return 0;
 	if (node != qm_node)
 		return -EINVAL;
+#ifdef CONFIG_ARM64
+	/* TEMP for LS1043 : should be done in uboot */
+	qm_out(QCSP_BARE, 0x5);
+	qm_out(QCSP_BAR, 0x0);
+#endif
 	/* FQD memory */
 	qm_set_memory(qm, qm_memory_fqd, fqd_a, 1, 0, 0, fqd_sz);
 	/* PFDR memory */
@@ -766,6 +780,10 @@ int qman_set_sdest(u16 channel, unsigned int cpu_idx)
 
 	if (!qman_have_ccsr())
 		return -ENODEV;
+	if ((qman_ip_rev & 0xFF00) == QMAN_REV31) {
+		/* LS1043A - only one L2 cache */
+		cpu_idx = 0;
+	}
 
 	if ((qman_ip_rev & 0xFF00) >= QMAN_REV30) {
 		before = qm_in(REV3_QCSP_IO_CFG(idx));
