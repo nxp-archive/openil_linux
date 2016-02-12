@@ -1572,7 +1572,7 @@ static int create_ipsec_manip(struct dpa_ipsec_sa *sa, int next_hmd, int *hmd)
 	} else {
 		offld_params->u.ipsec.variableIpVersion = true;
 		offld_params->u.ipsec.outerIPHdrLen = (uint8_t)
-						sa->sec_desc->pdb_en.ip_hdr_len;
+				caam16_to_cpu(sa->sec_desc->pdb_en.ip_hdr_len);
 	}
 	offld_params->u.ipsec.ecnCopy = sa->ecn_copy;
 	offld_params->u.ipsec.dscpCopy = sa->dscp_copy;
@@ -1656,7 +1656,7 @@ static int update_ipsec_manip(struct dpa_ipsec_sa *sa, int next_hmd, int *hmd)
 	} else {
 		offld_params->u.ipsec.variableIpVersion = true;
 		offld_params->u.ipsec.outerIPHdrLen = (uint8_t)
-						sa->sec_desc->pdb_en.ip_hdr_len;
+				caam16_to_cpu(sa->sec_desc->pdb_en.ip_hdr_len);
 	}
 	offld_params->u.ipsec.ecnCopy = sa->ecn_copy;
 	offld_params->u.ipsec.dscpCopy = sa->dscp_copy;
@@ -2143,8 +2143,8 @@ static int update_pre_sec_inbound_table(struct dpa_ipsec_sa *sa,
 			offset += IP_PROTO_FIELD_LEN;
 		}
 
-		memcpy(key + offset, (uint8_t *) &sa->spi, ESP_SPI_FIELD_LEN);
-		offset += ESP_SPI_FIELD_LEN;
+		*(uint32_t*)(key + offset) = cpu_to_be32(sa->spi);
+		offset += sizeof(sa->spi);
 
 		/* determine padding length based on the table params */
 		err = dpa_classif_table_get_params(table, &tbl_params);
@@ -2440,14 +2440,14 @@ static int create_sec_frame_queue(uint32_t fq_id, uint16_t channel,
 		}
 #if (DPAA_VERSION == 10)
 		/* FMAN v2 devices: opcode and flow id are stored in contextB */
-		FM_CONTEXTA_SET_OVERRIDE(&fq_opts.fqd.context_a, true);
+		fq_opts.fqd.context_a.hi |= FM_CONTEXTA_OVERRIDE_MASK;
 		FM_CONTEXTB_SET_FQID(&(fq_opts.fqd.context_b), ctxB |
 					(sp_op_code << 20));
 #elif (DPAA_VERSION == 11)
 		/* FMAN v3 devices: opcode and flow id are stored in contextA */
-		FM_CONTEXTA_SET_A1_VALID(&fq_opts.fqd.context_a, true);
-		FM_CONTEXTA_SET_A1(&fq_opts.fqd.context_a,
-				((ctxB << 4) | sp_op_code));
+		fq_opts.fqd.context_a.hi &= ~FM_CONTEXTA_A1_MASK;
+		fq_opts.fqd.context_a.hi |= (ctxB << 4) | sp_op_code;
+		fq_opts.fqd.context_a.hi |= FM_CONTEXTA_A1_VALID_MASK;
 #endif
 	}
 
@@ -2614,7 +2614,7 @@ static int copy_sa_params_to_out_sa(struct dpa_ipsec_sa *sa,
 	memcpy(sa->cipher_data.cipher_key,
 	       sa_params->crypto_params.cipher_key,
 	       sa_params->crypto_params.cipher_key_len);
-	sa->sec_desc->pdb_en.spi = sa_params->spi;
+	sa->sec_desc->pdb_en.spi = cpu_to_caam32(sa_params->spi);
 	sa->sec_desc->pdb_en.options = PDBOPTS_ESP_TUNNEL |
 				       PDBOPTS_ESP_INCIPHDR |
 				       PDBOPTS_ESP_IPHDRSRC;
@@ -2642,11 +2642,11 @@ static int copy_sa_params_to_out_sa(struct dpa_ipsec_sa *sa,
 
 	if (sa_params->use_ext_seq_num) {
 		sa->sec_desc->pdb_en.seq_num_ext_hi =
-			(sa_params->start_seq_num & SEQ_NUM_HI_MASK) >> 32;
+			cpu_to_caam32((sa_params->start_seq_num & SEQ_NUM_HI_MASK) >> 32);
 		sa->sec_desc->pdb_en.options |= PDBOPTS_ESP_ESN;
 	}
 	sa->sec_desc->pdb_en.seq_num =
-				sa_params->start_seq_num & SEQ_NUM_LOW_MASK;
+		cpu_to_caam32(sa_params->start_seq_num & SEQ_NUM_LOW_MASK);
 
 	if (ip_addr_type == DPA_IPSEC_ADDR_T_IPv6)
 		sa->sec_desc->pdb_en.options |= PDBOPTS_ESP_IPV6;
@@ -2701,6 +2701,9 @@ static int copy_sa_params_to_out_sa(struct dpa_ipsec_sa *sa,
 		sa->sec_desc->pdb_en.ip_hdr_len =
 				sa_params->sa_out_params.ip_hdr_size;
 	}
+	/* Update endianness of this value to match SEC endianness: */
+	sa->sec_desc->pdb_en.ip_hdr_len =
+				cpu_to_caam16(sa->sec_desc->pdb_en.ip_hdr_len);
 
 	if (ip_addr_type == DPA_IPSEC_ADDR_T_IPv4) {
 		outer_ip_hdr = (struct iphdr *) &sa->sec_desc->pdb_en.ip_hdr[0];
@@ -2803,7 +2806,7 @@ static int copy_sa_params_to_in_sa(struct dpa_ipsec_sa *sa,
 	}
 
 	sa->sec_desc->pdb_dec.seq_num =
-			sa_params->start_seq_num & SEQ_NUM_LOW_MASK;
+		cpu_to_caam32(sa_params->start_seq_num & SEQ_NUM_LOW_MASK);
 	sa->sec_desc->pdb_dec.options = PDBOPTS_ESP_TUNNEL |
 					PDBOPTS_ESP_OUTFMT;
 
@@ -2812,7 +2815,7 @@ static int copy_sa_params_to_in_sa(struct dpa_ipsec_sa *sa,
 
 	if (sa_params->use_ext_seq_num) {
 		sa->sec_desc->pdb_dec.seq_num_ext_hi =
-			(sa_params->start_seq_num & SEQ_NUM_HI_MASK) >> 32;
+			cpu_to_caam32((sa_params->start_seq_num & SEQ_NUM_HI_MASK) >> 32);
 		sa->sec_desc->pdb_dec.options |= PDBOPTS_ESP_ESN;
 	}
 
@@ -2866,6 +2869,8 @@ static int copy_sa_params_to_in_sa(struct dpa_ipsec_sa *sa,
 		sa->ecn_copy =
 			sa_params->hdr_upd_flags & DPA_IPSEC_HDR_COPY_ECN;
 	}
+	sa->sec_desc->pdb_dec.hmo_ip_hdr_len =
+			cpu_to_caam16(sa->sec_desc->pdb_dec.hmo_ip_hdr_len);
 
 	/* Only for outbound */
 	sa->enable_dpovrd = false;
@@ -5343,11 +5348,15 @@ int dpa_ipsec_sa_get_stats(int sa_id, struct dpa_ipsec_sa_stats *sa_stats)
 
 	desc = (uint32_t *)sa->sec_desc->desc;
 	if (!sa->sec_desc_extended) {
-		sa_stats->packets_count = *(desc + sa->stats_offset / 4);
-		sa_stats->bytes_count = *(desc + sa->stats_offset / 4 + 1);
+		sa_stats->packets_count =
+				be32_to_cpu(*(desc + sa->stats_offset / 4));
+		sa_stats->bytes_count =
+				be32_to_cpu(*(desc + sa->stats_offset / 4 + 1));
 	} else {
-		sa_stats->bytes_count = *(desc + sa->stats_offset / 4);
-		sa_stats->packets_count = *(desc + sa->stats_offset / 4 + 1);
+		sa_stats->bytes_count =
+				be32_to_cpu(*(desc + sa->stats_offset / 4));
+		sa_stats->packets_count =
+				be32_to_cpu(*(desc + sa->stats_offset / 4 + 1));
 	}
 
 	if (!sa->enable_extended_stats)
