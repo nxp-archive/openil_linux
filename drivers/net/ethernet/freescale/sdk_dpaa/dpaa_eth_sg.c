@@ -571,8 +571,10 @@ void __hot _dpa_rx(struct net_device *net_dev,
 		}
 #endif
 		skb = contig_fd_to_skb(priv, fd, &use_gro);
-	} else
+	} else {
 		skb = sg_fd_to_skb(priv, fd, &use_gro, count_ptr);
+		percpu_priv->rx_sg++;
+	}
 
 	/* Account for either the contig buffer or the SGT buffer (depending on
 	 * which case we were in) having been removed from the pool.
