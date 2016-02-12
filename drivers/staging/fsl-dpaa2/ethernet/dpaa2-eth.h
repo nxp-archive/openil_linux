@@ -49,7 +49,9 @@
 
 #define DPAA2_ETH_STORE_SIZE		16
 
-/* Maximum receive frame size is 64K */
+/* Maximum number of scatter-gather entries in an ingress frame,
+ * considering the maximum receive frame size is 64K
+ */
 #define DPAA2_ETH_MAX_SG_ENTRIES	((64 * 1024) / DPAA2_ETH_RX_BUF_SIZE)
 
 /* Maximum acceptable MTU value. It is in direct relation with the MC-enforced
@@ -89,6 +91,10 @@
 #define DPAA2_ETH_NEEDED_HEADROOM(p_priv) \
 	((p_priv)->tx_data_offset + DPAA2_ETH_TX_BUF_ALIGN)
 
+/* Hardware only sees DPAA2_ETH_RX_BUF_SIZE, but we need to allocate ingress
+ * buffers large enough to allow building an skb around them and also account
+ * for alignment restrictions
+ */
 #define DPAA2_ETH_BUF_RAW_SIZE \
 	(DPAA2_ETH_RX_BUF_SIZE + \
 	SKB_DATA_ALIGN(sizeof(struct skb_shared_info)) + \
@@ -132,6 +138,7 @@ struct dpaa2_fas {
 	__le32 status;
 } __packed;
 
+/* Error and status bits in the frame annotation status word */
 /* Debug frame, otherwise supposed to be discarded */
 #define DPAA2_FAS_DISC			0x80000000
 /* MACSEC frame */
@@ -148,7 +155,7 @@ struct dpaa2_fas {
 #define DPAA2_FAS_PIEE			0x00004000
 /* Frame length error */
 #define DPAA2_FAS_FLE			0x00002000
-/* Frame physical error; our favourite pastime */
+/* Frame physical error */
 #define DPAA2_FAS_FPE			0x00001000
 #define DPAA2_FAS_PTE			0x00000080
 #define DPAA2_FAS_ISP			0x00000040
@@ -162,7 +169,7 @@ struct dpaa2_fas {
 #define DPAA2_FAS_L4CV			0x00000002
 /* L4 csum error */
 #define DPAA2_FAS_L4CE			0x00000001
-/* These bits always signal errors */
+/* Possible errors on the ingress path */
 #define DPAA2_ETH_RX_ERR_MASK		(DPAA2_FAS_KSE		| \
 					 DPAA2_FAS_EOFHE	| \
 					 DPAA2_FAS_MNLE		| \
@@ -217,7 +224,7 @@ struct dpaa2_eth_ch_stats {
 	__u64 pull_err;
 };
 
-/* Maximum number of Rx queues associated with a DPNI */
+/* Maximum number of queues associated with a DPNI */
 #define DPAA2_ETH_MAX_RX_QUEUES		16
 #define DPAA2_ETH_MAX_TX_QUEUES		NR_CPUS
 #define DPAA2_ETH_MAX_RX_ERR_QUEUES	1
@@ -267,11 +274,11 @@ struct dpaa2_eth_cls_rule {
 	bool in_use;
 };
 
+/* Driver private data */
 struct dpaa2_eth_priv {
 	struct net_device *net_dev;
 
 	u8 num_fqs;
-	/* First queue is tx conf, the rest are rx */
 	struct dpaa2_eth_fq fq[DPAA2_ETH_MAX_QUEUES];
 
 	u8 num_channels;

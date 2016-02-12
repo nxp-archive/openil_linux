@@ -165,7 +165,7 @@ static struct sk_buff *build_frag_skb(struct dpaa2_eth_priv *priv,
 		 * but this is the only format we may receive from HW anyway
 		 */
 
-		/* Get the address, offset and length from the S/G entry */
+		/* Get the address and length from the S/G entry */
 		sg_addr = dpaa2_sg_get_addr(sge);
 		dma_unmap_single(dev, sg_addr, DPAA2_ETH_RX_BUF_SIZE,
 				 DMA_FROM_DEVICE);
@@ -189,7 +189,7 @@ static struct sk_buff *build_frag_skb(struct dpaa2_eth_priv *priv,
 			head_page = virt_to_head_page(sg_vaddr);
 
 			/* Offset in page (which may be compound).
-			 * Subsequent data in SGEntries are stored from the
+			 * Data in subsequent SG entries is stored from the
 			 * beginning of the buffer, so we don't need to add the
 			 * sg_offset.
 			 */
@@ -205,12 +205,13 @@ static struct sk_buff *build_frag_skb(struct dpaa2_eth_priv *priv,
 			break;
 	}
 
-	/* Count all data buffers + sgt buffer */
+	/* Count all data buffers + SG table buffer */
 	ch->buf_count -= i + 2;
 
 	return skb;
 }
 
+/* Main Rx frame processing routine */
 static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 			 struct dpaa2_eth_channel *ch,
 			 const struct dpaa2_fd *fd,
@@ -257,6 +258,7 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 
 	prefetch(skb->data);
 
+	/* Get the timestamp value */
 	if (priv->ts_rx_en) {
 		struct skb_shared_hwtstamps *shhwtstamps = skb_hwtstamps(skb);
 		u64 *ns = (u64 *)(vaddr +
@@ -294,6 +296,9 @@ err_build_skb:
 }
 
 #ifdef CONFIG_FSL_DPAA2_ETH_USE_ERR_QUEUE
+/* Processing of Rx frames received on the error FQ
+ * We check and print the error bits and then free the frame
+ */
 static void dpaa2_eth_rx_err(struct dpaa2_eth_priv *priv,
 			     struct dpaa2_eth_channel *ch,
 			     const struct dpaa2_fd *fd,
@@ -361,6 +366,7 @@ static int consume_frames(struct dpaa2_eth_channel *ch)
 	return cleaned;
 }
 
+/* Create a frame descriptor based on a fragmented skb */
 static int build_sg_fd(struct dpaa2_eth_priv *priv,
 		       struct sk_buff *skb,
 		       struct dpaa2_fd *fd)
@@ -439,6 +445,7 @@ static int build_sg_fd(struct dpaa2_eth_priv *priv,
 	swa->num_sg = num_sg;
 	swa->num_dma_bufs = num_dma_bufs;
 
+	/* Hardware expects the SG table to be in little endian format */
 	for (j = 0; j < i; j++)
 		dpaa2_sg_cpu_to_le(&sgt[j]);
 
@@ -467,6 +474,7 @@ dma_map_sg_failed:
 	return err;
 }
 
+/* Create a frame descriptor based on a linear skb */
 static int build_single_fd(struct dpaa2_eth_priv *priv,
 			   struct sk_buff *skb,
 			   struct dpaa2_fd *fd)
@@ -511,7 +519,9 @@ static int build_single_fd(struct dpaa2_eth_priv *priv,
 	return 0;
 }
 
-/* DMA-unmap and free FD and possibly SGT buffer allocated on Tx. The skb
+/* FD freeing routine on the Tx path
+ *
+ * DMA-unmap and free FD and possibly SGT buffer allocated on Tx. The skb
  * back-pointed to is also freed.
  * This can be called either from dpaa2_eth_tx_conf() or on the error path of
  * dpaa2_eth_tx().
@@ -563,6 +573,7 @@ static void free_tx_fd(const struct dpaa2_eth_priv *priv,
 		dma_unmap_single(dev, fd_addr, unmap_size, DMA_TO_DEVICE);
 	}
 
+	/* Get the timestamp value */
 	if (priv->ts_tx_en && skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP) {
 		struct skb_shared_hwtstamps shhwtstamps;
 		u64 *ns;
@@ -577,8 +588,9 @@ static void free_tx_fd(const struct dpaa2_eth_priv *priv,
 		skb_tstamp_tx(skb, &shhwtstamps);
 	}
 
-	/* Check the status from the Frame Annotation after we unmap the first
-	 * buffer but before we free it.
+	/* Read the status from the Frame Annotation after we unmap the first
+	 * buffer but before we free it. The caller function is responsible
+	 * for checking the status value.
 	 */
 	if (status && (fd->simple.frc & DPAA2_FD_FRC_FASV)) {
 		fas = (struct dpaa2_fas *)
@@ -677,6 +689,7 @@ err_alloc_headroom:
 	return NETDEV_TX_OK;
 }
 
+/* Tx confirmation frame processing routine */
 static void dpaa2_eth_tx_conf(struct dpaa2_eth_priv *priv,
 			      struct dpaa2_eth_channel *ch,
 			      const struct dpaa2_fd *fd,
@@ -755,6 +768,9 @@ static int set_tx_csum(struct dpaa2_eth_priv *priv, bool enable)
 	return 0;
 }
 
+/* Perform a single release command to add buffers
+ * to the specified buffer pool
+ */
 static int add_bufs(struct dpaa2_eth_priv *priv, u16 bpid)
 {
 	struct device *dev = priv->net_dev->dev.parent;
@@ -894,9 +910,7 @@ static int refill_pool(struct dpaa2_eth_priv *priv,
 	do {
 		new_count = add_bufs(priv, bpid);
 		if (unlikely(!new_count)) {
-			/* Out of memory; abort for now, we'll
-			 * try later on
-			 */
+			/* Out of memory; abort for now, we'll try later on */
 			break;
 		}
 		ch->buf_count += new_count;
@@ -927,6 +941,12 @@ static int pull_channel(struct dpaa2_eth_channel *ch)
 	return err;
 }
 
+/* NAPI poll routine
+ *
+ * Frames are dequeued from the QMan channel associated with this NAPI context.
+ * Rx, Tx confirmation and (if configured) Rx error frames all count
+ * towards the NAPI budget.
+ */
 static int dpaa2_eth_poll(struct napi_struct *napi, int budget)
 {
 	struct dpaa2_eth_channel *ch;
@@ -1308,11 +1328,11 @@ static void dpaa2_eth_set_rx_mode(struct net_device *net_dev)
 	/* Basic sanity checks; these probably indicate a misconfiguration */
 	if (!(options & DPNI_OPT_UNICAST_FILTER) && max_uc != 0)
 		netdev_info(net_dev,
-			    "max_unicast_filters=%d, you must have DPNI_OPT_UNICAST_FILTER in the DPL\n",
+			    "max_unicast_filters=%d, DPNI_OPT_UNICAST_FILTER option must be enabled\n",
 			    max_uc);
 	if (!(options & DPNI_OPT_MULTICAST_FILTER) && max_mc != 0)
 		netdev_info(net_dev,
-			    "max_multicast_filters=%d, you must have DPNI_OPT_MULTICAST_FILTER in the DPL\n",
+			    "max_multicast_filters=%d, DPNI_OPT_MULTICAST_FILTER option must be enabled\n",
 			    max_mc);
 
 	/* Force promiscuous if the uc or mc counts exceed our capabilities. */
@@ -1485,6 +1505,9 @@ static void cdan_cb(struct dpaa2_io_notification_ctx *ctx)
 	napi_schedule_irqoff(&ch->napi);
 }
 
+/* Verify that the FLIB API version of various MC objects is supported
+ * by our driver
+ */
 static int check_obj_version(struct fsl_mc_device *ls_dev, u16 mc_version)
 {
 	char *name = ls_dev->obj_desc.type;
@@ -1523,6 +1546,7 @@ static int check_obj_version(struct fsl_mc_device *ls_dev, u16 mc_version)
 	return 0;
 }
 
+/* Allocate and configure a DPCON object */
 static struct fsl_mc_device *setup_dpcon(struct dpaa2_eth_priv *priv)
 {
 	struct fsl_mc_device *dpcon;
@@ -1622,6 +1646,9 @@ static void free_channel(struct dpaa2_eth_priv *priv,
 	kfree(channel);
 }
 
+/* DPIO setup: allocate and configure QBMan channels, setup core affinity
+ * and register data availability notifications
+ */
 static int setup_dpio(struct dpaa2_eth_priv *priv)
 {
 	struct dpaa2_io_notification_ctx *nctx;
@@ -1803,6 +1830,7 @@ static void setup_fqs(struct dpaa2_eth_priv *priv)
 	set_fq_affinity(priv);
 }
 
+/* Allocate and configure one buffer pool for each interface */
 static int setup_dpbp(struct dpaa2_eth_priv *priv)
 {
 	int err;
@@ -1863,6 +1891,7 @@ static void free_dpbp(struct dpaa2_eth_priv *priv)
 	fsl_mc_object_free(priv->dpbp_dev);
 }
 
+/* Configure the DPNI object this interface is associated with */
 static int setup_dpni(struct fsl_mc_device *ls_dev)
 {
 	struct device *dev = &ls_dev->dev;
@@ -1876,7 +1905,7 @@ static int setup_dpni(struct fsl_mc_device *ls_dev)
 
 	priv->dpni_id = ls_dev->obj_desc.id;
 
-	/* and get a handle for the DPNI this interface is associate with */
+	/* get a handle for the DPNI object */
 	err = dpni_open(priv->mc_io, 0, priv->dpni_id, &priv->mc_token);
 	if (err) {
 		dev_err(dev, "dpni_open() failed\n");
@@ -1886,6 +1915,9 @@ static int setup_dpni(struct fsl_mc_device *ls_dev)
 	ls_dev->mc_io = priv->mc_io;
 	ls_dev->mc_handle = priv->mc_token;
 
+	/* Map a memory region which will be used by MC to pass us an
+	 * attribute structure
+	 */
 	dma_mem = kzalloc(DPAA2_EXT_CFG_SIZE, GFP_DMA | GFP_KERNEL);
 	if (!dma_mem)
 		goto err_alloc;
@@ -1934,15 +1966,14 @@ static int setup_dpni(struct fsl_mc_device *ls_dev)
 	/* HW erratum mandates data alignment in multiples of 256 */
 	priv->buf_layout.data_align = DPAA2_ETH_RX_BUF_ALIGN;
 
-	/* ...rx, ... */
+	/* rx buffer */
 	err = dpni_set_rx_buffer_layout(priv->mc_io, 0, priv->mc_token,
 					&priv->buf_layout);
 	if (err) {
 		dev_err(dev, "dpni_set_rx_buffer_layout() failed");
 		goto err_buf_layout;
 	}
-	/* ... tx, ... */
-	/* remove Rx-only options */
+	/* tx buffer: remove Rx-only options */
 	priv->buf_layout.options &= ~(DPNI_BUF_LAYOUT_OPT_DATA_ALIGN |
 				      DPNI_BUF_LAYOUT_OPT_PARSER_RESULT);
 	err = dpni_set_tx_buffer_layout(priv->mc_io, 0, priv->mc_token,
@@ -1951,7 +1982,7 @@ static int setup_dpni(struct fsl_mc_device *ls_dev)
 		dev_err(dev, "dpni_set_tx_buffer_layout() failed");
 		goto err_buf_layout;
 	}
-	/* ... tx-confirm. */
+	/* tx-confirm: same options as tx */
 	priv->buf_layout.options &= ~DPNI_BUF_LAYOUT_OPT_PRIVATE_DATA_SIZE;
 	priv->buf_layout.options |= DPNI_BUF_LAYOUT_OPT_TIMESTAMP;
 	priv->buf_layout.pass_timestamp = 1;
@@ -2104,7 +2135,8 @@ static int setup_rx_err_flow(struct dpaa2_eth_priv *priv,
 	int err;
 
 	/* Configure the Rx error queue to generate CDANs,
-	 * just like the Rx queues */
+	 * just like the Rx queues
+	 */
 	queue_cfg.options = DPNI_QUEUE_OPT_USER_CTX | DPNI_QUEUE_OPT_DEST;
 	queue_cfg.dest_cfg.dest_type = DPNI_DEST_DPCON;
 	queue_cfg.dest_cfg.priority = 1;
@@ -2129,6 +2161,9 @@ static int setup_rx_err_flow(struct dpaa2_eth_priv *priv,
 }
 #endif
 
+/* Bind the DPNI to its needed objects and resources: buffer pool, DPIOs,
+ * frame queues and channels
+ */
 static int bind_dpni(struct dpaa2_eth_priv *priv)
 {
 	struct net_device *net_dev = priv->net_dev;
@@ -2205,6 +2240,7 @@ static int bind_dpni(struct dpaa2_eth_priv *priv)
 	return 0;
 }
 
+/* Allocate rings for storing incoming frame descriptors */
 static int alloc_rings(struct dpaa2_eth_priv *priv)
 {
 	struct net_device *net_dev = priv->net_dev;
@@ -2250,7 +2286,9 @@ static int netdev_init(struct net_device *net_dev)
 
 	net_dev->netdev_ops = &dpaa2_eth_ops;
 
-	/* If the DPL contains all-0 mac_addr, set a random hardware address */
+	/* If the DPNI attributes contain an all-0 mac_addr,
+	 * set a random hardware address
+	 */
 	err = dpni_get_primary_mac_addr(priv->mc_io, 0, priv->mc_token,
 					mac_addr);
 	if (err) {
@@ -2420,7 +2458,6 @@ static void del_ch_napi(struct dpaa2_eth_priv *priv)
 }
 
 /* SysFS support */
-
 static ssize_t dpaa2_eth_show_tx_shaping(struct device *dev,
 					 struct device_attribute *attr,
 					 char *buf)
@@ -2608,29 +2645,26 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 	}
 #endif
 
-	/* DPNI initialization */
+	/* MC objects initialization and configuration */
 	err = setup_dpni(dpni_dev);
 	if (err)
 		goto err_dpni_setup;
 
-	/* DPIO */
 	err = setup_dpio(priv);
 	if (err)
 		goto err_dpio_setup;
 
-	/* FQs */
 	setup_fqs(priv);
 
-	/* DPBP */
 	err = setup_dpbp(priv);
 	if (err)
 		goto err_dpbp_setup;
 
-	/* DPNI binding to DPIO and DPBPs */
 	err = bind_dpni(priv);
 	if (err)
 		goto err_bind;
 
+	/* Add a NAPI context for each channel */
 	add_ch_napi(priv);
 
 	/* Percpu statistics */

@@ -66,7 +66,6 @@ char dpaa2_ethtool_extras[][ETH_GSTRING_LEN] = {
 	"enqueue portal busy",
 
 	/* Channel stats */
-
 	/* How many times we had to retry the volatile dequeue command */
 	"dequeue portal busy",
 	"channel pull errors",
