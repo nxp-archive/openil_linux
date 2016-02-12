@@ -51,6 +51,7 @@ static const char dpa_stats_percpu[][ETH_GSTRING_LEN] = {
 	"tx recycled",
 	"tx confirm",
 	"tx S/G",
+	"rx S/G (N/A)",
 	"tx error",
 	"rx error",
 	"bp count",

@@ -324,6 +324,9 @@ struct dpa_percpu_priv_s {
 	u64 tx_confirm;
 	/* fragmented (non-linear) skbuffs received from the stack */
 	u64 tx_frag_skbuffs;
+	/* number of S/G frames received */
+	u64 rx_sg;
+
 	struct rtnl_link_stats64 stats;
 	struct dpa_rx_errors rx_errors;
 	struct dpa_ern_cnt ern_cnt;
