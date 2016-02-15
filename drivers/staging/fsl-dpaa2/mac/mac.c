@@ -512,7 +512,6 @@ static void teardown_irqs(struct fsl_mc_device *mc_dev)
 
 	devm_free_irq(&mc_dev->dev, mc_dev->irqs[0]->irq_number, &mc_dev->dev);
 	fsl_mc_free_irqs(mc_dev);
-
 }
 
 static struct device_node *lookup_node(struct device *dev, int dpmac_id)
