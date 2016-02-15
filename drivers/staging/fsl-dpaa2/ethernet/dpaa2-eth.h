@@ -316,6 +316,7 @@ struct dpaa2_eth_priv {
 	u16 mc_token;
 
 	struct dpni_link_state link_state;
+	bool do_link_poll;
 	struct task_struct *poll_thread;
 
 	/* enabled ethtool hashing bits */

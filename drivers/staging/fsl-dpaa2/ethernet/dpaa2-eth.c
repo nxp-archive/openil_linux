@@ -2346,7 +2346,6 @@ static int netdev_init(struct net_device *net_dev)
 	return 0;
 }
 
-#ifdef CONFIG_FSL_DPAA2_ETH_LINK_POLL
 static int poll_link_state(void *arg)
 {
 	struct dpaa2_eth_priv *priv = (struct dpaa2_eth_priv *)arg;
@@ -2362,7 +2361,7 @@ static int poll_link_state(void *arg)
 
 	return 0;
 }
-#else
+
 static irqreturn_t dpni_irq0_handler(int irq_num, void *arg)
 {
 	return IRQ_WAKE_THREAD;
@@ -2377,7 +2376,6 @@ static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 	struct net_device *net_dev = dev_get_drvdata(dev);
 	int err;
 
-	netdev_dbg(net_dev, "IRQ %d received\n", irq_num);
 	err = dpni_get_irq_status(dpni_dev->mc_io, 0, dpni_dev->mc_handle,
 				  irq_index, &status);
 	if (unlikely(err)) {
@@ -2404,6 +2402,12 @@ static int setup_irqs(struct fsl_mc_device *ls_dev)
 	u8 irq_index = DPNI_IRQ_INDEX;
 	u32 mask = DPNI_IRQ_EVENT_LINK_CHANGED;
 
+	err = fsl_mc_allocate_irqs(ls_dev);
+	if (err) {
+		dev_err(&ls_dev->dev, "MC irqs allocation failed\n");
+		return err;
+	}
+
 	irq = ls_dev->irqs[0];
 	err = devm_request_threaded_irq(&ls_dev->dev, irq->irq_number,
 					dpni_irq0_handler,
@@ -2412,26 +2416,32 @@ static int setup_irqs(struct fsl_mc_device *ls_dev)
 					dev_name(&ls_dev->dev), &ls_dev->dev);
 	if (err < 0) {
 		dev_err(&ls_dev->dev, "devm_request_threaded_irq(): %d", err);
-		return err;
+		goto free_mc_irq;
 	}
 
 	err = dpni_set_irq_mask(ls_dev->mc_io, 0, ls_dev->mc_handle,
 				irq_index, mask);
 	if (err < 0) {
 		dev_err(&ls_dev->dev, "dpni_set_irq_mask(): %d", err);
-		return err;
+		goto free_irq;
 	}
 
 	err = dpni_set_irq_enable(ls_dev->mc_io, 0, ls_dev->mc_handle,
 				  irq_index, 1);
 	if (err < 0) {
 		dev_err(&ls_dev->dev, "dpni_set_irq_enable(): %d", err);
-		return err;
+		goto free_irq;
 	}
 
 	return 0;
+
+free_irq:
+	devm_free_irq(&ls_dev->dev, irq->irq_number, &ls_dev->dev);
+free_mc_irq:
+	fsl_mc_free_irqs(ls_dev);
+
+	return err;
 }
-#endif
 
 static void add_ch_napi(struct dpaa2_eth_priv *priv)
 {
@@ -2543,14 +2553,13 @@ static ssize_t dpaa2_eth_write_txconf_cpumask(struct device *dev,
 	/* Set the new TxConf FQ affinities */
 	set_fq_affinity(priv);
 
-#ifdef CONFIG_FSL_DPAA2_ETH_LINK_POLL
 	/* dpaa2_eth_open() below will *stop* the Tx queues until an explicit
 	 * link up notification is received. Give the polling thread enough time
 	 * to detect the link state change, or else we'll end up with the
 	 * transmission side forever shut down.
 	 */
-	msleep(2 * DPAA2_ETH_LINK_STATE_REFRESH);
-#endif
+	if (priv->do_link_poll)
+		msleep(2 * DPAA2_ETH_LINK_STATE_REFRESH);
 
 	for (i = 0; i < priv->num_fqs; i++) {
 		fq = &priv->fq[i];
@@ -2637,14 +2646,6 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 		goto err_portal_alloc;
 	}
 
-#ifndef CONFIG_FSL_DPAA2_ETH_LINK_POLL
-	err = fsl_mc_allocate_irqs(dpni_dev);
-	if (err) {
-		dev_err(dev, "MC irqs allocation failed\n");
-		goto err_irqs_alloc;
-	}
-#endif
-
 	/* MC objects initialization and configuration */
 	err = setup_dpni(dpni_dev);
 	if (err)
@@ -2710,16 +2711,17 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 
 	net_dev->ethtool_ops = &dpaa2_ethtool_ops;
 
-#ifdef CONFIG_FSL_DPAA2_ETH_LINK_POLL
-	priv->poll_thread = kthread_run(dpaa2_poll_link_state, priv,
-					"%s_poll_link", net_dev->name);
-#else
 	err = setup_irqs(dpni_dev);
 	if (err) {
-		netdev_err(net_dev, "ERROR %d setting up interrupts", err);
-		goto err_setup_irqs;
+		netdev_warn(net_dev, "Failed to set link interrupt, fall back to polling\n");
+		priv->poll_thread = kthread_run(poll_link_state, priv,
+						"%s_poll_link", net_dev->name);
+		if (IS_ERR(priv->poll_thread)) {
+			netdev_err(net_dev, "Error starting polling thread\n");
+			goto err_poll_thread;
+		}
+		priv->do_link_poll = true;
 	}
-#endif
 
 	dpaa2_eth_sysfs_init(&net_dev->dev);
 	dpaa2_dbg_add(priv);
@@ -2727,9 +2729,7 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 	dev_info(dev, "Probed interface %s\n", net_dev->name);
 	return 0;
 
-#ifndef CONFIG_FSL_DPAA2_ETH_LINK_POLL
-err_setup_irqs:
-#endif
+err_poll_thread:
 	free_rings(priv);
 err_alloc_rings:
 err_csum:
@@ -2748,10 +2748,6 @@ err_dpio_setup:
 	kfree(priv->cls_rule);
 	dpni_close(priv->mc_io, 0, priv->mc_token);
 err_dpni_setup:
-#ifndef CONFIG_FSL_DPAA2_ETH_LINK_POLL
-	fsl_mc_free_irqs(dpni_dev);
-err_irqs_alloc:
-#endif
 	fsl_mc_portal_free(priv->mc_io);
 err_portal_alloc:
 	dev_set_drvdata(dev, NULL);
@@ -2787,11 +2783,10 @@ static int dpaa2_eth_remove(struct fsl_mc_device *ls_dev)
 	free_percpu(priv->percpu_stats);
 	free_percpu(priv->percpu_extras);
 
-#ifdef CONFIG_FSL_DPAA2_ETH_LINK_POLL
-	kthread_stop(priv->poll_thread);
-#else
-	fsl_mc_free_irqs(ls_dev);
-#endif
+	if (priv->do_link_poll)
+		kthread_stop(priv->poll_thread);
+	else
+		fsl_mc_free_irqs(ls_dev);
 
 	kfree(priv->cls_rule);
 
