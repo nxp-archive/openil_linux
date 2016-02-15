@@ -301,7 +301,7 @@ static void report_cond_code_status(struct device *jrdev, const u32 status,
 		status, error, __func__);
 }
 
-void caam_jr_strstatus(struct device *jrdev, u32 status)
+void dpaa2_caam_jr_strstatus(struct device *jrdev, u32 status)
 {
 	static const struct stat_src {
 		void (*report_ssed)(struct device *jrdev, const u32 status,
@@ -339,4 +339,4 @@ void caam_jr_strstatus(struct device *jrdev, u32 status)
 	else
 		dev_err(jrdev, "%d: unknown error source\n", ssrc);
 }
-EXPORT_SYMBOL(caam_jr_strstatus);
+EXPORT_SYMBOL(dpaa2_caam_jr_strstatus);

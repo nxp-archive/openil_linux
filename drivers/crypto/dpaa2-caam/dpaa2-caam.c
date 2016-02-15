@@ -593,7 +593,7 @@ struct split_key_result {
 	struct device *dev;
 };
 
-void split_key_done(void *cbk_ctx, u32 err)
+static void split_key_done(void *cbk_ctx, u32 err)
 {
 	struct split_key_result *res = cbk_ctx;
 
@@ -602,15 +602,15 @@ void split_key_done(void *cbk_ctx, u32 err)
 #endif
 
 	if (err)
-		caam_jr_strstatus(res->dev, err);
+		dpaa2_caam_jr_strstatus(res->dev, err);
 
 	res->err = err;
 	complete(&res->completion);
 }
 
-int gen_split_key(struct device *dev, u8 *key_out, int split_key_len,
-		  int split_key_pad_len, const u8 *key_in, u32 keylen,
-		  u32 alg_op)
+static int gen_split_key(struct device *dev, u8 *key_out, int split_key_len,
+			 int split_key_pad_len, const u8 *key_in, u32 keylen,
+			 u32 alg_op)
 {
 	struct caam_request *req_ctx;
 	u32 *desc;
@@ -1993,7 +1993,7 @@ static void aead_encrypt_done(void *cbk_ctx, u32 err)
 #endif
 
 	if (unlikely(err))
-		caam_jr_strstatus(ctx->priv->dev, err);
+		dpaa2_caam_jr_strstatus(ctx->priv->dev, err);
 
 	aead_unmap(ctx->priv->dev, edesc, req);
 
@@ -2036,7 +2036,7 @@ static void aead_decrypt_done(void *cbk_ctx, u32 err)
 #endif
 
 	if (unlikely(err))
-		caam_jr_strstatus(ctx->priv->dev, err);
+		dpaa2_caam_jr_strstatus(ctx->priv->dev, err);
 
 	aead_unmap(ctx->priv->dev, edesc, req);
 
@@ -2182,7 +2182,7 @@ static void ablkcipher_encrypt_done(void *cbk_ctx, u32 err)
 #endif
 
 	if (unlikely(err))
-		caam_jr_strstatus(ctx->priv->dev, err);
+		dpaa2_caam_jr_strstatus(ctx->priv->dev, err);
 
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "dstiv  @"__stringify(__LINE__)": ",
@@ -2214,7 +2214,7 @@ static void ablkcipher_decrypt_done(void *cbk_ctx, u32 err)
 #endif
 
 	if (unlikely(err))
-		caam_jr_strstatus(ctx->priv->dev, err);
+		dpaa2_caam_jr_strstatus(ctx->priv->dev, err);
 
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "dstiv  @"__stringify(__LINE__)": ",
@@ -3578,7 +3578,7 @@ static void ahash_done(void *cbk_ctx, u32 err)
 #endif
 
 	if (unlikely(err))
-		caam_jr_strstatus(ctx->priv->dev, err);
+		dpaa2_caam_jr_strstatus(ctx->priv->dev, err);
 
 	ahash_unmap(ctx->priv->dev, edesc, req, digestsize);
 	qi_cache_free(edesc);
@@ -3611,7 +3611,7 @@ static void ahash_done_bi(void *cbk_ctx, u32 err)
 #endif
 
 	if (unlikely(err))
-		caam_jr_strstatus(ctx->priv->dev, err);
+		dpaa2_caam_jr_strstatus(ctx->priv->dev, err);
 
 	ahash_unmap_ctx(ctx->priv->dev, edesc, req, ctx->ctx_len,
 			DMA_BIDIRECTIONAL);
@@ -3645,7 +3645,7 @@ static void ahash_done_ctx_src(void *cbk_ctx, u32 err)
 #endif
 
 	if (unlikely(err))
-		caam_jr_strstatus(ctx->priv->dev, err);
+		dpaa2_caam_jr_strstatus(ctx->priv->dev, err);
 
 	ahash_unmap_ctx(ctx->priv->dev, edesc, req, digestsize, DMA_TO_DEVICE);
 	qi_cache_free(edesc);
@@ -3678,7 +3678,7 @@ static void ahash_done_ctx_dst(void *cbk_ctx, u32 err)
 #endif
 
 	if (unlikely(err))
-		caam_jr_strstatus(ctx->priv->dev, err);
+		dpaa2_caam_jr_strstatus(ctx->priv->dev, err);
 
 	ahash_unmap_ctx(ctx->priv->dev, edesc, req, ctx->ctx_len,
 			DMA_FROM_DEVICE);
@@ -4922,7 +4922,7 @@ static void dpaa2_caam_process_fd(struct dpaa2_caam_priv *priv,
 	err = dpaa2_fd_get_frc(fd);
 	if (err) {
 		dev_err(priv->dev, "FD[FRC] err = %x\n", err);
-		caam_jr_strstatus(priv->dev, err);
+		dpaa2_caam_jr_strstatus(priv->dev, err);
 		return;
 	}
 
