@@ -59,6 +59,7 @@ struct usdpaa_irq_ctx {
 	spinlock_t lock;
 	void *inhibit_addr; /* inhibit register address */
 	struct file *usdpaa_filp;
+	char irq_name[128];
 };
 
 static int usdpaa_irq_open(struct inode *inode, struct file *filp)
@@ -101,6 +102,7 @@ static irqreturn_t usdpaa_irq_handler(int irq, void *_ctx)
 	/* Set the inhibit register.  This will be reenabled
 	   once the USDPAA code handles the IRQ */
 	out_be32(ctx->inhibit_addr, 0x1);
+	pr_info("Inhibit at %p count %d", ctx->inhibit_addr, ctx->irq_count);
 	return IRQ_HANDLED;
 }
 
@@ -131,8 +133,11 @@ static int map_irq(struct file *fp, struct usdpaa_ioctl_irq_map *irq_map)
 
 	ctx->irq_set = 1;
 
+	snprintf(ctx->irq_name, sizeof(ctx->irq_name),
+		 "usdpaa_irq %d", ctx->irq_num);
+
 	ret = request_irq(ctx->irq_num, usdpaa_irq_handler, 0,
-			  "usdpaa_irq", ctx);
+			  ctx->irq_name, ctx);
 	if (ret) {
 		pr_err("USDPAA request_irq(%d) failed, ret= %d\n",
 		       ctx->irq_num, ret);

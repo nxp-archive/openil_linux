@@ -36,6 +36,8 @@
 /***************************/
 
 /* Cache-inhibited register offsets */
+#if defined(CONFIG_PPC32) || defined(CONFIG_PPC64)
+
 #define QM_REG_EQCR_PI_CINH	0x0000
 #define QM_REG_EQCR_CI_CINH	0x0004
 #define QM_REG_EQCR_ITR		0x0008
@@ -68,6 +70,45 @@
 #define QM_CL_RR0		0x3900
 #define QM_CL_RR1		0x3940
 
+#endif
+
+#if defined(CONFIG_ARM64)
+
+#define QM_REG_EQCR_PI_CINH	0x3000
+#define QM_REG_EQCR_CI_CINH	0x3040
+#define QM_REG_EQCR_ITR		0x3080
+#define QM_REG_DQRR_PI_CINH	0x3100
+#define QM_REG_DQRR_CI_CINH	0x3140
+#define QM_REG_DQRR_ITR		0x3180
+#define QM_REG_DQRR_DCAP	0x31C0
+#define QM_REG_DQRR_SDQCR	0x3200
+#define QM_REG_DQRR_VDQCR	0x3240
+#define QM_REG_DQRR_PDQCR	0x3280
+#define QM_REG_MR_PI_CINH	0x3300
+#define QM_REG_MR_CI_CINH	0x3340
+#define QM_REG_MR_ITR		0x3380
+#define QM_REG_CFG		0x3500
+#define QM_REG_ISR		0x3600
+#define QM_REG_IIR              0x36C0
+#define QM_REG_ITPR		0x3740
+
+/* Cache-enabled register offsets */
+#define QM_CL_EQCR		0x0000
+#define QM_CL_DQRR		0x1000
+#define QM_CL_MR		0x2000
+#define QM_CL_EQCR_PI_CENA	0x3000
+#define QM_CL_EQCR_CI_CENA	0x3040
+#define QM_CL_DQRR_PI_CENA	0x3100
+#define QM_CL_DQRR_CI_CENA	0x3140
+#define QM_CL_MR_PI_CENA	0x3300
+#define QM_CL_MR_CI_CENA	0x3340
+#define QM_CL_CR		0x3800
+#define QM_CL_RR0		0x3900
+#define QM_CL_RR1		0x3940
+
+#endif
+
+
 /* BTW, the drivers (and h/w programming model) already obtain the required
  * synchronisation for portal accesses via lwsync(), hwsync(), and
  * data-dependencies. Use of barrier()s or other order-preserving primitives
@@ -76,19 +117,20 @@
  * non-coherent). */
 
 /* Cache-inhibited register access. */
-#define __qm_in(qm, o)		__raw_readl((qm)->addr_ci + (o))
-#define __qm_out(qm, o, val)	__raw_writel((val), (qm)->addr_ci + (o))
+#define __qm_in(qm, o)		be32_to_cpu(__raw_readl((qm)->addr_ci  + (o)))
+#define __qm_out(qm, o, val)	__raw_writel((cpu_to_be32(val)), \
+					     (qm)->addr_ci + (o));
 #define qm_in(reg)		__qm_in(&portal->addr, QM_REG_##reg)
 #define qm_out(reg, val)	__qm_out(&portal->addr, QM_REG_##reg, val)
 
 /* Cache-enabled (index) register access */
 #define __qm_cl_touch_ro(qm, o) dcbt_ro((qm)->addr_ce + (o))
 #define __qm_cl_touch_rw(qm, o) dcbt_rw((qm)->addr_ce + (o))
-#define __qm_cl_in(qm, o)	__raw_readl((qm)->addr_ce + (o))
+#define __qm_cl_in(qm, o)	be32_to_cpu(__raw_readl((qm)->addr_ce + (o)))
 #define __qm_cl_out(qm, o, val) \
 	do { \
 		u32 *__tmpclout = (qm)->addr_ce + (o); \
-		__raw_writel((val), __tmpclout); \
+		__raw_writel(cpu_to_be32(val), __tmpclout); \
 		dcbf(__tmpclout); \
 	} while (0)
 #define __qm_cl_invalidate(qm, o) dcbi((qm)->addr_ce + (o))
@@ -1131,13 +1173,21 @@ static inline void qm_isr_set_iperiod(struct qm_portal *portal, u16 iperiod)
 
 static inline u32 __qm_isr_read(struct qm_portal *portal, enum qm_isr_reg n)
 {
+#if defined(CONFIG_ARM64)
+	return __qm_in(&portal->addr, QM_REG_ISR + (n << 6));
+#else
 	return __qm_in(&portal->addr, QM_REG_ISR + (n << 2));
+#endif
 }
 
 static inline void __qm_isr_write(struct qm_portal *portal, enum qm_isr_reg n,
 					u32 val)
 {
+#if defined(CONFIG_ARM64)
+	__qm_out(&portal->addr, QM_REG_ISR + (n << 6), val);
+#else
 	__qm_out(&portal->addr, QM_REG_ISR + (n << 2), val);
+#endif
 }
 
 /* Cleanup FQs */
@@ -1151,10 +1201,11 @@ static inline int qm_shutdown_fq(struct qm_portal **portal, int portal_count,
 	int orl_empty, fq_empty, i, drain = 0;
 	u32 result;
 	u32 channel, wq;
+	u16 dest_wq;
 
 	/* Determine the state of the FQID */
 	mcc = qm_mc_start(portal[0]);
-	mcc->queryfq_np.fqid = fqid;
+	mcc->queryfq_np.fqid = cpu_to_be32(fqid);
 	qm_mc_commit(portal[0], QM_MCC_VERB_QUERYFQ_NP);
 	while (!(mcr = qm_mc_result(portal[0])))
 		cpu_relax();
@@ -1165,15 +1216,16 @@ static inline int qm_shutdown_fq(struct qm_portal **portal, int portal_count,
 
 	/* Query which channel the FQ is using */
 	mcc = qm_mc_start(portal[0]);
-	mcc->queryfq.fqid = fqid;
+	mcc->queryfq.fqid = cpu_to_be32(fqid);
 	qm_mc_commit(portal[0], QM_MCC_VERB_QUERYFQ);
 	while (!(mcr = qm_mc_result(portal[0])))
 		cpu_relax();
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_MCR_VERB_QUERYFQ);
 
 	/* Need to store these since the MCR gets reused */
-	channel = mcr->queryfq.fqd.dest.channel;
-	wq = mcr->queryfq.fqd.dest.wq;
+	dest_wq = be16_to_cpu(mcr->queryfq.fqd.dest_wq);
+	channel = dest_wq & 0x7;
+	wq = dest_wq>>3;
 
 	switch (state) {
 	case QM_MCR_NP_STATE_TEN_SCHED:
@@ -1182,7 +1234,7 @@ static inline int qm_shutdown_fq(struct qm_portal **portal, int portal_count,
 	case QM_MCR_NP_STATE_PARKED:
 		orl_empty = 0;
 		mcc = qm_mc_start(portal[0]);
-		mcc->alterfq.fqid = fqid;
+		mcc->alterfq.fqid = cpu_to_be32(fqid);
 		qm_mc_commit(portal[0], QM_MCC_VERB_ALTER_RETIRE);
 		while (!(mcr = qm_mc_result(portal[0])))
 			cpu_relax();
@@ -1324,7 +1376,7 @@ static inline int qm_shutdown_fq(struct qm_portal **portal, int portal_count,
 			cpu_relax();
 		}
 		mcc = qm_mc_start(portal[0]);
-		mcc->alterfq.fqid = fqid;
+		mcc->alterfq.fqid = cpu_to_be32(fqid);
 		qm_mc_commit(portal[0], QM_MCC_VERB_ALTER_OOS);
 		while (!(mcr = qm_mc_result(portal[0])))
 			cpu_relax();
@@ -1339,7 +1391,7 @@ static inline int qm_shutdown_fq(struct qm_portal **portal, int portal_count,
 	case QM_MCR_NP_STATE_RETIRED:
 		/* Send OOS Command */
 		mcc = qm_mc_start(portal[0]);
-		mcc->alterfq.fqid = fqid;
+		mcc->alterfq.fqid = cpu_to_be32(fqid);
 		qm_mc_commit(portal[0], QM_MCC_VERB_ALTER_OOS);
 		while (!(mcr = qm_mc_result(portal[0])))
 			cpu_relax();

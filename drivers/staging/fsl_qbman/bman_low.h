@@ -35,6 +35,8 @@
 /* Portal register assists */
 /***************************/
 
+#if defined(CONFIG_PPC32) || defined(CONFIG_PPC64)
+
 /* Cache-inhibited register offsets */
 #define BM_REG_RCR_PI_CINH	0x0000
 #define BM_REG_RCR_CI_CINH	0x0004
@@ -52,6 +54,29 @@
 #define BM_CL_RCR_PI_CENA	0x3000
 #define BM_CL_RCR_CI_CENA	0x3100
 
+#endif
+
+#if defined(CONFIG_ARM64)
+
+/* Cache-inhibited register offsets */
+#define BM_REG_RCR_PI_CINH	0x3000
+#define BM_REG_RCR_CI_CINH	0x3100
+#define BM_REG_RCR_ITR		0x3200
+#define BM_REG_CFG		0x3300
+#define BM_REG_SCN(n)		(0x3400 + ((n) << 6))
+#define BM_REG_ISR		0x3e00
+#define BM_REG_IIR              0x3ec0
+
+/* Cache-enabled register offsets */
+#define BM_CL_CR		0x0000
+#define BM_CL_RR0		0x0100
+#define BM_CL_RR1		0x0140
+#define BM_CL_RCR		0x1000
+#define BM_CL_RCR_PI_CENA	0x3000
+#define BM_CL_RCR_CI_CENA	0x3100
+
+#endif
+
 /* BTW, the drivers (and h/w programming model) already obtain the required
  * synchronisation for portal accesses via lwsync(), hwsync(), and
  * data-dependencies. Use of barrier()s or other order-preserving primitives
@@ -60,19 +85,20 @@
  * non-coherent). */
 
 /* Cache-inhibited register access. */
-#define __bm_in(bm, o)		__raw_readl((bm)->addr_ci + (o))
-#define __bm_out(bm, o, val)	__raw_writel((val), (bm)->addr_ci + (o))
+#define __bm_in(bm, o)		be32_to_cpu(__raw_readl((bm)->addr_ci + (o)))
+#define __bm_out(bm, o, val)    __raw_writel(cpu_to_be32(val), \
+					     (bm)->addr_ci + (o));
 #define bm_in(reg)		__bm_in(&portal->addr, BM_REG_##reg)
 #define bm_out(reg, val)	__bm_out(&portal->addr, BM_REG_##reg, val)
 
 /* Cache-enabled (index) register access */
 #define __bm_cl_touch_ro(bm, o) dcbt_ro((bm)->addr_ce + (o))
 #define __bm_cl_touch_rw(bm, o) dcbt_rw((bm)->addr_ce + (o))
-#define __bm_cl_in(bm, o)	__raw_readl((bm)->addr_ce + (o))
+#define __bm_cl_in(bm, o)	be32_to_cpu(__raw_readl((bm)->addr_ce + (o)))
 #define __bm_cl_out(bm, o, val) \
 	do { \
 		u32 *__tmpclout = (bm)->addr_ce + (o); \
-		__raw_writel((val), __tmpclout); \
+		__raw_writel(cpu_to_be32(val), __tmpclout); \
 		dcbf(__tmpclout); \
 	} while (0)
 #define __bm_cl_invalidate(bm, o) dcbi((bm)->addr_ce + (o))
@@ -196,6 +222,7 @@ static inline int bm_rcr_init(struct bm_portal *portal, enum bm_rcr_pmode pmode,
 
 	rcr->ring = portal->addr.addr_ce + BM_CL_RCR;
 	rcr->ci = bm_in(RCR_CI_CINH) & (BM_RCR_SIZE - 1);
+
 	pi = bm_in(RCR_PI_CINH) & (BM_RCR_SIZE - 1);
 	rcr->cursor = rcr->ring + pi;
 	rcr->vbit = (bm_in(RCR_PI_CINH) & BM_RCR_SIZE) ?  BM_RCR_VERB_VBIT : 0;
@@ -487,13 +514,21 @@ static inline void bm_isr_bscn_mask(struct bm_portal *portal, u8 bpid,
 
 static inline u32 __bm_isr_read(struct bm_portal *portal, enum bm_isr_reg n)
 {
+#if defined(CONFIG_ARM64)
+	return __bm_in(&portal->addr, BM_REG_ISR + (n << 6));
+#else
 	return __bm_in(&portal->addr, BM_REG_ISR + (n << 2));
+#endif
 }
 
 static inline void __bm_isr_write(struct bm_portal *portal, enum bm_isr_reg n,
 					u32 val)
 {
+#if defined(CONFIG_ARM64)
+	__bm_out(&portal->addr, BM_REG_ISR + (n << 6), val);
+#else
 	__bm_out(&portal->addr, BM_REG_ISR + (n << 2), val);
+#endif
 }
 
 /* Buffer Pool Cleanup */

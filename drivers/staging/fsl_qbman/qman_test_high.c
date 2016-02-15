@@ -185,6 +185,8 @@ static enum qman_cb_dqrr_result cb_dqrr(struct qman_portal *p,
 {
 	if (fd_cmp(&fd_dq, &dq->fd)) {
 		pr_err("BADNESS: dequeued frame doesn't match;\n");
+		pr_err("Expected 0x%llx, got 0x%llx\n",
+		       fd_dq.length29, dq->fd.length29);
 		BUG();
 	}
 	fd_inc(&fd_dq);

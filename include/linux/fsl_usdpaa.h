@@ -311,7 +311,7 @@ struct compat_ioctl_raw_portal {
 #ifdef __KERNEL__
 
 /* Early-boot hook */
-void __init fsl_usdpaa_init_early(void);
+int __init fsl_usdpaa_init_early(void);
 
 /* Fault-handling in arch/powerpc/mm/mem.c gives USDPAA an opportunity to detect
  * faults within its ranges via this hook. */
