@@ -32,6 +32,21 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+&bman_fbpr {
+        compatible = "fsl,bman-fbpr";
+        alloc-ranges = <0 0 0x10000 0>;
+};
+
+&qman_fqd {
+        compatible = "fsl,qman-fqd";
+        alloc-ranges = <0 0 0x10000 0>;
+};
+
+&qman_pfdr {
+        compatible = "fsl,qman-pfdr";
+        alloc-ranges = <0 0 0x10000 0>;
+};
+
 &ifc {
 	#address-cells = <2>;
 	#size-cells = <1>;

@@ -118,16 +118,19 @@
 	compatible = "simple-bus";
 
 	bman-portal@0 {
+		cell-index = <0>;
 		compatible = "fsl,bman-portal";
 		reg = <0x0 0x4000>, <0x100000 0x1000>;
 		interrupts = <30 2 0 0>;
 	};
 	bman-portal@4000 {
+		cell-index = <1>;
 		compatible = "fsl,bman-portal";
 		reg = <0x4000 0x4000>, <0x101000 0x1000>;
 		interrupts = <32 2 0 0>;
 	};
 	bman-portal@8000 {
+		cell-index = <2>;
 		compatible = "fsl,bman-portal";
 		reg = <0x8000 0x4000>, <0x102000 0x1000>;
 		interrupts = <34 2 0 0>;
