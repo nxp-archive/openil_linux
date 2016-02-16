@@ -22,4 +22,7 @@ endif
 ifeq ($(CONFIG_FMAN_V3L),y)
 fsl-ncsw-MAC-objs       +=  memac.o memac_mii_acc.o fman_memac_mii_acc.o
 endif
+ifeq ($(CONFIG_FMAN_ARM),y)
+fsl-ncsw-MAC-objs       +=  memac.o memac_mii_acc.o fman_memac_mii_acc.o
+endif
 

@@ -715,7 +715,7 @@ t_Error FmMacsecCreateRxSa(t_Handle h_FmMacsec, uint32_t scId, e_ScSaId saId, ma
     WRITE_UINT32(p_FmMacsec->p_FmMacsecRegs->rxsca, scId);
     WRITE_UINT32(p_FmMacsec->p_FmMacsecRegs->fmMacsecRxScSa[saId].rxsanpn, DEFAULT_initNextPn);
     WRITE_UINT32(p_FmMacsec->p_FmMacsecRegs->fmMacsecRxScSa[saId].rxsalpn, lowestPn);
-    Mem2IOCpy32((void*)p_FmMacsec->p_FmMacsecRegs->fmMacsecRxScSa[saId].rxsak, key, sizeof(macsecSAKey_t));
+    MemCpy8((void*)p_FmMacsec->p_FmMacsecRegs->fmMacsecRxScSa[saId].rxsak, key, sizeof(macsecSAKey_t));
 
     tmpReg |= RX_SACFG_ACTIVE;
     tmpReg |= ((an << RX_SACFG_AN_SHIFT) & RX_SACFG_AN_MASK);
@@ -740,7 +740,7 @@ t_Error FmMacsecCreateTxSa(t_Handle h_FmMacsec, uint32_t scId, e_ScSaId saId, ma
 
     WRITE_UINT32(p_FmMacsec->p_FmMacsecRegs->txsca, scId);
     WRITE_UINT32(p_FmMacsec->p_FmMacsecRegs->fmMacsecTxScSa[saId].txsanpn, DEFAULT_initNextPn);
-    Mem2IOCpy32((void*)p_FmMacsec->p_FmMacsecRegs->fmMacsecTxScSa[saId].txsak, key, sizeof(macsecSAKey_t));
+    MemCpy8((void*)p_FmMacsec->p_FmMacsecRegs->fmMacsecTxScSa[saId].txsak, key, sizeof(macsecSAKey_t));
 
     tmpReg |= TX_SACFG_ACTIVE;
     WRITE_UINT32(p_FmMacsec->p_FmMacsecRegs->fmMacsecTxScSa[saId].txsacs, tmpReg);

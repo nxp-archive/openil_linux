@@ -165,7 +165,7 @@ static t_FmPcdStatsObj* GetStatsObj(t_FmPcdCcNode *p_CcNode)
             REPORT_ERROR(MAJOR, E_NO_MEMORY, ("MURAM allocation for statistics ADs"));
             return NULL;
         }
-        IOMemSet32(p_StatsObj->h_StatsAd, 0, FM_PCD_CC_AD_ENTRY_SIZE);
+        MemSet8(p_StatsObj->h_StatsAd, 0, FM_PCD_CC_AD_ENTRY_SIZE);
 
         p_StatsObj->h_StatsCounters = (t_Handle)FM_MURAM_AllocMem(
                 h_FmMuram, p_CcNode->countersArraySize,
@@ -177,7 +177,7 @@ static t_FmPcdStatsObj* GetStatsObj(t_FmPcdCcNode *p_CcNode)
             REPORT_ERROR(MAJOR, E_NO_MEMORY, ("MURAM allocation for statistics counters"));
             return NULL;
         }
-        IOMemSet32(p_StatsObj->h_StatsCounters, 0, p_CcNode->countersArraySize);
+        MemSet8(p_StatsObj->h_StatsCounters, 0, p_CcNode->countersArraySize);
     }
 
     return p_StatsObj;
@@ -195,7 +195,7 @@ static void PutStatsObj(t_FmPcdCcNode *p_CcNode, t_FmPcdStatsObj *p_StatsObj)
     if (p_CcNode->maxNumOfKeys)
     {
         /* Nullify counters */
-        IOMemSet32(p_StatsObj->h_StatsCounters, 0, p_CcNode->countersArraySize);
+        MemSet8(p_StatsObj->h_StatsCounters, 0, p_CcNode->countersArraySize);
 
         EnqueueStatsObj(&p_CcNode->availableStatsLst, p_StatsObj);
     }
@@ -367,8 +367,8 @@ static void FillAdOfTypeContLookup(t_Handle h_Ad,
         tmpReg32 |= p_Node->parseCode;
         WRITE_UINT32(p_AdContLookup->pcAndOffsets, tmpReg32);
 
-        Mem2IOCpy32((void*)&p_AdContLookup->gmask, p_Node->p_GlblMask,
-                        CC_GLBL_MASK_SIZE);
+        MemCpy8((void*)&p_AdContLookup->gmask, p_Node->p_GlblMask,
+                    CC_GLBL_MASK_SIZE);
     }
 }
 
@@ -396,7 +396,7 @@ static t_Error AllocAndFillAdForContLookupManip(t_Handle h_CcNode)
             RETURN_ERROR(MAJOR, E_NO_MEMORY,
                          ("MURAM allocation for CC action descriptor"));
 
-        IOMemSet32(p_CcNode->h_Ad, 0, FM_PCD_CC_AD_ENTRY_SIZE);
+        MemSet8(p_CcNode->h_Ad, 0, FM_PCD_CC_AD_ENTRY_SIZE);
 
         FillAdOfTypeContLookup(p_CcNode->h_Ad, NULL, p_CcNode->h_FmPcd,
                                p_CcNode, NULL, NULL);
@@ -1005,11 +1005,11 @@ static t_Error DoDynamicChange(
 			else
 				keySize = p_CcNode->ccKeySizeAccExtraction;
 
-			IO2IOCpy32(p_AdditionalParams->p_KeysMatchTableOld,
+			MemCpy8(p_AdditionalParams->p_KeysMatchTableOld,
 					   p_AdditionalParams->p_KeysMatchTableNew,
 					   p_CcNode->maxNumOfKeys * keySize * sizeof(uint8_t));
 
-			IO2IOCpy32(
+			MemCpy8(
 					p_AdditionalParams->p_AdTableOld,
 					p_AdditionalParams->p_AdTableNew,
 					(uint32_t)((p_CcNode->maxNumOfKeys + 1)
@@ -1032,8 +1032,8 @@ static t_Error DoDynamicChange(
 			/* HC to copy from the new Ad (old updated structures) to current Ad (uses shadow structures) */
 			err = DynamicChangeHc(h_FmPcd, h_OldPointersLst, h_NewPointersLst,
 								  p_AdditionalParams, useShadowStructs);
-                        if (err)
-                            RETURN_ERROR(MAJOR, err, NO_MSG);
+			if (err)
+				RETURN_ERROR(MAJOR, err, NO_MSG);
 		}
     }
 
@@ -2515,12 +2515,12 @@ static t_Error BuildNewNodeCommonPart(
                          ("MURAM allocation for CC node key match table"));
         }
 
-        IOMemSet32(
+        MemSet8(
                 (uint8_t*)p_AdditionalInfo->p_AdTableNew,
                 0,
                 (uint32_t)((p_AdditionalInfo->numOfKeys + 1)
                         * FM_PCD_CC_AD_ENTRY_SIZE));
-        IOMemSet32((uint8_t*)p_AdditionalInfo->p_KeysMatchTableNew, 0,
+        MemSet8((uint8_t*)p_AdditionalInfo->p_KeysMatchTableNew, 0,
                    *size * sizeof(uint8_t) * (p_AdditionalInfo->numOfKeys + 1));
     }
     else
@@ -2542,12 +2542,12 @@ static t_Error BuildNewNodeCommonPart(
         p_AdditionalInfo->p_AdTableNew =
                 PTR_MOVE(p_AdditionalInfo->p_KeysMatchTableNew, p_CcNode->keysMatchTableMaxSize);
 
-        IOMemSet32(
+        MemSet8(
                 (uint8_t*)p_AdditionalInfo->p_AdTableNew,
                 0,
                 (uint32_t)((p_CcNode->maxNumOfKeys + 1)
                         * FM_PCD_CC_AD_ENTRY_SIZE));
-        IOMemSet32((uint8_t*)p_AdditionalInfo->p_KeysMatchTableNew, 0,
+        MemSet8((uint8_t*)p_AdditionalInfo->p_KeysMatchTableNew, 0,
                    (*size) * sizeof(uint8_t) * (p_CcNode->maxNumOfKeys));
     }
 
@@ -2685,7 +2685,7 @@ static t_Error BuildNewNodeAddOrMdfyKeyAndNextEngine(
             p_KeysMatchTableNewTmp =
                     PTR_MOVE(p_AdditionalInfo->p_KeysMatchTableNew, j*size*sizeof(uint8_t));
 
-            Mem2IOCpy32((void*)p_KeysMatchTableNewTmp, p_KeyParams->p_Key,
+            MemCpy8((void*)p_KeysMatchTableNewTmp, p_KeyParams->p_Key,
                         p_CcNode->userSizeOfExtraction);
 
             /* Update mask for the received new key */
@@ -2693,7 +2693,7 @@ static t_Error BuildNewNodeAddOrMdfyKeyAndNextEngine(
             {
                 if (p_KeyParams->p_Mask)
                 {
-                    Mem2IOCpy32(PTR_MOVE(p_KeysMatchTableNewTmp,
+                    MemCpy8(PTR_MOVE(p_KeysMatchTableNewTmp,
                             p_CcNode->ccKeySizeAccExtraction),
                                 p_KeyParams->p_Mask,
                                 p_CcNode->userSizeOfExtraction);
@@ -2701,13 +2701,13 @@ static t_Error BuildNewNodeAddOrMdfyKeyAndNextEngine(
                 else
                     if (p_CcNode->ccKeySizeAccExtraction > 4)
                     {
-                        IOMemSet32(PTR_MOVE(p_KeysMatchTableNewTmp,
+                        MemSet8(PTR_MOVE(p_KeysMatchTableNewTmp,
                                 p_CcNode->ccKeySizeAccExtraction),
                                    0xff, p_CcNode->userSizeOfExtraction);
                     }
                     else
                     {
-                        Mem2IOCpy32(PTR_MOVE(p_KeysMatchTableNewTmp,
+                        MemCpy8(PTR_MOVE(p_KeysMatchTableNewTmp,
                                 p_CcNode->ccKeySizeAccExtraction),
                                     p_CcNode->p_GlblMask,
                                     p_CcNode->userSizeOfExtraction);
@@ -2723,7 +2723,7 @@ static t_Error BuildNewNodeAddOrMdfyKeyAndNextEngine(
             /* Copy existing action descriptors to the newly allocated Ad table */
             p_AdTableOldTmp =
                     PTR_MOVE(p_AdditionalInfo->p_AdTableOld, i*FM_PCD_CC_AD_ENTRY_SIZE);
-            IO2IOCpy32(p_AdTableNewTmp, p_AdTableOldTmp,
+            MemCpy8(p_AdTableNewTmp, p_AdTableOldTmp,
                        FM_PCD_CC_AD_ENTRY_SIZE);
 
             /* Copy existing keys and their masks to the newly allocated keys match table */
@@ -2736,7 +2736,7 @@ static t_Error BuildNewNodeAddOrMdfyKeyAndNextEngine(
             {
                 if (prvLclMask)
                 {
-                    IO2IOCpy32(
+                    MemCpy8(
                             PTR_MOVE(p_KeysMatchTableNewTmp, p_CcNode->ccKeySizeAccExtraction),
                             PTR_MOVE(p_KeysMatchTableOldTmp, p_CcNode->ccKeySizeAccExtraction),
                             p_CcNode->ccKeySizeAccExtraction);
@@ -2749,13 +2749,13 @@ static t_Error BuildNewNodeAddOrMdfyKeyAndNextEngine(
 
                     if (p_CcNode->ccKeySizeAccExtraction > 4)
                     {
-                        IOMemSet32(PTR_MOVE(p_KeysMatchTableNewTmp,
+                        MemSet8(PTR_MOVE(p_KeysMatchTableNewTmp,
                                 p_CcNode->ccKeySizeAccExtraction),
                                    0xff, p_CcNode->userSizeOfExtraction);
                     }
                     else
                     {
-                        IO2IOCpy32(PTR_MOVE(p_KeysMatchTableNewTmp,
+                        MemCpy8(PTR_MOVE(p_KeysMatchTableNewTmp,
                                 p_CcNode->ccKeySizeAccExtraction),
                                    p_CcNode->p_GlblMask,
                                    p_CcNode->userSizeOfExtraction);
@@ -2763,7 +2763,7 @@ static t_Error BuildNewNodeAddOrMdfyKeyAndNextEngine(
                 }
             }
 
-            IO2IOCpy32(p_KeysMatchTableNewTmp, p_KeysMatchTableOldTmp,
+            MemCpy8(p_KeysMatchTableNewTmp, p_KeysMatchTableOldTmp,
                        p_CcNode->ccKeySizeAccExtraction);
 
             i++;
@@ -2775,7 +2775,7 @@ static t_Error BuildNewNodeAddOrMdfyKeyAndNextEngine(
             PTR_MOVE(p_AdditionalInfo->p_AdTableNew, j * FM_PCD_CC_AD_ENTRY_SIZE);
     p_AdTableOldTmp =
             PTR_MOVE(p_AdditionalInfo->p_AdTableOld, i * FM_PCD_CC_AD_ENTRY_SIZE);
-    IO2IOCpy32(p_AdTableNewTmp, p_AdTableOldTmp, FM_PCD_CC_AD_ENTRY_SIZE);
+    MemCpy8(p_AdTableNewTmp, p_AdTableOldTmp, FM_PCD_CC_AD_ENTRY_SIZE);
 
     if (!LIST_IsEmpty(&p_CcNode->ccTreesLst))
     {
@@ -2888,13 +2888,13 @@ static t_Error BuildNewNodeRemoveKey(
                 PTR_MOVE(p_AdditionalInfo->p_AdTableNew, i * FM_PCD_CC_AD_ENTRY_SIZE);
         p_AdTableOldTmp =
                 PTR_MOVE(p_AdditionalInfo->p_AdTableOld, j * FM_PCD_CC_AD_ENTRY_SIZE);
-        IO2IOCpy32(p_AdTableNewTmp, p_AdTableOldTmp, FM_PCD_CC_AD_ENTRY_SIZE);
+        MemCpy8(p_AdTableNewTmp, p_AdTableOldTmp, FM_PCD_CC_AD_ENTRY_SIZE);
 
         p_KeysMatchTableOldTmp =
                 PTR_MOVE(p_AdditionalInfo->p_KeysMatchTableOld, j * size * sizeof(uint8_t));
         p_KeysMatchTableNewTmp =
                 PTR_MOVE(p_AdditionalInfo->p_KeysMatchTableNew, i * size * sizeof(uint8_t));
-        IO2IOCpy32(p_KeysMatchTableNewTmp, p_KeysMatchTableOldTmp,
+        MemCpy8(p_KeysMatchTableNewTmp, p_KeysMatchTableOldTmp,
                    size * sizeof(uint8_t));
     }
 
@@ -2902,7 +2902,7 @@ static t_Error BuildNewNodeRemoveKey(
             PTR_MOVE(p_AdditionalInfo->p_AdTableNew, i * FM_PCD_CC_AD_ENTRY_SIZE);
     p_AdTableOldTmp =
             PTR_MOVE(p_AdditionalInfo->p_AdTableOld, j * FM_PCD_CC_AD_ENTRY_SIZE);
-    IO2IOCpy32(p_AdTableNewTmp, p_AdTableOldTmp, FM_PCD_CC_AD_ENTRY_SIZE);
+    MemCpy8(p_AdTableNewTmp, p_AdTableOldTmp, FM_PCD_CC_AD_ENTRY_SIZE);
 
     if (p_CcNode->keyAndNextEngineParams[keyIndex].nextEngineParams.nextEngine
             == e_FM_PCD_CC)
@@ -2976,7 +2976,7 @@ static t_Error BuildNewNodeModifyKey(
         p_AdTableOldTmp =
                 PTR_MOVE(p_AdditionalInfo->p_AdTableOld, i*FM_PCD_CC_AD_ENTRY_SIZE);
 
-        IO2IOCpy32(p_AdTableNewTmp, p_AdTableOldTmp, FM_PCD_CC_AD_ENTRY_SIZE);
+        MemCpy8(p_AdTableNewTmp, p_AdTableOldTmp, FM_PCD_CC_AD_ENTRY_SIZE);
 
         if (j == keyIndex)
         {
@@ -3019,22 +3019,22 @@ static t_Error BuildNewNodeModifyKey(
             p_KeysMatchTableNewTmp =
                     PTR_MOVE(p_AdditionalInfo->p_KeysMatchTableNew, j * size * sizeof(uint8_t));
 
-            Mem2IOCpy32(p_KeysMatchTableNewTmp, p_Key,
+            MemCpy8(p_KeysMatchTableNewTmp, p_Key,
                         p_CcNode->userSizeOfExtraction);
 
             if (p_CcNode->lclMask)
             {
                 if (p_Mask)
-                    Mem2IOCpy32(PTR_MOVE(p_KeysMatchTableNewTmp,
+                    MemCpy8(PTR_MOVE(p_KeysMatchTableNewTmp,
                             p_CcNode->ccKeySizeAccExtraction),
                                 p_Mask, p_CcNode->userSizeOfExtraction);
                 else
                     if (p_CcNode->ccKeySizeAccExtraction > 4)
-                        IOMemSet32(PTR_MOVE(p_KeysMatchTableNewTmp,
+                        MemSet8(PTR_MOVE(p_KeysMatchTableNewTmp,
                                 p_CcNode->ccKeySizeAccExtraction),
                                    0xff, p_CcNode->userSizeOfExtraction);
                     else
-                        Mem2IOCpy32(PTR_MOVE(p_KeysMatchTableNewTmp,
+                        MemCpy8(PTR_MOVE(p_KeysMatchTableNewTmp,
                                 p_CcNode->ccKeySizeAccExtraction),
                                     p_CcNode->p_GlblMask,
                                     p_CcNode->userSizeOfExtraction);
@@ -3050,7 +3050,7 @@ static t_Error BuildNewNodeModifyKey(
             if (p_CcNode->lclMask)
             {
                 if (prvLclMask)
-                    IO2IOCpy32(
+                    MemCpy8(
                             PTR_MOVE(p_KeysMatchTableNewTmp, p_CcNode->ccKeySizeAccExtraction),
                             PTR_MOVE(p_KeysMatchTableOldTmp, p_CcNode->ccKeySizeAccExtraction),
                             p_CcNode->userSizeOfExtraction);
@@ -3061,17 +3061,17 @@ static t_Error BuildNewNodeModifyKey(
                                      i * (int)p_CcNode->ccKeySizeAccExtraction * sizeof(uint8_t));
 
                     if (p_CcNode->ccKeySizeAccExtraction > 4)
-                        IOMemSet32(PTR_MOVE(p_KeysMatchTableNewTmp,
+                        MemSet8(PTR_MOVE(p_KeysMatchTableNewTmp,
                                 p_CcNode->ccKeySizeAccExtraction),
                                    0xff, p_CcNode->userSizeOfExtraction);
                     else
-                        IO2IOCpy32(
+                        MemCpy8(
                                 PTR_MOVE(p_KeysMatchTableNewTmp, p_CcNode->ccKeySizeAccExtraction),
                                 p_CcNode->p_GlblMask,
                                 p_CcNode->userSizeOfExtraction);
                 }
             }
-            IO2IOCpy32((void*)p_KeysMatchTableNewTmp, p_KeysMatchTableOldTmp,
+            MemCpy8((void*)p_KeysMatchTableNewTmp, p_KeysMatchTableOldTmp,
                        p_CcNode->ccKeySizeAccExtraction);
         }
     }
@@ -3080,7 +3080,7 @@ static t_Error BuildNewNodeModifyKey(
             PTR_MOVE(p_AdditionalInfo->p_AdTableNew, j * FM_PCD_CC_AD_ENTRY_SIZE);
     p_AdTableOldTmp = PTR_MOVE(p_CcNode->h_AdTable, i * FM_PCD_CC_AD_ENTRY_SIZE);
 
-    IO2IOCpy32(p_AdTableNewTmp, p_AdTableOldTmp, FM_PCD_CC_AD_ENTRY_SIZE);
+    MemCpy8(p_AdTableNewTmp, p_AdTableOldTmp, FM_PCD_CC_AD_ENTRY_SIZE);
 
     return E_OK;
 }
@@ -3203,7 +3203,7 @@ static t_Error BuildNewNodeModifyNextEngine(
     if (!p_Ad)
         RETURN_ERROR(MAJOR, E_NO_MEMORY,
                      ("MURAM allocation for CC node action descriptor"));
-    IOMemSet32((uint8_t *)p_Ad, 0, FM_PCD_CC_AD_ENTRY_SIZE);
+    MemSet8((uint8_t *)p_Ad, 0, FM_PCD_CC_AD_ENTRY_SIZE);
 
     /* If statistics were not enabled before, but requested now -  Allocate a statistics
      object that holds statistics AD and counters. */
@@ -3568,7 +3568,7 @@ static t_Error UpdatePtrWhichPointOnCrntMdfNode(
         h_NewAd = GetNewAd(p_CcNode, FALSE);
         if (!h_NewAd)
             RETURN_ERROR(MAJOR, E_NO_MEMORY, NO_MSG);
-        IOMemSet32(h_NewAd, 0, FM_PCD_CC_AD_ENTRY_SIZE);
+        MemSet8(h_NewAd, 0, FM_PCD_CC_AD_ENTRY_SIZE);
 
         h_OrigAd = p_CcNode->h_Ad;
         BuildNewAd(h_NewAd, p_FmPcdModifyCcKeyAdditionalParams, p_CcNode,
@@ -4054,6 +4054,7 @@ static t_Error IcHashIndexedCheckParams(t_Handle h_FmPcd,
     }
 
     *isKeyTblAlloc = FALSE;
+    cpu_to_be16s(&glblMask);
     memcpy(PTR_MOVE(p_CcNode->p_GlblMask, 2), &glblMask, 2);
 
     return E_OK;
@@ -4251,7 +4252,7 @@ static t_Error AllocStatsObjs(t_FmPcdCcNode *p_CcNode)
             RETURN_ERROR(MAJOR, E_NO_MEMORY,
                          ("MURAM allocation for statistics ADs"));
         }
-        IOMemSet32(h_StatsAd, 0, FM_PCD_CC_AD_ENTRY_SIZE);
+        MemSet8(h_StatsAd, 0, FM_PCD_CC_AD_ENTRY_SIZE);
 
         /* Allocate statistics counters from MURAM */
         h_StatsCounters = (t_Handle)FM_MURAM_AllocMem(
@@ -4265,7 +4266,7 @@ static t_Error AllocStatsObjs(t_FmPcdCcNode *p_CcNode)
             RETURN_ERROR(MAJOR, E_NO_MEMORY,
                          ("MURAM allocation for statistics counters"));
         }
-        IOMemSet32(h_StatsCounters, 0, p_CcNode->countersArraySize);
+        MemSet8(h_StatsCounters, 0, p_CcNode->countersArraySize);
 
         p_StatsObj->h_StatsAd = h_StatsAd;
         p_StatsObj->h_StatsCounters = h_StatsCounters;
@@ -4668,11 +4669,14 @@ static t_Error MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNode *p_CcNode,
             /* Initialize using value received from the user */
             for (tmp = 0; tmp < p_CcNode->numOfStatsFLRs; tmp++)
             {
+                uint16_t flr =
+                         cpu_to_be16(p_CcNodeParam->keysParams.frameLengthRanges[tmp]);
+
                 h_StatsFLRs =
                         PTR_MOVE(p_CcNode->h_StatsFLRs, tmp * FM_PCD_CC_STATS_FLR_SIZE);
 
-                Mem2IOCpy32(h_StatsFLRs,
-                            &(p_CcNodeParam->keysParams.frameLengthRanges[tmp]),
+                MemCpy8(h_StatsFLRs,
+                            &flr,
                             FM_PCD_CC_STATS_FLR_SIZE);
             }
             break;
@@ -4694,7 +4698,7 @@ static t_Error MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNode *p_CcNode,
             RETURN_ERROR(MAJOR, E_NO_MEMORY,
                          ("MURAM allocation for CC node key match table"));
         }
-        IOMemSet32((uint8_t *)p_CcNode->h_KeysMatchTable, 0, matchTableSize);
+        MemSet8((uint8_t *)p_CcNode->h_KeysMatchTable, 0, matchTableSize);
     }
 
     /* Allocate action descriptors table */
@@ -4706,7 +4710,7 @@ static t_Error MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNode *p_CcNode,
         RETURN_ERROR(MAJOR, E_NO_MEMORY,
                      ("MURAM allocation for CC node action descriptors table"));
     }
-    IOMemSet32((uint8_t *)p_CcNode->h_AdTable, 0, adTableSize);
+    MemSet8((uint8_t *)p_CcNode->h_AdTable, 0, adTableSize);
 
     p_KeysMatchTblTmp = p_CcNode->h_KeysMatchTable;
     p_AdTableTmp = p_CcNode->h_AdTable;
@@ -4719,20 +4723,20 @@ static t_Error MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNode *p_CcNode,
         if (p_KeysMatchTblTmp)
         {
             /* Copy the key */
-            Mem2IOCpy32((void*)p_KeysMatchTblTmp, p_KeyParams->p_Key,
+            MemCpy8((void*)p_KeysMatchTblTmp, p_KeyParams->p_Key,
                         p_CcNode->sizeOfExtraction);
 
             /* Copy the key mask or initialize it to 0xFF..F */
             if (p_CcNode->lclMask && p_KeyParams->p_Mask)
             {
-                Mem2IOCpy32(PTR_MOVE(p_KeysMatchTblTmp,
+                MemCpy8(PTR_MOVE(p_KeysMatchTblTmp,
                         p_CcNode->ccKeySizeAccExtraction), /* User's size of extraction rounded up to a valid matching table entry size */
                             p_KeyParams->p_Mask, p_CcNode->sizeOfExtraction); /* Exact size of extraction as received from the user */
             }
             else
                 if (p_CcNode->lclMask)
                 {
-                    IOMemSet32(PTR_MOVE(p_KeysMatchTblTmp,
+                    MemSet8(PTR_MOVE(p_KeysMatchTblTmp,
                             p_CcNode->ccKeySizeAccExtraction), /* User's size of extraction rounded up to a valid matching table entry size */
                                0xff, p_CcNode->sizeOfExtraction); /* Exact size of extraction as received from the user */
                 }
@@ -6174,7 +6178,7 @@ t_Handle FM_PCD_CcRootBuild(t_Handle h_FmPcd,
         REPORT_ERROR(MAJOR, E_NO_MEMORY, ("MURAM allocation for CC Tree"));
         return NULL;
     }
-    IOMemSet32(
+    MemSet8(
             UINT_TO_PTR(p_FmPcdCcTree->ccTreeBaseAddr), 0,
             (uint32_t)(FM_PCD_MAX_NUM_OF_CC_GROUPS * FM_PCD_CC_AD_ENTRY_SIZE));
 
@@ -7079,6 +7083,7 @@ t_Error FM_PCD_MatchTableGetIndexedHashBucket(t_Handle h_CcNode,
     SANITY_CHECK_RETURN_ERROR(p_CcNodeBucketHandle, E_NULL_POINTER);
 
     memcpy(&glblMask, PTR_MOVE(p_CcNode->p_GlblMask, 2), 2);
+    be16_to_cpus(&glblMask);
 
     crc64 = crc64_init();
     crc64 = crc64_compute(p_Key, keySize, crc64);

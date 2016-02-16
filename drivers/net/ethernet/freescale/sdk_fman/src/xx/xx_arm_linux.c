@@ -31,7 +31,7 @@
  */
 
 /**************************************************************************//**
- @File          xx_linux.c
+ @File          xx_arm_linux.c
 
  @Description   XX routines implementation for Linux.
 *//***************************************************************************/
@@ -62,9 +62,7 @@
 #include <linux/proc_fs.h>
 #include <linux/smp.h>
 #include <linux/of.h>
-#ifdef CONFIG_FMAN_ARM
 #include <linux/irqdomain.h>
-#endif
 
 #include <linux/workqueue.h>
 
@@ -72,9 +70,7 @@
 #include <linux/bigphysarea.h>
 #endif /* BIGPHYSAREA_ENABLE */
 
-#ifndef CONFIG_FMAN_ARM
-#include <sysdev/fsl_soc.h>
-#endif
+//#include <sysdev/fsl_soc.h>
 #include <asm/pgtable.h>
 #include <asm/irq.h>
 #include <asm/bitops.h>
@@ -173,7 +169,7 @@ void XX_Print(char *str, ...)
 #ifdef CONFIG_SMP
     if (vsnprintf (buf, BUF_SIZE, str, args) >= BUF_SIZE)
         printk(KERN_WARNING "Illegal string to print!\n    more than %d characters.\n\tString was not printed completelly.\n", BUF_SIZE);
-    printk(KERN_CRIT "cpu%d/%d: %s", raw_smp_processor_id(), NR_CPUS, buf);
+    printk(KERN_CRIT "cpu %d: %s",  raw_smp_processor_id(), buf);
 #else
     vprintk(str, args);
 #endif /* CONFIG_SMP */
@@ -191,7 +187,7 @@ void XX_Fprint(void *file, char *str, ...)
 #ifdef CONFIG_SMP
     if (vsnprintf (buf, BUF_SIZE, str, args) >= BUF_SIZE)
         printk(KERN_WARNING "Illegal string to print!\n    more than %d characters.\n\tString was not printed completelly.\n", BUF_SIZE);
-    printk (KERN_CRIT "cpu%d/%d: %s", raw_smp_processor_id(), NR_CPUS, buf);
+    printk (KERN_CRIT "cpu %d: %s", smp_processor_id(), buf);
 
 #else
     vprintk(str, args);
@@ -405,18 +401,15 @@ typedef struct {
 
 t_Handle interruptHandlers[0x00010000];
 
-#ifdef CONFIG_FMAN_ARM
 static irqreturn_t LinuxInterruptHandler (int irq, void *dev_id)
 {
     t_InterruptHandler *p_IntrHndl = (t_InterruptHandler *)dev_id;
     p_IntrHndl->f_Isr(p_IntrHndl->handle);
     return IRQ_HANDLED;
 }
-#endif
 
 t_Error XX_SetIntr(int irq, t_Isr *f_Isr, t_Handle handle)
 {
-#ifdef CONFIG_FMAN_ARM
     const char *device;
     t_InterruptHandler *p_IntrHndl;
 
@@ -434,7 +427,7 @@ t_Error XX_SetIntr(int irq, t_Isr *f_Isr, t_Handle handle)
     if (request_irq(GetDeviceIrqNum(irq), LinuxInterruptHandler, 0, device, p_IntrHndl) < 0)
         RETURN_ERROR(MAJOR, E_BUSY, ("Can't get IRQ %s\n", device));
     disable_irq(GetDeviceIrqNum(irq));
-#endif
+
     return E_OK;
 }
 
@@ -855,12 +848,6 @@ t_Handle XX_IpcInitSession(char destAddr[XX_IPC_MAX_ADDR_NAME_LENGTH],
 {
     UNUSED(destAddr); UNUSED(srcAddr);
     return E_OK;
-}
-
-/*Forced to introduce due to PRINT_FMT_PARAMS define*/
-uint32_t E500_GetId(void)
-{
-    return raw_smp_processor_id();
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
