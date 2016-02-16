@@ -112,17 +112,6 @@ static void dpaa2_eth_get_drvinfo(struct net_device *net_dev,
 		sizeof(drvinfo->bus_info));
 }
 
-static u32 dpaa2_eth_get_msglevel(struct net_device *net_dev)
-{
-	return ((struct dpaa2_eth_priv *)netdev_priv(net_dev))->msg_enable;
-}
-
-static void dpaa2_eth_set_msglevel(struct net_device *net_dev, u32 msg_enable)
-{
-	((struct dpaa2_eth_priv *)netdev_priv(net_dev))->msg_enable =
-					msg_enable;
-}
-
 static int dpaa2_eth_get_settings(struct net_device *net_dev,
 				  struct ethtool_cmd *cmd)
 {
@@ -858,8 +847,6 @@ static int dpaa2_eth_get_rxnfc(struct net_device *net_dev,
 
 const struct ethtool_ops dpaa2_ethtool_ops = {
 	.get_drvinfo = dpaa2_eth_get_drvinfo,
-	.get_msglevel = dpaa2_eth_get_msglevel,
-	.set_msglevel = dpaa2_eth_set_msglevel,
 	.get_link = ethtool_op_get_link,
 	.get_settings = dpaa2_eth_get_settings,
 	.set_settings = dpaa2_eth_set_settings,

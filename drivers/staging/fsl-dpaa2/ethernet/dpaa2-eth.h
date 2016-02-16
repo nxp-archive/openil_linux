@@ -311,7 +311,6 @@ struct dpaa2_eth_priv {
 	struct rtnl_link_stats64 __percpu *percpu_stats;
 	/* Extra stats, in addition to the ones known by the kernel */
 	struct dpaa2_eth_drv_stats __percpu *percpu_extras;
-	u32 msg_enable;	/* net_device message level */
 
 	u16 mc_token;
 

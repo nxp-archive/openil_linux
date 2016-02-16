@@ -52,10 +52,6 @@ MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Freescale Semiconductor, Inc");
 MODULE_DESCRIPTION("Freescale DPAA2 Ethernet Driver");
 
-static int debug = -1;
-module_param(debug, int, S_IRUGO);
-MODULE_PARM_DESC(debug, "Module/Driver verbosity level");
-
 /* Oldest DPAA2 objects version we are compatible with */
 #define DPAA2_SUPPORTED_DPNI_VERSION	6
 #define DPAA2_SUPPORTED_DPBP_VERSION	2
@@ -2636,7 +2632,6 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 
 	priv = netdev_priv(net_dev);
 	priv->net_dev = net_dev;
-	priv->msg_enable = netif_msg_init(debug, -1);
 
 	/* Obtain a MC portal */
 	err = fsl_mc_portal_allocate(dpni_dev, FSL_MC_IO_ATOMIC_CONTEXT_PORTAL,
