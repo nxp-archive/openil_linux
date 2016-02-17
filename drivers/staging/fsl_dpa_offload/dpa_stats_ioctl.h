@@ -71,7 +71,7 @@ struct ioc_dpa_stats_cls_member_params {
 struct ioc_dpa_stats_cnt_request_params {
 	struct dpa_stats_cnt_request_params req_params;
 	int cnts_len;
-	dpa_stats_request_cb request_done;
+	bool async_req;
 };
 
 struct ioc_dpa_stats_cnts_reset_params {
@@ -231,7 +231,7 @@ struct dpa_stats_compat_cnt_request_params {
 struct compat_ioc_dpa_stats_cnt_request_params {
 	struct dpa_stats_compat_cnt_request_params req_params;
 	int cnts_len;
-	compat_uptr_t request_done;
+	bool async_req;
 };
 
 struct compat_ioc_dpa_stats_cnts_reset_params {

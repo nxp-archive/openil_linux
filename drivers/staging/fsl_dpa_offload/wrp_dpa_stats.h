@@ -66,18 +66,7 @@ struct dpa_stats_event_params {
 	unsigned int		storage_area_offset;
 	unsigned int		cnts_written;
 	int			bytes_written;
-	dpa_stats_request_cb	request_done;
 };
-
-#ifdef CONFIG_COMPAT
-struct compat_dpa_stats_event_params {
-	int			dpa_stats_id;
-	unsigned int		storage_area_offset;
-	unsigned int		cnts_written;
-	int			bytes_written;
-	compat_uptr_t		request_done;
-};
-#endif
 
 struct dpa_stats_event_queue {
 	struct list_head    lh;     /* Double linked list of events */

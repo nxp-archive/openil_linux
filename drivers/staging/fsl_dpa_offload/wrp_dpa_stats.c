@@ -252,7 +252,7 @@ long wrp_dpa_stats_ioctl(struct file *filp, unsigned int cmd,
 	return wrp_dpa_stats_do_ioctl(filp, cmd, args);
 }
 
-ssize_t wrp_normal_read(struct file *file, char *buf, size_t count, loff_t *off)
+ssize_t wrp_dpa_stats_read(struct file *file, char *buf, size_t count, loff_t *off)
 {
 	struct dpa_stats_event  *event;
 	struct dpa_stats_event_params ev_prm;
@@ -283,7 +283,6 @@ ssize_t wrp_normal_read(struct file *file, char *buf, size_t count, loff_t *off)
 		ev_prm.cnts_written = event->params.cnts_written;
 		ev_prm.dpa_stats_id = event->params.dpa_stats_id;
 		ev_prm.storage_area_offset = event->params.storage_area_offset;
-		ev_prm.request_done = event->params.request_done;
 
 		if (copy_to_user(event->us_cnt_ids, event->ks_cnt_ids,
 				(event->cnt_ids_len * sizeof(int)))) {
@@ -311,94 +310,6 @@ ssize_t wrp_normal_read(struct file *file, char *buf, size_t count, loff_t *off)
 	}
 
 	return c;
-}
-
-#ifdef CONFIG_COMPAT
-ssize_t wrp_compat_read(struct file *file, char *buf, size_t count, loff_t *off)
-{
-	struct dpa_stats_event  *event;
-	struct compat_dpa_stats_event_params ev_prm;
-	size_t c = 0;
-
-	/*
-	 * Make sure that the size of the buffer requested by the user
-	 * is at least the size of an event
-	 */
-	if (count < sizeof(struct compat_dpa_stats_event_params))
-		return -EINVAL;
-
-	/* Dequeue first event by using a blocking call */
-	event = wrp_dpa_stats_dequeue_event(&wrp_dpa_stats.ev_queue, 0);
-	while (event) {
-		memset(&ev_prm, 0,
-				sizeof(struct compat_dpa_stats_event_params));
-
-		if (event->params.bytes_written > 0 && wrp_dpa_stats.k_mem) {
-			if (copy_to_user(wrp_dpa_stats.us_mem +
-					event->params.storage_area_offset,
-					wrp_dpa_stats.k_mem +
-					event->params.storage_area_offset,
-					event->params.bytes_written)) {
-				log_err("Cannot copy counter values to storage area\n");
-				return -EFAULT;
-			}
-		}
-
-		ev_prm.bytes_written = event->params.bytes_written;
-		ev_prm.cnts_written = event->params.cnts_written;
-		ev_prm.dpa_stats_id = event->params.dpa_stats_id;
-		ev_prm.storage_area_offset = event->params.storage_area_offset;
-		ev_prm.request_done = ptr_to_compat(event->params.request_done);
-
-		if (copy_to_user(event->us_cnt_ids, event->ks_cnt_ids,
-				(event->cnt_ids_len * sizeof(int)))) {
-			kfree(event);
-			return -EFAULT;
-		}
-
-		if (copy_to_user(buf + c, &ev_prm, sizeof(ev_prm)) != 0) {
-			kfree(event);
-			return -EFAULT;
-		}
-
-		kfree(event->ks_cnt_ids);
-		kfree(event);
-
-		count   -= sizeof(struct compat_dpa_stats_event_params);
-		c       += sizeof(struct compat_dpa_stats_event_params);
-
-		if (count < sizeof(struct compat_dpa_stats_event_params))
-			break;
-
-		/* For subsequent events, don't block */
-		event = wrp_dpa_stats_dequeue_event(
-				&wrp_dpa_stats.ev_queue, O_NONBLOCK);
-	}
-
-	return c;
-}
-#endif /* CONFIG_COMPAT */
-
-ssize_t wrp_dpa_stats_read(struct file *file,
-			   char *buf, size_t count, loff_t *off)
-{
-#ifdef CONFIG_COMPAT
-#ifdef DEBUG
-		/* compat mode is when KS is compiled for 64 bits */
-		if (is_32bit_task()) {
-			/* case US is compiled for 32 bit */
-			return wrp_compat_read(file, buf, count, off);
-		} else {
-			/* case US is compiled for 64 bit */
-			return wrp_normal_read(file, buf, count, off);
-		}
-#else
-return wrp_compat_read(file, buf, count, off);
-#endif
-#else
-		/* KS compiled for 32 bit and US compiled for 32 bit too */
-		return wrp_normal_read(file, buf, count, off);
-#endif /* CONFIG_COMPAT */
 }
 
 static void wrp_dpa_stats_event_queue_init(
@@ -535,7 +446,6 @@ void do_ioctl_req_done_cb(int dpa_stats_id,
 	event->params.storage_area_offset = storage_area_offset;
 	event->params.cnts_written = cnts_written;
 	event->params.bytes_written = bytes_written;
-	event->params.request_done = async_req_ev->request_done;
 	event->ks_cnt_ids = async_req_ev->ks_cnt_ids;
 	event->us_cnt_ids = async_req_ev->us_cnt_ids;
 	event->cnt_ids_len = async_req_ev->cnt_ids_len;
@@ -1504,7 +1414,7 @@ static int do_ioctl_stats_get_counters(void *args)
 	}
 
 	/* If counters request is asynchronous */
-	if (prm.request_done) {
+	if (prm.async_req) {
 		ret = store_get_cnts_async_params(&prm, cnts_ids);
 		if (ret < 0) {
 			kfree(prm.req_params.cnts_ids);
@@ -1512,15 +1422,19 @@ static int do_ioctl_stats_get_counters(void *args)
 		}
 	}
 
-	ret = dpa_stats_get_counters(prm.req_params,
-				    &prm.cnts_len, prm.request_done);
+	/* Replace the application callback with wrapper function */
+	if (prm.async_req)
+		ret = dpa_stats_get_counters(prm.req_params, &prm.cnts_len, do_ioctl_req_done_cb);
+	else
+		ret = dpa_stats_get_counters(prm.req_params, &prm.cnts_len, NULL);
+
 	if (ret < 0) {
 		kfree(prm.req_params.cnts_ids);
 		return ret;
 	}
 
 	/* If request is synchronous copy counters length to user space */
-	if (!prm.request_done) {
+	if (!prm.async_req) {
 		if (wrp_dpa_stats.k_mem)
 			if (copy_to_user((wrp_dpa_stats.us_mem +
 					  prm.req_params.storage_area_offset),
@@ -1565,8 +1479,7 @@ static int do_ioctl_stats_compat_get_counters(void *args)
 	}
 
 	memset(&kprm, 0, sizeof(struct ioc_dpa_stats_cnt_request_params));
-	kprm.request_done = (dpa_stats_request_cb)
-			((compat_ptr)(uprm.request_done));
+	kprm.async_req = uprm.async_req;
 	kprm.req_params.cnts_ids_len = uprm.req_params.cnts_ids_len;
 	kprm.req_params.reset_cnts = uprm.req_params.reset_cnts;
 	kprm.req_params.storage_area_offset =
@@ -1590,7 +1503,7 @@ static int do_ioctl_stats_compat_get_counters(void *args)
 	}
 
 	/* If counters request is asynchronous */
-	if (kprm.request_done) {
+	if (kprm.async_req) {
 		ret = store_get_cnts_async_params(&kprm,
 				(compat_ptr)(uprm.req_params.cnts_ids));
 		if (ret < 0) {
@@ -1600,14 +1513,14 @@ static int do_ioctl_stats_compat_get_counters(void *args)
 	}
 
 	ret = dpa_stats_get_counters(kprm.req_params,
-				     &kprm.cnts_len, kprm.request_done);
+				     &kprm.cnts_len, do_ioctl_req_done_cb);
 	if (ret < 0) {
 		kfree(kprm.req_params.cnts_ids);
 		return ret;
 	}
 
 	/* If request is synchronous copy counters length to user space */
-	if (!kprm.request_done) {
+	if (!kprm.async_req) {
 		if (wrp_dpa_stats.k_mem)
 			if (copy_to_user((wrp_dpa_stats.us_mem +
 					kprm.req_params.storage_area_offset),
@@ -1936,7 +1849,6 @@ static long store_get_cnts_async_params(
 	async_req_ev = list_entry(wrp_dpa_stats.async_req_pool.next,
 			struct dpa_stats_async_req_ev, node);
 	list_del(&async_req_ev->node);
-	async_req_ev->request_done = kprm->request_done;
 	async_req_ev->storage_area_offset =
 			kprm->req_params.storage_area_offset;
 
@@ -1945,9 +1857,6 @@ static long store_get_cnts_async_params(
 	async_req_ev->cnt_ids_len = kprm->req_params.cnts_ids_len;
 	list_add_tail(&async_req_ev->node, async_req_grp);
 	mutex_unlock(&wrp_dpa_stats.async_req_lock);
-
-	/* Replace the application callback with wrapper function */
-	kprm->request_done = do_ioctl_req_done_cb;
 
 	return 0;
 }
