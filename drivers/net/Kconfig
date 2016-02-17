@@ -21,6 +21,72 @@ menuconfig NETDEVICES
 
 	  If unsure, say Y.
 
+config AS_FASTPATH
+	default n
+	bool "Application Specific FastPath"
+	select NAMESPACES
+	select NET_NS
+	select NETFILTER
+	select NETFILTER_ADVANCED
+	select NF_CONNTRACK
+	select NF_CONNTRACK_EVENTS
+	select NF_CONNTRACK_FTP
+	select NF_CONNTRACK_TFTP
+	select NETFILTER_XTABLES
+	select NF_CONNTRACK_IPV4
+	select NF_CONNTRACK_PROC_COMPAT
+	select IP_NF_IPTABLES
+	select IP_NF_NAT
+	select IP_NF_MATCH_ADDRTYPE
+	select IP_NF_FILTER
+	select NF_NAT_IPV4
+	select IP_NF_TARGET_REJECT
+	select NF_NAT_NEEDED
+	select IP_NF_TARGET_MASQUERADE
+	select IP_NF_TARGET_REDIRECT
+	select NF_NAT_FTP
+	select NF_NAT_TFTP
+	select IP_NF_MANGLE
+	select VLAN_8021Q
+	select INET_AH
+	select PPP
+	select PPPOE
+	select FSL_DPAA_HOOKS if FSL_DPAA_ETH
+	---help---
+	  Enables application specific fastpath n/w stack that
+	  accelerates the throughput for forwarding, firewall, NAT and IPsec
+	  over native Linux stack.
+if AS_FASTPATH
+config FSL_DPAA_ETH_MAX_BUF_COUNT
+        int
+        depends on FSL_DPAA_ETH
+        range 64 2048
+        default "256"
+        ---help---
+          The maximum number of buffers to be by default allocated in the DPAA-Ethernet private port's
+          buffer pool. One needn't normally modify this, as it has probably been tuned for performance
+          already. This cannot be lower than DPAA_ETH_REFILL_THRESHOLD.
+endif
+config ASF_IPV6
+	default y
+	bool "IPv6 Support in ASF"
+		depends on AS_FASTPATH
+	select IPV6
+	select IPV6_SIT
+	select IPV6_TUNNEL
+	select INET6_TUNNEL
+	select INET6_ESP
+	select INET6_AH
+	select INET6_XFRM_TUNNEL
+	select NF_CONNTRACK_IPV6
+	select INET6_XFRM_MODE_TUNNEL
+	select IP6_NF_IPTABLES
+	select IP6_NF_FILTER
+	select IP6_NF_RAW
+	---help---
+	  This option compiles the ASF for IPV6
+	  Firewall and IPsec.
+
 # All the following symbols are dependent on NETDEVICES - do not repeat
 # that for each of the symbols.
 if NETDEVICES
