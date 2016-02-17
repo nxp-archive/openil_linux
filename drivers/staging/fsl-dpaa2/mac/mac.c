@@ -130,8 +130,7 @@ static void dpaa2_mac_link_changed(struct net_device *netdev)
 }
 
 /* IRQ bits that we handle */
-static const u32 dpmac_irq_mask =  DPMAC_IRQ_EVENT_LINK_CFG_REQ |
-				   DPMAC_IRQ_EVENT_LINK_CHANGED;
+static const u32 dpmac_irq_mask =  DPMAC_IRQ_EVENT_LINK_CFG_REQ;
 
 #ifdef CONFIG_FSL_DPAA2_MAC_NETDEVS
 static netdev_tx_t dpaa2_mac_drop_frame(struct sk_buff *skb,
@@ -411,19 +410,6 @@ static irqreturn_t dpaa2_mac_irq_handler(int irq_num, void *arg)
 			dev_err(dev, "cannot configure link\n");
 			goto out;
 		}
-	}
-
-	/* PHY-initiated link reconfiguration */
-	if (status & DPMAC_IRQ_EVENT_LINK_CHANGED) {
-		dev_dbg(dev, "DPMAC IRQ %d - LINK_CHANGED\n", irq_num);
-		clear |= DPMAC_IRQ_EVENT_LINK_CHANGED;
-
-		/* If PHY is in polling mode, we'll get the chance to call
-		 * dpmac_set_link_state() later; but if it is in interrupt mode,
-		 * we want to make sure we have the DPMAC state updated.
-		 */
-		if (phy_interrupt_is_valid(priv->netdev->phydev))
-			dpaa2_mac_link_changed(priv->netdev);
 	}
 
 out:
