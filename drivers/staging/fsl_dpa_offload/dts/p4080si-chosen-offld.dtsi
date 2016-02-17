@@ -1,0 +1,21 @@
+chosen {
+	name = "chosen";
+
+	dpaa-extended-args {
+		fman1-extd-args {
+			cell-index = <1>;
+			compatible = "fsl,fman-extended-args";
+			dma-aid-mode = "port";
+			fman1_oh2-extd-args {
+				cell-index = <2>;
+				compatible = "fsl,fman-port-op-extended-args";
+				errors-to-discard = <0x00420000>;
+				/* Define buffer layout parameters. Can be used
+				 * in fragmentation or header manip operations
+				 */
+				/* <manip extra space, data alignment> */
+				buffer-layout = <128 64>;
+			};
+		};
+	};
+};
