@@ -1208,12 +1208,25 @@ static struct syscore_ops pci_syscore_pm_ops = {
 	.suspend = fsl_pci_syscore_suspend,
 	.resume = fsl_pci_syscore_resume,
 };
+
+#ifdef CONFIG_HIBERNATE_CALLBACKS
+static int fsl_pci_thaw_noirq(struct device *dev)
+{
+	struct pci_dev *pci_dev = to_pci_dev(dev);
+
+	pci_restore_state(pci_dev);
+	return 0;
+}
+#endif
 #endif
 
 void fsl_pcibios_fixup_phb(struct pci_controller *phb)
 {
 #ifdef CONFIG_PM_SLEEP
 	fsl_pci_pme_probe(phb);
+#ifdef CONFIG_HIBERNATE_CALLBACKS
+	pcibios_pm_ops.thaw_noirq = fsl_pci_thaw_noirq;
+#endif
 #endif
 }
 
