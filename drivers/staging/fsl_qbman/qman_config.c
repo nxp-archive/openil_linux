@@ -1123,7 +1123,7 @@ static struct of_device_id of_fsl_qman_ids[] = {
 };
 MODULE_DEVICE_TABLE(of, of_fsl_qman_ids);
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_SUSPEND
 
 static u32 saved_isdr;
 static int qman_pm_suspend_noirq(struct device *dev)
