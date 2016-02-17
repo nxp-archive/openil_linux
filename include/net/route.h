@@ -304,6 +304,10 @@ static inline int inet_iif(const struct sk_buff *skb)
 	return skb->skb_iif;
 }
 
+#ifdef CONFIG_AS_FASTPATH
+typedef void route_flush_hook(void);
+void route_hook_fn_register(route_flush_hook *flush);
+#endif
 extern int sysctl_ip_default_ttl;
 
 static inline int ip4_dst_hoplimit(const struct dst_entry *dst)

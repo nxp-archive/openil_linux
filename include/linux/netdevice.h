@@ -1550,6 +1550,12 @@ struct net_device {
 	netdev_features_t	mpls_features;
 
 	int			ifindex;
+
+#ifdef CONFIG_AS_FASTPATH
+	/* Common interface id for ASF */
+	int cii;
+#endif
+
 	int			group;
 
 	struct net_device_stats	stats;

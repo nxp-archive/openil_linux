@@ -187,6 +187,9 @@ const __u8 ip_tos2prio[16] = {
 };
 EXPORT_SYMBOL(ip_tos2prio);
 
+#ifdef CONFIG_AS_FASTPATH
+static route_flush_hook *route_flush_fn;
+#endif
 static DEFINE_PER_CPU(struct rt_cache_stat, rt_cache_stat);
 #define RT_CACHE_STAT_INC(field) raw_cpu_inc(rt_cache_stat.field)
 
@@ -433,6 +436,10 @@ static inline bool rt_is_expired(const struct rtable *rth)
 void rt_cache_flush(struct net *net)
 {
 	rt_genid_bump_ipv4(net);
+#ifdef CONFIG_AS_FASTPATH
+	if (route_flush_fn)
+		route_flush_fn();
+#endif
 }
 
 static struct neighbour *ipv4_neigh_lookup(const struct dst_entry *dst,
@@ -2195,6 +2202,13 @@ out:
 }
 EXPORT_SYMBOL_GPL(__ip_route_output_key);
 
+#ifdef CONFIG_AS_FASTPATH
+void route_hook_fn_register(route_flush_hook *flush)
+{
+	route_flush_fn = flush;
+}
+EXPORT_SYMBOL(route_hook_fn_register);
+#endif
 static struct dst_entry *ipv4_blackhole_dst_check(struct dst_entry *dst, u32 cookie)
 {
 	return NULL;

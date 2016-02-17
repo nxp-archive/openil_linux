@@ -199,4 +199,9 @@ static inline struct in6_addr *rt6_nexthop(struct rt6_info *rt)
 	return &rt->rt6i_gateway;
 }
 
+#ifdef CONFIG_AS_FASTPATH
+typedef void ipv6_route_flush_hook(void);
+void ipv6_route_hook_fn_register(ipv6_route_flush_hook *flush);
+#endif
+
 #endif
