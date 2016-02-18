@@ -51,7 +51,7 @@ config AS_FASTPATH
 	select INET_AH
 	select PPP
 	select PPPOE
-	select FSL_DPAA_HOOKS if FSL_DPAA_ETH
+	select FSL_DPAA_HOOKS if FSL_SDK_DPAA_ETH
 	---help---
 	  Enables application specific fastpath n/w stack that
 	  accelerates the throughput for forwarding, firewall, NAT and IPsec
