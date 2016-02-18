@@ -43,6 +43,10 @@
 #include "dpsw.h"
 #include "dpsw-cmd.h"
 
+/* Minimal supported DPSE version */
+#define DPSW_MIN_VER_MAJOR	7
+#define DPSW_MIN_VER_MINOR	0
+
 /* IRQ index */
 #define DPSW_MAX_IRQ_NUM		2
 
@@ -1402,6 +1406,18 @@ ethsw_init(struct fsl_mc_device *sw_dev)
 				  &priv->sw_attr);
 	if (err) {
 		dev_err(dev, "dpsw_get_attributes err %d\n", err);
+		goto err_close;
+	}
+
+	/* Minimum supported DPSW version check */
+	if (priv->sw_attr.version.major < DPSW_MIN_VER_MAJOR ||
+	    (priv->sw_attr.version.major == DPSW_MIN_VER_MAJOR &&
+	     priv->sw_attr.version.minor < DPSW_MIN_VER_MINOR)) {
+		dev_err(dev, "DPSW version %d:%d not supported. Use %d.%d or greater.\n",
+			priv->sw_attr.version.major,
+			priv->sw_attr.version.minor,
+			DPSW_MIN_VER_MAJOR, DPSW_MIN_VER_MINOR);
+		err = -ENOTSUPP;
 		goto err_close;
 	}
 
