@@ -763,6 +763,7 @@ EXPORT_SYMBOL(mmc_read_bkops_status);
  */
 void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card)
 {
+	struct mmc_host *host = card->host;
 	unsigned int mult;
 
 	/*
@@ -786,7 +787,12 @@ void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card)
 	if (data->flags & MMC_DATA_WRITE)
 		mult <<= card->csd.r2w_factor;
 
-	data->timeout_ns = card->csd.tacc_ns * mult;
+	/* Avoid overflow for some crappy cards. */
+	if ((UINT_MAX / mult) < card->csd.tacc_ns)
+		data->timeout_ns = UINT_MAX;
+	else
+		data->timeout_ns = card->csd.tacc_ns * mult;
+
 	data->timeout_clks = card->csd.tacc_clks * mult;
 
 	/*
@@ -852,6 +858,11 @@ void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card)
 				data->timeout_ns =  100000000;	/* 100ms */
 		}
 	}
+
+	if (host->max_busy_timeout &&
+			(host->max_busy_timeout <
+			(data->timeout_ns / 1000000)))
+		data->timeout_ns = host->max_busy_timeout * 1000000;
 }
 EXPORT_SYMBOL(mmc_set_data_timeout);
 
@@ -1883,11 +1894,14 @@ static unsigned int mmc_mmc_erase_timeout(struct mmc_card *card,
 		unsigned int timeout_clks = card->csd.tacc_clks * mult;
 		unsigned int timeout_us;
 
-		/* Avoid overflow: e.g. tacc_ns=80000000 mult=1280 */
-		if (card->csd.tacc_ns < 1000000)
-			timeout_us = (card->csd.tacc_ns * mult) / 1000;
-		else
+		/*
+		 * Avoid overflow for some crappy cards.
+		 * e.g. tacc_ns=80000000 mult=1280
+		 */
+		if ((UINT_MAX / mult) < card->csd.tacc_ns)
 			timeout_us = (card->csd.tacc_ns / 1000) * mult;
+		else
+			timeout_us = (card->csd.tacc_ns * mult) / 1000;
 
 		/*
 		 * ios.clock is only a target.  The real clock rate might be
@@ -2254,16 +2268,17 @@ unsigned int mmc_calc_max_discard(struct mmc_card *card)
 	struct mmc_host *host = card->host;
 	unsigned int max_discard, max_trim;
 
-	if (!host->max_busy_timeout)
-		return UINT_MAX;
-
-	/*
-	 * Without erase_group_def set, MMC erase timeout depends on clock
-	 * frequence which can change.  In that case, the best choice is
-	 * just the preferred erase size.
-	 */
-	if (mmc_card_mmc(card) && !(card->ext_csd.erase_group_def & 1))
-		return card->pref_erase;
+	if (!host->max_busy_timeout) {
+		/*
+		 * Without erase_group_def set, MMC erase timeout depends
+		 * on clock frequence which can change.  In that case, the
+		 * best choice is just the preferred erase size.
+		 */
+		if (mmc_card_mmc(card) && !(card->ext_csd.erase_group_def & 1))
+			return card->pref_erase;
+		else
+			return UINT_MAX;
+	}
 
 	max_discard = mmc_do_calc_max_discard(card, MMC_ERASE_ARG);
 	if (mmc_can_trim(card)) {
