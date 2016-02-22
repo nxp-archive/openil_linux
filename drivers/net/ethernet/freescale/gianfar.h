@@ -45,6 +45,23 @@
 #include <linux/crc32.h>
 #include <linux/workqueue.h>
 #include <linux/ethtool.h>
+#if defined(CONFIG_AS_FASTPATH) && defined(CONFIG_ARM)
+#define AS_FP_PROCEED  1
+#define AS_FP_STOLEN   2
+typedef        int (*devfp_hook_t)(struct sk_buff *skb, struct net_device *dev);
+extern devfp_hook_t   devfp_rx_hook;
+extern devfp_hook_t   devfp_tx_hook;
+static inline int devfp_register_rx_hook(devfp_hook_t hook)
+{
+	devfp_rx_hook = hook;
+	return 0;
+}
+static inline int devfp_register_tx_hook(devfp_hook_t hook)
+{
+	devfp_tx_hook = hook;
+	return 0;
+}
+#endif
 
 struct ethtool_flow_spec_container {
 	struct ethtool_rx_flow_spec fs;
