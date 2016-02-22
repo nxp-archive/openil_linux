@@ -163,7 +163,7 @@ static int ptp_dpa_adjtime(struct ptp_clock_info *ptp, s64 delta)
 	return 0;
 }
 
-static int ptp_dpa_gettime(struct ptp_clock_info *ptp, struct timespec *ts)
+static int ptp_dpa_gettime(struct ptp_clock_info *ptp, struct timespec64 *ts)
 {
 	u64 ns;
 	u32 remainder;
@@ -177,7 +177,7 @@ static int ptp_dpa_gettime(struct ptp_clock_info *ptp, struct timespec *ts)
 }
 
 static int ptp_dpa_settime(struct ptp_clock_info *ptp,
-			       const struct timespec *ts)
+			       const struct timespec64 *ts)
 {
 	u64 ns;
 
@@ -247,15 +247,15 @@ static struct ptp_clock_info ptp_dpa_caps = {
 	.pps		= 1,
 	.adjfreq	= ptp_dpa_adjfreq,
 	.adjtime	= ptp_dpa_adjtime,
-	.gettime	= ptp_dpa_gettime,
-	.settime	= ptp_dpa_settime,
+	.gettime64	= ptp_dpa_gettime,
+	.settime64	= ptp_dpa_settime,
 	.enable		= ptp_dpa_enable,
 };
 
 static int __init __cold dpa_ptp_load(void)
 {
 	struct device *ptp_dev;
-	struct timespec now;
+	struct timespec64 now;
 	int dpa_phc_index;
 	int err;
 
@@ -265,7 +265,7 @@ static int __init __cold dpa_ptp_load(void)
 	if (mac_dev->fm_rtc_get_drift)
 		mac_dev->fm_rtc_get_drift(mac_dev->fm_dev, &freqCompensation);
 
-	getnstimeofday(&now);
+	getnstimeofday64(&now);
 	ptp_dpa_settime(&ptp_dpa_caps, &now);
 
 	clock = ptp_clock_register(&ptp_dpa_caps, ptp_dev);
