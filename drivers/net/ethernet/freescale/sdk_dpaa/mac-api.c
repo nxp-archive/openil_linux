@@ -40,6 +40,7 @@
 
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/io.h>
 #include <linux/of_platform.h>
 #include <linux/of_mdio.h>
 #include <linux/phy.h>
