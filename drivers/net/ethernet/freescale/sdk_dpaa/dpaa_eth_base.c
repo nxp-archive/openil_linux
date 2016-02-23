@@ -40,6 +40,7 @@
 
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/io.h>
 #include <linux/of_platform.h>
 #include <linux/of_net.h>
 #include <linux/etherdevice.h>
@@ -166,6 +167,8 @@ EXPORT_SYMBOL(dpa_bp_probe);
 
 int dpa_bp_shared_port_seed(struct dpa_bp *bp)
 {
+	void __iomem **ptr;
+
 	/* In MAC-less and Shared-MAC scenarios the physical
 	 * address of the buffer pool in device tree is set
 	 * to 0 to specify that another entity (USDPAA) will
@@ -177,12 +180,22 @@ int dpa_bp_shared_port_seed(struct dpa_bp *bp)
 	/* allocate memory region for buffers */
 	devm_request_mem_region(bp->dev, bp->paddr,
 			bp->size * bp->config_count, KBUILD_MODNAME);
-	bp->vaddr = devm_ioremap_prot(bp->dev, bp->paddr,
-			bp->size * bp->config_count, 0);
+	/* managed ioremap unmapping */
+	ptr = devres_alloc(devm_ioremap_release, sizeof(*ptr), GFP_KERNEL);
+	if (!ptr)
+		return -EIO;
+#ifdef CONFIG_ARM64
+	bp->vaddr = ioremap_cache_ns(bp->paddr, bp->size * bp->config_count);
+#else
+	bp->vaddr = ioremap_prot(bp->paddr, bp->size * bp->config_count, 0);
+#endif
 	if (bp->vaddr == NULL) {
 		pr_err("Could not map memory for pool %d\n", bp->bpid);
+		devres_free(ptr);
 		return -EIO;
 	}
+	*ptr = bp->vaddr;
+	devres_add(bp->dev, ptr);
 
 	/* seed pool with buffers from that memory region */
 	if (bp->seed_pool) {
