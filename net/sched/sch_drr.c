@@ -18,6 +18,17 @@
 #include <net/pkt_sched.h>
 #include <net/pkt_cls.h>
 
+#if defined(CONFIG_ASF_EGRESS_SCH) || defined(CONFIG_ASF_HW_SCH)
+static inline void _drr_add_hook(struct Qdisc	*sch,
+				uint32_t	classid,
+				uint32_t	quantum);
+static inline void _drr_flush_hook(struct Qdisc *sch);
+
+/* Define ADD/DELETE Hooks */
+static drr_add_hook *drr_add_fn;
+static drr_flush_hook *drr_flush_fn;
+static invalidate_flows *drr_invalidate;
+#endif
 struct drr_class {
 	struct Qdisc_class_common	common;
 	unsigned int			refcnt;
@@ -203,7 +214,10 @@ static unsigned long drr_bind_tcf(struct Qdisc *sch, unsigned long parent,
 
 	if (cl != NULL)
 		cl->filter_cnt++;
-
+#if defined(CONFIG_ASF_EGRESS_SCH) || defined(CONFIG_ASF_HW_SCH)
+	if (drr_invalidate)
+		drr_invalidate();
+#endif
 	return (unsigned long)cl;
 }
 
@@ -212,6 +226,10 @@ static void drr_unbind_tcf(struct Qdisc *sch, unsigned long arg)
 	struct drr_class *cl = (struct drr_class *)arg;
 
 	cl->filter_cnt--;
+#if defined(CONFIG_ASF_EGRESS_SCH) || defined(CONFIG_ASF_HW_SCH)
+	if (drr_invalidate)
+		drr_invalidate();
+#endif
 }
 
 static int drr_graft_class(struct Qdisc *sch, unsigned long arg,
@@ -264,6 +282,9 @@ static int drr_dump_class(struct Qdisc *sch, unsigned long arg,
 		goto nla_put_failure;
 	if (nla_put_u32(skb, TCA_DRR_QUANTUM, cl->quantum))
 		goto nla_put_failure;
+#if defined(CONFIG_ASF_EGRESS_SCH) || defined(CONFIG_ASF_HW_SCH)
+	_drr_add_hook(sch, cl->common.classid, cl->quantum);
+#endif
 	return nla_nest_end(skb, nest);
 
 nla_put_failure:
@@ -447,6 +468,9 @@ static int drr_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	err = qdisc_class_hash_init(&q->clhash);
 	if (err < 0)
 		return err;
+#if defined(CONFIG_ASF_EGRESS_SCH) || defined(CONFIG_ASF_HW_SCH)
+	_drr_add_hook(sch, 0, 0);
+#endif
 	INIT_LIST_HEAD(&q->active);
 	return 0;
 }
@@ -482,7 +506,70 @@ static void drr_destroy_qdisc(struct Qdisc *sch)
 			drr_destroy_class(sch, cl);
 	}
 	qdisc_class_hash_destroy(&q->clhash);
+#if defined(CONFIG_ASF_EGRESS_SCH) || defined(CONFIG_ASF_HW_SCH)
+	_drr_flush_hook(sch);
+#endif
 }
+#if defined(CONFIG_ASF_EGRESS_SCH) || defined(CONFIG_ASF_HW_SCH)
+static inline void _drr_add_hook(
+		struct Qdisc	*sch,
+		uint32_t	classid,
+		uint32_t	quantum)
+{
+	int ret;
+
+	if (drr_add_fn) {
+		struct net_device *dev = qdisc_dev(sch);
+
+		if (classid)
+			ret = drr_add_fn(dev, classid, sch->handle, quantum);
+		else
+			ret = drr_add_fn(dev, sch->handle, sch->parent, 0);
+
+		if (ret < 0)
+			printk(KERN_DEBUG "%s: DRR Creation on %s:"
+					" fail: handle 0x%X\n",
+					__func__, dev->name, sch->handle);
+	}
+}
+
+static inline void _drr_flush_hook(struct Qdisc *sch)
+{
+
+	if (drr_flush_fn) {
+		struct net_device *dev = qdisc_dev(sch);
+
+		if (drr_flush_fn(dev, sch->handle, sch->parent) < 0) {
+			printk(KERN_DEBUG "%s: DRR Fush on %s: fail: handle 0x%X\n",
+			__func__, dev->name, sch->handle);
+		}
+	}
+}
+
+u32 drr_filter_lookup(struct sk_buff *skb, struct Qdisc *sch)
+{
+	struct drr_class *cl;
+	int err;
+
+	cl = drr_classify(skb, sch, &err);
+	if (cl == NULL) {
+		/* Rule not found, must DROP */
+		return 0;
+	}
+	return cl->common.classid;
+}
+EXPORT_SYMBOL(drr_filter_lookup);
+
+void drr_hook_fn_register(drr_add_hook *add,
+		drr_flush_hook *flush,
+		invalidate_flows *invalidate)
+{
+	drr_add_fn = add;
+	drr_flush_fn = flush;
+	drr_invalidate = invalidate;
+}
+EXPORT_SYMBOL(drr_hook_fn_register);
+#endif
 
 static const struct Qdisc_class_ops drr_class_ops = {
 	.change		= drr_change_class,

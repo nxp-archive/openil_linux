@@ -87,6 +87,109 @@ config ASF_IPV6
 	  This option compiles the ASF for IPV6
 	  Firewall and IPsec.
 
+config ASF_LINUX_QOS
+	default n
+	bool "ASF Linux QoS Integration"
+	depends on AS_FASTPATH
+	select NETFILTER_XT_TARGET_DSCP
+	select NET_SCHED
+	select NET_SCH_PRIO
+	select NET_SCH_TBF
+	select NET_SCH_DRR
+	select NET_CLS
+	select NET_CLS_BASIC
+	select NET_CLS_U32
+	select NET_CLS_FLOW
+	select NET_SCH_FIFO
+	select IP_NF_MANGLE
+	select IP6_NF_MANGLE
+
+config ASF_QOS
+	default n
+	bool "ASF QoS Support"
+	depends on AS_FASTPATH && !ASF_LINUX_QOS && !FSL_DPAA_ETH
+	select NETFILTER_XT_TARGET_DSCP
+	select NET_SCHED
+	select NET_SCH_PRIO
+	select NET_SCH_TBF
+	select NET_SCH_DRR
+	select NET_CLS
+	select NET_CLS_BASIC
+	select NET_CLS_U32
+	select NET_CLS_FLOW
+	select NET_SCH_FIFO
+	select IP_NF_MANGLE
+	select IP6_NF_MANGLE
+
+config ASF_EGRESS_QOS
+	default y
+	bool
+	depends on ASF_QOS
+
+config ASF_INGRESS_MARKER
+	default y
+	bool "ASF DSCP Marking Support"
+	depends on AS_FASTPATH
+	depends on ASF_QOS
+	---help---
+	  Choose this option if you wish to utilize
+	  ASF Marking support.
+	  Currently only DSCP marking
+          is supported.
+
+config ASF_EGRESS_SCH
+	default y
+	bool "ASF S/W Scheduler Support"
+	depends on ASF_QOS && ASF_EGRESS_QOS && !FSL_DPAA_ETH
+	---help---
+	  Choose this option
+	  if you wish to utilize
+	  ASF S/W based
+	  Scheduler support.
+
+config ASF_EGRESS_SHAPER
+	default y
+	bool "ASF S/W Shaper Support"
+	depends on ASF_QOS && ASF_EGRESS_QOS && ASF_EGRESS_SCH && !FSL_DPAA_ETH
+
+	---help---
+	  Choose this option if you wish to utilize ASF S/W based Shaping support.
+	  The S/W Shaper can be used only if S/W Scheduler is enabled.
+
+config ASF_HW_SCH
+	default y
+	bool "ASF H/W Scheduler Support"
+	depends on ASF_QOS && ASF_EGRESS_QOS && !ASF_EGRESS_SCH
+	---help---
+	  Choose this option if you wish to utilize eTSEC(NON-DPAA) / DPAA TX Scheduler.
+choice
+	prompt "Select Scheduling Algorithm"
+	depends on ASF_HW_SCH && !DPA_ETH
+	default ASF_SCH_PRIO
+
+config ASF_SCH_PRIO
+	bool "ASF Strict Priority (PRIO)"
+	---help---
+	  This option compiles the ASF
+	  to utilize eTSEC(NON-DPAA) H/W
+	  Scheduler with PRIORITY
+          algorithm.
+
+config ASF_SCH_MWRR
+	bool "ASF Modified Weighted Round-Robin (MWRR)"
+	---help---
+	  This option compiles the ASF to utilize eTSEC(NON-DPAA)
+	  H/W Scheduler with Modified Weighted Round-Robin algorithm.
+
+endchoice
+
+config ASF_HW_SHAPER
+	default y
+	bool "ASF H/W Shaper Support"
+	depends on ASF_QOS && ASF_EGRESS_QOS && DPA_ETH
+	---help---
+	  Choose this option if you wish to utilize DPAA TX Shaper.
+
 # All the following symbols are dependent on NETDEVICES - do not repeat
 # that for each of the symbols.
 if NETDEVICES
