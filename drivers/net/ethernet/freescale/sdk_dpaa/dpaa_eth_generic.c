@@ -1,4 +1,4 @@
-/* Copyright 2013 Freescale Semiconductor Inc.
+/* Copyright 2013-2015 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -7,6 +7,10 @@
  *     * Redistributions in binary form must reproduce the above copyright
  *	 notice, this list of conditions and the following disclaimer in the
  *	 documentation and/or other materials provided with the distribution.
+ *     * Neither the name of Freescale Semiconductor nor the
+ *	 names of its contributors may be used to endorse or promote products
+ *	 derived from this software without specific prior written permission.
+ *
  *
  * ALTERNATIVELY, this software may be distributed under the terms of the
  * GNU General Public License ("GPL") as published by the Free Software
@@ -161,7 +165,7 @@ static int get_port_ref(struct device_node *dev_node,
 		  struct fm_port **port)
 {
 	struct platform_device *port_of_dev = NULL;
-	struct device *oh_dev = NULL;
+	struct device *op_dev = NULL;
 	struct device_node *port_node = NULL;
 
 	port_node = of_parse_phandle(dev_node, "fsl,fman-oh-port", 0);
@@ -175,8 +179,8 @@ static int get_port_ref(struct device_node *dev_node,
 		return -EINVAL;
 
 	/* get the reference to oh port from FMD */
-	oh_dev = &port_of_dev->dev;
-	*port = fm_port_bind(oh_dev);
+	op_dev = &port_of_dev->dev;
+	*port = fm_port_bind(op_dev);
 
 	if (*port == NULL)
 		return -EINVAL;
@@ -210,7 +214,7 @@ static void dpaa_generic_napi_disable(struct dpa_generic_priv_s *priv)
 	}
 }
 
-static struct device_node *get_rx_oh_port_node(struct platform_device *_of_dev)
+static struct device_node *get_rx_op_port_node(struct platform_device *_of_dev)
 {
 	struct device *dev = &_of_dev->dev;
 	struct device_node *port_node = NULL;
@@ -480,7 +484,7 @@ static void dpa_generic_drain_bp(struct dpa_bp *bp, u8 nbuf)
 		ret = bman_acquire(bp->pool, bmb, nbuf, 0);
 		if (ret > 0) {
 			for (i = 0; i < nbuf; i++) {
-				addr = bm_buffer_get64(&bmb[i]);
+				addr = bm_buf_addr(&bmb[i]);
 				skbh = (struct sk_buff **)phys_to_virt(addr);
 				dma_unmap_single(bp->dev, addr, bp->size,
 						DMA_TO_DEVICE);
@@ -968,7 +972,7 @@ static struct list_head *dpa_generic_fq_probe(struct platform_device *_of_dev,
 	INIT_LIST_HEAD(list);
 
 	/* RX queues (RX error, RX default) are specified in Rx O/H port node */
-	oh_node = get_rx_oh_port_node(_of_dev);
+	oh_node = get_rx_op_port_node(_of_dev);
 	fqids_off = of_get_property(oh_node, "fsl,qman-frame-queues-oh", &lenp);
 	if (fqids_off == NULL) {
 		dev_err(dev, "Need Rx FQ definition in dts for generic devices\n");
@@ -1074,7 +1078,7 @@ static int dpa_generic_rx_bp_probe(struct platform_device *_of_dev,
 	int na = 0, ns = 0;
 	int err = 0, i = 0;
 
-	oh_node = get_rx_oh_port_node(_of_dev);
+	oh_node = get_rx_op_port_node(_of_dev);
 
 	bp_count = of_count_phandle_with_args(oh_node,
 			"fsl,bman-buffer-pools", NULL);
@@ -1134,7 +1138,7 @@ static int dpa_generic_rx_bp_probe(struct platform_device *_of_dev,
 		}
 
 		bp[i].percpu_count = devm_alloc_percpu(dev,
-				*bp[i].percpu_count);
+						       *bp[i].percpu_count);
 	}
 
 	of_node_put(oh_node);

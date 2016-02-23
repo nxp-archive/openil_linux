@@ -670,7 +670,7 @@ static inline void _dpa_bp_free_pf(void *addr)
 #define DPAA_LS1043A_DMA_4K_ISSUE	1
 #endif
 
-#ifdef DPAA_LS1043A_DMA_4K_ISSUE 
+#ifdef DPAA_LS1043A_DMA_4K_ISSUE
 #define HAS_DMA_ISSUE(start, size) \
 	(((u64)(start) ^ ((u64)(start) + (u64)(size))) & ~0xFFF)
 

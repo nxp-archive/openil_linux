@@ -866,8 +866,8 @@ int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 		if (unlikely(HAS_DMA_ISSUE(frag, frag->size))) {
 			boundary = (void *)BOUNDARY_4K(frag, frag->size);
 			qm_sg_entry_set_len(&sgt[j], (u64)boundary - (u64)frag);
-			
-			j++;	
+
+			j++;
 			qm_sg_entry_set_bpid(&sgt[j], 0xff);
 			qm_sg_entry_set_offset(&sgt[j], 0);
 			qm_sg_entry_set_len(&sgt[j], ((u64)frag->size -
