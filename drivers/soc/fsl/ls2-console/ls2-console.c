@@ -42,11 +42,13 @@
 
 #define MC_BASE_ADDR 0x83c0000000
 
-#define MC_BUFFER_OFFSET 0x01400000
-#define MC_BUFFER_SIZE (1024*1024*3)
+#define MC_BUFFER_OFFSET 0x01000000
+#define MC_BUFFER_SIZE (1024*1024*16)
+#define MC_OFFSET_DELTA (MC_BUFFER_OFFSET)
 
 #define AIOP_BUFFER_OFFSET 0x06000000
 #define AIOP_BUFFER_SIZE (1024*1024*16)
+#define AIOP_OFFSET_DELTA (0)
 
 struct log_header {
 	char magic_word[8]; /* magic word */
@@ -79,7 +81,7 @@ struct console_data {
 
 static inline void __adjust_end(struct console_data *cd)
 {
-	cd->end_of_data = cd->map_addr
+	cd->end_of_data = cd->start_addr
 				+ LAST_BYTE(le32_to_cpu(cd->hdr->last_byte));
 }
 
@@ -92,7 +94,8 @@ static inline void adjust_end(struct console_data *cd)
 
 static int fsl_ls2_generic_console_open(struct inode *node, struct file *fp,
 				u64 offset, u64 size,
-				uint8_t *emagic, uint8_t magic_len)
+				uint8_t *emagic, uint8_t magic_len,
+				u32 offset_delta)
 {
 	struct console_data *cd;
 	uint8_t *magic;
@@ -105,6 +108,7 @@ static int fsl_ls2_generic_console_open(struct inode *node, struct file *fp,
 	cd->map_addr = ioremap(MC_BASE_ADDR + offset, size);
 
 	cd->hdr = (struct log_header *) cd->map_addr;
+	invalidate(cd->hdr);
 
 	magic = cd->hdr->magic_word;
 	if (memcmp(magic, emagic, magic_len)) {
@@ -120,7 +124,8 @@ static int fsl_ls2_generic_console_open(struct inode *node, struct file *fp,
 		return -EIO;
 	}
 
-	cd->start_addr = cd->map_addr + le32_to_cpu(cd->hdr->buf_start);
+	cd->start_addr = cd->map_addr
+			 + le32_to_cpu(cd->hdr->buf_start) - offset_delta;
 	cd->end_addr = cd->start_addr + le32_to_cpu(cd->hdr->buf_length);
 
 	wrapped = le32_to_cpu(cd->hdr->last_byte)
@@ -141,16 +146,18 @@ static int fsl_ls2_mc_console_open(struct inode *node, struct file *fp)
 
 	return fsl_ls2_generic_console_open(node, fp,
 			MC_BUFFER_OFFSET, MC_BUFFER_SIZE,
-			magic_word, sizeof(magic_word));
+			magic_word, sizeof(magic_word),
+			MC_OFFSET_DELTA);
 }
 
 static int fsl_ls2_aiop_console_open(struct inode *node, struct file *fp)
 {
-	uint8_t magic_word[] = { 'P', 'O', 'I', 'A', 0, 0, 0, 1 };
+	uint8_t magic_word[] = { 'P', 'O', 'I', 'A' };
 
 	return fsl_ls2_generic_console_open(node, fp,
 			AIOP_BUFFER_OFFSET, AIOP_BUFFER_SIZE,
-			magic_word, sizeof(magic_word));
+			magic_word, sizeof(magic_word),
+			AIOP_OFFSET_DELTA);
 }
 
 static int fsl_ls2_console_close(struct inode *node, struct file *fp)
