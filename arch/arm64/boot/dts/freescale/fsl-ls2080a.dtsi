@@ -302,15 +302,6 @@
 		clock-names = "qspi_en", "qspi";
 	};
 
-	qdma: qdma@8380000 {
-		compatible = "fsl,ls-qdma";
-		reg = <0x0 0x8380000 0x0 0x20000>;
-		interrupts = <0 42 0x4>,
-				<0 43 0x4>;
-		interrupt-names = "qdma-tx", "qdma-err";
-		channels = <1>;
-	};
-
 	pcie@3400000 {
 		compatible = "fsl,ls2080a-pcie", "fsl,ls2085a-pcie",
 			     "snps,dw-pcie";
