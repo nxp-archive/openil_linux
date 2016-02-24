@@ -522,6 +522,7 @@ drop:
 	kfree_skb(skb);
 	return -EINVAL;
 }
+EXPORT_SYMBOL(ip6_forward);
 
 static void ip6_copy_metadata(struct sk_buff *to, struct sk_buff *from)
 {

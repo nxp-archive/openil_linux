@@ -66,6 +66,18 @@ MODULE_DESCRIPTION("IPv6 packet filter");
 #define static
 #define inline
 #endif
+#ifdef CONFIG_ASF_INGRESS_MARKER
+marker_add_hook *marker_v6_add_fn;
+marker_flush_hook *marker_v6_flush_fn;
+
+void marker_v6_hook_fn_register(marker_add_hook *add,
+			    marker_flush_hook *flush)
+{
+	marker_v6_add_fn = add;
+	marker_v6_flush_fn = flush;
+}
+EXPORT_SYMBOL(marker_v6_hook_fn_register);
+#endif
 
 void *ip6t_alloc_initial_table(const struct xt_table *info)
 {
@@ -885,6 +897,70 @@ translate_table(struct net *net, struct xt_table_info *newinfo, void *entry0,
 			memcpy(newinfo->entries[i], entry0, newinfo->size);
 	}
 
+#ifdef CONFIG_ASF_INGRESS_MARKER
+	/* Rules has been verified now safe to offload to ASF */
+	if (marker_v6_add_fn && (0 == strcmp(repl->name, "mangle"))) {
+		struct xt_entry_match *m;
+		struct xt_entry_target *t;
+		markerRule_t rules[MAX_MARKER_RULES] = {};
+		uint16_t *sport, *dport;
+		uint32_t  num = 0;
+
+		/* Whether It is FLUSH request ? */
+		/* Note: num_entries are always equals to num_counters +1, when adding Rules
+		   while num_entries comes as '6' as default value when FLUSH is required */
+		if ((repl->num_entries == 6) && (repl->num_entries < repl->num_counters)) {
+			if (marker_v6_flush_fn)
+				marker_v6_flush_fn();
+			return ret;
+		}
+		xt_entry_foreach(iter, entry0, newinfo->size)
+		{
+			/* Only POSTROUTING CHAINS */
+			if (iter->comefrom != (0x1 << NF_INET_POST_ROUTING))
+				continue;
+			if ((iter->ipv6.proto != 17/*UDP */) && (iter->ipv6.proto != 6/*TCP */))
+				continue;
+
+			if (num == MAX_MARKER_RULES) {
+				printk(KERN_INFO "Maximum %d Rule permitted\n",
+								MAX_MARKER_RULES);
+				break;
+			}
+			m = (void *)iter + sizeof(struct ip6t_entry);
+			t = (void *)iter + iter->target_offset;
+			if (0 != strcmp(t->u.kernel.target->name, "DSCP"))
+				continue;
+
+			rules[num].src_ip[0] = iter->ipv6.src.in6_u.u6_addr32[0];
+			rules[num].src_ip[1] = iter->ipv6.src.in6_u.u6_addr32[1];
+			rules[num].src_ip[2] = iter->ipv6.src.in6_u.u6_addr32[2];
+			rules[num].src_ip[3] = iter->ipv6.src.in6_u.u6_addr32[3];
+			rules[num].dst_ip[0] = iter->ipv6.dst.in6_u.u6_addr32[0];
+			rules[num].dst_ip[1] = iter->ipv6.dst.in6_u.u6_addr32[1];
+			rules[num].dst_ip[2] = iter->ipv6.dst.in6_u.u6_addr32[2];
+			rules[num].dst_ip[3] = iter->ipv6.dst.in6_u.u6_addr32[3];
+			rules[num].proto = iter->ipv6.proto;
+			/* We are passing Port Mask instead of Value , since mask = value.
+			   But when Port are not configured, we get 0xFFFF to indicate that
+			   ANY port value is accepted. */
+			sport = (uint16_t *)&m->data[2];
+			dport = (uint16_t *)&m->data[6];
+			rules[num].src_port = *sport;
+			rules[num].dst_port = *dport;
+			rules[num].uciDscp = (t->data[0] << 2);
+
+			num++;
+		}
+		if (num > 0) {
+			marker_db_t arg;
+
+			arg.rule = &rules[0];
+			arg.num_rules = num;
+			marker_v6_add_fn(&arg);
+		}
+	}
+#endif
 	return ret;
 }
 
@@ -1185,6 +1261,9 @@ get_entries(struct net *net, struct ip6t_get_entries __user *uptr,
 	return ret;
 }
 
+#ifdef CONFIG_AS_FASTPATH
+extern void (*pfnfirewall_asfctrl)(void);
+#endif
 static int
 __do_replace(struct net *net, const char *name, unsigned int valid_hooks,
 	     struct xt_table_info *newinfo, unsigned int num_counters,
@@ -1249,6 +1328,11 @@ __do_replace(struct net *net, const char *name, unsigned int valid_hooks,
 	}
 	vfree(counters);
 	xt_table_unlock(t);
+#ifdef CONFIG_AS_FASTPATH
+	/* Call the  ASF CTRL CB */
+	if (!ret && pfnfirewall_asfctrl)
+		pfnfirewall_asfctrl();
+#endif
 	return ret;
 
  put_module:

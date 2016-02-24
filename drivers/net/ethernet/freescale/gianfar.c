@@ -107,6 +107,12 @@
 
 #include "gianfar.h"
 
+#ifdef CONFIG_AS_FASTPATH
+devfp_hook_t   devfp_rx_hook;
+EXPORT_SYMBOL(devfp_rx_hook);
+devfp_hook_t   devfp_tx_hook;
+EXPORT_SYMBOL(devfp_tx_hook);
+#endif
 #define TX_TIMEOUT      (5*HZ)
 
 const char gfar_driver_version[] = "2.0";
@@ -674,11 +680,13 @@ static int gfar_parse_group(struct device_node *np,
 			txq_mask : (DEFAULT_MAPPING >> priv->num_grps);
 		}
 
+#ifndef CONFIG_AS_FASTPATH
 		if (priv->poll_mode == GFAR_SQ_POLLING) {
 			/* One Q per interrupt group: Q0 to G0, Q1 to G1 */
 			grp->rx_bit_map = (DEFAULT_MAPPING >> priv->num_grps);
 			grp->tx_bit_map = (DEFAULT_MAPPING >> priv->num_grps);
 		}
+#endif
 	} else {
 		grp->rx_bit_map = 0xFF;
 		grp->tx_bit_map = 0xFF;
@@ -2327,6 +2335,11 @@ static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	u32 bufaddr;
 	unsigned int nr_frags, nr_txbds, bytes_sent, fcb_len = 0;
 
+#ifdef CONFIG_AS_FASTPATH
+	if (devfp_tx_hook && (skb->pkt_type != PACKET_FASTROUTE))
+		if (devfp_tx_hook(skb, dev) == AS_FP_STOLEN)
+			return 0;
+#endif
 	rq = skb->queue_mapping;
 	tx_queue = priv->tx_queue[rq];
 	txq = netdev_get_tx_queue(dev, rq);
@@ -3063,6 +3076,61 @@ static void gfar_process_frame(struct net_device *ndev, struct sk_buff *skb)
 				       be16_to_cpu(fcb->vlctl));
 }
 
+#if defined(CONFIG_AS_FASTPATH) && defined(CONFIG_ARM)
+/* asf_gfar_process_frame() -- handle one incoming packet if skb isn't NULL. */
+static int asf_gfar_process_frame(struct net_device *ndev, struct sk_buff *skb)
+{
+	struct gfar_private *priv = netdev_priv(ndev);
+	struct rxfcb *fcb = NULL;
+
+	/* fcb is at the beginning if exists */
+	fcb = (struct rxfcb *)skb->data;
+
+	/* Remove the FCB from the skb
+	 * Remove the padded bytes, if there are any
+	 */
+	if (priv->uses_rxfcb)
+		skb_pull(skb, GMAC_FCB_LEN);
+
+	/* Get receive timestamp from the skb */
+	if (priv->hwts_rx_en) {
+		struct skb_shared_hwtstamps *shhwtstamps = skb_hwtstamps(skb);
+		u64 *ns = (u64 *) skb->data;
+
+		memset(shhwtstamps, 0, sizeof(*shhwtstamps));
+		shhwtstamps->hwtstamp = ns_to_ktime(*ns);
+	}
+
+	if (priv->padding)
+		skb_pull(skb, priv->padding);
+
+	if (ndev->features & NETIF_F_RXCSUM)
+		gfar_rx_checksum(skb, fcb);
+
+	if (ndev->features & NETIF_F_HW_VLAN_CTAG_RX &&
+	be16_to_cpu(fcb->flags) & RXFCB_VLN)
+		__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q),
+				be16_to_cpu(fcb->vlctl));
+
+	if (devfp_rx_hook) {
+		/* Drop the packet silently if IP Checksum is not correct */
+		if ((be16_to_cpu(fcb->flags) & RXFCB_CIP) &&
+				(be16_to_cpu(fcb->flags) & RXFCB_EIP)) {
+			dev_kfree_skb_any(skb);
+			/*Since the packet is dropped so returning AS_FP_STOLEN */
+			return AS_FP_STOLEN;
+		}
+
+		skb->dev = ndev;
+		if (devfp_rx_hook(skb, ndev) == AS_FP_STOLEN)
+			return AS_FP_STOLEN;
+	}
+
+	/* Tell the skb what kind of packet this is */
+	skb->protocol = eth_type_trans(skb, ndev);
+	return AS_FP_PROCEED;
+}
+#endif
 /* gfar_clean_rx_ring() -- Processes each frame in the rx ring
  * until the budget/quota has been reached. Returns the number
  * of frames handled
@@ -3129,8 +3197,14 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
 
 		skb_record_rx_queue(skb, rx_queue->qindex);
 
+#if defined(CONFIG_AS_FASTPATH) && defined(CONFIG_ARM)
+		if (asf_gfar_process_frame(ndev, skb) == AS_FP_STOLEN) {
+			skb = NULL;
+			continue;
+		}
+#else
 		gfar_process_frame(ndev, skb);
-
+#endif
 		/* Send the packet up the stack */
 		napi_gro_receive(&rx_queue->grp->napi_rx, skb);
 

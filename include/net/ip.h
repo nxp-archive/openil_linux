@@ -518,6 +518,7 @@ int ip_options_get_from_user(struct net *net, struct ip_options_rcu **optp,
 			     unsigned char __user *data, int optlen);
 void ip_options_undo(struct ip_options *opt);
 void ip_forward_options(struct sk_buff *skb);
+int ip_rcv_options(struct sk_buff *skb);
 int ip_options_rcv_srr(struct sk_buff *skb);
 
 /*

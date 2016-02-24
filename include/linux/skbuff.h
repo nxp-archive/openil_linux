@@ -539,8 +539,11 @@ struct sk_buff {
 	 * want to keep them across layers you have to do a skb_clone()
 	 * first. This is owned by whoever has the skb queued ATM.
 	 */
+#ifdef CONFIG_AS_FASTPATH
+	char			cb[96] __aligned(8);
+#else
 	char			cb[48] __aligned(8);
-
+#endif
 	unsigned long		_skb_refdst;
 	void			(*destructor)(struct sk_buff *skb);
 #ifdef CONFIG_XFRM
@@ -657,6 +660,10 @@ struct sk_buff {
 
 	__u16			inner_transport_header;
 	__u16			inner_network_header;
+#if defined(CONFIG_GIANFAR) && defined(CONFIG_AS_FASTPATH)
+	__u8			owner;
+	struct sk_buff		*new_skb;
+#endif
 	__u16			inner_mac_header;
 
 	__be16			protocol;
