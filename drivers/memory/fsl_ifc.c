@@ -38,7 +38,7 @@
 struct fsl_ifc_ctrl *fsl_ifc_ctrl_dev;
 EXPORT_SYMBOL(fsl_ifc_ctrl_dev);
 #define FSL_IFC_V1_3_0	0x01030000
-#define IFC_TIMEOUT_MSECS	100000 /* 100ms */
+#define IFC_TIMEOUT_MSECS	1000 /* 1000ms */
 
 /*
  * convert_ifc_address - convert the base address
@@ -364,7 +364,7 @@ static int fsl_ifc_resume(struct device *dev)
 	struct fsl_ifc_runtime __iomem *runtime = ctrl->rregs;
 	struct fsl_ifc_fcm *savd_gregs = ctrl->saved_gregs;
 	struct fsl_ifc_runtime *savd_rregs = ctrl->saved_rregs;
-	uint32_t ver = 0, ncfgr, status, ifc_bank, i;
+	uint32_t ver = 0, ncfgr, timeout, ifc_bank, i;
 
 /*
  * IFC interrupts disabled
@@ -468,12 +468,14 @@ static int fsl_ifc_resume(struct device *dev)
 		ifc_out32(ncfgr | IFC_NAND_SRAM_INIT_EN,
 					&runtime->ifc_nand.ncfgr);
 		/* wait for  SRAM_INIT bit to be clear or timeout */
-		status = spin_event_timeout(
-					!(ifc_in32(&runtime->ifc_nand.ncfgr)
-					& IFC_NAND_SRAM_INIT_EN),
-					IFC_TIMEOUT_MSECS, 0);
+		timeout = 10;
+		while ((ifc_in32(&runtime->ifc_nand.ncfgr) &
+			IFC_NAND_SRAM_INIT_EN) && timeout) {
+			mdelay(IFC_TIMEOUT_MSECS);
+			timeout--;
+		}
 
-		if (!status)
+		if (!timeout)
 			dev_err(ctrl->dev, "Timeout waiting for IFC SRAM INIT");
 	}
 
