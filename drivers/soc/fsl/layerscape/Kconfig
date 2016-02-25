@@ -1,9 +1,8 @@
 #
-# LS-1 Soc drivers
+# Layerscape Soc drivers
 #
 config  FTM_ALARM
 	bool "FTM alarm driver"
-	depends on SOC_LS1021A
 	default n
 	help
 	Say y here to enable FTM alarm support.  The FTM alarm provides
