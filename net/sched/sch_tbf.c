@@ -98,6 +98,19 @@
 	changed the limit is not effective anymore.
 */
 
+#if defined(CONFIG_ASF_EGRESS_SHAPER) || defined(CONFIG_ASF_HW_SHAPER)
+static inline void _tbf_add_hook(struct Qdisc	*sch,
+				uint32_t	rate,
+				uint32_t	limit,
+				uint32_t	buffer,
+				uint16_t	mpu);
+static inline void _tbf_del_hook(struct Qdisc *sch);
+
+/* Define ADD/DELETE Hooks */
+static tbf_add_hook *tbf_add_fn;
+static tbf_del_hook *tbf_del_fn;
+#endif
+
 struct tbf_sched_data {
 /* Parameters */
 	u32		limit;		/* Maximal length of backlog: bytes */
@@ -421,6 +434,10 @@ static int tbf_change(struct Qdisc *sch, struct nlattr *opt)
 
 	sch_tree_unlock(sch);
 	err = 0;
+#if defined(CONFIG_ASF_EGRESS_SHAPER) || defined(CONFIG_ASF_HW_SHAPER)
+	_tbf_add_hook(sch, qopt->rate.rate, qopt->limit,
+			qopt->buffer, qopt->rate.mpu);
+#endif
 done:
 	return err;
 }
@@ -445,6 +462,9 @@ static void tbf_destroy(struct Qdisc *sch)
 
 	qdisc_watchdog_cancel(&q->watchdog);
 	qdisc_destroy(q->qdisc);
+#if defined(CONFIG_ASF_EGRESS_SHAPER) || defined(CONFIG_ASF_HW_SHAPER)
+	_tbf_del_hook(sch);
+#endif
 }
 
 static int tbf_dump(struct Qdisc *sch, struct sk_buff *skb)
@@ -538,6 +558,60 @@ static void tbf_walk(struct Qdisc *sch, struct qdisc_walker *walker)
 		walker->count++;
 	}
 }
+
+#if defined(CONFIG_ASF_EGRESS_SHAPER) || defined(CONFIG_ASF_HW_SHAPER)
+static inline void _tbf_add_hook(struct Qdisc	*sch,
+				uint32_t	rate,
+				uint32_t	limit,
+				uint32_t	buffer,
+				uint16_t	mpu
+)
+{
+	if (tbf_add_fn) {
+		struct tbf_opt opt;
+
+		opt.dev = qdisc_dev(sch);
+		opt.handle = sch->handle;
+		opt.parent = sch->parent;
+		opt.rate = rate;
+		opt.limit = limit;
+		opt.buffer = buffer;
+		opt.mpu = mpu;
+
+		if (tbf_add_fn(&opt) < 0) {
+			printk(KERN_DEBUG "%s: TBF Creation on %s: fail: handle 0x%X\n",
+			__func__, opt.dev->name, sch->handle);
+		}
+	}
+}
+
+static inline void _tbf_del_hook(struct Qdisc *sch)
+{
+
+	if (tbf_del_fn) {
+		struct net_device *dev = qdisc_dev(sch);
+
+		if (tbf_del_fn(dev, sch->handle, sch->parent) < 0) {
+			printk(KERN_DEBUG "%s: TBF Qdisc DEL on %s: fail: handle 0x%X\n",
+			__func__, dev->name, sch->handle);
+		}
+	}
+}
+struct Qdisc *tbf_get_inner_qdisc(struct Qdisc *sch)
+{
+	struct tbf_sched_data *q = qdisc_priv(sch);
+	return q->qdisc;
+}
+EXPORT_SYMBOL(tbf_get_inner_qdisc);
+
+void tbf_hook_fn_register(tbf_add_hook *add,
+		tbf_del_hook *del)
+{
+	tbf_add_fn = add;
+	tbf_del_fn = del;
+}
+EXPORT_SYMBOL(tbf_hook_fn_register);
+#endif
 
 static const struct Qdisc_class_ops tbf_class_ops = {
 	.graft		=	tbf_graft,

@@ -225,7 +225,10 @@ struct xfrm_state {
 
 	/* Security context */
 	struct xfrm_sec_ctx	*security;
-
+#ifdef CONFIG_AS_FASTPATH
+	uintptr_t	asf_sa_cookie;
+	u32		asf_sa_direction;
+#endif
 	/* Private data of this transformer, format is opaque,
 	 * interpreted by xfrm_type methods. */
 	void			*data;
@@ -539,6 +542,9 @@ struct xfrm_policy {
 	struct xfrm_lifetime_cur curlft;
 	struct xfrm_policy_walk_entry walk;
 	struct xfrm_policy_queue polq;
+#ifdef CONFIG_AS_FASTPATH
+	u32			asf_cookie;
+#endif
 	u8			type;
 	u8			action;
 	u8			flags;
@@ -1785,6 +1791,31 @@ static inline int xfrm_mark_put(struct sk_buff *skb, const struct xfrm_mark *m)
 		ret = nla_put(skb, XFRMA_MARK, sizeof(struct xfrm_mark), m);
 	return ret;
 }
+
+#ifdef CONFIG_AS_FASTPATH
+struct asf_ipsec_callbackfn_s {
+	/* Callback to offload the encryption Info*/
+	int	(*ipsec_enc_hook)(struct xfrm_policy *xp,
+			struct xfrm_state *xfrm, struct flowi *fl, int ifindex);
+
+	/* Callback to offload the decryption Info*/
+	int	(*ipsec_dec_hook)(struct xfrm_policy *xp,
+			struct xfrm_state *xfrm, struct flowi *fl, int ifindex);
+
+	/* Callback to receive the live SA Sync Info*/
+	int	(*ipsec_sync_sa)(struct xfrm_state *xfrm, int dir,
+			int seq_no, int bytes);
+
+	/* Callback to send the packet to ASF for further IPSEC processing */
+	int	(*ipsec_encrypt_n_send)(struct sk_buff *skb,
+			struct xfrm_state *xfrm);
+
+	/* Callback to send the packet to ASF for further IPSEC processing */
+	int	(*ipsec_decrypt_n_send)(struct sk_buff *skb,
+			struct xfrm_state *xfrm);
+};
+extern struct asf_ipsec_callbackfn_s	asf_cb_fns;
+#endif
 
 static inline int xfrm_tunnel_check(struct sk_buff *skb, struct xfrm_state *x,
 				    unsigned int family)

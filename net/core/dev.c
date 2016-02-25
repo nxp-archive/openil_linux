@@ -2657,6 +2657,18 @@ static int xmit_one(struct sk_buff *skb, struct net_device *dev,
 	return rc;
 }
 
+#if defined(CONFIG_ASF_EGRESS_QOS) || defined(CONFIG_ASF_LINUX_QOS)
+/* Linux QoS hook to tranfer all packet to ASF QoS */
+asf_qos_fn_hook *asf_qos_fn;
+EXPORT_SYMBOL(asf_qos_fn);
+
+void asf_qos_fn_register(asf_qos_fn_hook *fn)
+{
+	asf_qos_fn = fn;
+}
+EXPORT_SYMBOL(asf_qos_fn_register);
+#endif
+
 struct sk_buff *dev_hard_start_xmit(struct sk_buff *first, struct net_device *dev,
 				    struct netdev_queue *txq, int *ret)
 {
@@ -2953,6 +2965,14 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 		skb_dst_drop(skb);
 	else
 		skb_dst_force(skb);
+
+#if defined(CONFIG_ASF_EGRESS_QOS) || defined(CONFIG_ASF_LINUX_QOS)
+	if (asf_qos_fn) {
+		rc = asf_qos_fn(skb);
+		if (!rc)
+			goto out;
+	}
+#endif
 
 	txq = netdev_pick_tx(dev, skb, accel_priv);
 	q = rcu_dereference_bh(txq->qdisc);

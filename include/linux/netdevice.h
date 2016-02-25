@@ -1550,6 +1550,12 @@ struct net_device {
 	netdev_features_t	mpls_features;
 
 	int			ifindex;
+
+#ifdef CONFIG_AS_FASTPATH
+	/* Common interface id for ASF */
+	int cii;
+#endif
+
 	int			group;
 
 	struct net_device_stats	stats;
@@ -1666,6 +1672,9 @@ struct net_device {
 	unsigned int		num_tx_queues;
 	unsigned int		real_num_tx_queues;
 	struct Qdisc		*qdisc;
+#ifdef CONFIG_ASF_EGRESS_QOS
+	void			*asf_qdisc;
+#endif
 	unsigned long		tx_queue_len;
 	spinlock_t		tx_global_lock;
 	int			watchdog_timeo;

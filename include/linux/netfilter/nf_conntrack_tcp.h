@@ -11,6 +11,12 @@ struct ip_ct_tcp_state {
 	u_int32_t	td_maxack;	/* max of ack */
 	u_int8_t	td_scale;	/* window scale factor */
 	u_int8_t	flags;		/* per direction options */
+#ifdef CONFIG_AS_FASTPATH
+	u_int32_t	td_tcptimestamp;/* Time Stamp */
+	int32_t		td_delta;	/* for Packet mangling */
+	/* Last window advertisement seen in dir */
+	u_int32_t	td_rcvwin;
+#endif
 };
 
 struct ip_ct_tcp {
