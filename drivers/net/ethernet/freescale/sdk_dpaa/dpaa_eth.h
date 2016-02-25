@@ -666,7 +666,8 @@ static inline void _dpa_bp_free_pf(void *addr)
  * boundaries; For the moment, we use a SW workaround to avoid frames larger
  * than 4K or that exceed 4K alignements.
  */
-#ifdef CONFIG_ARCH_FSL_LS1043A
+
+#ifdef ARM64
 #define DPAA_LS1043A_DMA_4K_ISSUE	1
 #endif
 
