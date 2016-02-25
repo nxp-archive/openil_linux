@@ -160,8 +160,8 @@ t_Error PrsInit(t_FmPcd *p_FmPcd)
         FmEnableRamsEcc(p_FmPcd->h_Fm);
 
     /* load sw parser Ip-Frag patch */
-    for (i=0; i<DIV_CEIL(sizeof(swPrsPatch),4); i++)
-        WRITE_UINT32(p_LoadTarget[i], p_TmpCode[i]);
+    for (i=0; i<DIV_CEIL(sizeof(swPrsPatch), 4); i++)
+        WRITE_UINT32(p_LoadTarget[i], GET_UINT32(p_TmpCode[i]));
 
     XX_FreeSmart(p_TmpCode);
 
@@ -387,8 +387,10 @@ t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs)
 
     /* load sw parser code */
     p_LoadTarget = p_FmPcd->p_FmPcdPrs->p_SwPrsCode + p_SwPrs->base*2/4;
-    for(i=0; i<DIV_CEIL(p_SwPrs->size,4); i++)
-        WRITE_UINT32(p_LoadTarget[i], p_TmpCode[i]);
+
+    for(i=0; i<DIV_CEIL(p_SwPrs->size, 4); i++)
+        WRITE_UINT32(p_LoadTarget[i], GET_UINT32(p_TmpCode[i]));
+
     p_FmPcd->p_FmPcdPrs->p_CurrSwPrs =
         p_FmPcd->p_FmPcdPrs->p_SwPrsCode + p_SwPrs->base*2/4 + ROUND_UP(p_SwPrs->size,4);
 

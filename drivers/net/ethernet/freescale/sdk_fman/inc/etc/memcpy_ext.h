@@ -167,6 +167,40 @@ void * MemSet64(void* pDst, uint8_t val, uint32_t size);
 *//***************************************************************************/
 void MemDisp(uint8_t *addr, int size);
 
+/**************************************************************************//**
+ @Function      MemCpy8
+
+ @Description   Trivial copy one memory buffer into another byte by byte
+
+ @Param[in]     pDst    - The address of the destination buffer.
+ @Param[in]     pSrc    - The address of the source buffer.
+ @Param[in]     size    - The number of bytes that will be copied from pSrc to pDst.
+
+ @Return        pDst (the address of the destination buffer).
+
+ @Cautions      There is no parameter or boundary checking! It is up to the user
+                to supply non-null parameters as source & destination and size
+                that actually fits into the destination buffer.
+*//***************************************************************************/
+void * MemCpy8(void* pDst,void* pSrc, uint32_t size);
+
+/**************************************************************************//**
+ @Function      MemSet8
+
+ @Description   Sets all bytes of a memory buffer to a specific value byte by byte.
+
+ @Param[in]     pDst    - The address of the destination buffer.
+ @Param[in]     c       - Value to set destination bytes to.
+ @Param[in]     size    - The number of bytes that will be set to val.
+
+ @Return        pDst (the address of the destination buffer).
+
+ @Cautions      There is no parameter or boundary checking! It is up to the user
+                to supply non null parameter as destination and size
+                that actually fits into the destination buffer.
+*//***************************************************************************/
+void * MemSet8(void* pDst, int c, uint32_t size);
+
 /** @} */ /* end of mem_cpy group */
 /** @} */ /* end of etc_id group */
 

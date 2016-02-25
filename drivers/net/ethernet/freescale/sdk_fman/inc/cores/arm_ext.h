@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -32,31 +32,24 @@
 
 
 /**************************************************************************//**
- @File          types_ext.h
+ @File          arm_ext.h
 
- @Description   General types Standard Definitions
+ @Description   Core API for ARM cores
+
+                These routines must be implemented by each specific PowerPC
+                core driver.
 *//***************************************************************************/
+#ifndef __ARM_EXT_H
+#define __ARM_EXT_H
 
-#ifndef __TYPES_EXT_H
-#define __TYPES_EXT_H
+#include "part_ext.h"
 
-#if defined(NCSW_LINUX)
-#include "types_linux.h"
 
-#elif defined(NCSW_VXWORKS)
-#include "types_vxworks.h"
+#define CORE_IS_LITTLE_ENDIAN
 
-#elif defined(__GNUC__) && defined(__cplusplus)
-#include "types_bb_gpp.h"
+static __inline__ void CORE_MemoryBarrier(void)
+{
+	mb();
+}
 
-#elif defined(__GNUC__)
-#include "types_bb_gcc.h"
-
-#elif defined(__ghs__)
-#include "types_ghs.h"
-
-#else
-#include "types_dflt.h"
-#endif /* defined (__ROCOO__) */
-
-#endif /* __TYPES_EXT_H */
+#endif /* __PPC_EXT_H */
