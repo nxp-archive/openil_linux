@@ -80,6 +80,28 @@ struct sec4_sg_entry {
 #define CLASS_2			(0x02 << CLASS_SHIFT)
 #define CLASS_BOTH		(0x03 << CLASS_SHIFT)
 
+#define PREHDR_IDLEN_SHIFT	32
+#define PREHDR_OFFSET_SHIFT	26
+#define PREHDR_BPID_SHIFT	16
+#define PREHDR_BSIZE_SHIFT	0
+
+#define PREHDR_IDLEN_MASK	GENMASK_ULL(39,32)
+#define PREHDR_OFFSET_MASK	GENMASK_ULL(27,26)
+#define PREHDR_BPID_MASK	GENMASK_ULL(23,16)
+#define PREHDR_BSIZE_MASK	GENMASK_ULL(15,0)
+
+#define PREHEADER_PREP_IDLEN(preh, idlen) \
+	(preh) |= ((u64)(idlen) << PREHDR_IDLEN_SHIFT) & PREHDR_IDLEN_MASK
+
+#define PREHEADER_PREP_BPID(preh, bpid) \
+	(preh) |= ((u64)(bpid) << PREHDR_BPID_SHIFT) & PREHDR_BPID_MASK
+
+#define PREHEADER_PREP_BSIZE(preh, bufsize) \
+	(preh) |= ((u64)(bufsize) << PREHDR_BSIZE_SHIFT) & PREHDR_BSIZE_MASK
+
+#define PREHEADER_PREP_OFFSET(preh, offs) \
+	(preh) |= ((u64)(offs) << PREHDR_OFFSET_SHIFT) & PREHDR_OFFSET_MASK
+
 /*
  * Descriptor header command constructs
  * Covers shared, job, and trusted descriptor headers
