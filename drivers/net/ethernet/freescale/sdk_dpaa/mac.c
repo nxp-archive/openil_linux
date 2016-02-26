@@ -65,6 +65,7 @@ static const char phy_str[][11] = {
 	[PHY_INTERFACE_MODE_MII]	= "mii",
 	[PHY_INTERFACE_MODE_GMII]	= "gmii",
 	[PHY_INTERFACE_MODE_SGMII]	= "sgmii",
+	[PHY_INTERFACE_MODE_QSGMII]	= "qsgmii",
 	[PHY_INTERFACE_MODE_TBI]	= "tbi",
 	[PHY_INTERFACE_MODE_RMII]	= "rmii",
 	[PHY_INTERFACE_MODE_RGMII]	= "rgmii",
@@ -91,6 +92,7 @@ static const uint16_t phy2speed[] = {
 	[PHY_INTERFACE_MODE_MII]	= SPEED_100,
 	[PHY_INTERFACE_MODE_GMII]	= SPEED_1000,
 	[PHY_INTERFACE_MODE_SGMII]	= SPEED_1000,
+	[PHY_INTERFACE_MODE_QSGMII]	= SPEED_1000,
 	[PHY_INTERFACE_MODE_TBI]	= SPEED_1000,
 	[PHY_INTERFACE_MODE_RMII]	= SPEED_100,
 	[PHY_INTERFACE_MODE_RGMII]	= SPEED_1000,
@@ -335,7 +337,7 @@ static int __cold mac_probe(struct platform_device *_of_dev)
 	mac_dev->max_speed	= mac_dev->speed;
 	mac_dev->if_support = DTSEC_SUPPORTED;
 	/* We don't support half-duplex in SGMII mode */
-	if (strstr(char_prop, "sgmii"))
+	if (strstr(char_prop, "sgmii") || strstr(char_prop, "qsgmii"))
 		mac_dev->if_support &= ~(SUPPORTED_10baseT_Half |
 					SUPPORTED_100baseT_Half);
 

@@ -1471,18 +1471,19 @@ static int macsec_setup(void)
 			INIT_LIST_HEAD(&macsec_priv[macsec_id]->dpa_fq_list);
 
 			dpa_fq = dpa_fq_alloc(dev,
-					tx_fqids,
-					&macsec_priv[macsec_id]->dpa_fq_list,
-					FQ_TYPE_TX);
+					      tx_fqids->start, tx_fqids->count,
+					      &macsec_priv[macsec_id]->dpa_fq_list,
+					      FQ_TYPE_TX);
 			if (unlikely(dpa_fq == NULL)) {
 				dev_err(dev, "dpa_fq_alloc() failed\n");
 				return -ENOMEM;
 			}
 
 			dpa_fq = dpa_fq_alloc(dev,
-					tx_confirm_fqids,
-					&macsec_priv[macsec_id]->dpa_fq_list,
-					FQ_TYPE_TX_CONF_MQ);
+					      tx_confirm_fqids->start,
+					      tx_confirm_fqids->count,
+					      &macsec_priv[macsec_id]->dpa_fq_list,
+					      FQ_TYPE_TX_CONF_MQ);
 			if (unlikely(dpa_fq == NULL)) {
 				dev_err(dev, "dpa_fq_alloc() failed\n");
 				return -ENOMEM;

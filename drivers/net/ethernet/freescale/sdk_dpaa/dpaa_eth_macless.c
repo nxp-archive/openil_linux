@@ -253,8 +253,9 @@ static int dpa_fq_probe_macless(struct device *dev, struct list_head *list,
 
 	/* All ranges defined in the device tree are used as Rx/Tx queues */
 	for (i = 0; i < num_ranges; i++) {
-		if (!dpa_fq_alloc(dev, &fqids[i], list, ptype == RX ?
-				  FQ_TYPE_RX_PCD : FQ_TYPE_TX)) {
+		if (!dpa_fq_alloc(dev, be32_to_cpu(fqids[i].start),
+				  be32_to_cpu(fqids[i].count), list,
+				  ptype == RX ? FQ_TYPE_RX_PCD : FQ_TYPE_TX)) {
 			dev_err(dev, "_dpa_fq_alloc() failed\n");
 			return -ENOMEM;
 		}
