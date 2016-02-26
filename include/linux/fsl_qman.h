@@ -186,19 +186,35 @@ struct qm_fd {
 		u32 opaque;
 		/* If 'format' is _contig or _sg, 20b length and 9b offset */
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			enum qm_fd_format format:3;
 			u16 offset:9;
 			u32 length20:20;
+#else
+			u32 length20:20;
+			u16 offset:9;
+			enum qm_fd_format format:3;
+#endif
 		};
 		/* If 'format' is _contig_big or _sg_big, 29b length */
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			enum qm_fd_format _format1:3;
 			u32 length29:29;
+#else
+			u32 length29:29;
+			enum qm_fd_format _format1:3;
+#endif
 		};
 		/* If 'format' is _compound, 29b "congestion weight" */
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			enum qm_fd_format _format2:3;
 			u32 cong_weight:29;
+#else
+			u32 cong_weight:29;
+			enum qm_fd_format _format2:3;
+#endif
 		};
 	};
 	union {
@@ -244,9 +260,15 @@ static inline dma_addr_t qm_fd_addr(const struct qm_fd *fd)
 struct qm_sg_entry {
 	union {
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u8 __reserved1[3];
 			u8 addr_hi;	/* high 8-bits of 40-bit address */
 			u32 addr_lo;	/* low 32-bits of 40-bit address */
+#else
+			u32 addr_lo;	/* low 32-bits of 40-bit address */
+			u8 addr_hi;	/* high 8-bits of 40-bit address */
+			u8 __reserved1[3];
+#endif
 		};
 		struct {
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
@@ -257,39 +279,127 @@ struct qm_sg_entry {
 			u64 __notaddress:24;
 #endif
 		};
+		u64 opaque;
 	};
+	union {
+		struct {
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-	u32 extension:1;	/* Extension bit */
-	u32 final:1;		/* Final bit */
-	u32 length:30;
+			u32 extension:1;	/* Extension bit */
+			u32 final:1;		/* Final bit */
+			u32 length:30;
 #else
-	u32 length:30;
-	u32 final:1;		/* Final bit */
-	u32 extension:1;	/* Extension bit */
+			u32 length:30;
+			u32 final:1;            /* Final bit */
+			u32 extension:1;        /* Extension bit */
 #endif
+		};
+		u32 sgt_efl;
+	};
 	u8 __reserved2;
 	u8 bpid;
+	union {
+		struct {
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-	u16 __reserved3:3;
-	u16 offset:13;
+			u16 __reserved3:3;
+			u16 offset:13;
 #else
-	u16 offset:13;
-	u16 __reserved3:3;
+			u16 offset:13;
+			u16 __reserved3:3;
 #endif
+		};
+		u16 opaque_offset;
+	};
 } __packed;
+union qm_sg_efl {
+	struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+		u32 extension:1;	/* Extension bit */
+		u32 final:1;		/* Final bit */
+		u32 length:30;
+#else
+		u32 length:30;
+		u32 final:1;            /* Final bit */
+		u32 extension:1;        /* Extension bit */
+#endif
+	};
+	u32 efl;
+};
 static inline u64 qm_sg_entry_get64(const struct qm_sg_entry *sg)
 {
-	return sg->addr;
+	return be64_to_cpu(sg->opaque);
 }
 static inline dma_addr_t qm_sg_addr(const struct qm_sg_entry *sg)
 {
-	return (dma_addr_t)sg->addr;
+	return (dma_addr_t)be64_to_cpu(sg->opaque);
 }
+static inline u8 qm_sg_entry_get_ext(const struct qm_sg_entry *sg)
+{
+	union qm_sg_efl u;
+
+	u.efl = be32_to_cpu(sg->sgt_efl);
+	return u.extension;
+}
+static inline u8 qm_sg_entry_get_final(const struct qm_sg_entry *sg)
+{
+	union qm_sg_efl u;
+
+	u.efl = be32_to_cpu(sg->sgt_efl);
+	return u.final;
+}
+static inline u32 qm_sg_entry_get_len(const struct qm_sg_entry *sg)
+{
+	union qm_sg_efl u;
+
+	u.efl = be32_to_cpu(sg->sgt_efl);
+	return u.length;
+}
+static inline u8 qm_sg_entry_get_bpid(const struct qm_sg_entry *sg)
+{
+	return sg->bpid;
+}
+static inline u16 qm_sg_entry_get_offset(const struct qm_sg_entry *sg)
+{
+	u32 opaque_offset = be16_to_cpu(sg->opaque_offset);
+
+	return opaque_offset & 0x1fff;
+}
+
 /* Macro, so we compile better if 'v' isn't always 64-bit */
 #define qm_sg_entry_set64(sg, v) \
 	do { \
 		struct qm_sg_entry *__sg931 = (sg); \
-		__sg931->addr = v; \
+		__sg931->opaque = cpu_to_be64(v); \
+	} while (0)
+#define qm_sg_entry_set_ext(sg, v) \
+	do { \
+		union qm_sg_efl __u932; \
+		__u932.efl = be32_to_cpu((sg)->sgt_efl); \
+		__u932.extension = v; \
+		(sg)->sgt_efl = cpu_to_be32(__u932.efl); \
+	} while (0)
+#define qm_sg_entry_set_final(sg, v) \
+	do { \
+		union qm_sg_efl __u933; \
+		__u933.efl = be32_to_cpu((sg)->sgt_efl); \
+		__u933.final = v; \
+		(sg)->sgt_efl = cpu_to_be32(__u933.efl); \
+	} while (0)
+#define qm_sg_entry_set_len(sg, v) \
+	do { \
+		union qm_sg_efl __u934; \
+		__u934.efl = be32_to_cpu((sg)->sgt_efl); \
+		__u934.length = v; \
+		(sg)->sgt_efl = cpu_to_be32(__u934.efl); \
+	} while (0)
+#define qm_sg_entry_set_bpid(sg, v) \
+	do { \
+		struct qm_sg_entry *__u935 = (sg); \
+		__u935->bpid = v; \
+	} while (0)
+#define qm_sg_entry_set_offset(sg, v) \
+	do { \
+		struct qm_sg_entry *__u936 = (sg); \
+		__u936->opaque_offset = cpu_to_be16(v); \
 	} while (0)
 
 /* See 1.5.8.1: "Enqueue Command" */
@@ -418,8 +528,8 @@ struct qm_mr_entry {
  * representation. */
 struct qm_fqd_stashing {
 	/* See QM_STASHING_EXCL_<...> */
-	u8 exclusive;
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	u8 exclusive;
 	u8 __reserved1:2;
 	/* Numbers of cachelines */
 	u8 annotation_cl:2;
@@ -430,6 +540,7 @@ struct qm_fqd_stashing {
 	u8 data_cl:2;
 	u8 annotation_cl:2;
 	u8 __reserved1:2;
+	u8 exclusive;
 #endif
 } __packed;
 struct qm_fqd_taildrop {
@@ -1205,12 +1316,34 @@ struct qm_mcr_querycgr {
 	u16 __reserved1;
 	struct __qm_mc_cgr cgr; /* CGR fields */
 	u8 __reserved2[3];
-	u32 __reserved3:24;
-	u32 i_bcnt_hi:8;/* high 8-bits of 40-bit "Instant" */
-	u32 i_bcnt_lo;	/* low 32-bits of 40-bit */
-	u32 __reserved4:24;
-	u32 a_bcnt_hi:8;/* high 8-bits of 40-bit "Average" */
-	u32 a_bcnt_lo;	/* low 32-bits of 40-bit */
+	union {
+		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+			u32 __reserved3:24;
+			u32 i_bcnt_hi:8;/* high 8-bits of 40-bit "Instant" */
+			u32 i_bcnt_lo;	/* low 32-bits of 40-bit */
+#else
+			u32 i_bcnt_lo;	/* low 32-bits of 40-bit */
+			u32 i_bcnt_hi:8;/* high 8-bits of 40-bit "Instant" */
+			u32 __reserved3:24;
+#endif
+		};
+		u64 i_bcnt;
+	};
+	union {
+		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+			u32 __reserved4:24;
+			u32 a_bcnt_hi:8;/* high 8-bits of 40-bit "Average" */
+			u32 a_bcnt_lo;	/* low 32-bits of 40-bit */
+#else
+			u32 a_bcnt_lo;	/* low 32-bits of 40-bit */
+			u32 a_bcnt_hi:8;/* high 8-bits of 40-bit "Average" */
+			u32 __reserved4:24;
+#endif
+		};
+		u64 a_bcnt;
+	};
 	union {
 		u32 cscn_targ_swp[4];
 		u8 __reserved5[16];
@@ -1218,21 +1351,21 @@ struct qm_mcr_querycgr {
 } __packed;
 static inline u64 qm_mcr_querycgr_i_get64(const struct qm_mcr_querycgr *q)
 {
-	return ((u64)q->i_bcnt_hi << 32) | (u64)q->i_bcnt_lo;
+	return be64_to_cpu(q->i_bcnt);
 }
 static inline u64 qm_mcr_querycgr_a_get64(const struct qm_mcr_querycgr *q)
 {
-	return ((u64)q->a_bcnt_hi << 32) | (u64)q->a_bcnt_lo;
+	return be64_to_cpu(q->a_bcnt);
 }
 static inline u64 qm_mcr_cgrtestwrite_i_get64(
 					const struct qm_mcr_cgrtestwrite *q)
 {
-	return ((u64)q->i_bcnt_hi << 32) | (u64)q->i_bcnt_lo;
+	return be64_to_cpu(((u64)q->i_bcnt_hi << 32) | (u64)q->i_bcnt_lo);
 }
 static inline u64 qm_mcr_cgrtestwrite_a_get64(
 					const struct qm_mcr_cgrtestwrite *q)
 {
-	return ((u64)q->a_bcnt_hi << 32) | (u64)q->a_bcnt_lo;
+	return be64_to_cpu(((u64)q->a_bcnt_hi << 32) | (u64)q->a_bcnt_lo);
 }
 /* Macro, so we compile better if 'v' isn't always 64-bit */
 #define qm_mcr_querycgr_i_set64(q, v) \
@@ -1529,7 +1662,8 @@ struct qm_mc_result {
 static inline int QM_MCR_QUERYCONGESTION(struct __qm_mcr_querycongestion *p,
 					u8 cgr)
 {
-	return p->__state[__CGR_WORD(cgr)] & (0x80000000 >> __CGR_SHIFT(cgr));
+	return be32_to_cpu(p->__state[__CGR_WORD(cgr)]) &
+	       (0x80000000 >> __CGR_SHIFT(cgr));
 }
 
 

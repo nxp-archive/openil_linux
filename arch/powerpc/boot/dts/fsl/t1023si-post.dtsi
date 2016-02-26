@@ -611,7 +611,7 @@ sata@220000 {
 };
 
 /include/ "qoriq-sec5.0-0.dtsi"
-/include/ "qoriq-qman1.dtsi"
+/include/ "qoriq-qman3.dtsi"
 /include/ "qoriq-bman1.dtsi"
 /include/ "qoriq-fman3-0.dtsi"
 /include/ "qoriq-fman3-0-1g-0.dtsi"
