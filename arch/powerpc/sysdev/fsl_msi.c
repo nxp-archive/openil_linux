@@ -17,6 +17,7 @@
 #include <linux/pci.h>
 #include <linux/slab.h>
 #include <linux/of_platform.h>
+#include <linux/iommu.h>
 #include <linux/interrupt.h>
 #include <linux/seq_file.h>
 #include <sysdev/fsl_soc.h>
@@ -176,7 +177,43 @@ static void fsl_teardown_msi_irqs(struct pci_dev *pdev)
 	return;
 }
 
-static void fsl_compose_msi_msg(struct pci_dev *pdev, int hwirq,
+static int fsl_iommu_get_iova(struct pci_dev *pdev, uint64_t *address)
+{
+	struct iommu_domain *domain;
+	struct iommu_domain_geometry geometry;
+	u32 wins = 0;
+	uint64_t iova, size, msi_phys;
+	int ret, i;
+
+	domain = iommu_get_dev_domain(&pdev->dev);
+	if (!domain)
+		return -EINVAL;
+
+	ret = iommu_domain_get_attr(domain, DOMAIN_ATTR_WINDOWS, &wins);
+	if (ret)
+		return ret;
+
+	ret = iommu_domain_get_attr(domain, DOMAIN_ATTR_GEOMETRY, &geometry);
+	if (ret)
+		return ret;
+
+	iova = geometry.aperture_start;
+	size = geometry.aperture_end - geometry.aperture_start + 1;
+	do_div(size, wins);
+	msi_phys = CCSR_BASE + (*address & 0x0007ffff);
+	for (i = 0; i < wins; i++) {
+		phys_addr_t phys;
+		phys = iommu_iova_to_phys(domain, iova);
+		if (phys == msi_phys) {
+			*address = (iova + (*address & 0x00000fff));
+			return 0;
+		}
+		iova += size;
+	}
+	return -EINVAL;
+}
+
+static int fsl_compose_msi_msg(struct pci_dev *pdev, int hwirq,
 				struct msi_msg *msg,
 				struct fsl_msi *fsl_msi_data)
 {
@@ -185,6 +222,7 @@ static void fsl_compose_msi_msg(struct pci_dev *pdev, int hwirq,
 	u64 address; /* Physical address of the MSIIR */
 	int len;
 	const __be64 *reg;
+	int ret = 0;
 
 	/* If the msi-address-64 property exists, then use it */
 	reg = of_get_property(hose->dn, "msi-address-64", &len);
@@ -192,6 +230,16 @@ static void fsl_compose_msi_msg(struct pci_dev *pdev, int hwirq,
 		address = be64_to_cpup(reg);
 	else
 		address = fsl_pci_immrbar_base(hose) + msi_data->msiir_offset;
+
+	/*
+	 * If the device is attached with iommu domain then set MSI address
+	 * to the iova configured in PAMU.
+	 */
+	if (iommu_get_dev_domain(&pdev->dev)) {
+		ret = fsl_iommu_get_iova(pdev, &address);
+		if (ret)
+			return ret;
+	}
 
 	msg->address_lo = lower_32_bits(address);
 	msg->address_hi = upper_32_bits(address);
@@ -211,6 +259,8 @@ static void fsl_compose_msi_msg(struct pci_dev *pdev, int hwirq,
 	pr_debug("%s: allocated srs: %d, ibs: %d\n", __func__,
 		 (hwirq >> msi_data->srs_shift) & MSI_SRS_MASK,
 		 (hwirq >> msi_data->ibs_shift) & MSI_IBS_MASK);
+
+	return ret;
 }
 
 static int fsl_setup_msi_irqs(struct pci_dev *pdev, int nvec, int type)
@@ -292,7 +342,13 @@ static int fsl_setup_msi_irqs(struct pci_dev *pdev, int nvec, int type)
 		/* chip_data is msi_data via host->hostdata in host->map() */
 		irq_set_msi_desc(virq, entry);
 
-		fsl_compose_msi_msg(pdev, hwirq, &msg, msi_data);
+		if (fsl_compose_msi_msg(pdev, hwirq, &msg, msi_data)) {
+			dev_err(&pdev->dev, "fail setting MSI");
+			msi_bitmap_free_hwirqs(&msi_data->bitmap, hwirq, 1);
+			rc = -ENODEV;
+			goto out_free;
+		}
+
 		pci_write_msi_msg(virq, &msg);
 	}
 	return 0;
