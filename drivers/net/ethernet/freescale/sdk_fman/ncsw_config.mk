@@ -17,6 +17,9 @@ endif
 ifdef CONFIG_FMAN_V3L
 ccflags-y +=-include $(FMAN)/fmanv3l_dflags.h
 endif
+ifdef CONFIG_FMAN_ARM
+ccflags-y +=-include $(FMAN)/ls1043_dflags.h
+endif
 
 ccflags-y += -I$(DRV_DPA)/
 ccflags-y += -I$(FMAN)/inc
@@ -36,6 +39,9 @@ ccflags-y += -I$(FMAN)/inc/integrations/FMANV3H
 endif
 ifdef CONFIG_FMAN_V3L
 ccflags-y += -I$(FMAN)/inc/integrations/FMANV3L
+endif
+ifdef CONFIG_FMAN_ARM
+ccflags-y += -I$(FMAN)/inc/integrations/LS1043
 endif
 
 ccflags-y += -I$(FMAN)/src/inc

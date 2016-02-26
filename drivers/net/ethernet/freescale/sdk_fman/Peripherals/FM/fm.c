@@ -47,7 +47,9 @@
 #include "fm_common.h"
 #include "fm_ipc.h"
 #include "fm.h"
+#ifndef CONFIG_ARM64
 #include <linux/fsl/svr.h>
+#endif
 #include "fsl_fman.h"
 
 
@@ -3530,6 +3532,7 @@ t_Error FM_Init(t_Handle h_Fm)
         if ((err = FwNotResetErratumBugzilla6173WA(p_Fm)) != E_OK)
             RETURN_ERROR(MAJOR, err, NO_MSG);
 #else  /* not FM_UCODE_NOT_RESET_ERRATA_BUGZILLA6173 */
+#ifndef CONFIG_FMAN_ARM
         {
             u32 svr = mfspr(SPRN_SVR);
 
@@ -3547,6 +3550,7 @@ t_Error FM_Init(t_Handle h_Fm)
                 XX_UDelay(100);
             }
         }
+#endif
         if (fman_is_qmi_halt_not_busy_state(p_Fm->p_FmQmiRegs))
         {
             fman_resume(p_Fm->p_FmFpmRegs);

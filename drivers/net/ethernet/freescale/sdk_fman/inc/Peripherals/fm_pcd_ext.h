@@ -1121,7 +1121,8 @@ typedef enum e_FmPcdManipHdrRmvSpecificL2 {
     e_FM_PCD_MANIP_HDR_RMV_STACKED_QTAGS,           /**< stacked QTags */
     e_FM_PCD_MANIP_HDR_RMV_ETHERNET_AND_MPLS,       /**< MPLS and Ethernet/802.3 MAC header until
                                                          the header which follows the MPLS header */
-    e_FM_PCD_MANIP_HDR_RMV_MPLS                     /**< Remove MPLS header (Unlimited MPLS labels) */
+    e_FM_PCD_MANIP_HDR_RMV_MPLS,                     /**< Remove MPLS header (Unlimited MPLS labels) */
+    e_FM_PCD_MANIP_HDR_RMV_PPPOE                     /**< Remove the PPPoE header and PPP protocol field. */
 } e_FmPcdManipHdrRmvSpecificL2;
 
 /**************************************************************************//**
@@ -1146,7 +1147,8 @@ typedef enum e_FmPcdManipHdrFieldUpdateVlan {
  @Description   Enumeration type for selecting specific L2 header insertion
 *//***************************************************************************/
 typedef enum e_FmPcdManipHdrInsrtSpecificL2 {
-    e_FM_PCD_MANIP_HDR_INSRT_MPLS                   /**< Insert MPLS header (Unlimited MPLS labels) */
+    e_FM_PCD_MANIP_HDR_INSRT_MPLS,                   /**< Insert MPLS header (Unlimited MPLS labels) */
+    e_FM_PCD_MANIP_HDR_INSRT_PPPOE                   /**< Insert PPPOE */
 } e_FmPcdManipHdrInsrtSpecificL2;
 
 #if (DPAA_VERSION >= 11)

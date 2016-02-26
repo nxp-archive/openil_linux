@@ -2,7 +2,7 @@ menu "Frame Manager support"
 
 menuconfig FSL_SDK_FMAN
 	bool "Freescale Frame Manager (datapath) support - SDK driver"
-	depends on FSL_SOC && FSL_BMAN && FSL_QMAN
+	depends on (FSL_SOC || ARM64) && FSL_BMAN && FSL_QMAN
 	default y
 	---help---
 		If unsure, say Y.
@@ -20,6 +20,13 @@ menu "FMAN Processor support"
 choice
 	depends on FSL_SDK_FMAN
 	prompt "Processor Type"
+
+config FMAN_ARM
+	bool "LS1043"
+	depends on ARM64
+	---help---
+	  Choose "LS1043" for the ARM platforms:
+	  LS1043
 
 config FMAN_P3040_P4080_P5020
 	bool "P3040 P4080 5020"
@@ -100,7 +107,7 @@ config FSL_FM_RX_EXTRA_HEADROOM
 
 config FMAN_PFC
 	bool "FMan PFC support (EXPERIMENTAL)"
-	depends on ( FMAN_V3H || FMAN_V3L ) && FSL_SDK_FMAN
+	depends on ( FMAN_V3H || FMAN_V3L || FMAN_ARM) && FSL_SDK_FMAN
 	default n
 	---help---
 	  This option enables PFC support on FMan v3 ports.

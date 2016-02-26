@@ -43,7 +43,10 @@
 #ifndef __CORE_EXT_H
 #define __CORE_EXT_H
 
-
+#ifdef CONFIG_FMAN_ARM
+#include "arm_ext.h"
+#include <linux/smp.h>
+#else
 #ifdef NCSW_PPC_CORE
 #include "ppc_ext.h"
 #elif defined(NCSW_VXWORKS)
@@ -59,6 +62,8 @@
 #ifndef CORE_CACHELINE_SIZE
 #error "Must define the core cache-line size!"
 #endif /* !CORE_CACHELINE_SIZE */
+
+#endif /* CONFIG_FMAN_ARM */
 
 
 /**************************************************************************//**
@@ -83,4 +88,3 @@ void CORE_MemoryBarrier(void);
 #define fsl_mem_core_barrier() CORE_MemoryBarrier()
 
 #endif /* __CORE_EXT_H */
-

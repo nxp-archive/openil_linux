@@ -59,8 +59,10 @@
 #include <linux/of_platform.h>
 #include <asm/uaccess.h>
 #include <asm/errno.h>
+#ifndef CONFIG_FMAN_ARM
 #include <sysdev/fsl_soc.h>
 #include <linux/fsl/svr.h>
+#endif
 
 #if defined(CONFIG_COMPAT)
 #include <linux/compat.h>
@@ -72,8 +74,10 @@
 #include "fm_port_ioctls.h"
 #include "fm_vsp_ext.h"
 
+#ifndef CONFIG_FMAN_ARM
 #define IS_T1023_T1024	(SVR_SOC_VER(mfspr(SPRN_SVR)) == SVR_T1024 || \
 			SVR_SOC_VER(mfspr(SPRN_SVR)) == SVR_T1023)
+#endif
 
 #define __ERR_MODULE__  MODULE_FM
 
@@ -345,9 +349,15 @@ void LnxWrpPCDIOCTLTypeChecking(void)
     ASSERT_COND(sizeof(ioc_fm_pcd_from_hdr_t) == sizeof(t_FmPcdFromHdr));
     ASSERT_COND(sizeof(ioc_fm_pcd_from_field_t) == sizeof(t_FmPcdFromField));
     ASSERT_COND(sizeof(ioc_fm_pcd_distinction_unit_t) == sizeof(t_FmPcdDistinctionUnit));
+
+#if defined(CONFIG_FMAN_ARM)
+    /* different alignment */
+    ASSERT_COND(sizeof(ioc_fm_pcd_net_env_params_t) == sizeof(t_FmPcdNetEnvParams) + sizeof(void *) + 4);
+#else
 #if !defined(CONFIG_COMPAT)
     /* different alignment */
     ASSERT_COND(sizeof(ioc_fm_pcd_net_env_params_t) == sizeof(t_FmPcdNetEnvParams) + sizeof(void *));
+#endif
 #endif
     ASSERT_COND(sizeof(ioc_fm_pcd_extract_entry_t) == sizeof(t_FmPcdExtractEntry));
     ASSERT_COND(sizeof(ioc_fm_pcd_kg_extract_mask_t) == sizeof(t_FmPcdKgExtractMask));
@@ -403,6 +413,9 @@ void LnxWrpPCDIOCTLTypeChecking(void)
     /*ioc_fm_pcd_cc_node_modify_key_params_t : private */
     /*ioc_fm_manip_hdr_info_t : private */
     /*ioc_fm_pcd_hash_table_set_t : private */
+#ifdef CONFIG_FMAN_ARM
+#warning "ls1043 temporary remove size validation"
+#else
     ASSERT_COND(sizeof(ioc_fm_pcd_manip_frag_ip_params_t) == sizeof(t_FmPcdManipFragIpParams));
     ASSERT_COND(sizeof(ioc_fm_pcd_manip_reassem_ip_params_t) == sizeof(t_FmPcdManipReassemIpParams));
     ASSERT_COND(sizeof(ioc_fm_pcd_manip_special_offload_ipsec_params_t) == sizeof(t_FmPcdManipSpecialOffloadIPSecParams));
@@ -433,7 +446,7 @@ void LnxWrpPCDIOCTLTypeChecking(void)
     ASSERT_COND(sizeof(ioc_fm_pcd_kg_scheme_select_t) == sizeof(t_FmPcdKgSchemeSelect));
     ASSERT_COND(sizeof(ioc_fm_pcd_port_schemes_params_t) == sizeof(t_FmPcdPortSchemesParams));
     ASSERT_COND(sizeof(ioc_fm_pcd_prs_start_t) == sizeof(t_FmPcdPrsStart));
-
+#endif
     return;
 }
 
@@ -1531,9 +1544,13 @@ Status: feature not supported
 
                     case (e_IOC_FM_PORT_TYPE_RX_10G):
                         if (port_params->port_id < FM_MAX_NUM_OF_10G_RX_PORTS) {
+#ifndef CONFIG_FMAN_ARM
                             if (IS_T1023_T1024) {
                                 h_Port = p_LnxWrpFmDev->rxPorts[port_params->port_id].h_Dev;
                             } else {
+#else
+                            {
+#endif
                                 h_Port = p_LnxWrpFmDev->rxPorts[port_params->port_id + FM_MAX_NUM_OF_1G_RX_PORTS].h_Dev;
                             }
                             break;

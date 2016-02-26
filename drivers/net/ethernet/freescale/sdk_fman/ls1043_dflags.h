@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc
- * All rights reserved.
+/*
+ * Copyright 2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -30,33 +30,27 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef __dflags_h
+#define __dflags_h
 
-/**************************************************************************//**
- @File          types_ext.h
 
- @Description   General types Standard Definitions
-*//***************************************************************************/
+#define NCSW_LINUX
 
-#ifndef __TYPES_EXT_H
-#define __TYPES_EXT_H
+#define LS1043
 
-#if defined(NCSW_LINUX)
-#include "types_linux.h"
+#define DEBUG_ERRORS        1
 
-#elif defined(NCSW_VXWORKS)
-#include "types_vxworks.h"
+#if defined(DEBUG)
+#define DEBUG_GLOBAL_LEVEL  REPORT_LEVEL_INFO
 
-#elif defined(__GNUC__) && defined(__cplusplus)
-#include "types_bb_gpp.h"
-
-#elif defined(__GNUC__)
-#include "types_bb_gcc.h"
-
-#elif defined(__ghs__)
-#include "types_ghs.h"
+#define DEBUG_XX_MALLOC
+#define DEBUG_MEM_LEAKS
 
 #else
-#include "types_dflt.h"
-#endif /* defined (__ROCOO__) */
+#define DEBUG_GLOBAL_LEVEL  REPORT_LEVEL_WARNING
+#endif /* (DEBUG) */
 
-#endif /* __TYPES_EXT_H */
+#define REPORT_EVENTS       1
+#define EVENT_GLOBAL_LEVEL  REPORT_LEVEL_MINOR
+
+#endif /* __dflags_h */

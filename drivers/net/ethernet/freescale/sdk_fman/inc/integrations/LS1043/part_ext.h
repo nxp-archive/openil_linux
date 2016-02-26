@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc
- * All rights reserved.
+/*
+ * Copyright 2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -30,33 +30,35 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 /**************************************************************************//**
- @File          types_ext.h
 
- @Description   General types Standard Definitions
+ @File          part_ext.h
+
+ @Description   Definitions for the part (integration) module.
 *//***************************************************************************/
 
-#ifndef __TYPES_EXT_H
-#define __TYPES_EXT_H
+#ifndef __PART_EXT_H
+#define __PART_EXT_H
 
-#if defined(NCSW_LINUX)
-#include "types_linux.h"
+#include "std_ext.h"
+#include "part_integration_ext.h"
 
-#elif defined(NCSW_VXWORKS)
-#include "types_vxworks.h"
+#if !(defined(LS1043))
+#error "unable to proceed without chip-definition"
+#endif
 
-#elif defined(__GNUC__) && defined(__cplusplus)
-#include "types_bb_gpp.h"
 
-#elif defined(__GNUC__)
-#include "types_bb_gcc.h"
+/**************************************************************************//*
+ @Description   Part data structure - must be contained in any integration
+                data structure.
+*//***************************************************************************/
+typedef struct t_Part
+{
+    uintptr_t   (* f_GetModuleBase)(t_Handle h_Part, e_ModuleId moduleId);
+                /**< Returns the address of the module's memory map base. */
+    e_ModuleId  (* f_GetModuleIdByBase)(t_Handle h_Part, uintptr_t baseAddress);
+                /**< Returns the module's ID according to its memory map base. */
+} t_Part;
 
-#elif defined(__ghs__)
-#include "types_ghs.h"
 
-#else
-#include "types_dflt.h"
-#endif /* defined (__ROCOO__) */
-
-#endif /* __TYPES_EXT_H */
+#endif /* __PART_EXT_H */

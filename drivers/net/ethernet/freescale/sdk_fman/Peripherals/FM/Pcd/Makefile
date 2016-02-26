@@ -20,4 +20,7 @@ endif
 ifeq ($(CONFIG_FMAN_V3L),y)
 fsl-ncsw-Pcd-objs       += fm_replic.o
 endif
+ifeq ($(CONFIG_FMAN_ARM),y)
+fsl-ncsw-Pcd-objs	+= fm_replic.o
+endif
 

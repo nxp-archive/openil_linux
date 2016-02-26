@@ -36,6 +36,25 @@
 #include "xx_ext.h"
 #include "memcpy_ext.h"
 
+void * MemCpy8(void* pDst, void* pSrc, uint32_t size)
+{
+    int i;
+
+    for(i = 0; i < size; ++i)
+        *(((uint8_t*)(pDst)) + i) = *(((uint8_t*)(pSrc)) + i);
+
+    return pDst;
+}
+
+void * MemSet8(void* pDst, int c, uint32_t size)
+{
+    int i;
+
+    for(i = 0; i < size; ++i)
+        *(((uint8_t*)(pDst)) + i) = (uint8_t)(c);
+
+    return pDst;
+}
 
 void * MemCpy32(void* pDst,void* pSrc, uint32_t size)
 {
