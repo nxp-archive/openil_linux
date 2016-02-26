@@ -1554,6 +1554,61 @@ static const struct i2c_device_id sgtl5000_id[] = {
 
 MODULE_DEVICE_TABLE(i2c, sgtl5000_id);
 
+#ifdef CONFIG_PM
+static int sgtl5000_pm_suspend(struct device *dev)
+{
+	struct sgtl5000_priv *sgtl5000 = dev_get_drvdata(dev);
+
+	regcache_cache_only(sgtl5000->regmap, true);
+
+	regulator_bulk_disable(ARRAY_SIZE(sgtl5000->supplies),
+			       sgtl5000->supplies);
+	return 0;
+}
+
+static int sgtl5000_pm_resume(struct device *dev)
+{
+	struct sgtl5000_priv *sgtl5000 = dev_get_drvdata(dev);
+	int ret;
+	u32 reg;
+
+	ret = regulator_bulk_enable(ARRAY_SIZE(sgtl5000->supplies),
+				    sgtl5000->supplies);
+	if (ret)
+		return ret;
+
+	regcache_cache_only(sgtl5000->regmap, false);
+	regcache_sync(sgtl5000->regmap);
+
+	regmap_write(sgtl5000->regmap, SGTL5000_CHIP_ANA_CTRL,
+		     SGTL5000_HP_ZCD_EN |
+		     SGTL5000_ADC_ZCD_EN);
+
+	regmap_write(sgtl5000->regmap, SGTL5000_CHIP_ANA_HP_CTRL, 0x4040);
+	regmap_write(sgtl5000->regmap, SGTL5000_CHIP_DAC_VOL, 0x6c6c);
+	regmap_write(sgtl5000->regmap, SGTL5000_CHIP_ANA_ADC_CTRL, 0xf0cc);
+	udelay(1000);
+
+	/* Workaround to rewrite these registers again */
+	regmap_read(sgtl5000->regmap, SGTL5000_CHIP_PLL_CTRL, &reg);
+	regmap_write(sgtl5000->regmap, SGTL5000_CHIP_PLL_CTRL, reg);
+	regmap_read(sgtl5000->regmap, SGTL5000_CHIP_CLK_TOP_CTRL, &reg);
+	regmap_write(sgtl5000->regmap, SGTL5000_CHIP_CLK_TOP_CTRL, reg);
+
+	regmap_read(sgtl5000->regmap, SGTL5000_CHIP_ANA_POWER, &reg);
+	regmap_write(sgtl5000->regmap, SGTL5000_CHIP_ANA_POWER, reg);
+	regmap_read(sgtl5000->regmap, SGTL5000_CHIP_CLK_CTRL, &reg);
+	regmap_write(sgtl5000->regmap, SGTL5000_CHIP_CLK_CTRL, reg);
+	udelay(1000);
+	regmap_read(sgtl5000->regmap, SGTL5000_CHIP_I2S_CTRL, &reg);
+	regmap_write(sgtl5000->regmap, SGTL5000_CHIP_I2S_CTRL, reg);
+
+	return 0;
+}
+#endif
+
+static SIMPLE_DEV_PM_OPS(sgtl5000_pm, sgtl5000_pm_suspend, sgtl5000_pm_resume);
+
 static const struct of_device_id sgtl5000_dt_ids[] = {
 	{ .compatible = "fsl,sgtl5000", },
 	{ /* sentinel */ }
@@ -1565,6 +1620,7 @@ static struct i2c_driver sgtl5000_i2c_driver = {
 		   .name = "sgtl5000",
 		   .owner = THIS_MODULE,
 		   .of_match_table = sgtl5000_dt_ids,
+		   .pm = &sgtl5000_pm,
 		   },
 	.probe = sgtl5000_i2c_probe,
 	.remove = sgtl5000_i2c_remove,
