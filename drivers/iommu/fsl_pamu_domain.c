@@ -477,6 +477,7 @@ static void fsl_pamu_domain_free(struct iommu_domain *domain)
 	dma_domain->enabled = 0;
 	dma_domain->mapped = 0;
 
+	kfree(dma_domain->win_arr);
 	kmem_cache_free(fsl_pamu_domain_cache, dma_domain);
 }
 
