@@ -375,6 +375,9 @@ static int usdpaa_open(struct inode *inode, struct file *filp)
 static int init_qm_portal(struct qm_portal_config *config,
 			  struct qm_portal *portal)
 {
+	const struct qm_dqrr_entry *dqrr = NULL;
+	int i;
+
 	portal->addr.addr_ce = config->addr_virt[DPA_PORTAL_CE];
 	portal->addr.addr_ci = config->addr_virt[DPA_PORTAL_CI];
 
@@ -390,6 +393,17 @@ static int init_qm_portal(struct qm_portal_config *config,
 		return 1;
 	}
 
+	/* Discard any entries on the DQRR */
+	/* If we consume the ring twice something is wrong */
+	for (i = 0; i < DQRR_MAXFILL * 2; i++) {
+		qm_dqrr_pvb_update(portal);
+		dqrr = qm_dqrr_current(portal);
+		if (!dqrr)
+			break;
+		qm_dqrr_cdc_consume_1ptr(portal, dqrr, 0);
+		qm_dqrr_pvb_update(portal);
+		qm_dqrr_next(portal);
+	}
 	/* Initialize the EQCR */
 	if (qm_eqcr_init(portal, qm_eqcr_pvb,
 			qm_eqcr_get_ci_stashing(portal), 1)) {
