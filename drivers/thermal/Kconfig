@@ -151,6 +151,7 @@ config QORIQ_THERMAL
 	tristate "Freescale QorIQ Thermal Monitoring Unit"
 	depends on CPU_THERMAL
 	depends on THERMAL_OF
+	select REGMAP_MMIO
 	help
 	  Enable thermal management based on Freescale QorIQ Thermal Monitoring
 	  Unit (TMU). It supports one critical trip point and one passive trip
