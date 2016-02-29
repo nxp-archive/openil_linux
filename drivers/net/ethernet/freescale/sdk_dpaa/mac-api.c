@@ -40,6 +40,7 @@
 
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/io.h>
 #include <linux/of_platform.h>
 #include <linux/of_mdio.h>
 #include <linux/phy.h>
@@ -83,6 +84,7 @@ static const enet_mode_t _100[] = {
 static const enet_mode_t _1000[] = {
 	[PHY_INTERFACE_MODE_GMII]	= e_ENET_MODE_GMII_1000,
 	[PHY_INTERFACE_MODE_SGMII]	= e_ENET_MODE_SGMII_1000,
+	[PHY_INTERFACE_MODE_QSGMII]	= e_ENET_MODE_QSGMII_1000,
 	[PHY_INTERFACE_MODE_TBI]	= e_ENET_MODE_TBI_1000,
 	[PHY_INTERFACE_MODE_RGMII]	= e_ENET_MODE_RGMII_1000,
 	[PHY_INTERFACE_MODE_RGMII_ID]	= e_ENET_MODE_RGMII_1000,

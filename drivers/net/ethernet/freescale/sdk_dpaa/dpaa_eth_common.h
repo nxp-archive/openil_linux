@@ -56,6 +56,15 @@
 }
 
 #define DPA_SGT_MAX_ENTRIES 16 /* maximum number of entries in SG Table */
+
+#ifdef DPAA_LS1043A_DMA_4K_ISSUE
+/* each S/G entry can be divided into two S/G entries */
+#define DPA_SGT_ENTRIES_THRESHOLD 	7
+#else
+#define DPA_SGT_ENTRIES_THRESHOLD	DPA_SGT_MAX_ENTRIES
+#endif /* DPAA_LS1043A_DMA_4K_ISSUE */
+
+
 #define DPA_BUFF_RELEASE_MAX 8 /* maximum number of buffers released at once */
 
 /* return codes for the dpaa-eth hooks */
@@ -170,9 +179,10 @@ u16 dpa_select_queue(struct net_device *net_dev, struct sk_buff *skb,
 		     void *accel_priv, select_queue_fallback_t fallback);
 #endif
 struct dpa_fq *dpa_fq_alloc(struct device *dev,
-				   const struct fqid_cell *fqids,
-				   struct list_head *list,
-				   enum dpa_fq_type fq_type);
+			    u32 fq_start,
+			    u32 fq_count,
+			    struct list_head *list,
+			    enum dpa_fq_type fq_type);
 int dpa_fq_probe_mac(struct device *dev, struct list_head *list,
 		     struct fm_port_fqs *port_fqs,
 		     bool tx_conf_fqs_per_core,
