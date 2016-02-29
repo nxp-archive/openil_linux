@@ -176,6 +176,11 @@
 			big-endian;
 		};
 
+		rcpm: rcpm@1ee2000 {
+			compatible = "fsl,ls1043a-rcpm", "fsl,qoriq-rcpm-2.1";
+			reg = <0x0 0x1ee2000 0x0 0x10000>;
+		};
+
 		ifc: ifc@1530000 {
 			compatible = "fsl,ifc", "simple-bus";
 			reg = <0x0 0x1530000 0x0 0x10000>;
@@ -857,6 +862,15 @@
 			clocks = <&clockgen 4 0>;
 			clock-names = "ipg";
 			status = "disabled";
+		};
+
+		ftm0: ftm0@29d0000 {
+			compatible = "fsl,ftm-alarm";
+			reg = <0x0 0x29d0000 0x0 0x10000>;
+			interrupts = <0 86 0x4>;
+			big-endian;
+			rcpm-wakeup = <&rcpm 0x0 0x20000000>;
+			status = "okay";
 		};
 
 		wdog0: wdog@2ad0000 {
