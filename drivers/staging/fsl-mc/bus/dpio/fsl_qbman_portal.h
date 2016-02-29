@@ -169,7 +169,7 @@ struct qbman_pull_desc {
 
 enum qbman_pull_type_e {
 	/* dequeue with priority precedence, respect intra-class scheduling */
-	qbman_pull_type_prio,
+	qbman_pull_type_prio = 1,
 	/* dequeue with active FQ precedence, respect ICS */
 	qbman_pull_type_active,
 	/* dequeue with active FQ precedence, no ICS */
