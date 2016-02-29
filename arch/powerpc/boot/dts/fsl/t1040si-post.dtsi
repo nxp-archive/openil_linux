@@ -516,7 +516,7 @@
 	};
 
 	tmu: tmu@f0000 {
-		compatible = "fsl,qoriq-tmu";
+		compatible = "fsl,qoriq-tmu", "fsl,t104x-tmu";
 		reg = <0xf0000 0x1000>;
 		interrupts = <18 2 0 0>;
 		fsl,tmu-range = <0xa0000 0x90026 0x8004a 0x1006a>;
@@ -555,7 +555,8 @@
 
 				       0x00030000 0x00000012
 				       0x00030001 0x0000001d>;
-		#thermal-sensor-cells = <0>;
+		little-endian;
+		#thermal-sensor-cells = <1>;
 	};
 
 	thermal-zones {
@@ -563,7 +564,7 @@
 			polling-delay-passive = <1000>;
 			polling-delay = <5000>;
 
-			thermal-sensors = <&tmu>;
+			thermal-sensors = <&tmu 2>;
 
 			trips {
 				cpu_alert: cpu-alert {
