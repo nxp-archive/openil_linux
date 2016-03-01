@@ -603,9 +603,6 @@ void ip_forward_options(struct sk_buff *skb)
 		ip_send_check(ip_hdr(skb));
 	}
 }
-#ifdef CONFIG_AS_FASTPATH
-EXPORT_SYMBOL(ip_forward_options);
-#endif
 
 int ip_options_rcv_srr(struct sk_buff *skb)
 {

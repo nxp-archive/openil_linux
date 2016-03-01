@@ -67,13 +67,6 @@ extern unsigned int ipt_do_table(struct sk_buff *skb,
 				 unsigned int hook,
 				 const struct nf_hook_state *state,
 				 struct xt_table *table);
-#ifdef CONFIG_AS_FASTPATH
-struct firewall_asfctrl {
-	void (*firewall_asfctrl_cb)(void);
-};
-
-extern void hook_firewall_asfctrl_cb(const struct firewall_asfctrl *);
-#endif
 
 #ifdef CONFIG_COMPAT
 #include <net/compat.h>

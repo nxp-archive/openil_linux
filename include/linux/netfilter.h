@@ -376,32 +376,4 @@ extern struct nfq_ct_hook __rcu *nfq_ct_hook;
 static inline void nf_ct_attach(struct sk_buff *new, struct sk_buff *skb) {}
 #endif
 
-#ifdef CONFIG_ASF_INGRESS_MARKER
-#define MAX_MARKER_RULES	20
-
-typedef struct {
-	uint32_t	src_ip[4];
-	uint32_t	dst_ip[4];
-	uint16_t	src_port;
-	uint16_t	dst_port;
-	uint8_t		proto;
-	uint8_t		uciDscp;
-} markerRule_t;
-
-typedef struct {
-	markerRule_t	*rule;
-	uint32_t	num_rules;
-} marker_db_t;
-
-typedef int marker_add_hook(marker_db_t *arg);
-typedef void marker_flush_hook(void);
-
-extern marker_add_hook *marker_add_fn;
-extern marker_flush_hook *marker_flush_fn;
-
-void marker_v4_hook_fn_register(marker_add_hook *add,
-			    marker_flush_hook *flush);
-void marker_v6_hook_fn_register(marker_add_hook *add,
-			    marker_flush_hook *flush);
-#endif
 #endif /*__LINUX_NETFILTER_H*/
