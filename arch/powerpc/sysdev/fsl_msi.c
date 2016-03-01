@@ -22,6 +22,7 @@
 #include <sysdev/fsl_soc.h>
 #include <asm/prom.h>
 #include <asm/hw_irq.h>
+#include <asm/fsl_msi.h>
 #include <asm/ppc-pci.h>
 #include <asm/mpic.h>
 #include <asm/fsl_hcalls.h>
@@ -122,6 +123,39 @@ static int fsl_msi_init_allocator(struct fsl_msi *msi_data)
 		msi_bitmap_reserve_hwirq(&msi_data->bitmap, hwirq);
 
 	return 0;
+}
+
+int fsl_msi_get_region_count(void)
+{
+	int count = 0;
+	struct fsl_msi *msi_data;
+
+	list_for_each_entry(msi_data, &msi_head, list)
+		count++;
+
+	return count;
+}
+
+int fsl_msi_get_region(int region_num, struct msi_region *region)
+{
+	struct fsl_msi *msi_data;
+
+#define CCSR_BASE 0xffe000000
+
+	list_for_each_entry(msi_data, &msi_head, list) {
+		if (msi_data->bank_index == region_num) {
+			region->region_num = msi_data->bank_index;
+			/*
+			 * FIXME Get absolute MSIIR address
+			 * (remove define CCSR_BASE).
+			 */
+			region->addr = CCSR_BASE + msi_data->msiir_offset;
+			region->size = 0x1000;
+			return 0;
+		}
+	}
+
+	return -ENODEV;
 }
 
 static void fsl_teardown_msi_irqs(struct pci_dev *pdev)
@@ -405,6 +439,7 @@ static int fsl_of_msi_probe(struct platform_device *dev)
 	const struct fsl_msi_feature *features;
 	int len;
 	u32 offset;
+	static int bank_index;
 
 	match = of_match_device(fsl_of_msi_ids, &dev->dev);
 	if (!match)
@@ -539,6 +574,7 @@ static int fsl_of_msi_probe(struct platform_device *dev)
 		}
 	}
 
+	msi->bank_index = bank_index++;
 	list_add_tail(&msi->list, &msi_head);
 
 	/* The multiple setting ppc_md.setup_msi_irqs will not harm things */
