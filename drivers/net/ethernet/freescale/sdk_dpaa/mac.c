@@ -43,6 +43,8 @@
 #include <linux/of_address.h>
 #include <linux/of_platform.h>
 #include <linux/of_net.h>
+#include <linux/of_mdio.h>
+#include <linux/phy_fixed.h>
 #include <linux/device.h>
 #include <linux/phy.h>
 #include <linux/io.h>
@@ -355,18 +357,29 @@ static int __cold mac_probe(struct platform_device *_of_dev)
 
 	/* Get the rest of the PHY information */
 	mac_dev->phy_node = of_parse_phandle(mac_node, "phy-handle", 0);
-	if (mac_dev->phy_node == NULL) {
-		u32 phy_id;
+	if (!mac_dev->phy_node && of_phy_is_fixed_link(mac_node)) {
+		struct phy_device *phy;
 
-		_errno = of_property_read_u32(mac_node, "fixed-link", &phy_id);
-		if (_errno) {
-			dev_err(dev, "No PHY (or fixed link) found\n");
-			_errno = -EINVAL;
+		_errno = of_phy_register_fixed_link(mac_node);
+		if (_errno)
 			goto _return_dev_set_drvdata;
-		}
 
-		sprintf(mac_dev->fixed_bus_id, PHY_ID_FMT, "fixed-0",
-			phy_id);
+		mac_dev->fixed_link = devm_kzalloc(mac_dev->dev,
+						   sizeof(*mac_dev->fixed_link),
+						   GFP_KERNEL);
+		if (!mac_dev->fixed_link)
+			goto _return_dev_set_drvdata;
+
+		mac_dev->phy_node = of_node_get(mac_node);
+		phy = of_phy_find_device(mac_dev->phy_node);
+		if (!phy)
+			goto _return_dev_set_drvdata;
+
+		mac_dev->fixed_link->link = phy->link;
+		mac_dev->fixed_link->speed = phy->speed;
+		mac_dev->fixed_link->duplex = phy->duplex;
+		mac_dev->fixed_link->pause = phy->pause;
+		mac_dev->fixed_link->asym_pause = phy->asym_pause;
 	}
 
 	_errno = mac_dev->init(mac_dev);
