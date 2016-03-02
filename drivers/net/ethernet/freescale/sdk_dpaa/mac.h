@@ -66,6 +66,7 @@ struct mac_device {
 	void			*fm;
 	/* List of multicast addresses */
 	struct list_head	 mc_addr_list;
+	struct fixed_phy_status	 *fixed_link;
 
 	bool autoneg_pause;
 	bool rx_pause_req;
