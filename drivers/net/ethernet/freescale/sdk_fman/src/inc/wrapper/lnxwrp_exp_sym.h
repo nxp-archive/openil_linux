@@ -47,6 +47,7 @@
 EXPORT_SYMBOL(FM_PORT_Disable);
 EXPORT_SYMBOL(FM_PORT_Enable);
 EXPORT_SYMBOL(FM_PORT_SetPCD);
+EXPORT_SYMBOL(FM_PORT_DeletePCD);
 
 /* Runtime PCD exported routines */
 EXPORT_SYMBOL(FM_PCD_Enable);

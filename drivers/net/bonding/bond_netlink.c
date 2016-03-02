@@ -304,6 +304,9 @@ static int bond_changelink(struct net_device *bond_dev,
 
 		bond_opt_initval(&newval, xmit_hash_policy);
 		err = __bond_opt_set(bond, BOND_OPT_XMIT_HASH, &newval);
+#ifdef CONFIG_HW_DISTRIBUTION_WITH_OH
+		apply_pcd(bond, xmit_hash_policy);
+#endif
 		if (err)
 			return err;
 	}

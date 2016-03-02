@@ -30,6 +30,10 @@
 #include <net/bond_alb.h>
 #include <net/bond_options.h>
 
+#ifdef CONFIG_HW_DISTRIBUTION_WITH_OH
+#include <net/hw_distribution.h>
+#endif
+
 #define BOND_MAX_ARP_TARGETS	16
 
 #define BOND_DEFAULT_MIIMON	100
@@ -136,6 +140,10 @@ struct bond_params {
 	int packets_per_slave;
 	int tlb_dynamic_lb;
 	struct reciprocal_value reciprocal_packets_per_slave;
+#ifdef CONFIG_HW_DISTRIBUTION_WITH_OH
+	struct oh_port_priv *ohp;
+	struct rtnl_link_stats64 oh_stats;
+#endif
 };
 
 struct bond_parm_tbl {
