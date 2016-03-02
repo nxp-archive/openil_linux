@@ -52,6 +52,8 @@
 	compatible = "fsl,ls1043a-qds", "fsl,ls1043a";
 
 	aliases {
+		crypto = &crypto;
+
 		serial0 = &lpuart0;
 		serial1 = &lpuart1;
 		serial2 = &lpuart2;

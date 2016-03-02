@@ -65,11 +65,7 @@
  *
  */
 
-#ifdef CONFIG_ARM
-/* These are common macros for Power, put here for ARM */
-#define setbits32(_addr, _v) writel((readl(_addr) | (_v)), (_addr))
-#define clrbits32(_addr, _v) writel((readl(_addr) & ~(_v)), (_addr))
-
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
 #define out_arch(type, endian, a, v)	__raw_write##type(cpu_to_##endian(v), a)
 #define in_arch(type, endian, a)	endian##_to_cpu(__raw_read##type(a))
 
@@ -86,26 +82,62 @@
 #define clrsetbits_le32(addr, clear, set) clrsetbits(le32, addr, clear, set)
 #endif
 
-#ifdef __BIG_ENDIAN
-#define wr_reg32(reg, data) out_be32(reg, data)
-#define rd_reg32(reg) in_be32(reg)
-#define clrsetbits_32(addr, clear, set) clrsetbits_be32(addr, clear, set)
-#ifdef CONFIG_64BIT
-#define wr_reg64(reg, data) out_be64(reg, data)
-#define rd_reg64(reg) in_be64(reg)
-#endif
-#else
-#ifdef __LITTLE_ENDIAN
-#define wr_reg32(reg, data) __raw_writel(data, reg)
-#define rd_reg32(reg) __raw_readl(reg)
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_LE
+#define caam16_to_cpu(value) le16_to_cpu(value)
+#define cpu_to_caam16(value) cpu_to_le16(value)
+#define caam32_to_cpu(value) le32_to_cpu(value)
+#define cpu_to_caam32(value) cpu_to_le32(value)
+#define caam64_to_cpu(value) le64_to_cpu(value)
+#define cpu_to_caam64(value) cpu_to_le64(value)
+#define wr_reg32(reg, data) iowrite32(data, reg)
+#define rd_reg32(reg) ioread32(reg)
 #define clrsetbits_32(addr, clear, set) clrsetbits_le32(addr, clear, set)
-#ifdef CONFIG_64BIT
-#define wr_reg64(reg, data) __raw_writeq(data, reg)
-#define rd_reg64(reg) __raw_readq(reg)
-#endif
-#endif
+#else
+#define caam16_to_cpu(value) be16_to_cpu(value)
+#define cpu_to_caam16(value) cpu_to_be16(value)
+#define caam32_to_cpu(value) be32_to_cpu(value)
+#define cpu_to_caam32(value) cpu_to_be32(value)
+#define caam64_to_cpu(value) be64_to_cpu(value)
+#define cpu_to_caam64(value) cpu_to_be64(value)
+#define wr_reg32(reg, data) iowrite32be(data, reg)
+#define rd_reg32(reg) ioread32be(reg)
+#define clrsetbits_32(addr, clear, set) clrsetbits_be32(addr, clear, set)
 #endif
 
+#ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
+#ifdef CONFIG_SOC_IMX7D
+#define wr_dma(value) (((u64)cpu_to_caam32(lower_32_bits(value)) << 32) | \
+			(u64)cpu_to_caam32(higher_32_bits(value)))
+#define rd_dma(value) (((u64)caam32_to_cpu(lower_32_bits(value)) << 32) | \
+			(u64)caam32_to_cpu(higher_32_bits(value)))
+#else
+#define wr_dma(value) cpu_to_caam64(value)
+#define rd_dma(value) caam64_to_cpu(value)
+#endif /* CONFIG_SOC_IMX7D */
+#else
+#define wr_dma(value) cpu_to_caam32(value)
+#define rd_dma(value) caam32_to_cpu(value)
+#endif
+
+#ifdef CONFIG_64BIT
+#ifdef CONFIG_PPC
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_LE
+#define wr_reg64(reg, data) out_le64(reg, data)
+#define rd_reg64(reg) in_le64(reg)
+#else
+#define wr_reg64(reg, data) out_be64(reg, data)
+#define rd_reg64(reg) in_be64(reg)
+#endif /* CONFIG_CRYPTO_DEV_FSL_CAAM_LE */
+#else /* CONFIG_PPC */
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_LE
+#define wr_reg64(reg, data) writeq(data, reg)
+#define rd_reg64(reg) readq(reg)
+#else
+#define wr_reg64(reg, data) iowrite64be(data, reg)
+#define rd_reg64(reg) ioread64be(reg)
+#endif /* CONFIG_CRYPTO_DEV_FSL_CAAM_LE */
+#endif /* CONFIG_PPC */
+#else /* CONFIG_64BIT */
 /*
  * The only users of these wr/rd_reg64 functions is the Job Ring (JR).
  * The DMA address registers in the JR are handled differently depending on
@@ -123,8 +155,6 @@
  *    base + 0x0000 : least-significant 32 bits
  *    base + 0x0004 : most-significant 32 bits
  */
-
-#ifndef CONFIG_64BIT
 #if !defined(CONFIG_CRYPTO_DEV_FSL_CAAM_LE) || \
 	defined(CONFIG_CRYPTO_DEV_FSL_CAAM_IMX)
 #define REG64_MS32(reg) ((u32 __iomem *)(reg))
@@ -145,7 +175,7 @@ static inline u64 rd_reg64(u64 __iomem *reg)
 	return ((u64)rd_reg32(REG64_MS32(reg)) << 32 |
 		(u64)rd_reg32(REG64_LS32(reg)));
 }
-#endif
+#endif /* CONFIG_64BIT */
 
 /*
  * jr_outentry
