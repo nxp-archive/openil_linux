@@ -207,9 +207,9 @@
 #define SEQID_RDCR		9
 #define SEQID_EN4B		10
 #define SEQID_BRWR		11
-#define SEQID_RDAR		12
+#define SEQID_RDAR_OR_RD_EVCR	12
 #define SEQID_WRAR		13
-
+#define SEQID_WD_EVCR           14
 
 #define QUADSPI_MIN_IOMAP SZ_4M
 
@@ -296,6 +296,7 @@ struct fsl_qspi {
 	u32 nor_size;
 	u32 nor_num;
 	u32 clk_rate;
+	u32 ddr_smp;
 	unsigned int chip_base_addr; /* We may support two chips. */
 	bool has_second_chip;
 	bool big_endian;
@@ -393,6 +394,7 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 	int rxfifo = q->devtype_data->rxfifo;
 	u32 lut_base;
 	int i;
+	const struct fsl_qspi_devtype_data *devtype_data = q->devtype_data;
 
 	struct spi_nor *nor = &q->nor[0];
 	u8 addrlen = (nor->addr_width == 3) ? ADDR24BIT : ADDR32BIT;
@@ -422,6 +424,19 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 		qspi_writel(q, LUT0(DUMMY, PAD1, read_dm) |
 			    LUT1(FSL_READ, PAD4, rxfifo),
 				base + QUADSPI_LUT(lut_base + 1));
+	} else if (nor->flash_read == SPI_NOR_DDR_QUAD) {
+		/* read mode : 1-4-4, such as Spansion s25fl128s. */
+		qspi_writel(q, LUT0(CMD, PAD1, read_op)
+			| LUT1(ADDR_DDR, PAD4, addrlen),
+			base + QUADSPI_LUT(lut_base));
+
+		qspi_writel(q, LUT0(MODE_DDR, PAD4, 0xff)
+			| LUT1(DUMMY, PAD1, read_dm),
+			base + QUADSPI_LUT(lut_base + 1));
+
+		qspi_writel(q, LUT0(FSL_READ_DDR, PAD4, rxfifo)
+			| LUT1(JMP_ON_CS, PAD1, 0),
+			base + QUADSPI_LUT(lut_base + 2));
 	}
 
 	/* Write enable */
@@ -489,16 +504,26 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 	qspi_writel(q, LUT0(CMD, PAD1, SPINOR_OP_BRWR),
 			base + QUADSPI_LUT(lut_base));
 
+
 	/*
-	 * Read any device register.
-	 * Used for Spansion S25FS-S family flash only.
+	 * Flash Micron and Spansion command confilict
+	 * use the same value 0x65. But it indicates different meaning.
 	 */
-	lut_base = SEQID_RDAR * 4;
-	qspi_writel(q, LUT0(CMD, PAD1, SPINOR_OP_SPANSION_RDAR) |
-			LUT1(ADDR, PAD1, ADDR24BIT),
-			base + QUADSPI_LUT(lut_base));
-	qspi_writel(q, LUT0(DUMMY, PAD1, 8) | LUT1(FSL_READ, PAD1, 1),
-			base + QUADSPI_LUT(lut_base + 1));
+	lut_base = SEQID_RDAR_OR_RD_EVCR * 4;
+	if (devtype_data->devtype == FSL_QUADSPI_LS2080A) {
+		/*
+		* Read any device register.
+		* Used for Spansion S25FS-S family flash only.
+		*/
+		qspi_writel(q, LUT0(CMD, PAD1, SPINOR_OP_SPANSION_RDAR) |
+			    LUT1(ADDR, PAD1, ADDR24BIT),
+			    base + QUADSPI_LUT(lut_base));
+		qspi_writel(q, LUT0(DUMMY, PAD1, 8) | LUT1(FSL_READ, PAD1, 1),
+			    base + QUADSPI_LUT(lut_base + 1));
+	} else {
+		qspi_writel(q, LUT0(CMD, PAD1, SPINOR_OP_RD_EVCR),
+			    base + QUADSPI_LUT(lut_base));
+	}
 
 	/*
 	 * Write any device register.
@@ -511,6 +536,11 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 	qspi_writel(q, LUT0(FSL_WRITE, PAD1, 1),
 			base + QUADSPI_LUT(lut_base + 1));
 
+	/* Write EVCR register */
+	lut_base = SEQID_WD_EVCR * 4;
+	qspi_writel(q, LUT0(CMD, PAD1, SPINOR_OP_WD_EVCR),
+		    base + QUADSPI_LUT(lut_base));
+
 	fsl_qspi_lock_lut(q);
 }
 
@@ -518,13 +548,22 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 static int fsl_qspi_get_seqid(struct fsl_qspi *q, u8 cmd)
 {
 	switch (cmd) {
+	case SPINOR_OP_READ_1_4_4_D:
+	case SPINOR_OP_READ4_1_4_4_D:
 	case SPINOR_OP_READ4_1_1_4:
 	case SPINOR_OP_READ_1_1_4:
 	case SPINOR_OP_READ_FAST:
 	case SPINOR_OP_READ4_FAST:
 		return SEQID_READ;
+	/*
+	 * Spansion & Micron use the same command value 0x65
+	 * Spansion: SPINOR_OP_SPANSION_RDAR, read any register.
+	 * Micron: SPINOR_OP_RD_EVCR,
+	 * read enhanced volatile configuration register.
+	 * case SPINOR_OP_RD_EVCR:
+	 */
 	case SPINOR_OP_SPANSION_RDAR:
-		return SEQID_RDAR;
+		return SEQID_RDAR_OR_RD_EVCR;
 	case SPINOR_OP_SPANSION_WRAR:
 		return SEQID_WRAR;
 	case SPINOR_OP_WREN:
@@ -550,6 +589,8 @@ static int fsl_qspi_get_seqid(struct fsl_qspi *q, u8 cmd)
 		return SEQID_EN4B;
 	case SPINOR_OP_BRWR:
 		return SEQID_BRWR;
+	case SPINOR_OP_WD_EVCR:
+		return SEQID_WD_EVCR;
 	default:
 		if (cmd == q->nor[0].erase_opcode)
 			return SEQID_SE;
@@ -711,6 +752,32 @@ static void fsl_qspi_set_map_addr(struct fsl_qspi *q)
 }
 
 /*
+ * enable controller ddr quad mode to support different
+ * vender flashes ddr quad mode.
+ */
+static void set_ddr_quad_mode(struct fsl_qspi *q)
+{
+	u32 reg, reg2;
+
+	reg = qspi_readl(q, q->iobase + QUADSPI_MCR);
+
+	/* Firstly, disable the module */
+	qspi_writel(q, reg | QUADSPI_MCR_MDIS_MASK, q->iobase + QUADSPI_MCR);
+
+	/* Set the Sampling Register for DDR */
+	reg2 = qspi_readl(q, q->iobase + QUADSPI_SMPR);
+	reg2 &= ~QUADSPI_SMPR_DDRSMP_MASK;
+	reg2 |= (((q->ddr_smp) << QUADSPI_SMPR_DDRSMP_SHIFT) &
+			QUADSPI_SMPR_DDRSMP_MASK);
+	qspi_writel(q, reg2, q->iobase + QUADSPI_SMPR);
+
+	/* Enable the module again (enable the DDR too) */
+	reg |= QUADSPI_MCR_DDR_EN_MASK;
+	qspi_writel(q, reg, q->iobase + QUADSPI_MCR);
+
+}
+
+/*
  * There are two different ways to read out the data from the flash:
  *  the "IP Command Read" and the "AHB Command Read".
  *
@@ -750,6 +817,11 @@ static void fsl_qspi_init_abh_read(struct fsl_qspi *q)
 	seqid = fsl_qspi_get_seqid(q, q->nor[0].read_opcode);
 	qspi_writel(q, seqid << QUADSPI_BFGENCR_SEQID_SHIFT,
 		q->iobase + QUADSPI_BFGENCR);
+
+	/* enable the DDR quad read */
+	if (q->nor->flash_read == SPI_NOR_DDR_QUAD)
+		set_ddr_quad_mode(q);
+
 }
 
 /* This function was used to prepare and enable QSPI clock */
@@ -1083,6 +1155,12 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 		goto clk_failed;
 	}
 
+	/* find ddrsmp value */
+	ret = of_property_read_u32(dev->of_node, "fsl,ddr-sampling-point",
+				&q->ddr_smp);
+	if (ret)
+		q->ddr_smp = 0;
+
 	/* find the irq */
 	ret = platform_get_irq(pdev, 0);
 	if (ret < 0) {
@@ -1139,6 +1217,10 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 
 		ret = of_property_read_bool(np, "m25p,fast-read");
 		mode = (ret) ? SPI_NOR_FAST : SPI_NOR_QUAD;
+		/* Can we enable the DDR Quad Read? */
+		ret = of_property_read_bool(np, "ddr-quad-read");
+		if (ret)
+			mode = SPI_NOR_DDR_QUAD;
 
 		ret = spi_nor_scan(nor, NULL, mode);
 		if (ret)

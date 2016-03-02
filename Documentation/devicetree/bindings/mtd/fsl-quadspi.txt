@@ -23,6 +23,9 @@ Optional properties:
 			      bus, you should enable this property.
 			      (Please check the board's schematic.)
   - big-endian : That means the IP register is big endian
+  - fsl,ddr-sampling-point: The value of the field is used to initialize
+                            the DDRSMP field of QuadSPI controller Sampling Register.
+  - ddr-quad-read: That means enable QuadSPI contoller DDR QUAD read mode.
 
 Example:
 

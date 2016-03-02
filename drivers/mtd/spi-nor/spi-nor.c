@@ -73,7 +73,8 @@ struct flash_info {
 #define	SECT_4K_PMC		0x10	/* SPINOR_OP_BE_4K_PMC works uniformly */
 #define	SPI_NOR_DUAL_READ	0x20    /* Flash supports Dual Read */
 #define	SPI_NOR_QUAD_READ	0x40    /* Flash supports Quad Read */
-#define	USE_FSR			0x80	/* use flag status register */
+#define SPI_NOR_DDR_QUAD_READ	0x80	/* Flash supports DDR Quad Read */
+#define	USE_FSR			0x100	/* use flag status register */
 };
 
 #define JEDEC_MFR(info)	((info)->id[0])
@@ -144,13 +145,17 @@ static int read_cr(struct spi_nor *nor)
  * It can be used to support more commands with
  * different dummy cycle requirements.
  */
-static inline int spi_nor_read_dummy_cycles(struct spi_nor *nor)
+static inline int spi_nor_read_dummy_cycles(struct spi_nor *nor,
+			const struct flash_info *info)
 {
 	switch (nor->flash_read) {
 	case SPI_NOR_FAST:
 	case SPI_NOR_DUAL:
 	case SPI_NOR_QUAD:
 		return 8;
+	case SPI_NOR_DDR_QUAD:
+		if (JEDEC_MFR(info) == SNOR_MFR_SPANSION)
+			return 6;
 	case SPI_NOR_NORMAL:
 		return 0;
 	}
@@ -793,7 +798,8 @@ static const struct flash_info spi_nor_ids[] = {
 	{ "s70fl01gs",  INFO(0x010221, 0x4d00, 256 * 1024, 256, 0) },
 	{ "s25sl12800", INFO(0x012018, 0x0300, 256 * 1024,  64, 0) },
 	{ "s25sl12801", INFO(0x012018, 0x0301,  64 * 1024, 256, 0) },
-	{ "s25fl128s",	INFO6(0x012018, 0x4d0180, 64 * 1024, 256, SECT_4K | SPI_NOR_QUAD_READ) },
+	{ "s25fl128s",	INFO6(0x012018, 0x4d0180, 64 * 1024, 256, SECT_4K | SPI_NOR_QUAD_READ
+			| SPI_NOR_DDR_QUAD_READ) },
 	{ "s25fl129p0", INFO(0x012018, 0x4d00, 256 * 1024,  64, SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
 	{ "s25fl129p1", INFO(0x012018, 0x4d01,  64 * 1024, 256, SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
 	{ "s25sl004a",  INFO(0x010212,      0,  64 * 1024,   8, 0) },
@@ -1221,6 +1227,23 @@ static int micron_quad_enable(struct spi_nor *nor)
 	return 0;
 }
 
+static int set_ddr_quad_mode(struct spi_nor *nor, const struct flash_info *info)
+{
+	int status;
+
+	switch (JEDEC_MFR(info)) {
+	case SNOR_MFR_SPANSION:
+		status = spansion_quad_enable(nor);
+		if (status) {
+			dev_err(nor->dev, "Spansion DDR quad-read not enabled\n");
+			return status;
+		}
+		return status;
+	default:
+		return -EINVAL;
+	}
+}
+
 static int set_quad_mode(struct spi_nor *nor, const struct flash_info *info)
 {
 	int status;
@@ -1415,8 +1438,15 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 	if (info->flags & SPI_NOR_NO_FR)
 		nor->flash_read = SPI_NOR_NORMAL;
 
-	/* Quad/Dual-read mode takes precedence over fast/normal */
-	if (mode == SPI_NOR_QUAD && info->flags & SPI_NOR_QUAD_READ) {
+	/* DDR Quad/Quad/Dual-read mode takes precedence over fast/normal */
+	if (mode == SPI_NOR_DDR_QUAD && info->flags & SPI_NOR_DDR_QUAD_READ) {
+		ret = set_ddr_quad_mode(nor, info);
+		if (ret) {
+			dev_err(dev, "DDR quad mode not supported\n");
+			return ret;
+		}
+		nor->flash_read = SPI_NOR_DDR_QUAD;
+	} else if (mode == SPI_NOR_QUAD && info->flags & SPI_NOR_QUAD_READ) {
 		ret = set_quad_mode(nor, info);
 		if (ret) {
 			dev_err(dev, "quad mode not supported\n");
@@ -1429,6 +1459,14 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 
 	/* Default commands */
 	switch (nor->flash_read) {
+	case SPI_NOR_DDR_QUAD:
+		if (JEDEC_MFR(info) == SNOR_MFR_SPANSION) { /* Spansion */
+			nor->read_opcode = SPINOR_OP_READ_1_4_4_D;
+		} else {
+			dev_err(dev, "DDR Quad Read is not supported.\n");
+			return -EINVAL;
+		}
+		break;
 	case SPI_NOR_QUAD:
 		nor->read_opcode = SPINOR_OP_READ_1_1_4;
 		break;
@@ -1456,6 +1494,9 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 		if (JEDEC_MFR(info) == SNOR_MFR_SPANSION) {
 			/* Dedicated 4-byte command set */
 			switch (nor->flash_read) {
+			case SPI_NOR_DDR_QUAD:
+				nor->read_opcode = SPINOR_OP_READ4_1_4_4_D;
+				break;
 			case SPI_NOR_QUAD:
 				nor->read_opcode = SPINOR_OP_READ4_1_1_4;
 				break;
@@ -1485,7 +1526,7 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 		return -EINVAL;
 	}
 
-	nor->read_dummy = spi_nor_read_dummy_cycles(nor);
+	nor->read_dummy = spi_nor_read_dummy_cycles(nor, info);
 
 	dev_info(dev, "%s (%lld Kbytes)\n", info->name,
 			(long long)mtd->size >> 10);
