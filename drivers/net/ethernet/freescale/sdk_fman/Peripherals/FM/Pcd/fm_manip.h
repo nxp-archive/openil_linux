@@ -222,9 +222,11 @@
 #define HMCD_RMV_L2_STACKED_QTAGS               1
 #define HMCD_RMV_L2_ETHERNET_AND_MPLS           2
 #define HMCD_RMV_L2_MPLS                        3
+#define HMCD_RMV_L2_PPPOE                        4
 
 #define HMCD_INSRT_L2_MPLS                      0
 #define HMCD_INSRT_N_UPDATE_L2_MPLS             1
+#define HMCD_INSRT_L2_PPPOE                     2
 #define HMCD_INSRT_L2_SIZE_SHIFT                24
 
 #define HMCD_L2_MODE_SHIFT                      16

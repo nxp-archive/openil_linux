@@ -1693,69 +1693,6 @@ static void xfrm_replay_timer_handler(unsigned long data)
 	spin_unlock(&x->lock);
 }
 
-#ifdef CONFIG_AS_FASTPATH
-struct xfrm_policy *xfrm_state_policy_mapping(struct xfrm_state *xfrm)
-{
-	struct xfrm_policy *xp = 0, *matched_pol = 0;
-	struct net *xfrm_net = xs_net(xfrm);
-	struct list_head *list_policy_head = &xfrm_net->xfrm.policy_all;
-	struct xfrm_policy_walk_entry *x;
-	struct xfrm_tmpl *tmpl;
-	unsigned int dir;
-
-	if (!list_policy_head) {
-		printk(KERN_INFO "No Security Policies in the system\n");
-		return matched_pol;
-	}
-	x = list_first_entry(list_policy_head,
-				struct xfrm_policy_walk_entry, all);
-	if (!x) {
-		printk(KERN_INFO "Security Policies list is empty\n");
-		return matched_pol;
-	}
-	if (xfrm->props.family == AF_INET) {
-		list_for_each_entry_from(x, list_policy_head, all) {
-			if (x->dead)
-				continue;
-			xp = container_of(x, struct xfrm_policy, walk);
-			tmpl = &xp->xfrm_vec[0];
-			dir = xfrm_policy_id2dir(xp->index);
-			if (dir <= XFRM_POLICY_OUT &&
-				tmpl->id.daddr.a4 == xfrm->id.daddr.a4 &&
-				tmpl->saddr.a4 == xfrm->props.saddr.a4 &&
-				xfrm->props.reqid == tmpl->reqid &&
-				xfrm->props.mode == tmpl->mode) {
-					matched_pol = xp;
-					xfrm->asf_sa_direction = dir;
-					break;
-			}
-		}
-	} else if (xfrm->props.family == AF_INET6) {
-		list_for_each_entry_from(x, list_policy_head, all) {
-			if (x->dead)
-				continue;
-			xp = container_of(x, struct xfrm_policy, walk);
-			tmpl = &xp->xfrm_vec[0];
-			dir = xfrm_policy_id2dir(xp->index);
-			if (dir <= XFRM_POLICY_OUT &&
-				!memcmp(tmpl->id.daddr.a6,
-						xfrm->id.daddr.a6, 16) &&
-				!memcmp(tmpl->saddr.a6,
-						xfrm->props.saddr.a6, 16) &&
-				xfrm->props.reqid == tmpl->reqid &&
-				xfrm->props.mode == tmpl->mode) {
-					matched_pol = xp;
-					xfrm->asf_sa_direction = dir;
-					break;
-			}
-		}
-	} else
-		return NULL;
-
-	return matched_pol;
-}
-EXPORT_SYMBOL(xfrm_state_policy_mapping);
-#endif
 static LIST_HEAD(xfrm_km_list);
 
 void km_policy_notify(struct xfrm_policy *xp, int dir, const struct km_event *c)

@@ -258,7 +258,7 @@ int ip_local_deliver(struct sk_buff *skb)
 		       ip_local_deliver_finish);
 }
 
-int ip_rcv_options(struct sk_buff *skb)
+static inline bool ip_rcv_options(struct sk_buff *skb)
 {
 	struct ip_options *opt;
 	const struct iphdr *iph;
@@ -306,7 +306,6 @@ int ip_rcv_options(struct sk_buff *skb)
 drop:
 	return true;
 }
-EXPORT_SYMBOL(ip_rcv_options);
 
 int sysctl_ip_early_demux __read_mostly = 1;
 EXPORT_SYMBOL(sysctl_ip_early_demux);

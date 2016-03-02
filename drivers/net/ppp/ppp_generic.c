@@ -53,9 +53,6 @@
 #include <linux/nsproxy.h>
 #include <net/net_namespace.h>
 #include <net/netns/generic.h>
-#ifdef CONFIG_AS_FASTPATH
-#include <linux/if_pppox.h>
-#endif
 
 #define PPP_VERSION	"2.4.2"
 
@@ -1649,31 +1646,6 @@ ppp_do_recv(struct ppp *ppp, struct sk_buff *skb, struct channel *pch)
 		kfree_skb(skb);
 	ppp_recv_unlock(ppp);
 }
-
-#ifdef CONFIG_AS_FASTPATH
-struct net_device *
-ppp_get_parent_dev(struct net_device *dev, __be16 *sessid)
-{
-	struct ppp *ppp = netdev_priv(dev);
-	struct channel *pch;
-	struct list_head *list;
-	struct sock *sk;
-	struct pppox_sock *po;
-
-	list = &ppp->channels;
-	if (list_empty(list))
-		return NULL;
-
-	list = list->next;
-	pch = list_entry(list, struct channel, clist);
-	sk = pch->chan->private;
-	po = pppox_sk(sk);
-
-	*sessid = po->num;
-	return po->pppoe_dev;
-}
-EXPORT_SYMBOL(ppp_get_parent_dev);
-#endif
 
 void
 ppp_input(struct ppp_channel *chan, struct sk_buff *skb)

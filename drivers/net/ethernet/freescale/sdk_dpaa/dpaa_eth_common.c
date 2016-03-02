@@ -346,6 +346,8 @@ u64 dpa_get_timestamp_ns(const struct dpa_priv_s *priv, enum port_type rx_tx,
 	if (!ts || *ts == 0)
 		return 0;
 
+	be64_to_cpus(ts);
+
 	/* multiple DPA_PTP_NOMINAL_FREQ_PERIOD_NS for case of non power of 2 */
 	ns = *ts << DPA_PTP_NOMINAL_FREQ_PERIOD_SHIFT;
 
@@ -558,11 +560,6 @@ dpa_mac_probe(struct platform_device *_of_dev)
 	struct dpa_priv_s	*priv = NULL;
 	struct device_node	*timer_node;
 #endif
-#ifdef CONFIG_PTP_1588_CLOCK_DPAA
-	int			lenp_ptp;
-	const phandle		*phandle_ptp;
-#endif
-
 	dpa_dev = &_of_dev->dev;
 
 	mac_node = of_parse_phandle(_of_dev->dev.of_node, "fsl,fman-mac", 0);
@@ -607,11 +604,10 @@ dpa_mac_probe(struct platform_device *_of_dev)
 #endif
 
 #ifdef CONFIG_PTP_1588_CLOCK_DPAA
-	phandle_ptp = of_get_property(mac_node, "ptimer-handle", &lenp_ptp);
-	if (phandle_ptp && ((mac_dev->phy_if != PHY_INTERFACE_MODE_SGMII) ||
-			((mac_dev->phy_if == PHY_INTERFACE_MODE_SGMII) &&
-			 (mac_dev->speed == SPEED_1000)))) {
-		ptp_priv.node = of_find_node_by_phandle(*phandle_ptp);
+	if ((mac_dev->phy_if != PHY_INTERFACE_MODE_SGMII) ||
+	    ((mac_dev->phy_if == PHY_INTERFACE_MODE_SGMII) &&
+			 (mac_dev->speed == SPEED_1000))) {
+		ptp_priv.node = of_parse_phandle(mac_node, "ptimer-handle", 0);
 		if (ptp_priv.node) {
 			ptp_priv.of_dev = of_find_device_by_node(ptp_priv.node);
 			if (unlikely(ptp_priv.of_dev == NULL)) {
@@ -762,9 +758,15 @@ dpa_bp_alloc(struct dpa_bp *dpa_bp)
 		goto pdev_register_failed;
 	}
 
-	err = dma_set_mask(&pdev->dev, DMA_BIT_MASK(40));
+	err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(40));
 	if (err)
 		goto pdev_mask_failed;
+
+#ifdef CONFIG_FMAN_ARM
+	/* force coherency */
+	pdev->dev.archdata.dma_coherent = true;
+	arch_setup_dma_ops(&pdev->dev, 0, 0, NULL, true);
+#endif
 
 	dpa_bp->dev = &pdev->dev;
 
@@ -890,30 +892,31 @@ EXPORT_SYMBOL(dpa_select_queue);
 #endif
 
 struct dpa_fq *dpa_fq_alloc(struct device *dev,
-				   const struct fqid_cell *fqids,
-				   struct list_head *list,
-				   enum dpa_fq_type fq_type)
+			    u32 fq_start,
+			    u32 fq_count,
+			    struct list_head *list,
+			    enum dpa_fq_type fq_type)
 {
 	int i;
 	struct dpa_fq *dpa_fq;
 
-	dpa_fq = devm_kzalloc(dev, sizeof(*dpa_fq) * fqids->count, GFP_KERNEL);
+	dpa_fq = devm_kzalloc(dev, sizeof(*dpa_fq) * fq_count, GFP_KERNEL);
 	if (dpa_fq == NULL)
 		return NULL;
 
-	for (i = 0; i < fqids->count; i++) {
+	for (i = 0; i < fq_count; i++) {
 		dpa_fq[i].fq_type = fq_type;
-		dpa_fq[i].fqid = fqids->start ? fqids->start + i : 0;
+		dpa_fq[i].fqid = fq_start ? fq_start + i : 0;
 		list_add_tail(&dpa_fq[i].list, list);
 	}
 
 #ifdef CONFIG_FMAN_PFC
 	if (fq_type == FQ_TYPE_TX)
-		for (i = 0; i < fqids->count; i++)
+		for (i = 0; i < fq_count; i++)
 			dpa_fq[i].wq = i / dpa_num_cpus;
 	else
 #endif
-		for (i = 0; i < fqids->count; i++)
+		for (i = 0; i < fq_count; i++)
 			_dpa_assign_wq(dpa_fq + i);
 
 	return dpa_fq;
@@ -934,7 +937,8 @@ int dpa_fq_probe_mac(struct device *dev, struct list_head *list,
 	int i, lenp;
 
 	if (ptype == TX && alloc_tx_conf_fqs) {
-		if (!dpa_fq_alloc(dev, tx_confirm_fqids, list,
+		if (!dpa_fq_alloc(dev, tx_confirm_fqids->start,
+				  tx_confirm_fqids->count, list,
 				  FQ_TYPE_TX_CONF_MQ))
 			goto fq_alloc_failed;
 	}
@@ -968,7 +972,8 @@ int dpa_fq_probe_mac(struct device *dev, struct list_head *list,
 			if (fqids[i].count != 1)
 				goto invalid_error_queue;
 
-			dpa_fq = dpa_fq_alloc(dev, &fqids[i], list,
+			dpa_fq = dpa_fq_alloc(dev, fqids[i].start,
+					      fqids[i].count, list,
 					      ptype == RX ?
 						FQ_TYPE_RX_ERROR :
 						FQ_TYPE_TX_ERROR);
@@ -985,7 +990,8 @@ int dpa_fq_probe_mac(struct device *dev, struct list_head *list,
 			if (fqids[i].count != 1)
 				goto invalid_default_queue;
 
-			dpa_fq = dpa_fq_alloc(dev, &fqids[i], list,
+			dpa_fq = dpa_fq_alloc(dev, fqids[i].start,
+					      fqids[i].count, list,
 					      ptype == RX ?
 						FQ_TYPE_RX_DEFAULT :
 						FQ_TYPE_TX_CONFIRM);
@@ -999,7 +1005,8 @@ int dpa_fq_probe_mac(struct device *dev, struct list_head *list,
 			break;
 		default:
 			/* all subsequent queues are either RX PCD or Tx */
-			if (!dpa_fq_alloc(dev, &fqids[i], list, ptype == RX ?
+			if (!dpa_fq_alloc(dev, fqids[i].start,
+					  fqids[i].count, list, ptype == RX ?
 					   FQ_TYPE_RX_PCD : FQ_TYPE_TX))
 				goto fq_alloc_failed;
 			break;
@@ -1540,25 +1547,23 @@ void dpa_release_sgt(struct qm_sg_entry *sgt)
 	memset(bmb, 0, DPA_BUFF_RELEASE_MAX * sizeof(struct bm_buffer));
 
 	do {
-		dpa_bp = dpa_bpid2pool(sgt[i].bpid);
+		dpa_bp = dpa_bpid2pool(qm_sg_entry_get_bpid(&sgt[i]));
 		DPA_BUG_ON(!dpa_bp);
 
 		j = 0;
 		do {
-			DPA_BUG_ON(sgt[i].extension);
-
-			bmb[j].hi       = sgt[i].addr_hi;
-			bmb[j].lo       = be32_to_cpu(sgt[i].addr_lo);
-
+			DPA_BUG_ON(qm_sg_entry_get_ext(&sgt[i]));
+			bm_buffer_set64(&bmb[j], qm_sg_addr(&sgt[i]));
 
 			j++; i++;
 		} while (j < ARRAY_SIZE(bmb) &&
-				!sgt[i-1].final &&
-				sgt[i-1].bpid == sgt[i].bpid);
+			!qm_sg_entry_get_final(&sgt[i-1]) &&
+			qm_sg_entry_get_bpid(&sgt[i-1]) ==
+			qm_sg_entry_get_bpid(&sgt[i]));
 
 		while (bman_release(dpa_bp->pool, bmb, j, 0))
 			cpu_relax();
-	} while (!sgt[i-1].final);
+	} while (!qm_sg_entry_get_final(&sgt[i-1]));
 }
 EXPORT_SYMBOL(dpa_release_sgt);
 

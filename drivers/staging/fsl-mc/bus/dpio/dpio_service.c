@@ -588,7 +588,7 @@ int dpaa2_io_service_pull_channel(struct dpaa2_io *d, uint32_t channelid,
 	qbman_pull_desc_clear(&pd);
 	qbman_pull_desc_set_storage(&pd, s->vaddr, s->paddr, 1);
 	qbman_pull_desc_set_numframes(&pd, (uint8_t)s->max);
-	qbman_pull_desc_set_channel(&pd, channelid, qbman_pull_type_active);
+	qbman_pull_desc_set_channel(&pd, channelid, qbman_pull_type_prio);
 	d = _service_select(d);
 	if (!d)
 		return -ENODEV;

@@ -639,7 +639,7 @@ static inline void _dpa_assign_wq(struct dpa_fq *fq)
 
 #else
 #define dpa_get_queue_mapping(skb) \
-	smp_processor_id()
+	raw_smp_processor_id()
 #endif
 #else
 /* Use the queue selected by XPS */
@@ -660,5 +660,22 @@ static inline void _dpa_bp_free_pf(void *addr)
 {
 	put_page(virt_to_head_page(addr));
 }
+
+/* TODO: LS1043A SoC has a HW issue regarding FMan DMA transactions; The issue
+ * manifests itself at high traffic rates when frames exceed 4K memory
+ * boundaries; For the moment, we use a SW workaround to avoid frames larger
+ * than 4K or that exceed 4K alignements.
+ */
+
+#ifdef ARM64
+#define DPAA_LS1043A_DMA_4K_ISSUE	1
+#endif
+
+#ifdef DPAA_LS1043A_DMA_4K_ISSUE
+#define HAS_DMA_ISSUE(start, size) \
+	(((u64)(start) ^ ((u64)(start) + (u64)(size))) & ~0xFFF)
+
+#define BOUNDARY_4K(start, size) (((u64)(start) + (u64)(size)) & ~0xFFF)
+#endif  /* DPAA_LS1043A_DMA_4K_ISSUE  */
 
 #endif	/* __DPA_H */

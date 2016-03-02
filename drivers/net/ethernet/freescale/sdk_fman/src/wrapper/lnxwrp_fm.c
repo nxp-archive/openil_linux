@@ -59,8 +59,10 @@
 #include <asm/uaccess.h>
 #include <asm/errno.h>
 #include <linux/fsl/qe.h>        /* For struct qe_firmware */
+#ifndef CONFIG_FMAN_ARM
 #include <sysdev/fsl_soc.h>
 #include <linux/fsl/guts.h>
+#endif
 #include <linux/stat.h>	   /* For file access mask */
 #include <linux/skbuff.h>
 #include <linux/proc_fs.h>
@@ -504,6 +506,7 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
     struct resource     res;
     const uint32_t      *uint32_prop;
     int                 _errno=0, lenp;
+    uint32_t            tmp_prop;
 
     fm_node = of_node_get(of_dev->dev.of_node);
 
@@ -512,19 +515,22 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
         REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("of_get_property(%s, cell-index) failed", fm_node->full_name));
         return NULL;
     }
+    tmp_prop = be32_to_cpu(*uint32_prop);
+
     if (WARN_ON(lenp != sizeof(uint32_t)))
         return NULL;
-    if (*uint32_prop > INTG_MAX_NUM_OF_FM) {
+
+    if (tmp_prop > INTG_MAX_NUM_OF_FM) {
         REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("fm id!"));
         return NULL;
     }
-    p_LnxWrpFmDev = CreateFmDev(*uint32_prop);
+    p_LnxWrpFmDev = CreateFmDev(tmp_prop);
     if (!p_LnxWrpFmDev) {
         REPORT_ERROR(MAJOR, E_NULL_POINTER, NO_MSG);
         return NULL;
     }
     p_LnxWrpFmDev->dev = &of_dev->dev;
-    p_LnxWrpFmDev->id = *uint32_prop;
+    p_LnxWrpFmDev->id = tmp_prop;
 
     /* Get the FM interrupt */
     p_LnxWrpFmDev->irq = of_irq_to_resource(fm_node, 0, NULL);
@@ -535,13 +541,11 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
 
     /* Get the FM error interrupt */
     p_LnxWrpFmDev->err_irq = of_irq_to_resource(fm_node, 1, NULL);
-    /* TODO - un-comment it once there will be err_irq in the DTS */
-#if 0
+
     if (unlikely(p_LnxWrpFmDev->err_irq == /*NO_IRQ*/0)) {
         REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("of_irq_to_resource() = %d", NO_IRQ));
         return NULL;
     }
-#endif /* 0 */
 
     /* Get the FM address */
     _errno = of_address_to_resource(fm_node, 0, &res);
@@ -560,10 +564,11 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
         REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("of_get_property(%s, clock-frequency) failed", fm_node->full_name));
         return NULL;
     }
+    tmp_prop = be32_to_cpu(*uint32_prop);
+
     if (WARN_ON(lenp != sizeof(uint32_t)))
         return NULL;
-    p_LnxWrpFmDev->fmDevSettings.param.fmClkFreq = (*uint32_prop + 500000)/1000000; /* In MHz, rounded */
-
+    p_LnxWrpFmDev->fmDevSettings.param.fmClkFreq = (tmp_prop + 500000)/1000000; /* In MHz, rounded */
     /* Get the MURAM base address and size */
     memset(&name, 0, sizeof(struct of_device_id));
     if (WARN_ON(strlen("muram") >= sizeof(name.name)))
@@ -583,6 +588,8 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
             p_LnxWrpFmDev->fmMuramBaseAddr = 0;
             p_LnxWrpFmDev->fmMuramPhysBaseAddr = res.start;
             p_LnxWrpFmDev->fmMuramMemSize = res.end + 1 - res.start;
+
+#ifndef CONFIG_FMAN_ARM
             {
                uint32_t svr;
                 svr = mfspr(SPRN_SVR);
@@ -590,6 +597,7 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
                 if ((svr & ~SVR_VER_IGNORE_MASK) >= SVR_B4860_REV2_VALUE)
                     p_LnxWrpFmDev->fmMuramMemSize = 0x80000;
             }
+#endif
         }
     }
 
@@ -706,6 +714,7 @@ struct device_node *GetFmAdvArgsDevTreeNode (uint8_t fmIndx)
     struct device_node  *dev_node;
     const uint32_t      *uint32_prop;
     int                 lenp;
+    uint32_t            tmp_prop;
 
     for_each_compatible_node(dev_node, NULL, "fsl,fman-extended-args") {
         uint32_prop = (uint32_t *)of_get_property(dev_node, "cell-index", &lenp);
@@ -715,13 +724,14 @@ struct device_node *GetFmAdvArgsDevTreeNode (uint8_t fmIndx)
                           dev_node->full_name));
             return NULL;
         }
+        tmp_prop = be32_to_cpu(*uint32_prop);
         if (WARN_ON(lenp != sizeof(uint32_t)))
             return NULL;
-        if (*uint32_prop > INTG_MAX_NUM_OF_FM) {
+        if (tmp_prop > INTG_MAX_NUM_OF_FM) {
             REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("fm id!"));
             return NULL;
         }
-        if (fmIndx == *uint32_prop)
+        if (fmIndx == tmp_prop)
             return dev_node;
     }
 
@@ -735,6 +745,7 @@ static t_Error CheckNConfigFmAdvArgs (t_LnxWrpFmDev *p_LnxWrpFmDev)
     const uint32_t      *uint32_prop;
     const char          *str_prop;
     int                 lenp;
+    uint32_t            tmp_prop;
 
     dev_node = GetFmAdvArgsDevTreeNode(p_LnxWrpFmDev->id);
     if (!dev_node) /* no advance parameters for FMan */
@@ -754,22 +765,24 @@ static t_Error CheckNConfigFmAdvArgs (t_LnxWrpFmDev *p_LnxWrpFmDev)
 	uint32_prop = (uint32_t *)of_get_property(dev_node,
 						"total-fifo-size", &lenp);
 	if (uint32_prop) {
+		tmp_prop = be32_to_cpu(*uint32_prop);
 		if (WARN_ON(lenp != sizeof(uint32_t)))
 			RETURN_ERROR(MINOR, E_INVALID_VALUE, NO_MSG);
 
 		if (FM_ConfigTotalFifoSize(p_LnxWrpFmDev->h_Dev,
-				*uint32_prop) != E_OK)
+				tmp_prop) != E_OK)
 			RETURN_ERROR(MINOR, E_INVALID_VALUE, NO_MSG);
 	}
 
     uint32_prop = (uint32_t *)of_get_property(dev_node, "tnum-aging-period",
 	&lenp);
-    if (uint32_prop) {
-    	if (WARN_ON(lenp != sizeof(uint32_t)))
-            RETURN_ERROR(MINOR, E_INVALID_VALUE, NO_MSG);
+	if (uint32_prop) {
+		tmp_prop = be32_to_cpu(*uint32_prop);
+		if (WARN_ON(lenp != sizeof(uint32_t)))
+			RETURN_ERROR(MINOR, E_INVALID_VALUE, NO_MSG);
 
         err = FM_ConfigTnumAgingPeriod(p_LnxWrpFmDev->h_Dev,
-            (uint16_t)uint32_prop[0]/*tnumAgingPeriod*/);
+            (uint16_t)tmp_prop/*tnumAgingPeriod*/);
 
         if (err != E_OK)
             RETURN_ERROR(MINOR, err, NO_MSG);
@@ -894,6 +907,7 @@ static t_Error ConfigureFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
     return FillRestFmInfo(p_LnxWrpFmDev);
 }
 
+#ifndef CONFIG_FMAN_ARM
 /*
  * Table for matching compatible strings, for device tree
  * guts node, for QorIQ SOCs.
@@ -926,6 +940,7 @@ static unsigned int get_rcwsr(int regnum)
 
 	return ioread32be(&guts_regs->rcwsr[regnum]);
 }
+#endif
 
 static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
 {
@@ -946,14 +961,25 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
         p_LnxWrpFmDev->fmDevSettings.param.firmware.p_Code = NULL;
     } else {
         p_LnxWrpFmDev->fmDevSettings.param.firmware.p_Code =
-            (void *) fw + fw->microcode[0].code_offset;
+            (void *) fw + be32_to_cpu(fw->microcode[0].code_offset);
         p_LnxWrpFmDev->fmDevSettings.param.firmware.size =
-            sizeof(u32) * fw->microcode[0].count;
+            sizeof(u32) * be32_to_cpu(fw->microcode[0].count);
         DBG(INFO, ("Loading fman-controller code version %d.%d.%d",
                    fw->microcode[0].major,
                    fw->microcode[0].minor,
                    fw->microcode[0].revision));
     }
+
+#ifdef CONFIG_FMAN_ARM
+	{ /* endianness adjustments: byteswap the ucode retrieved from the f/w blob */
+		int i;
+		int usz = p_LnxWrpFmDev->fmDevSettings.param.firmware.size;
+		void * p_Code = p_LnxWrpFmDev->fmDevSettings.param.firmware.p_Code;
+
+		for(i=0; i < usz / 4; ++i)
+			((u32 *)p_Code)[i] = be32_to_cpu(((u32 *)p_Code)[i]);
+	}
+#endif
 
     p_LnxWrpFmDev->fmDevSettings.param.h_FmMuram = p_LnxWrpFmDev->h_MuramDev;
 
@@ -965,6 +991,9 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
     }
 #endif
 
+#ifdef CONFIG_FMAN_ARM
+    p_LnxWrpFmDev->fmDevSettings.param.fmMacClkRatio = 1;
+#else
     if(p_LnxWrpFmDev->fmDevSettings.param.fmId == 0)
         p_LnxWrpFmDev->fmDevSettings.param.fmMacClkRatio =
             !!(get_rcwsr(4) & 0x2); /* RCW[FM_MAC_RAT0] */
@@ -980,6 +1009,7 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
         if ((svr & SVR_DEVICE_ID_MASK) == SVR_T4_DEVICE_ID)
             p_LnxWrpFmDev->fmDevSettings.param.fmMacClkRatio = 1;
     }
+#endif /* CONFIG_FMAN_ARM */
 
     if ((p_LnxWrpFmDev->h_Dev = FM_Config(&p_LnxWrpFmDev->fmDevSettings.param)) == NULL)
         RETURN_ERROR(MAJOR, E_INVALID_HANDLE, ("FM"));
@@ -1197,7 +1227,6 @@ static int fm_soc_suspend(struct device *dev)
 	{
 #ifdef CONFIG_FSL_QORIQ_PM
 		device_set_wakeup_enable(p_LnxWrpFmDev->dev, 1);
-// TODO: 		fsl_set_power_except(dev->of_node?);
 #endif
 		err = FM_PORT_EnterDsarFinal(p_LnxWrpFmDev->h_DsarRxPort,
 			p_LnxWrpFmDev->h_DsarTxPort);
@@ -1214,7 +1243,6 @@ static int fm_soc_resume(struct device *dev)
 	if (p_LnxWrpFmDev->h_DsarRxPort)
 	{
 #ifdef CONFIG_FSL_QORIQ_PM
-// TODO		fsl_set_power_except(dev->of_node?);
 		device_set_wakeup_enable(p_LnxWrpFmDev->dev, 0);
 #endif
 		FM_PORT_ExitDsar(p_LnxWrpFmDev->h_DsarRxPort,
@@ -1380,8 +1408,8 @@ void fm_port_get_buff_layout_ext_params(struct fm_port *port, struct fm_port_par
        if (WARN_ON(lenp != sizeof(uint32_t)*2))
             return;
 
-        params->manip_extra_space = (uint8_t)uint32_prop[0];
-        params->data_align        = (uint16_t)uint32_prop[1];
+        params->manip_extra_space = (uint8_t)be32_to_cpu(uint32_prop[0]);
+        params->data_align        = (uint16_t)be32_to_cpu(uint32_prop[1]);
     }
 
     of_node_put(port_node);

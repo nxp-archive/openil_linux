@@ -182,6 +182,7 @@ static t_Error CalculateTableSize(t_FmPcdManipParams *p_FmPcdManipParams,
                         switch (p_FmPcdManipParams->u.hdr.insrtParams.u.byHdr.u.specificL2Params.specificL2)
                         {
                             case (e_FM_PCD_MANIP_HDR_INSRT_MPLS):
+                            case (e_FM_PCD_MANIP_HDR_INSRT_PPPOE):
                                 dataSize +=
                                         p_FmPcdManipParams->u.hdr.insrtParams.u.byHdr.u.specificL2Params.size;
                                 break;
@@ -472,6 +473,9 @@ static t_Error BuildHmct(t_FmPcdManip *p_Manip,
                             case (e_FM_PCD_MANIP_HDR_RMV_MPLS):
                                 hmcdOpt = HMCD_RMV_L2_MPLS;
                                 break;
+                            case (e_FM_PCD_MANIP_HDR_RMV_PPPOE):
+                                hmcdOpt = HMCD_RMV_L2_PPPOE;
+                                break;
                             default:
                                 RETURN_ERROR(MINOR, E_NOT_SUPPORTED, NO_MSG);
                         }
@@ -556,8 +560,8 @@ static t_Error BuildHmct(t_FmPcdManip *p_Manip,
                 p_LocalData = (uint32_t*)p_UsrData;
 
             /* initialize data and advance pointer to next command */
-            for (i = 0; i < size / 4; i++, p_TmpHmct += HMCD_BASIC_SIZE / 4)
-                WRITE_UINT32(*p_TmpHmct, *(p_LocalData+i));
+            MemCpy8(p_TmpHmct, p_LocalData, size);
+            p_TmpHmct += size / sizeof(uint32_t);
 
             if (remain)
                 XX_Free(p_LocalData);
@@ -585,6 +589,9 @@ static t_Error BuildHmct(t_FmPcdManip *p_Manip,
                                 else
                                     hmcdOpt = HMCD_INSRT_L2_MPLS;
                                 break;
+                            case (e_FM_PCD_MANIP_HDR_INSRT_PPPOE):
+                                hmcdOpt = HMCD_INSRT_L2_PPPOE;
+                                break;
                             default:
                                 RETURN_ERROR(MINOR, E_NOT_SUPPORTED, NO_MSG);
                         }
@@ -601,7 +608,7 @@ static t_Error BuildHmct(t_FmPcdManip *p_Manip,
                                 (uint8_t)p_FmPcdManipParams->u.hdr.insrtParams.u.byHdr.u.specificL2Params.size;
 
                         ASSERT_COND(p_TmpData);
-                        Mem2IOCpy32(
+                        MemCpy8(
                                 p_TmpData,
                                 p_FmPcdManipParams->u.hdr.insrtParams.u.byHdr.u.specificL2Params.p_Data,
                                 size);
@@ -654,7 +661,7 @@ static t_Error BuildHmct(t_FmPcdManip *p_Manip,
                         WRITE_UINT8(*p_TmpHmct, p_FmPcdManipParams->u.hdr.insrtParams.u.byHdr.u.ipParams.lastDstOffset);
                         p_TmpHmct += HMCD_PARAM_SIZE / 4;
 
-                        Mem2IOCpy32(
+                        MemCpy8(
                                 p_TmpHmct,
                                 p_FmPcdManipParams->u.hdr.insrtParams.u.byHdr.u.ipParams.insrt.p_Data,
                                 p_FmPcdManipParams->u.hdr.insrtParams.u.byHdr.u.ipParams.insrt.size);
@@ -675,7 +682,7 @@ static t_Error BuildHmct(t_FmPcdManip *p_Manip,
 
                         p_TmpHmct += HMCD_BASIC_SIZE / 4;
 
-                        Mem2IOCpy32(
+                        MemCpy8(
                                 p_TmpHmct,
                                 p_FmPcdManipParams->u.hdr.insrtParams.u.byHdr.u.insrt.p_Data,
                                 p_FmPcdManipParams->u.hdr.insrtParams.u.byHdr.u.insrt.size);
@@ -695,7 +702,7 @@ static t_Error BuildHmct(t_FmPcdManip *p_Manip,
 
                         p_TmpHmct += HMCD_BASIC_SIZE / 4;
 
-                        Mem2IOCpy32(
+                        MemCpy8(
                                 p_TmpHmct,
                                 p_FmPcdManipParams->u.hdr.insrtParams.u.byHdr.u.insrt.p_Data,
                                 p_FmPcdManipParams->u.hdr.insrtParams.u.byHdr.u.insrt.size);
@@ -989,7 +996,7 @@ static t_Error BuildHmct(t_FmPcdManip *p_Manip,
                 size =
                         p_FmPcdManipParams->u.hdr.customParams.u.ipHdrReplace.hdrSize;
                 ASSERT_COND(p_TmpData);
-                Mem2IOCpy32(
+                MemCpy8(
                         p_TmpData,
                         p_FmPcdManipParams->u.hdr.customParams.u.ipHdrReplace.hdr,
                         size);
@@ -1738,7 +1745,7 @@ static t_Error UpdateInitCapwapReasm(t_Handle h_FmPcd,
             if (!p_Manip->capwapFragParams.p_ReassmFrmDescrIndxPoolTbl)
             RETURN_ERROR(MAJOR, E_NO_MEMORY, ("MURAM alloc for CAPWAP Reassembly frame buffer index pool table"));
 
-            IOMemSet32(p_Manip->capwapFragParams.p_ReassmFrmDescrIndxPoolTbl, 0, (uint32_t)(size + 1));
+            MemSet8(p_Manip->capwapFragParams.p_ReassmFrmDescrIndxPoolTbl, 0, (uint32_t)(size + 1));
 
             for ( i = 0; i < size; i++)
             WRITE_UINT8(*(uint8_t *)PTR_MOVE(p_Manip->capwapFragParams.p_ReassmFrmDescrIndxPoolTbl, i), (uint8_t)(i+1));
@@ -1756,7 +1763,7 @@ static t_Error UpdateInitCapwapReasm(t_Handle h_FmPcd,
             if (!p_Manip->capwapFragParams.p_ReassmFrmDescrPoolTbl)
             RETURN_ERROR(MAJOR, E_NO_MEMORY, ("MURAM alloc for CAPWAP Reassembly frame buffer pool table"));
 
-            IOMemSet32(p_Manip->capwapFragParams.p_ReassmFrmDescrPoolTbl, 0, (uint32_t)((size +1)* FM_PCD_MANIP_CAPWAP_REASM_RFD_SIZE));
+            MemSet8(p_Manip->capwapFragParams.p_ReassmFrmDescrPoolTbl, 0, (uint32_t)((size +1)* FM_PCD_MANIP_CAPWAP_REASM_RFD_SIZE));
 
             tmpReg32 = (uint32_t)(XX_VirtToPhys(p_Manip->capwapFragParams.p_ReassmFrmDescrPoolTbl) - p_FmPcd->physicalMuramBase);
 
@@ -1772,7 +1779,7 @@ static t_Error UpdateInitCapwapReasm(t_Handle h_FmPcd,
             if (!p_Manip->capwapFragParams.p_TimeOutTbl)
             RETURN_ERROR(MAJOR, E_NO_MEMORY, ("MURAM alloc for CAPWAP Reassembly timeout table"));
 
-            IOMemSet32(p_Manip->capwapFragParams.p_TimeOutTbl, 0, (uint16_t)((size + 1)*FM_PCD_MANIP_CAPWAP_REASM_TIME_OUT_ENTRY_SIZE));
+            MemSet8(p_Manip->capwapFragParams.p_TimeOutTbl, 0, (uint16_t)((size + 1)*FM_PCD_MANIP_CAPWAP_REASM_TIME_OUT_ENTRY_SIZE));
 
             tmpReg32 = (uint32_t)(XX_VirtToPhys(p_Manip->capwapFragParams.p_TimeOutTbl) - p_FmPcd->physicalMuramBase);
             WRITE_UINT32(p_ReassmTbl->timeOutTblPtr, tmpReg32);
@@ -1922,7 +1929,7 @@ static t_Error CreateReassCommonTable(t_FmPcdManip *p_Manip)
         RETURN_ERROR(MAJOR, E_NO_MEMORY,
                      ("MURAM alloc for Reassembly common parameters table"));
 
-    IOMemSet32(p_Manip->reassmParams.p_ReassCommonTbl, 0,
+    MemSet8(p_Manip->reassmParams.p_ReassCommonTbl, 0,
                FM_PCD_MANIP_REASM_COMMON_PARAM_TABLE_SIZE);
 
     /* Setting the TimeOut Mode.*/
@@ -1950,7 +1957,7 @@ static t_Error CreateReassCommonTable(t_FmPcdManip *p_Manip)
                 MAJOR, E_NO_MEMORY,
                 ("MURAM alloc for Reassembly frame descriptor indexes pool"));
 
-    IOMemSet32(UINT_TO_PTR(p_Manip->reassmParams.reassFrmDescrIndxPoolTblAddr),
+    MemSet8(UINT_TO_PTR(p_Manip->reassmParams.reassFrmDescrIndxPoolTblAddr),
                0, (uint32_t)(size * 2));
 
     /* The entries in IP Reassembly Frame Descriptor Indexes Pool contains indexes starting with 1 up to
@@ -1977,7 +1984,7 @@ static t_Error CreateReassCommonTable(t_FmPcdManip *p_Manip)
     if (!p_Manip->reassmParams.reassFrmDescrPoolTblAddr)
         RETURN_ERROR(MAJOR, E_NO_MEMORY, ("Memory allocation FAILED"));
 
-    IOMemSet32(UINT_TO_PTR(p_Manip->reassmParams.reassFrmDescrPoolTblAddr), 0,
+    MemSet8(UINT_TO_PTR(p_Manip->reassmParams.reassFrmDescrPoolTblAddr), 0,
                (uint32_t)(size * 64));
 
     /* Sets the Reassembly Frame Descriptors Pool and liodn offset*/
@@ -2005,7 +2012,7 @@ static t_Error CreateReassCommonTable(t_FmPcdManip *p_Manip)
         RETURN_ERROR(MAJOR, E_NO_MEMORY,
                      ("MURAM alloc for Reassembly timeout table"));
 
-    IOMemSet32(UINT_TO_PTR(p_Manip->reassmParams.timeOutTblAddr), 0,
+    MemSet8(UINT_TO_PTR(p_Manip->reassmParams.timeOutTblAddr), 0,
                (uint16_t)(size * 8));
 
     /* Sets the TimeOut table offset from MURAM */
@@ -2144,7 +2151,7 @@ static t_Error CreateReassTable(t_FmPcdManip *p_Manip, e_NetHeaderType hdr)
         *p_ReassTbl = NULL;
         RETURN_ERROR(MAJOR, E_NO_MEMORY, ("Memory allocation FAILED"));
     }
-    IOMemSet32(UINT_TO_PTR(*p_AutoLearnHashTblAddr), 0, autoLearnHashTblSize);
+    MemSet8(UINT_TO_PTR(*p_AutoLearnHashTblAddr), 0, autoLearnHashTblSize);
 
     /* Sets the Reassembly Automatic Learning Hash Table and liodn offset */
     tmpReg64 = ((uint64_t)(p_Manip->reassmParams.dataLiodnOffset
@@ -2171,7 +2178,7 @@ static t_Error CreateReassTable(t_FmPcdManip *p_Manip, e_NetHeaderType hdr)
         *p_AutoLearnHashTblAddr = 0;
         RETURN_ERROR(MAJOR, E_NO_MEMORY, ("Memory allocation FAILED"));
     }
-    IOMemSet32(UINT_TO_PTR(*p_AutoLearnSetLockTblAddr), 0, (numOfSets * 4));
+    MemSet8(UINT_TO_PTR(*p_AutoLearnSetLockTblAddr), 0, (numOfSets * 4));
 
     /* sets Set Lock table pointer and liodn offset*/
     tmpReg64 = ((uint64_t)(p_Manip->reassmParams.dataLiodnOffset
@@ -2266,7 +2273,7 @@ static t_Error UpdateInitReasm(t_Handle h_FmPcd, t_Handle h_PcdParams,
                 RETURN_ERROR(
                         MAJOR, E_NO_MEMORY,
                         ("MURAM alloc for Reassembly internal buffers pool"));
-            IOMemSet32(
+            MemSet8(
                     UINT_TO_PTR(p_Manip->reassmParams.internalBufferPoolAddr),
                     0, (uint32_t)(totalNumOfTnums * BMI_FIFO_UNITS));
 
@@ -2961,7 +2968,7 @@ static t_Error UpdateIndxStats(t_Handle h_FmPcd,
         if (!p_Manip->p_StatsTbl)
         RETURN_ERROR(MAJOR, E_NO_MEMORY, ("MURAM alloc for Manipulation indexed statistics table"));
 
-        IOMemSet32(p_Manip->p_StatsTbl, 0, (uint32_t)(p_Manip->owner * 4));
+        MemSet8(p_Manip->p_StatsTbl, 0, (uint32_t)(p_Manip->owner * 4));
 
         tmpReg32 |= (uint32_t)(XX_VirtToPhys(p_Manip->p_StatsTbl) - p_FmPcd->physicalMuramBase);
 
@@ -3122,7 +3129,7 @@ static t_Error CapwapReassembly(t_CapwapReassemblyParams *p_ManipParams,
     if (!p_Manip->h_Frag)
         RETURN_ERROR(MAJOR, E_NO_MEMORY, ("MURAM alloc CAPWAP reassembly parameters table"));
 
-    IOMemSet32(p_Manip->h_Frag, 0, FM_PCD_MANIP_CAPWAP_REASM_TABLE_SIZE);
+    MemSet8(p_Manip->h_Frag, 0, FM_PCD_MANIP_CAPWAP_REASM_TABLE_SIZE);
 
     p_Table = (t_CapwapReasmPram *)p_Manip->h_Frag;
 
@@ -3134,7 +3141,7 @@ static t_Error CapwapReassembly(t_CapwapReassemblyParams *p_ManipParams,
     if (!p_Manip->capwapFragParams.p_AutoLearnHashTbl)
         RETURN_ERROR(MAJOR, E_NO_MEMORY,("MURAM alloc for CAPWAP automatic learning hash table"));
 
-    IOMemSet32(p_Manip->capwapFragParams.p_AutoLearnHashTbl, 0, (uint32_t)(p_ManipParams->maxNumFramesInProcess * 2 * FM_PCD_MANIP_CAPWAP_REASM_AUTO_LEARNING_HASH_ENTRY_SIZE));
+    MemSet8(p_Manip->capwapFragParams.p_AutoLearnHashTbl, 0, (uint32_t)(p_ManipParams->maxNumFramesInProcess * 2 * FM_PCD_MANIP_CAPWAP_REASM_AUTO_LEARNING_HASH_ENTRY_SIZE));
 
     tmpReg32 = (uint32_t)(XX_VirtToPhys(p_Manip->capwapFragParams.p_AutoLearnHashTbl) - p_FmPcd->physicalMuramBase);
 
@@ -3204,7 +3211,7 @@ static t_Error CapwapFragmentation(t_CapwapFragmentationParams *p_ManipParams,
     if (!p_Manip->h_Frag)
     RETURN_ERROR(MAJOR, E_NO_MEMORY, ("MURAM alloc for CAPWAP fragmentation table descriptor"));
 
-    IOMemSet32(p_Manip->h_Frag, 0, FM_PCD_CC_AD_ENTRY_SIZE);
+    MemSet8(p_Manip->h_Frag, 0, FM_PCD_CC_AD_ENTRY_SIZE);
 
     p_Ad = (t_AdOfTypeContLookup *)p_Manip->h_Frag;
 
@@ -3422,7 +3429,7 @@ static t_Error InsrtHdrByTempl(t_FmPcdManipHdrInsrtParams *p_ManipParams, t_FmPc
             p_Template[14] = tmpReg8;
         }
 
-        Mem2IOCpy32(p_Manip->p_Template, p_Template, p_InsrtByTemplate->size);
+        MemCpy8(p_Manip->p_Template, p_Template, p_InsrtByTemplate->size);
 
         XX_Free(p_Template);
     }
@@ -3899,7 +3906,7 @@ static t_Error IpFragmentation(t_FmPcdManipFragIpParams *p_ManipParams,
     if (!p_Manip->fragParams.p_Frag)
         RETURN_ERROR(MAJOR, E_NO_MEMORY,
                      ("MURAM alloc for Fragmentation table descriptor"));
-    IOMemSet32(p_Manip->fragParams.p_Frag, 0, FM_PCD_CC_AD_ENTRY_SIZE);
+    MemSet8(p_Manip->fragParams.p_Frag, 0, FM_PCD_CC_AD_ENTRY_SIZE);
 
     /* Prepare the third Ad register (pcAndOffsets)- OperationCode */
     pcAndOffsetsReg = (uint32_t)HMAN_OC_IP_FRAGMENTATION;
@@ -4288,7 +4295,7 @@ static t_Error CapwapFragmentation(t_FmPcdManipFragCapwapParams *p_ManipParams,
     if (!p_Manip->fragParams.p_Frag)
         RETURN_ERROR(MAJOR, E_NO_MEMORY,
                      ("MURAM alloc for Fragmentation table descriptor"));
-    IOMemSet32(p_Manip->fragParams.p_Frag, 0, FM_PCD_CC_AD_ENTRY_SIZE);
+    MemSet8(p_Manip->fragParams.p_Frag, 0, FM_PCD_CC_AD_ENTRY_SIZE);
 
     /* Prepare the third Ad register (pcAndOffsets)- OperationCode */
     pcAndOffsetsReg = (uint32_t)HMAN_OC_CAPWAP_FRAGMENTATION;
@@ -4464,7 +4471,7 @@ static t_Handle ManipOrStatsSetNode(t_Handle h_FmPcd, t_Handle *p_Params,
                 return NULL;
             }
 
-            IOMemSet32(p_Manip->h_Ad, 0, FM_PCD_CC_AD_ENTRY_SIZE);
+            MemSet8(p_Manip->h_Ad, 0, FM_PCD_CC_AD_ENTRY_SIZE);
         }
         else
         {
@@ -4538,7 +4545,7 @@ static void BuildHmtd(uint8_t *p_Dest, uint8_t *p_Src, uint8_t *p_Hmcd,
     t_Error err;
 
     /* Copy the HMTD */
-    IO2IOCpy32(p_Dest, (uint8_t*)p_Src, 16);
+    MemCpy8(p_Dest, (uint8_t*)p_Src, 16);
     /* Replace the HMCT table pointer  */
     WRITE_UINT32(
             ((t_Hmtd *)p_Dest)->hmcdBasePtr,
@@ -4975,7 +4982,7 @@ void FmPcdManipUpdateAdContLookupForCc(t_Handle h_Manip, t_Handle p_Ad,
 #endif /* (defined(FM_CAPWAP_SUPPORT) && (DPAA_VERSION == 10)) */
         case (HMAN_OC):
             /* Initialize HMTD within the match table*/
-            IOMemSet32(p_Ad, 0, FM_PCD_CC_AD_ENTRY_SIZE);
+            MemSet8(p_Ad, 0, FM_PCD_CC_AD_ENTRY_SIZE);
             /* copy the existing HMTD *//* ask Alla - memcpy??? */
             memcpy((uint8_t*)p_Ad, p_Manip->h_Ad, sizeof(t_Hmtd));
             /* update NADEN to be "1"*/

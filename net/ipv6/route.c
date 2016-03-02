@@ -65,9 +65,6 @@
 #include <linux/sysctl.h>
 #endif
 
-#ifdef CONFIG_AS_FASTPATH
-static ipv6_route_flush_hook *ipv6_route_flush_fn;
-#endif
 enum rt6_nud_state {
 	RT6_NUD_FAIL_HARD = -3,
 	RT6_NUD_FAIL_PROBE = -2,
@@ -864,10 +861,6 @@ static int __ip6_ins_rt(struct rt6_info *rt, struct nl_info *info,
 	err = fib6_add(&table->tb6_root, rt, info, mxc);
 	write_unlock_bh(&table->tb6_lock);
 
-#ifdef CONFIG_AS_FASTPATH
-	if ((!err) && ipv6_route_flush_fn)
-		ipv6_route_flush_fn();
-#endif
 	return err;
 }
 
@@ -1030,7 +1023,6 @@ void ip6_route_input(struct sk_buff *skb)
 
 	skb_dst_set(skb, ip6_route_input_lookup(net, skb->dev, &fl6, flags));
 }
-EXPORT_SYMBOL(ip6_route_input);
 
 static struct rt6_info *ip6_pol_route_output(struct net *net, struct fib6_table *table,
 					     struct flowi6 *fl6, int flags)
@@ -1763,10 +1755,6 @@ static int __ip6_del_rt(struct rt6_info *rt, struct nl_info *info)
 
 out:
 	ip6_rt_put(rt);
-#ifdef CONFIG_AS_FASTPATH
-	if ((!err) && ipv6_route_flush_fn)
-		ipv6_route_flush_fn();
-#endif
 	return err;
 }
 
@@ -3321,10 +3309,3 @@ void ip6_route_cleanup(void)
 	dst_entries_destroy(&ip6_dst_blackhole_ops);
 	kmem_cache_destroy(ip6_dst_ops_template.kmem_cachep);
 }
-#ifdef CONFIG_AS_FASTPATH
-void ipv6_route_hook_fn_register(ipv6_route_flush_hook *flush)
-{
-	ipv6_route_flush_fn = flush;
-}
-EXPORT_SYMBOL(ipv6_route_hook_fn_register);
-#endif

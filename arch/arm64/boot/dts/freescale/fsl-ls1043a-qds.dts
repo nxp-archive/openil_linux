@@ -45,7 +45,7 @@
  */
 
 /dts-v1/;
-/include/ "fsl-ls1043a.dtsi"
+#include "fsl-ls1043a.dtsi"
 
 / {
 	model = "LS1043A QDS Board";
@@ -101,12 +101,14 @@
 	num-cs = <2>;
 	bus-num = <0>;
 	status = "okay";
+	fsl,ddr-sampling-point = <4>;
 
 	qflash0: s25fl128s@0 {
 		compatible = "spansion,m25p80";
 		#address-cells = <1>;
 		#size-cells = <1>;
 		spi-max-frequency = <20000000>;
+		ddr-quad-read;
 		reg = <0>;
 	};
 };
