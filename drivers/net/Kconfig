@@ -55,6 +55,7 @@ config BONDING
 	  To compile this driver as a module, choose M here: the module
 	  will be called bonding.
 
+source "drivers/net/bonding/Kconfig"
 config DUMMY
 	tristate "Dummy net driver support"
 	---help---
