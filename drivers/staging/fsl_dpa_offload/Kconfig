@@ -1,7 +1,7 @@
 
 config FSL_DPA_OFFLOAD
 	tristate "Freescale Datapath Offloading Driver"
-	depends on FSL_SDK_FMAN
+	depends on FSL_SDK_FMAN && CRYPTO_DEV_FSL_CAAM_JR
 	select CRC8
 	select CRC64_ECMA
 	default n
