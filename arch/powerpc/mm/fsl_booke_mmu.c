@@ -42,6 +42,7 @@
 #include <linux/highmem.h>
 #include <linux/memblock.h>
 
+#include <asm/cputable.h>
 #include <asm/pgalloc.h>
 #include <asm/prom.h>
 #include <asm/io.h>
@@ -342,6 +343,14 @@ void book3e_tlb_lock(void)
 	unsigned long tmp;
 	int token = smp_processor_id() + 1;
 
+	/*
+	 * Besides being unnecessary in the absence of SMT, this
+	 * check prevents trying to do lbarx/stbcx. on e5500 which
+	 * doesn't implement either feature.
+	 */
+	if (!cpu_has_feature(CPU_FTR_SMT))
+		return;
+
 	asm volatile("1: lbarx %0, 0, %1;"
 		     "cmpwi %0, 0;"
 		     "bne 2f;"
@@ -361,6 +370,9 @@ void book3e_tlb_lock(void)
 void book3e_tlb_unlock(void)
 {
 	struct paca_struct *paca = get_paca();
+
+	if (!cpu_has_feature(CPU_FTR_SMT))
+		return;
 
 	isync();
 	paca->tcd_ptr->lock = 0;
