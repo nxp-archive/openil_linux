@@ -527,7 +527,7 @@ static int caam_keygen_edesc(struct pkc_request *req,
 	if (edesc->erratum_A_006899) {
 		dma_to_sec4_sg_one(&(edesc->g_sg), edesc->g_dma,
 				   key_req->g_len, 0);
-		edesc->g_sg.len |= SEC4_SG_LEN_FIN;
+		edesc->g_sg.len |= cpu_to_caam32(SEC4_SG_LEN_FIN);
 
 		edesc->g_sg_dma = dma_map_single(dev, &(edesc->g_sg),
 						 sizeof(struct sec4_sg_entry),

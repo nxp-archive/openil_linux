@@ -33,6 +33,15 @@
 #define __SG_SW_QM_H
 
 #include "linux/fsl_qman.h"
+#include "regs.h"
+
+static inline void cpu_to_hw_sg(struct qm_sg_entry *qm_sg_ptr)
+{
+	dma_addr_t addr = qm_sg_ptr->opaque;
+
+	qm_sg_ptr->opaque = cpu_to_caam64(addr);
+	qm_sg_ptr->sgt_efl = cpu_to_caam32(qm_sg_ptr->sgt_efl);
+}
 
 static inline void dma_to_qm_sg_one(struct qm_sg_entry *qm_sg_ptr,
 				      dma_addr_t dma, u32 len, u16 offset)
@@ -45,6 +54,8 @@ static inline void dma_to_qm_sg_one(struct qm_sg_entry *qm_sg_ptr,
 	qm_sg_ptr->bpid = 0;
 	qm_sg_ptr->__reserved3 = 0;
 	qm_sg_ptr->offset = offset & QM_SG_OFFSET_MASK;
+
+	cpu_to_hw_sg(qm_sg_ptr);
 }
 
 /*
@@ -75,7 +86,10 @@ static inline void sg_to_qm_sg_last(struct scatterlist *sg, int sg_count,
 				      u16 offset)
 {
 	qm_sg_ptr = sg_to_qm_sg(sg, sg_count, qm_sg_ptr, offset);
+
+	qm_sg_ptr->sgt_efl = caam32_to_cpu(qm_sg_ptr->sgt_efl);
 	qm_sg_ptr->final = 1;
+	qm_sg_ptr->sgt_efl = cpu_to_caam32(qm_sg_ptr->sgt_efl);
 }
 
 #endif /* __SG_SW_QM_H */

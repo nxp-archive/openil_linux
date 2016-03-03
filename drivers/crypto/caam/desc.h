@@ -20,20 +20,26 @@
 #define SEC4_SG_BPID_MASK	0x000000ff
 #define SEC4_SG_BPID_SHIFT	16
 #define SEC4_SG_LEN_MASK	0x3fffffff	/* Excludes EXT and FINAL */
-#define SEC4_SG_OFFS_MASK	0x00001fff
+#define SEC4_SG_OFFSET_MASK	0x00001fff
 
 struct sec4_sg_entry {
-#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_IMX
+#if !defined(CONFIG_ARCH_DMA_ADDR_T_64BIT) && \
+	defined(CONFIG_CRYPTO_DEV_FSL_CAAM_IMX)
 	u32 rsvd1;
 	dma_addr_t ptr;
 #else
 	u64 ptr;
 #endif /* CONFIG_CRYPTO_DEV_FSL_CAAM_IMX */
 	u32 len;
+#ifndef CONFIG_CRYPTO_DEV_FSL_CAAM_LE
 	u8 rsvd2;
 	u8 buf_pool_id;
-#define SEC4_SG_OFFSET_MASK 0x1FFF
 	u16 offset;
+#else
+	u16 offset;
+	u8 buf_pool_id;
+	u8 rsvd2;
+#endif /* CONFIG_CRYPTO_DEV_FSL_CAAM_LE */
 };
 
 /* Max size of any CAAM descriptor in 32-bit words, inclusive of header */
@@ -79,6 +85,28 @@ struct sec4_sg_entry {
 #define CLASS_1			(0x01 << CLASS_SHIFT)
 #define CLASS_2			(0x02 << CLASS_SHIFT)
 #define CLASS_BOTH		(0x03 << CLASS_SHIFT)
+
+#define PREHDR_IDLEN_SHIFT	32
+#define PREHDR_OFFSET_SHIFT	26
+#define PREHDR_BPID_SHIFT	16
+#define PREHDR_BSIZE_SHIFT	0
+
+#define PREHDR_IDLEN_MASK	GENMASK_ULL(39,32)
+#define PREHDR_OFFSET_MASK	GENMASK_ULL(27,26)
+#define PREHDR_BPID_MASK	GENMASK_ULL(23,16)
+#define PREHDR_BSIZE_MASK	GENMASK_ULL(15,0)
+
+#define PREHEADER_PREP_IDLEN(preh, idlen) \
+	(preh) |= ((u64)(idlen) << PREHDR_IDLEN_SHIFT) & PREHDR_IDLEN_MASK
+
+#define PREHEADER_PREP_BPID(preh, bpid) \
+	(preh) |= ((u64)(bpid) << PREHDR_BPID_SHIFT) & PREHDR_BPID_MASK
+
+#define PREHEADER_PREP_BSIZE(preh, bufsize) \
+	(preh) |= ((u64)(bufsize) << PREHDR_BSIZE_SHIFT) & PREHDR_BSIZE_MASK
+
+#define PREHEADER_PREP_OFFSET(preh, offs) \
+	(preh) |= ((u64)(offs) << PREHDR_OFFSET_SHIFT) & PREHDR_OFFSET_MASK
 
 /*
  * Descriptor header command constructs
@@ -534,6 +562,7 @@ struct sec4_sg_entry {
 #define OP_PCL_IPSEC_DES_IV64			 0x0100
 #define OP_PCL_IPSEC_DES			 0x0200
 #define OP_PCL_IPSEC_3DES			 0x0300
+#define OP_PCL_IPSEC_NULL_ENC			 0x0b00
 #define OP_PCL_IPSEC_AES_CBC			 0x0c00
 #define OP_PCL_IPSEC_AES_CTR			 0x0d00
 #define OP_PCL_IPSEC_AES_XTS			 0x1600
@@ -1511,6 +1540,7 @@ struct sec4_sg_entry {
 #define MATH_SRC1_INFIFO	(0x0a << MATH_SRC1_SHIFT)
 #define MATH_SRC1_OUTFIFO	(0x0b << MATH_SRC1_SHIFT)
 #define MATH_SRC1_ONE		(0x0c << MATH_SRC1_SHIFT)
+#define MATH_SRC1_ZERO		(0x0f << MATH_SRC1_SHIFT)
 
 /* Destination selectors */
 #define MATH_DEST_SHIFT		8

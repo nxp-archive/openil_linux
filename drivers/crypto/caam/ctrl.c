@@ -111,7 +111,7 @@ static inline int run_descriptor_deco0(struct device *ctrldev, u32 *desc,
 
 
 	if (ctrlpriv->virt_en == 1) {
-		setbits32(&ctrl->deco_rsr, DECORSR_JR0);
+		clrsetbits_32(&ctrl->deco_rsr, 0, DECORSR_JR0);
 
 		while (!(rd_reg32(&ctrl->deco_rsr) & DECORSR_VALID) &&
 		       --timeout)
@@ -120,7 +120,7 @@ static inline int run_descriptor_deco0(struct device *ctrldev, u32 *desc,
 		timeout = 100000;
 	}
 
-	setbits32(&ctrl->deco_rq, DECORR_RQD0ENABLE);
+	clrsetbits_32(&ctrl->deco_rq, 0, DECORR_RQD0ENABLE);
 
 	while (!(rd_reg32(&ctrl->deco_rq) & DECORR_DEN0) &&
 								 --timeout)
@@ -140,7 +140,7 @@ static inline int run_descriptor_deco0(struct device *ctrldev, u32 *desc,
 	}
 
 	for (i = 0; i < dlen; i++)
-		wr_reg32(&deco->descbuf[i], *(desc + i));
+		wr_reg32(&deco->descbuf[i], caam32_to_cpu(*(desc + i)));
 
 	flags = DECO_JQCR_WHL;
 	/*
@@ -151,7 +151,7 @@ static inline int run_descriptor_deco0(struct device *ctrldev, u32 *desc,
 		flags |= DECO_JQCR_FOUR;
 
 	/* Instruct the DECO to execute it */
-	setbits32(&deco->jr_ctl_hi, flags);
+	clrsetbits_32(&deco->jr_ctl_hi, 0, flags);
 
 	timeout = 10000000;
 	do {
@@ -170,13 +170,13 @@ static inline int run_descriptor_deco0(struct device *ctrldev, u32 *desc,
 		  DECO_OP_STATUS_HI_ERR_MASK;
 
 	if (ctrlpriv->virt_en == 1)
-		clrbits32(&ctrl->deco_rsr, DECORSR_JR0);
+		clrsetbits_32(&ctrl->deco_rsr, DECORSR_JR0, 0);
 
 	ret = timeout ? 0 : -EAGAIN;
 
 out_err:
 	/* Mark the DECO as free */
-	clrbits32(&ctrl->deco_rq, DECORR_RQD0ENABLE);
+	clrsetbits_32(&ctrl->deco_rq, DECORR_RQD0ENABLE, 0);
 	return ret;
 }
 
@@ -367,7 +367,7 @@ static void kick_trng(struct device *dev, int ent_delay)
 	r4tst = &ctrl->r4tst[0];
 
 	/* put RNG4 into program mode */
-	setbits32(&r4tst->rtmctl, RTMCTL_PRGM);
+	clrsetbits_32(&r4tst->rtmctl, 0, RTMCTL_PRGM);
 
 	/*
 	 * Performance-wise, it does not make sense to
@@ -381,7 +381,7 @@ static void kick_trng(struct device *dev, int ent_delay)
 	      >> RTSDCTL_ENT_DLY_SHIFT;
 	if (ent_delay <= val) {
 		/* put RNG4 into run mode */
-		clrbits32(&r4tst->rtmctl, RTMCTL_PRGM);
+		clrsetbits_32(&r4tst->rtmctl, RTMCTL_PRGM, 0);
 		return;
 	}
 
@@ -399,9 +399,9 @@ static void kick_trng(struct device *dev, int ent_delay)
 	 * select raw sampling in both entropy shifter
 	 * and statistical checker
 	 */
-	setbits32(&val, RTMCTL_SAMP_MODE_RAW_ES_SC);
+	clrsetbits_32(&val, 0, RTMCTL_SAMP_MODE_RAW_ES_SC);
 	/* put RNG4 into run mode */
-	clrbits32(&val, RTMCTL_PRGM);
+	clrsetbits_32(&val, RTMCTL_PRGM, 0);
 	/* write back the control register */
 	wr_reg32(&r4tst->rtmctl, val);
 }
@@ -495,11 +495,28 @@ static int caam_rng_init(struct device *dev)
 		ctrlpriv->rng4_sh_init = ~ctrlpriv->rng4_sh_init & RDSTA_IFMASK;
 
 		/* Enable RDB bit so that RNG works faster */
-		setbits32(&ctrl->scfgr, SCFGR_RDBENABLE);
+		clrsetbits_32(&ctrl->scfgr, 0, SCFGR_RDBENABLE);
 	}
 
 	return 0;
 }
+
+#ifdef CONFIG_DEBUG_FS
+static int caam_debugfs_u64_get(void *data, u64 *val)
+{
+	*val = caam64_to_cpu(*(u64 *)data);
+	return 0;
+}
+
+static int caam_debugfs_u32_get(void *data, u64 *val)
+{
+	*val = caam32_to_cpu(*(u32 *)data);
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(caam_fops_u32_ro, caam_debugfs_u32_get, NULL, "%llu\n");
+DEFINE_SIMPLE_ATTRIBUTE(caam_fops_u64_ro, caam_debugfs_u64_get, NULL, "%llu\n");
+#endif
 
 /* Probe routine for CAAM top (controller) level */
 static int caam_probe(struct platform_device *pdev)
@@ -654,9 +671,9 @@ static int caam_probe(struct platform_device *pdev)
 	}
 
 	if (ctrlpriv->virt_en == 1)
-		setbits32(&ctrl->jrstart, JRSTART_JR0_START |
-			  JRSTART_JR1_START | JRSTART_JR2_START |
-			  JRSTART_JR3_START);
+		clrsetbits_32(&ctrl->jrstart, 0, JRSTART_JR0_START |
+			      JRSTART_JR1_START | JRSTART_JR2_START |
+			      JRSTART_JR3_START);
 
 	if (sizeof(dma_addr_t) == sizeof(u64))
 		if (of_device_is_compatible(nprop, "fsl,sec-v5.0"))
@@ -763,48 +780,59 @@ static int caam_probe(struct platform_device *pdev)
 	ctrlpriv->ctl = debugfs_create_dir("ctl", ctrlpriv->dfs_root);
 
 	/* Controller-level - performance monitor counters */
+
 	ctrlpriv->ctl_rq_dequeued =
-		debugfs_create_u64("rq_dequeued",
-				   S_IRUSR | S_IRGRP | S_IROTH,
-				   ctrlpriv->ctl, &perfmon->req_dequeued);
+		debugfs_create_file("rq_dequeued",
+				    S_IRUSR | S_IRGRP | S_IROTH,
+				    ctrlpriv->ctl, &perfmon->req_dequeued,
+				    &caam_fops_u64_ro);
 	ctrlpriv->ctl_ob_enc_req =
-		debugfs_create_u64("ob_rq_encrypted",
-				   S_IRUSR | S_IRGRP | S_IROTH,
-				   ctrlpriv->ctl, &perfmon->ob_enc_req);
+		debugfs_create_file("ob_rq_encrypted",
+				    S_IRUSR | S_IRGRP | S_IROTH,
+				    ctrlpriv->ctl, &perfmon->ob_enc_req,
+				    &caam_fops_u64_ro);
 	ctrlpriv->ctl_ib_dec_req =
-		debugfs_create_u64("ib_rq_decrypted",
-				   S_IRUSR | S_IRGRP | S_IROTH,
-				   ctrlpriv->ctl, &perfmon->ib_dec_req);
+		debugfs_create_file("ib_rq_decrypted",
+				    S_IRUSR | S_IRGRP | S_IROTH,
+				    ctrlpriv->ctl, &perfmon->ib_dec_req,
+				    &caam_fops_u64_ro);
 	ctrlpriv->ctl_ob_enc_bytes =
-		debugfs_create_u64("ob_bytes_encrypted",
-				   S_IRUSR | S_IRGRP | S_IROTH,
-				   ctrlpriv->ctl, &perfmon->ob_enc_bytes);
+		debugfs_create_file("ob_bytes_encrypted",
+				    S_IRUSR | S_IRGRP | S_IROTH,
+				    ctrlpriv->ctl, &perfmon->ob_enc_bytes,
+				    &caam_fops_u64_ro);
 	ctrlpriv->ctl_ob_prot_bytes =
-		debugfs_create_u64("ob_bytes_protected",
-				   S_IRUSR | S_IRGRP | S_IROTH,
-				   ctrlpriv->ctl, &perfmon->ob_prot_bytes);
+		debugfs_create_file("ob_bytes_protected",
+				    S_IRUSR | S_IRGRP | S_IROTH,
+				    ctrlpriv->ctl, &perfmon->ob_prot_bytes,
+				    &caam_fops_u64_ro);
 	ctrlpriv->ctl_ib_dec_bytes =
-		debugfs_create_u64("ib_bytes_decrypted",
-				   S_IRUSR | S_IRGRP | S_IROTH,
-				   ctrlpriv->ctl, &perfmon->ib_dec_bytes);
+		debugfs_create_file("ib_bytes_decrypted",
+				    S_IRUSR | S_IRGRP | S_IROTH,
+				    ctrlpriv->ctl, &perfmon->ib_dec_bytes,
+				    &caam_fops_u64_ro);
 	ctrlpriv->ctl_ib_valid_bytes =
-		debugfs_create_u64("ib_bytes_validated",
-				   S_IRUSR | S_IRGRP | S_IROTH,
-				   ctrlpriv->ctl, &perfmon->ib_valid_bytes);
+		debugfs_create_file("ib_bytes_validated",
+				    S_IRUSR | S_IRGRP | S_IROTH,
+				    ctrlpriv->ctl, &perfmon->ib_valid_bytes,
+				    &caam_fops_u64_ro);
 
 	/* Controller level - global status values */
 	ctrlpriv->ctl_faultaddr =
-		debugfs_create_u64("fault_addr",
-				   S_IRUSR | S_IRGRP | S_IROTH,
-				   ctrlpriv->ctl, &perfmon->faultaddr);
+		debugfs_create_file("fault_addr",
+				    S_IRUSR | S_IRGRP | S_IROTH,
+				    ctrlpriv->ctl, &perfmon->faultaddr,
+				    &caam_fops_u32_ro);
 	ctrlpriv->ctl_faultdetail =
-		debugfs_create_u32("fault_detail",
-				   S_IRUSR | S_IRGRP | S_IROTH,
-				   ctrlpriv->ctl, &perfmon->faultdetail);
+		debugfs_create_file("fault_detail",
+				    S_IRUSR | S_IRGRP | S_IROTH,
+				    ctrlpriv->ctl, &perfmon->faultdetail,
+				    &caam_fops_u32_ro);
 	ctrlpriv->ctl_faultstatus =
-		debugfs_create_u32("fault_status",
-				   S_IRUSR | S_IRGRP | S_IROTH,
-				   ctrlpriv->ctl, &perfmon->status);
+		debugfs_create_file("fault_status",
+				    S_IRUSR | S_IRGRP | S_IROTH,
+				    ctrlpriv->ctl, &perfmon->status,
+				    &caam_fops_u32_ro);
 
 	/* Internal covering keys (useful in non-secure mode only) */
 	ctrlpriv->ctl_kek_wrap.data = &ctrlpriv->ctrl->kek[0];
@@ -853,7 +881,7 @@ static int caam_stop_qi(struct caam_queue_if __iomem *qi)
 {
 	int loop = 0;
 
-	setbits32(&qi->qi_control_lo, QICTL_STOP);
+	clrsetbits_32(&qi->qi_control_lo, 0, QICTL_STOP);
 
 	/*
 	 * Wait till QI Job's in Holding tank/deco are completed.
