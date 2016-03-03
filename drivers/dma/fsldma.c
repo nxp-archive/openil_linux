@@ -524,6 +524,8 @@ static dma_cookie_t fsldma_run_tx_complete_actions(struct fsldma_chan *chan,
 		}
 	}
 
+	dma_descriptor_unmap(txd);
+
 	/* Run any dependencies */
 	dma_run_dependencies(txd);
 

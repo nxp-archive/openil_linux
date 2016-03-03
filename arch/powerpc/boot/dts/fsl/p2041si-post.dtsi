@@ -6,13 +6,13 @@
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
+ *	 notice, this list of conditions and the following disclaimer.
  *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in the
- *       documentation and/or other materials provided with the distribution.
+ *	 notice, this list of conditions and the following disclaimer in the
+ *	 documentation and/or other materials provided with the distribution.
  *     * Neither the name of Freescale Semiconductor nor the
- *       names of its contributors may be used to endorse or promote products
- *       derived from this software without specific prior written permission.
+ *	 names of its contributors may be used to endorse or promote products
+ *	 derived from this software without specific prior written permission.
  *
  *
  * ALTERNATIVELY, this software may be distributed under the terms of the
@@ -34,6 +34,16 @@
 
 &bman_fbpr {
 	compatible = "fsl,bman-fbpr";
+	alloc-ranges = <0 0 0x10 0>;
+};
+
+&qman_fqd {
+	compatible = "fsl,qman-fqd";
+	alloc-ranges = <0 0 0x10 0>;
+};
+
+&qman_pfdr {
+	compatible = "fsl,qman-pfdr";
 	alloc-ranges = <0 0 0x10 0>;
 };
 
@@ -222,6 +232,8 @@
 };
 
 /include/ "qoriq-bman1-portals.dtsi"
+
+/include/ "qoriq-qman1-portals.dtsi"
 
 &soc {
 	#address-cells = <1>;
@@ -416,7 +428,65 @@ crypto: crypto@300000 {
 		fsl,iommu-parent = <&pamu1>;
 	};
 
+/include/ "qoriq-qman1.dtsi"
 /include/ "qoriq-bman1.dtsi"
+/include/ "qoriq-fman-0.dtsi"
+/include/ "qoriq-fman-0-1g-0.dtsi"
+/include/ "qoriq-fman-0-1g-1.dtsi"
+/include/ "qoriq-fman-0-1g-2.dtsi"
+/include/ "qoriq-fman-0-1g-3.dtsi"
+/include/ "qoriq-fman-0-1g-4.dtsi"
+/include/ "qoriq-fman-0-10g-0.dtsi"
+	fman0: fman@400000 {
+		/* tx - 1g - 0 */
+		port@a8000 {
+			fsl,qman-channel-id = <0x41>;
+		};
+		/* tx - 1g - 1 */
+		port@a9000 {
+			fsl,qman-channel-id = <0x42>;
+		};
+		/* tx - 1g - 2 */
+		port@aa000 {
+			fsl,qman-channel-id = <0x43>;
+		};
+		/* tx - 1g - 3 */
+		port@ab000 {
+			fsl,qman-channel-id = <0x44>;
+		};
+		/* tx - 1g - 4 */
+		port@ac000 {
+			fsl,qman-channel-id = <0x45>;
+		};
+		/* tx - 10g - 0 */
+		port@b0000 {
+			fsl,qman-channel-id = <0x40>;
+		};
+		/* offline 0 */
+		port@81000 {
+			fsl,qman-channel-id = <0x46>;
+		};
+		/* offline 1 */
+		port@82000 {
+			fsl,qman-channel-id = <0x47>;
+		};
+		/* offline 2 */
+		port@83000 {
+			fsl,qman-channel-id = <0x48>;
+		};
+		/* offline 3 */
+		port@84000 {
+			fsl,qman-channel-id = <0x49>;
+		};
+		/* offline 4 */
+		port@85000 {
+			fsl,qman-channel-id = <0x4a>;
+		};
+		/* offline 5 */
+		port@86000 {
+			fsl,qman-channel-id = <0x4b>;
+		};
+	};
 
 /include/ "qoriq-rman-0.dtsi"
 	rman: rman@1e0000 {

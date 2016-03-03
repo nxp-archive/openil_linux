@@ -141,8 +141,6 @@ void settlbcam(int index, unsigned long virt, phys_addr_t phys,
 	tlbcam_addrs[index].start = virt;
 	tlbcam_addrs[index].limit = virt + size - 1;
 	tlbcam_addrs[index].phys = phys;
-
-	loadcam_entry(index);
 }
 
 void cleartlbcam(unsigned long virt, unsigned int pid)
@@ -183,7 +181,8 @@ unsigned long calc_cam_sz(unsigned long ram, unsigned long virt,
 }
 
 static unsigned long map_mem_in_cams_addr(phys_addr_t phys, unsigned long virt,
-					unsigned long ram, int max_cam_idx)
+					unsigned long ram, int max_cam_idx,
+					bool dryrun)
 {
 	int i;
 	unsigned long amount_mapped = 0;
@@ -193,13 +192,20 @@ static unsigned long map_mem_in_cams_addr(phys_addr_t phys, unsigned long virt,
 		unsigned long cam_sz;
 
 		cam_sz = calc_cam_sz(ram, virt, phys);
-		settlbcam(i, virt, phys, cam_sz, pgprot_val(PAGE_KERNEL_X), 0);
+		if (!dryrun)
+			settlbcam(i, virt, phys, cam_sz,
+				  pgprot_val(PAGE_KERNEL_X), 0);
 
 		ram -= cam_sz;
 		amount_mapped += cam_sz;
 		virt += cam_sz;
 		phys += cam_sz;
 	}
+
+	if (dryrun)
+		return amount_mapped;
+
+	loadcam_multi(0, i, max_cam_idx);
 	tlbcam_index = i;
 
 #ifdef CONFIG_PPC64
@@ -211,12 +217,12 @@ static unsigned long map_mem_in_cams_addr(phys_addr_t phys, unsigned long virt,
 	return amount_mapped;
 }
 
-unsigned long map_mem_in_cams(unsigned long ram, int max_cam_idx)
+unsigned long map_mem_in_cams(unsigned long ram, int max_cam_idx, bool dryrun)
 {
 	unsigned long virt = PAGE_OFFSET;
 	phys_addr_t phys = memstart_addr;
 
-	return map_mem_in_cams_addr(phys, virt, ram, max_cam_idx);
+	return map_mem_in_cams_addr(phys, virt, ram, max_cam_idx, dryrun);
 }
 
 #ifdef CONFIG_PPC32
@@ -247,7 +253,7 @@ void __init adjust_total_lowmem(void)
 	ram = min((phys_addr_t)__max_low_memory, (phys_addr_t)total_lowmem);
 
 	i = switch_to_as1();
-	__max_low_memory = map_mem_in_cams(ram, CONFIG_LOWMEM_CAM_NUM);
+	__max_low_memory = map_mem_in_cams(ram, CONFIG_LOWMEM_CAM_NUM, false);
 	restore_to_as0(i, 0, 0, 1);
 
 	pr_info("Memory CAM mapping: ");
@@ -315,14 +321,48 @@ notrace void __init relocate_init(u64 dt_ptr, phys_addr_t start)
 		n = switch_to_as1();
 		/* map a 64M area for the second relocation */
 		if (memstart_addr > start)
-			map_mem_in_cams(0x4000000, CONFIG_LOWMEM_CAM_NUM);
+			map_mem_in_cams(0x4000000, CONFIG_LOWMEM_CAM_NUM,
+					false);
 		else
 			map_mem_in_cams_addr(start, PAGE_OFFSET + offset,
-					0x4000000, CONFIG_LOWMEM_CAM_NUM);
+					0x4000000, CONFIG_LOWMEM_CAM_NUM,
+					false);
 		restore_to_as0(n, offset, __va(dt_ptr), 1);
 		/* We should never reach here */
 		panic("Relocation error");
 	}
 }
 #endif
+#endif
+
+#if defined(CONFIG_PPC64)
+void book3e_tlb_lock(void)
+{
+	struct paca_struct *paca = get_paca();
+	unsigned long tmp;
+	int token = smp_processor_id() + 1;
+
+	asm volatile("1: lbarx %0, 0, %1;"
+		     "cmpwi %0, 0;"
+		     "bne 2f;"
+		     "stbcx. %2, 0, %1;"
+		     "bne 1b;"
+		     "b 3f;"
+		     "2: lbzx %0, 0, %1;"
+		     "cmpwi %0, 0;"
+		     "bne 2b;"
+		     "b 1b;"
+		     "3:"
+		     : "=&r" (tmp)
+		     : "r" (&paca->tcd_ptr->lock), "r" (token)
+		     : "memory");
+}
+
+void book3e_tlb_unlock(void)
+{
+	struct paca_struct *paca = get_paca();
+
+	isync();
+	paca->tcd_ptr->lock = 0;
+}
 #endif

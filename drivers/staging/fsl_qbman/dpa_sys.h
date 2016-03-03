@@ -58,11 +58,11 @@
 #include <linux/device.h>
 #include <linux/uio_driver.h>
 #include <linux/smp.h>
-#include <sysdev/fsl_soc.h>
 #include <linux/fsl_hypervisor.h>
 #include <linux/vmalloc.h>
 #include <linux/ctype.h>
 #include <linux/math64.h>
+#include <linux/bitops.h>
 
 #include <linux/fsl_usdpaa.h>
 
@@ -77,58 +77,14 @@
 /* Misc inline assists */
 /***********************/
 
-/* TODO: NB, we currently assume that hwsync() and lwsync() imply compiler
- * barriers and that dcb*() won't fall victim to compiler or execution
- * reordering with respect to other code/instructions that manipulate the same
- * cacheline. */
-#define hwsync() __asm__ __volatile__ ("sync" : : : "memory")
-#define lwsync()__asm__ __volatile__ (stringify_in_c(LWSYNC) : : : "memory")
-#define dcbf(p) __asm__ __volatile__ ("dcbf 0,%0" : : "r" (p) : "memory")
-#define dcbt_ro(p) __asm__ __volatile__ ("dcbt 0,%0" : : "r" (p))
-#define dcbt_rw(p) __asm__ __volatile__ ("dcbtst 0,%0" : : "r" (p))
-#define dcbi(p) dcbf(p)
-#ifdef CONFIG_PPC_E500MC
-#define dcbzl(p) __asm__ __volatile__ ("dcbzl 0,%0" : : "r" (p))
-#define dcbz_64(p) dcbzl(p)
-#define dcbf_64(p) dcbf(p)
-/* Commonly used combo */
-#define dcbit_ro(p) \
-	do { \
-		dcbi(p); \
-		dcbt_ro(p); \
-	} while (0)
-#else
-#define dcbz(p)__asm__ __volatile__ ("dcbz 0,%0" : : "r" (p))
-#define dcbz_64(p) \
-	do { \
-		dcbz((u32)p + 32);	\
-		dcbz(p);	\
-	} while (0)
-#define dcbf_64(p) \
-	do { \
-		dcbf((u32)p + 32); \
-		dcbf(p); \
-	} while (0)
-/* Commonly used combo */
-#define dcbit_ro(p) \
-	do { \
-		dcbi(p); \
-		dcbi((u32)p + 32); \
-		dcbt_ro(p); \
-		dcbt_ro((u32)p + 32); \
-	} while (0)
-#endif /* CONFIG_PPC_E500MC */
+#if defined CONFIG_PPC32
+#include "dpa_sys_ppc32.h"
+#elif defined CONFIG_PPC64
+#include "dpa_sys_ppc64.h"
+#elif defined CONFIG_ARM64
+#include "dpa_sys_arm64.h"
+#endif
 
-static inline u64 mfatb(void)
-{
-	u32 hi, lo, chk;
-	do {
-		hi = mfspr(SPRN_ATBU);
-		lo = mfspr(SPRN_ATBL);
-		chk = mfspr(SPRN_ATBU);
-	} while (unlikely(hi != chk));
-	return ((u64)hi << 32) | (u64)lo;
-}
 
 #ifdef CONFIG_FSL_DPA_CHECKING
 #define DPA_ASSERT(x) \

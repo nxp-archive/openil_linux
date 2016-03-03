@@ -216,10 +216,8 @@ void fsl_rstcr_restart(char *cmd)
 }
 #endif
 
-#if defined(CONFIG_FB_FSL_DIU) || defined(CONFIG_FB_FSL_DIU_MODULE)
 struct platform_diu_data_ops diu_ops;
 EXPORT_SYMBOL(diu_ops);
-#endif
 
 #ifdef CONFIG_EPAPR_PARAVIRT
 /*
@@ -251,6 +249,8 @@ void fsl_hv_halt(void)
 
 #ifdef CONFIG_KVM
 static const struct of_device_id cpc_matches[] = {
+	{ .compatible = "fsl,b4-l3-cache-controller" },
+	{ .compatible = "fsl,b4420-l3-cache-controller" },
 	{ .compatible = "fsl,b4860-l3-cache-controller" },
 	{ .compatible = "fsl,t2080-l3-cache-controller" },
 	{ .compatible = "fsl,t4240-l3-cache-controller" },

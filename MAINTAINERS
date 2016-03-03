@@ -4132,6 +4132,14 @@ L:	linuxppc-dev@lists.ozlabs.org
 S:	Maintained
 F:	drivers/dma/fsldma.*
 
+FREESCALE qDMA DRIVER
+M:	Yuan Yao <yao.yuan@nxp.com>
+L:	linux-arm-kernel@lists.infradead.org
+S:	Maintained
+F:	Documentation/devicetree/bindings/dma/fsl-qdma.txt
+F:	drivers/dma/fsl-qdma.c
+F:	drivers/dma/dpaa2-qdma/
+
 FREESCALE I2C CPM DRIVER
 M:	Jochen Friedrich <jochen@scram.de>
 L:	linuxppc-dev@lists.ozlabs.org
@@ -4219,6 +4227,45 @@ M:	J. German Rivera <German.Rivera@freescale.com>
 L:	linux-kernel@vger.kernel.org
 S:	Maintained
 F:	drivers/staging/fsl-mc/
+
+FREESCALE DPAA2 ETH DRIVER
+M:	Ioana Radulescu <ruxandra.radulescu@freescale.com>
+M:	Bogdan Hamciuc <bogdan.hamciuc@freescale.com>
+M:	Cristian Sovaiala <cristian.sovaiala@freescale.com>
+L:	linux-kernel@vger.kernel.org
+S:	Maintained
+F:	drivers/staging/fsl-dpaa2/ethernet/
+
+FREESCALE QORIQ MANAGEMENT COMPLEX RESTOOL DRIVER
+M:	Lijun Pan <Lijun.Pan@freescale.com>
+L:	linux-kernel@vger.kernel.org
+S:	Maintained
+F:	drivers/staging/fsl-mc/bus/mc-ioctl.h
+F:	drivers/staging/fsl-mc/bus/mc-restool.c
+
+FREESCALE DPAA2 CAAM DRIVER
+M:	Horia Geantă <horia.geanta@freescale.com>
+L:	linux-crypto@vger.kernel.org
+S:	Maintained
+F:	drivers/crypto/dpaa2-caam/
+
+FREESCALE DPAA2 ETHERNET SWITCH DRIVER
+M:	Alex Marginean <Alexandru.Marginean@freescale.com>
+L:	linux-kernel@vger.kernel.org
+S:	Maintained
+F:	drivers/staging/fsl-dpaa2/ethsw/
+
+FREESCALE DPAA2 MAC/PHY INTERFACE DRIVER
+M:	Alex Marginean <Alexandru.Marginean@freescale.com>
+L:	linux-kernel@vger.kernel.org
+S:	Maintained
+F:	drivers/staging/fsl-dpaa2/mac/
+
++FREESCALE DPAA2 EDGE VIRTUAL BRIDGE DRIVER
+M:	Alex Marginean <Alexandru.Marginean@freescale.com>
+L:	linux-kernel@vger.kernel.org
+S:	Maintained
+F:	drivers/staging/fsl-dpaa2/evb/
 
 FREEVXFS FILESYSTEM
 M:	Christoph Hellwig <hch@infradead.org>

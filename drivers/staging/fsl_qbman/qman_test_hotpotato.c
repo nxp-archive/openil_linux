@@ -290,6 +290,7 @@ static void create_per_cpu_handlers(void)
 		handler->frame_ptr = frame_ptr;
 		list_add_tail(&handler->node, &hp_cpu->handlers);
 	}
+	put_cpu_var(hp_cpus);
 }
 
 static void destroy_per_cpu_handlers(void)
@@ -315,6 +316,7 @@ static void destroy_per_cpu_handlers(void)
 		list_del(&handler->node);
 		kmem_cache_free(hp_handler_slab, handler);
 	}
+	put_cpu_var(hp_cpus);
 }
 
 static inline u8 num_cachelines(u32 offset)

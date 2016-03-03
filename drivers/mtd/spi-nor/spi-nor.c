@@ -39,6 +39,11 @@
 
 #define SPI_NOR_MAX_ID_LEN	6
 #define SPI_NOR_MAX_ADDR_WIDTH	4
+#define SPI_NOR_MICRON_WRITE_ENABLE	0x7f
+/* Added for S25FS-S family flash */
+#define SPINOR_CONFIG_REG3_OFFSET      0x800004
+#define CR3V_4KB_ERASE_UNABLE  0x8
+#define SPINOR_S25FS_FAMILY_ID 0x81
 
 struct flash_info {
 	char		*name;
@@ -72,6 +77,8 @@ struct flash_info {
 };
 
 #define JEDEC_MFR(info)	((info)->id[0])
+#define EXT_ID(info)	((info)->id[5])
+
 
 static const struct flash_info *spi_nor_match_id(const char *name);
 
@@ -779,6 +786,7 @@ static const struct flash_info spi_nor_ids[] = {
 	 */
 	{ "s25sl032p",  INFO(0x010215, 0x4d00,  64 * 1024,  64, SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
 	{ "s25sl064p",  INFO(0x010216, 0x4d00,  64 * 1024, 128, SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
+	{ "s25fs256s1", INFO6(0x010219, 0x4d0181, 64 * 1024, 512, 0)},
 	{ "s25fl256s0", INFO(0x010219, 0x4d00, 256 * 1024, 128, 0) },
 	{ "s25fl256s1", INFO(0x010219, 0x4d01,  64 * 1024, 512, SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
 	{ "s25fl512s",  INFO(0x010220, 0x4d00, 256 * 1024, 256, SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
@@ -903,6 +911,53 @@ static const struct flash_info *spi_nor_read_id(struct spi_nor *nor)
 	return ERR_PTR(-ENODEV);
 }
 
+/*
+ * The S25FS-S family physical sectors may be configured as a
+ * hybrid combination of eight 4-kB parameter sectors
+ * at the top or bottom of the address space with all
+ * but one of the remaining sectors being uniform size.
+ * The Parameter Sector Erase commands (20h or 21h) must
+ * be used to erase the 4-kB parameter sectors individually.
+ * The Sector (uniform sector) Erase commands (D8h or DCh)
+ * must be used to erase any of the remaining
+ * sectors, including the portion of highest or lowest address
+ * sector that is not overlaid by the parameter sectors.
+ * The uniform sector erase command has no effect on parameter sectors.
+ */
+static int spansion_s25fs_disable_4kb_erase(struct spi_nor *nor)
+{
+	struct fsl_qspi *q;
+	u32 cr3v_addr  = SPINOR_CONFIG_REG3_OFFSET;
+	u8 cr3v = 0x0;
+	int ret = 0x0;
+
+	q = nor->priv;
+
+	nor->cmd_buf[2] = cr3v_addr >> 16;
+	nor->cmd_buf[1] = cr3v_addr >> 8;
+	nor->cmd_buf[0] = cr3v_addr >> 0;
+
+	ret = nor->read_reg(nor, SPINOR_OP_SPANSION_RDAR, &cr3v, 1);
+	if (ret)
+		return ret;
+	if (cr3v & CR3V_4KB_ERASE_UNABLE)
+		return 0;
+	ret = nor->write_reg(nor, SPINOR_OP_WREN, NULL, 0);
+	if (ret)
+		return ret;
+	cr3v = CR3V_4KB_ERASE_UNABLE;
+	nor->program_opcode = SPINOR_OP_SPANSION_WRAR;
+	nor->write(nor, cr3v_addr, 1, &cr3v);
+
+	ret = nor->read_reg(nor, SPINOR_OP_SPANSION_RDAR, &cr3v, 1);
+	if (ret)
+		return ret;
+	if (!(cr3v & CR3V_4KB_ERASE_UNABLE))
+		return -EPERM;
+
+	return 0;
+}
+
 static int spi_nor_read(struct mtd_info *mtd, loff_t from, size_t len,
 			size_t *retlen, u_char *buf)
 {
@@ -915,8 +970,20 @@ static int spi_nor_read(struct mtd_info *mtd, loff_t from, size_t len,
 	if (ret)
 		return ret;
 
-	ret = nor->read(nor, from, len, retlen, buf);
+	while (len) {
+		ret = nor->read(nor, from, len, buf);
+		if (ret <= 0)
+			goto read_err;
 
+		WARN_ON(ret > len);
+		*retlen += ret;
+		buf += ret;
+		from += ret;
+		len -= ret;
+	}
+	ret = 0;
+
+read_err:
 	spi_nor_unlock_and_unprep(nor, SPI_NOR_OPS_READ);
 	return ret;
 }
@@ -944,10 +1011,14 @@ static int sst_write(struct mtd_info *mtd, loff_t to, size_t len,
 		nor->program_opcode = SPINOR_OP_BP;
 
 		/* write one byte. */
-		nor->write(nor, to, 1, retlen, buf);
+		ret = nor->write(nor, to, 1, buf);
+		if (ret < 0)
+			goto sst_write_err;
+		WARN(ret != 1, "While writing 1 byte written %i bytes\n",
+		     (int)ret);
 		ret = spi_nor_wait_till_ready(nor);
 		if (ret)
-			goto time_out;
+			goto sst_write_err;
 	}
 	to += actual;
 
@@ -956,10 +1027,14 @@ static int sst_write(struct mtd_info *mtd, loff_t to, size_t len,
 		nor->program_opcode = SPINOR_OP_AAI_WP;
 
 		/* write two bytes. */
-		nor->write(nor, to, 2, retlen, buf + actual);
+		ret = nor->write(nor, to, 2, buf + actual);
+		if (ret < 0)
+			goto sst_write_err;
+		WARN(ret != 2, "While writing 2 bytes written %i bytes\n",
+		     (int)ret);
 		ret = spi_nor_wait_till_ready(nor);
 		if (ret)
-			goto time_out;
+			goto sst_write_err;
 		to += 2;
 		nor->sst_write_second = true;
 	}
@@ -968,21 +1043,26 @@ static int sst_write(struct mtd_info *mtd, loff_t to, size_t len,
 	write_disable(nor);
 	ret = spi_nor_wait_till_ready(nor);
 	if (ret)
-		goto time_out;
+		goto sst_write_err;
 
 	/* Write out trailing byte if it exists. */
 	if (actual != len) {
 		write_enable(nor);
 
 		nor->program_opcode = SPINOR_OP_BP;
-		nor->write(nor, to, 1, retlen, buf + actual);
-
+		ret = nor->write(nor, to, 1, buf + actual);
+		if (ret < 0)
+			goto sst_write_err;
+		WARN(ret != 1, "While writing 1 byte written %i bytes\n",
+		     (int)ret);
 		ret = spi_nor_wait_till_ready(nor);
 		if (ret)
-			goto time_out;
+			goto sst_write_err;
 		write_disable(nor);
+		actual += 1;
 	}
-time_out:
+sst_write_err:
+	*retlen += actual;
 	spi_nor_unlock_and_unprep(nor, SPI_NOR_OPS_WRITE);
 	return ret;
 }
@@ -996,8 +1076,8 @@ static int spi_nor_write(struct mtd_info *mtd, loff_t to, size_t len,
 	size_t *retlen, const u_char *buf)
 {
 	struct spi_nor *nor = mtd_to_spi_nor(mtd);
-	u32 page_offset, page_size, i;
-	int ret;
+	size_t page_offset, page_remain, i;
+	ssize_t ret;
 
 	dev_dbg(nor->dev, "to 0x%08x, len %zd\n", (u32)to, len);
 
@@ -1005,35 +1085,37 @@ static int spi_nor_write(struct mtd_info *mtd, loff_t to, size_t len,
 	if (ret)
 		return ret;
 
-	write_enable(nor);
+	for (i = 0; i < len; ) {
+		ssize_t written;
 
-	page_offset = to & (nor->page_size - 1);
-
-	/* do all the bytes fit onto one page? */
-	if (page_offset + len <= nor->page_size) {
-		nor->write(nor, to, len, retlen, buf);
-	} else {
+		page_offset = to & (nor->page_size - 1);
+		WARN_ONCE(page_offset,
+			  "Writing at offset %zu into a NOR page. Writing partial pages may decrease reliability and increase wear of NOR flash.",
+			  page_offset);
 		/* the size of data remaining on the first page */
-		page_size = nor->page_size - page_offset;
-		nor->write(nor, to, page_size, retlen, buf);
+		page_remain = min_t(size_t,
+				    nor->page_size - page_offset, len - i);
 
-		/* write everything in nor->page_size chunks */
-		for (i = page_size; i < len; i += page_size) {
-			page_size = len - i;
-			if (page_size > nor->page_size)
-				page_size = nor->page_size;
+		write_enable(nor);
+		ret = nor->write(nor, to + i, page_remain, buf + i);
+		if (ret < 0)
+			goto write_err;
+		written = ret;
 
-			ret = spi_nor_wait_till_ready(nor);
-			if (ret)
-				goto write_err;
-
-			write_enable(nor);
-
-			nor->write(nor, to + i, page_size, retlen, buf + i);
+		ret = spi_nor_wait_till_ready(nor);
+		if (ret)
+			goto write_err;
+		*retlen += written;
+		i += written;
+		if (written != page_remain) {
+			dev_err(nor->dev,
+				"While writing %zu bytes written %zd bytes\n",
+				page_remain, written);
+			ret = -EIO;
+			goto write_err;
 		}
 	}
 
-	ret = spi_nor_wait_till_ready(nor);
 write_err:
 	spi_nor_unlock_and_unprep(nor, SPI_NOR_OPS_WRITE);
 	return ret;
@@ -1249,6 +1331,20 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 	ret = spi_nor_unprotect_on_powerup(nor);
 	if (ret)
 		return ret;
+
+	if (JEDEC_MFR(info) == SNOR_MFR_MICRON) {
+		ret = read_sr(nor);
+		ret &= SPI_NOR_MICRON_WRITE_ENABLE;
+
+		write_enable(nor);
+		write_sr(nor, ret);
+	}
+
+	if (EXT_ID(info) == SPINOR_S25FS_FAMILY_ID) {
+		ret = spansion_s25fs_disable_4kb_erase(nor);
+		if (ret)
+			return ret;
+	}
 
 	if (!mtd->name)
 		mtd->name = dev_name(dev);

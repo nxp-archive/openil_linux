@@ -32,6 +32,8 @@
 #include <linux/time.h>
 #include "qman_private.h"
 #include "bman_private.h"
+__init void qman_init_early(void);
+__init void bman_init_early(void);
 
 static __init int qbman_init(void)
 {

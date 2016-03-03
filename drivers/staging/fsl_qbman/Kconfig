@@ -3,6 +3,8 @@ config FSL_DPA
 	depends on HAS_FSL_QBMAN
 	default y
 	select FSL_QMAN_FQ_LOOKUP if PPC64
+	select FSL_QMAN_FQ_LOOKUP if ARM64
+
 
 menu "Freescale Datapath QMan/BMan options"
 	depends on FSL_DPA

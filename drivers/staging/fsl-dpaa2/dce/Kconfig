@@ -1,0 +1,36 @@
+#
+# Freescale DPAA2 Decompression Compression (DCE) driver
+#
+# Copyright (C) 2015 Freescale Semiconductor, Inc.
+#
+# This file is released under the GPLv2
+#
+
+config FSL_DPAA2_DCE
+	tristate "DPAA2 Decompression Compression Engine"
+	depends on FSL_DPAA2 && FSL_MC_BUS && FSL_MC_DPIO
+	---help---
+	  A simplified interface to DCE that allows for asynchronous
+	  use of DCE without requiring complex setup
+
+config FSL_DCE_FLOW_LIMIT
+        int "Number of flows supported per compression or decompression device"
+        depends on FSL_DPAA2_DCE
+        default 65536
+        ---help---
+          This is the number of flows per compression or decompression device.
+	  A hashtable is allocated to locate corresponding flow objects
+	  based on a hash value.
+	  This is used for both statefull and stateless flows.
+
+config FSL_DCE_API_TIME_TRIAL
+	tristate "Freescale DCE Driver API timed test"
+	depends on FSL_DPAA2_DCE
+	---help---
+	  A DCE performance test that send as many work requests as possible in
+	  a given number of seconds. When the time is up the test waits for any
+	  remaining output from DCE and checks its integrity. Performance
+	  numbers are then printed. The test runs in two steps. One for
+	  compression and the second for decompression. The test can be packaged
+	  as a loadable module and takes optional parameters that modify test
+	  behavior. Please use modinfo to see the test parameters

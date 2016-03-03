@@ -139,6 +139,7 @@ static int px_ctl_altacc_flag;
  * obtain the upper four bits, we need to scan the LAW table.  The entry which
  * maps to the localbus will contain the upper four bits.
  */
+#if defined(CONFIG_FB_FSL_DIU) || defined(CONFIG_FB_FSL_DIU_MODULE)
 static phys_addr_t lbc_br_to_phys(const void *ecm, unsigned int count, u32 br)
 {
 #ifndef CONFIG_PHYS_64BIT
@@ -163,6 +164,7 @@ static phys_addr_t lbc_br_to_phys(const void *ecm, unsigned int count, u32 br)
 	return 0;
 #endif
 }
+#endif
 
 static u8 __iomem *lbc_lcs0_ba;
 static u8 __iomem *lbc_lcs1_ba;
@@ -175,6 +177,7 @@ static inline bool verify_pixis_indirect_access_address(void)
 	return false;
 }
 
+#if defined(CONFIG_FB_FSL_DIU) || defined(CONFIG_FB_FSL_DIU_MODULE)
 static void indirect_access_pixis_probe(void)
 {
 	struct device_node *lbc_node;
@@ -294,6 +297,7 @@ exit:
 	if (law_node)
 		of_node_put(law_node);
 }
+#endif
 
 static void indirect_access_pixis_reset_pcie_slot(void)
 {
@@ -626,7 +630,9 @@ static void __init p1022_ds_setup_arch(void)
 
 	swiotlb_detect_4g();
 
+#if defined(CONFIG_FB_FSL_DIU) || defined(CONFIG_FB_FSL_DIU_MODULE)
 	indirect_access_pixis_probe();
+#endif
 
 	pr_info("Freescale P1022 DS reference board\n");
 }

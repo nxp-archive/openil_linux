@@ -431,7 +431,7 @@ static int get_of_u32(struct device_node *node, char *str, u32 *val)
 
 	if (!prop || plen != sizeof(*prop))
 		return -1;
-	*val = *prop;
+	*val = be32_to_cpu(*prop);
 	return 0;
 }
 

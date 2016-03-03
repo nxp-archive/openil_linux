@@ -45,7 +45,7 @@
  */
 
 /dts-v1/;
-/include/ "fsl-ls1043a.dtsi"
+#include "fsl-ls1043a.dtsi"
 
 / {
 	model = "LS1043A QDS Board";
@@ -59,10 +59,10 @@
 		serial4 = &lpuart4;
 		serial5 = &lpuart5;
 
-		gpio0 = &gpio1;
-		gpio1 = &gpio2;
-		gpio2 = &gpio3;
-		gpio3 = &gpio4;
+		gpio0 = &gpio0;
+		gpio1 = &gpio1;
+		gpio2 = &gpio2;
+		gpio3 = &gpio3;
 
 		sgmii_riser_s1_p1 = &sgmii_phy_s1_p1;
 		sgmii_riser_s2_p1 = &sgmii_phy_s2_p1;
@@ -80,6 +80,36 @@
 		emi1_slot2 = &ls1043mdio_s2;
 		emi1_slot3 = &ls1043mdio_s3;
 		emi1_slot4 = &ls1043mdio_s4;
+	};
+};
+
+&dspi0 {
+	bus-num = <0>;
+	status = "okay";
+
+	flash@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "n25q128a11", "jedec,spi-nor";  /* 16MB */
+		reg = <0>;
+		spi-max-frequency = <10000000>; /* input clock */
+	};
+
+};
+
+&qspi {
+	num-cs = <2>;
+	bus-num = <0>;
+	status = "okay";
+	fsl,ddr-sampling-point = <4>;
+
+	qflash0: s25fl128s@0 {
+		compatible = "spansion,m25p80";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		spi-max-frequency = <20000000>;
+		ddr-quad-read;
+		reg = <0>;
 	};
 };
 

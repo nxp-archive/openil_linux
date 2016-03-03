@@ -177,6 +177,48 @@ config PPC_E500MC
 	  such as e5500/e6500), and must be disabled for running on
 	  e500v1 or e500v2.
 
+config FSL_ERRATUM_A_006184
+	bool "Work around erratum A-006184"
+	help
+	  Define this to work around erratum A-006184 ("Simultaneous
+	  Instruction L1 MMU miss (due to eviction) and interrupt
+	  servicing can cause a core hang").  This erratum affects
+	  e500v1, e500v2, e500mc, and e5500.  The workaround will
+	  cause a watchdog interrupt to occur periodically.  It will
+	  not avoid the hang described by the erratum, but it will
+	  recover from it when the next watchdog interrupt expires.
+
+	  The normal watchdog functionality cannot be used when this
+	  workaround is enabled.
+
+	  If you are running Linux as the guest of a hypervisor, you
+	  should enable this (or a similar workaround) in the host
+	  instead.
+
+	  Note that it is believed that it is unlikely that the hang
+	  will be encountered in normal Linux operation.  Running KVM
+	  or using hugetlbfs could increase the chance of seeing the
+	  hang.
+
+config FSL_ERRATUM_A_006184_PERIOD
+	int "Watchdog period for A-006184 workaround"
+	range 32 52
+	default 43
+	help
+	  This is the watchdog period to be used for the A-006184
+	  workaround.  The watchdog will fire whenever the bit selected
+	  transitions from 0 to 1 in the time base.  The bits are
+	  numbered with 0 starting at the most-signficant end --
+	  larger numbers give a more frequent period.
+
+	  The period must be set longer than the non-idle decrementer
+	  period, to ensure that the watchdog interrupt only actually
+	  happens when stuck -- but the longer the period, the worse the
+	  latency will be if a hang does occur.  Long decrementer
+	  timeouts when idle due to CONFIG_NO_HZ should not be a problem,
+	  since when idle we will always have just executed from the main
+	  kernel mapping, so it should not be absent from the L1 I-MMU.
+
 config PPC_FPU
 	bool
 	default y if PPC64

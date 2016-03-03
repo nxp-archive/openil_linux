@@ -67,6 +67,9 @@ enum {
 	NETIF_F_HW_L2FW_DOFFLOAD_BIT,	/* Allow L2 Forwarding in Hardware */
 	NETIF_F_BUSY_POLL_BIT,		/* Busy poll */
 	NETIF_F_HW_SWITCH_OFFLOAD_BIT,  /* HW switch offload */
+	/* Freescale DPA support */
+	NETIF_F_HW_QDISC_BIT,           /* Supports hardware Qdisc */
+	NETIF_F_HW_ACCEL_MQ_BIT,        /* Hardware-accelerated multiqueue */
 
 	/*
 	 * Add your fresh new feature above and remember to update
@@ -126,6 +129,9 @@ enum {
 #define NETIF_F_HW_L2FW_DOFFLOAD	__NETIF_F(HW_L2FW_DOFFLOAD)
 #define NETIF_F_BUSY_POLL	__NETIF_F(BUSY_POLL)
 #define NETIF_F_HW_SWITCH_OFFLOAD	__NETIF_F(HW_SWITCH_OFFLOAD)
+/* Freescale DPA support */
+#define NETIF_F_HW_QDISC       __NETIF_F(HW_QDISC)
+#define NETIF_F_HW_ACCEL_MQ    __NETIF_F(HW_ACCEL_MQ)
 
 /* Features valid for ethtool to change */
 /* = all defined minus driver/device-class-related */

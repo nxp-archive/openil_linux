@@ -36,6 +36,14 @@
 	compatible = "fsl,bman-fbpr";
 	alloc-ranges = <0 0 0x10000 0>;
 };
+&qman_fqd {
+	compatible = "fsl,qman-fqd";
+	alloc-ranges = <0 0 0x10000 0>;
+};
+&qman_pfdr {
+	compatible = "fsl,qman-pfdr";
+	alloc-ranges = <0 0 0x10000 0>;
+};
 
 &ifc {
 	#address-cells = <2>;
@@ -133,82 +141,6 @@
 	};
 };
 
-&bportals {
-	#address-cells = <0x1>;
-	#size-cells = <0x1>;
-	compatible = "simple-bus";
-
-	bman-portal@0 {
-		compatible = "fsl,bman-portal";
-		reg = <0x0 0x4000>, <0x1000000 0x1000>;
-		interrupts = <105 2 0 0>;
-	};
-	bman-portal@4000 {
-		compatible = "fsl,bman-portal";
-		reg = <0x4000 0x4000>, <0x1001000 0x1000>;
-		interrupts = <107 2 0 0>;
-	};
-	bman-portal@8000 {
-		compatible = "fsl,bman-portal";
-		reg = <0x8000 0x4000>, <0x1002000 0x1000>;
-		interrupts = <109 2 0 0>;
-	};
-	bman-portal@c000 {
-		compatible = "fsl,bman-portal";
-		reg = <0xc000 0x4000>, <0x1003000 0x1000>;
-		interrupts = <111 2 0 0>;
-	};
-	bman-portal@10000 {
-		compatible = "fsl,bman-portal";
-		reg = <0x10000 0x4000>, <0x1004000 0x1000>;
-		interrupts = <113 2 0 0>;
-	};
-	bman-portal@14000 {
-		compatible = "fsl,bman-portal";
-		reg = <0x14000 0x4000>, <0x1005000 0x1000>;
-		interrupts = <115 2 0 0>;
-	};
-	bman-portal@18000 {
-		compatible = "fsl,bman-portal";
-		reg = <0x18000 0x4000>, <0x1006000 0x1000>;
-		interrupts = <117 2 0 0>;
-	};
-	bman-portal@1c000 {
-		compatible = "fsl,bman-portal";
-		reg = <0x1c000 0x4000>, <0x1007000 0x1000>;
-		interrupts = <119 2 0 0>;
-	};
-	bman-portal@20000 {
-		compatible = "fsl,bman-portal";
-		reg = <0x20000 0x4000>, <0x1008000 0x1000>;
-		interrupts = <121 2 0 0>;
-	};
-	bman-portal@24000 {
-		compatible = "fsl,bman-portal";
-		reg = <0x24000 0x4000>, <0x1009000 0x1000>;
-		interrupts = <123 2 0 0>;
-	};
-	bman-portal@28000 {
-		compatible = "fsl,bman-portal";
-		reg = <0x28000 0x4000>, <0x100a000 0x1000>;
-		interrupts = <125 2 0 0>;
-	};
-	bman-portal@2c000 {
-		compatible = "fsl,bman-portal";
-		reg = <0x2c000 0x4000>, <0x100b000 0x1000>;
-		interrupts = <127 2 0 0>;
-	};
-	bman-portal@30000 {
-		compatible = "fsl,bman-portal";
-		reg = <0x30000 0x4000>, <0x100c000 0x1000>;
-		interrupts = <129 2 0 0>;
-	};
-	bman-portal@34000 {
-		compatible = "fsl,bman-portal";
-		reg = <0x34000 0x4000>, <0x100d000 0x1000>;
-		interrupts = <131 2 0 0>;
-	};
-};
 
 &soc {
 	#address-cells = <1>;
@@ -287,7 +219,70 @@
 		};
 	};
 
+/include/ "qoriq-qman3.dtsi"
+	qman: qman@318000 {
+		interrupts = <16 2 1 28>;
+	};
+/include/ "qoriq-bman1.dtsi"
+	bman: bman@31a000 {
+		interrupts = <16 2 1 29>;
+	};
+/include/ "qoriq-rman-0.dtsi"
+	rman: rman@1e0000 {
+		fsl,qman-channels-id = <0x820 0x821>;
+	};
 /include/ "qoriq-mpic4.3.dtsi"
+/include/ "qoriq-fman3-0.dtsi"
+/include/ "qoriq-fman3-0-1g-0.dtsi"
+/include/ "qoriq-fman3-0-1g-1.dtsi"
+/include/ "qoriq-fman3-0-1g-2.dtsi"
+/include/ "qoriq-fman3-0-1g-3.dtsi"
+	fman0: fman@400000 {
+		interrupts = <
+			96 2 0 0
+			16 2 1 30>;
+		/* tx - 1g - 0 */
+		port@a8000 {
+			fsl,qman-channel-id = <0x802>;
+		};
+		/* tx - 1g - 1 */
+		port@a9000 {
+			fsl,qman-channel-id = <0x803>;
+		};
+		/* tx - 1g - 2 */
+		port@aa000 {
+			fsl,qman-channel-id = <0x804>;
+		};
+		/* tx - 1g - 3 */
+		port@ab000 {
+			fsl,qman-channel-id = <0x805>;
+		};
+		/* offline - 0 is not usable on B4860 */
+		/* offline - 1 */
+		port@82000 {
+			fsl,qman-channel-id = <0x809>;
+		};
+		/* offline - 2 */
+		port@83000 {
+			fsl,qman-channel-id = <0x80a>;
+		};
+		/* offline - 3 */
+		port@84000 {
+			fsl,qman-channel-id = <0x80b>;
+		};
+		/* offline - 4 */
+		port@85000 {
+			fsl,qman-channel-id = <0x80c>;
+		};
+		/* offline - 5 */
+		port@86000 {
+			fsl,qman-channel-id = <0x80d>;
+		};
+		/* offline - 6 */
+		port@87000 {
+			fsl,qman-channel-id = <0x80e>;
+		};
+	};
 
 	guts: global-utilities@e0000 {
 		compatible = "fsl,b4-device-config";
@@ -343,14 +338,5 @@
 /include/ "qoriq-duart-1.dtsi"
 /include/ "qoriq-sec5.3-0.dtsi"
 
-/include/ "qoriq-bman1.dtsi"
-	bman: bman@31a000 {
-		interrupts = <16 2 1 29>;
-	};
 
-	L2: l2-cache-controller@c20000 {
-		compatible = "fsl,b4-l2-cache-controller";
-		reg = <0xc20000 0x1000>;
-		next-level-cache = <&cpc>;
-	};
 };

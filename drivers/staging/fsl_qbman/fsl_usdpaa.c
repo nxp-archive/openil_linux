@@ -8,9 +8,6 @@
  * kind, whether express or implied.
  */
 
-#include <linux/fsl_usdpaa.h>
-#include "bman_low.h"
-#include "qman_low.h"
 
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
@@ -20,7 +17,15 @@
 #include <linux/memblock.h>
 #include <linux/slab.h>
 #include <linux/mman.h>
+
+#ifndef CONFIG_ARM64
 #include <mm/mmu_decl.h>
+#endif
+
+#include "dpa_sys.h"
+#include <linux/fsl_usdpaa.h>
+#include "bman_low.h"
+#include "qman_low.h"
 
 /* Physical address range of the memory reservation, exported for mm/mem.c */
 static u64 phys_start;
@@ -728,7 +733,11 @@ static int check_mmap_portal(struct ctx *ctx, struct vm_area_struct *vma,
 					  match, pfn);
 		if (*match) {
 			vma->vm_page_prot =
+#ifdef CONFIG_ARM64
+				pgprot_cached_ns(vma->vm_page_prot);
+#else
 				pgprot_cached_noncoherent(vma->vm_page_prot);
+#endif
 			return ret;
 		}
 		ret = check_mmap_resource(&portal->phys[DPA_PORTAL_CI], vma,
@@ -1167,6 +1176,7 @@ map_match:
 	for (i = 0; i < map->frag_count; i++) {
 		DPA_ASSERT(current_frag->refs > 0);
 		--current_frag->refs;
+#ifndef CONFIG_ARM64
 		/*
 		 * Make sure we invalidate the TLB entry for
 		 * this fragment, otherwise a remap of a different
@@ -1174,7 +1184,7 @@ map_match:
 		 * incorrect piece of memory
 		 */
 		cleartlbcam(vaddr, mfspr(SPRN_PID));
-
+#endif
 		vaddr += current_frag->len;
 		current_frag = list_entry(current_frag->list.prev,
 					  struct mem_fragment, list);
@@ -1855,16 +1865,16 @@ static __init int usdpaa_mem(char *arg)
 }
 early_param("usdpaa_mem", usdpaa_mem);
 
-__init void fsl_usdpaa_init_early(void)
+__init int fsl_usdpaa_init_early(void)
 {
 	if (!phys_size) {
 		pr_info("No USDPAA memory, no 'usdpaa_mem' bootarg\n");
-		return;
+		return 0;
 	}
 	if (phys_size % PAGE_SIZE) {
 		pr_err("'usdpaa_mem' bootarg must be a multiple of page size\n");
 		phys_size = 0;
-		return;
+		return 0;
 	}
 	phys_start = __memblock_alloc_base(phys_size,
 					   largest_page_size(phys_size),
@@ -1872,15 +1882,20 @@ __init void fsl_usdpaa_init_early(void)
 	if (!phys_start) {
 		pr_err("Failed to reserve USDPAA region (sz:%llx)\n",
 		       phys_size);
-		return;
+		return 0;
 	}
 	pfn_start = phys_start >> PAGE_SHIFT;
 	pfn_size = phys_size >> PAGE_SHIFT;
+#ifdef CONFIG_PPC
 	first_tlb = current_tlb = tlbcam_index;
 	tlbcam_index += num_tlb;
+#endif
 	pr_info("USDPAA region at %llx:%llx(%lx:%lx), %d TLB1 entries)\n",
 		phys_start, phys_size, pfn_start, pfn_size, num_tlb);
+	return 0;
 }
+subsys_initcall(fsl_usdpaa_init_early);
+
 
 static int __init usdpaa_init(void)
 {

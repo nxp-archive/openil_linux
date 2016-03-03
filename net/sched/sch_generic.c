@@ -287,8 +287,23 @@ static void dev_watchdog(unsigned long arg)
 				txq = netdev_get_tx_queue(dev, i);
 				/*
 				 * old device drivers set dev->trans_start
+				 *
+				 * (Actually, not only "old" devices, but also
+				 * those which perform queue management in a
+				 * separate hw accelerator. So even though the
+				 * net device itself is single-queued, it makes
+				 * sense (and is safe, too) to use kernel's
+				 * multiqueue interface, specifically to avoid
+				 * unnecessary device locking in SMP systems.
+				 * In this case, we ought to consider not an
+				 * individual txq's timestamp as a congestion
+				 * indicator, but the "old" per-netdev field.)
 				 */
-				trans_start = txq->trans_start ? : dev->trans_start;
+				if (dev->features & NETIF_F_HW_ACCEL_MQ)
+					trans_start = dev->trans_start;
+				else
+					trans_start = txq->trans_start ? :
+						dev->trans_start;
 				if (netif_xmit_stopped(txq) &&
 				    time_after(jiffies, (trans_start +
 							 dev->watchdog_timeo))) {

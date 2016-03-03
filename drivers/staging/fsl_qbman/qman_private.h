@@ -32,7 +32,10 @@
 #include "dpa_sys.h"
 #include <linux/fsl_qman.h>
 #include <linux/iommu.h>
+
+#if defined(CONFIG_FSL_PAMU)
 #include <asm/fsl_pamu_stash.h>
+#endif
 
 #if !defined(CONFIG_FSL_QMAN_FQ_LOOKUP) && defined(CONFIG_PPC64)
 #error "_PPC64 requires _FSL_QMAN_FQ_LOOKUP"
@@ -193,6 +196,8 @@ struct qm_portal_config {
 #define QMAN_REV20 0x0200
 #define QMAN_REV30 0x0300
 #define QMAN_REV31 0x0301
+#define QMAN_REV32 0x0302
+
 /* QMan REV_2 register contains the Cfg option */
 #define QMAN_REV_CFG_0 0x0
 #define QMAN_REV_CFG_1 0x1

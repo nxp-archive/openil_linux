@@ -984,3 +984,66 @@ void devm_free_pages(struct device *dev, unsigned long addr)
 			       &devres));
 }
 EXPORT_SYMBOL_GPL(devm_free_pages);
+
+static void devm_percpu_release(struct device *dev, void *pdata)
+{
+	void __percpu *p;
+
+	p = *(void __percpu **)pdata;
+	free_percpu(p);
+}
+
+static int devm_percpu_match(struct device *dev, void *data, void *p)
+{
+	struct devres *devr = container_of(data, struct devres, data);
+
+	return *(void **)devr->data == p;
+}
+
+/**
+ * __devm_alloc_percpu - Resource-managed alloc_percpu
+ * @dev: Device to allocate per-cpu memory for
+ * @size: Size of per-cpu memory to allocate
+ * @align: Alignement of per-cpu memory to allocate
+ *
+ * Managed alloc_percpu. Per-cpu memory allocated with this function is
+ * automatically freed on driver detach.
+ *
+ * RETURNS:
+ * Pointer to allocated memory on success, NULL on failure.
+ */
+void __percpu *__devm_alloc_percpu(struct device *dev, size_t size,
+		size_t align)
+{
+	void *p;
+	void __percpu *pcpu;
+
+	pcpu = __alloc_percpu(size, align);
+	if (!pcpu)
+		return NULL;
+
+	p = devres_alloc(devm_percpu_release, sizeof(void *), GFP_KERNEL);
+	if (!p)
+		return NULL;
+
+	*(void __percpu **)p = pcpu;
+
+	devres_add(dev, p);
+
+	return pcpu;
+}
+EXPORT_SYMBOL_GPL(__devm_alloc_percpu);
+
+/**
+ * devm_free_percpu - Resource-managed free_percpu
+ * @dev: Device this memory belongs to
+ * @pdata: Per-cpu memory to free
+ *
+ * Free memory allocated with devm_alloc_percpu().
+ */
+void devm_free_percpu(struct device *dev, void __percpu *pdata)
+{
+	WARN_ON(devres_destroy(dev, devm_percpu_release, devm_percpu_match,
+			       (void *)pdata));
+}
+EXPORT_SYMBOL_GPL(devm_free_percpu);

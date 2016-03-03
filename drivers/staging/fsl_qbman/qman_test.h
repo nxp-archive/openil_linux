@@ -36,6 +36,7 @@
 #include <linux/module.h>
 #include <linux/interrupt.h>
 #include <linux/delay.h>
+#include <linux/sched.h>
 
 #include <linux/fsl_qman.h>
 

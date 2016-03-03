@@ -52,7 +52,10 @@
 #define CRYPTO_ALG_TYPE_HASH		0x00000008
 #define CRYPTO_ALG_TYPE_SHASH		0x00000009
 #define CRYPTO_ALG_TYPE_AHASH		0x0000000a
+#define CRYPTO_ALG_TYPE_PKC_DH	0x0000000b
 #define CRYPTO_ALG_TYPE_RNG		0x0000000c
+#define CRYPTO_ALG_TYPE_PKC_DSA	0x0000000d
+#define CRYPTO_ALG_TYPE_PKC_RSA	0x0000000e
 #define CRYPTO_ALG_TYPE_PCOMPRESS	0x0000000f
 
 #define CRYPTO_ALG_TYPE_HASH_MASK	0x0000000e
@@ -199,6 +202,315 @@ struct aead_request {
 	struct scatterlist *dst;
 
 	void *__ctx[] CRYPTO_MINALIGN_ATTR;
+};
+
+enum pkc_req_type {
+	RSA_KEYGEN,
+	RSA_PUB,
+	RSA_PRIV_FORM1,
+	RSA_PRIV_FORM2,
+	RSA_PRIV_FORM3,
+	DSA_SIGN,
+	DSA_VERIFY,
+	ECDSA_SIGN,
+	ECDSA_VERIFY,
+	DH_COMPUTE_KEY,
+	ECDH_COMPUTE_KEY,
+	DLC_KEYGEN,
+	ECC_KEYGEN,
+	MAX_TYPES
+};
+
+/* RSA Encrypt request Struct from cryptoAPI
+ @n - n, e represents the public key
+ @e - Public key exponent,  n is modulus
+ @g - Output RSA-encrypted value
+ */
+struct rsa_pub_req_s {
+	uint8_t *n;
+	uint8_t *e;
+	uint8_t *g;
+	uint8_t *f;
+	uint32_t n_len;
+	uint32_t e_len;
+	uint32_t g_len;
+	uint32_t f_len;
+};
+
+/* RSA PrivKey Form1
+ @n - n, d represents the private key form1 representation
+ @d - d is the private exponent, n is the modules
+ */
+struct rsa_priv_frm1_req_s {
+	uint8_t *n;
+	uint8_t *d;
+	uint8_t *f;
+	uint8_t *g;
+	uint32_t f_len;
+	uint32_t g_len;
+	uint32_t n_len;
+	uint32_t d_len;
+};
+
+/* RSA PrivKey Form2
+ @n - p, q, d represents the private key form2 representation
+ @d - d is private exponent, p and q are the two primes
+ @f - output pointer
+ @g - input pointer
+ */
+struct rsa_priv_frm2_req_s {
+	uint8_t *p;
+	uint8_t *q;
+	uint8_t *d;
+	uint8_t *f;
+	uint8_t *g;
+	uint32_t f_len;
+	uint32_t g_len;
+	uint32_t p_len;
+	uint32_t q_len;
+	uint32_t d_len;
+	uint32_t n_len;
+};
+
+/* RSA PrivKey Form3
+ @n - p, q, dp, dq, c represents the private key form3 representation
+ @dp - First CRT exponent factor
+ @dq - Second CRT exponent factor
+ @c - CRT Coefficient
+ @f - output pointer
+ @g - input pointer
+ */
+struct rsa_priv_frm3_req_s {
+	uint8_t *p;
+	uint8_t *q;
+	uint8_t *dp;
+	uint8_t *dq;
+	uint8_t *c;
+	uint8_t *f;
+	uint8_t *g;
+	uint32_t f_len;
+	uint32_t g_len;
+	uint32_t p_len;
+	uint32_t q_len;
+	uint32_t dp_len;
+	uint32_t dq_len;
+	uint32_t c_len;
+};
+
+/*
+ * RSA keygen request
+ */
+
+struct rsa_keygen_req_s {
+	uint8_t *p;
+	uint8_t *q;
+	uint8_t *dp;
+	uint8_t *dq;
+	uint8_t *d;
+	uint8_t *n;
+	uint8_t *c;
+	uint32_t p_len;
+	uint32_t q_len;
+	uint32_t dp_len;
+	uint32_t dq_len;
+	uint32_t d_len;
+	uint32_t n_len;
+	uint32_t c_len;
+};
+
+/* DLC and ECC Keygen request
+ @len_L - size of the field
+ @len_N - size of the group
+ @q -Prime number or irreducible polynomial that creates the field,length L
+ @r - Order of the field of private keys, length N
+ @g -Generator or generator point (ECC),length  L or 2*L(ECC)
+ @ab -ECC curve parameters(for ECC only). length 2*L
+ */
+struct keygen_req_s {
+	uint8_t *q;
+	uint8_t *r;
+	uint8_t *g;
+	uint8_t *priv_key;
+	uint8_t *pub_key;
+	uint8_t *ab;
+	uint32_t q_len;
+	uint32_t r_len;
+	uint32_t g_len;
+	uint32_t priv_key_len;
+	uint32_t pub_key_len;
+	uint32_t ab_len;
+};
+
+/*
+ * Temporary Changes to make cryptodev work with OC release
+ * To be simply removed after OC final release
+ */
+#define ECDSA_KEYGEN ECC_KEYGEN
+#define ECDH_KEYGEN ECC_KEYGEN
+#define DSA_KEYGEN DLC_KEYGEN
+#define DH_KEYGEN DLC_KEYGEN
+
+/*
+ @len_L - size of the field
+ @len_N - size of the group
+ @q -Prime number or irreducible polynomial that creates the field,length L
+ @r - Order of the field of private keys, length N
+ @g -Generator or generator point (ECC),length  L or 2*L(ECC)
+ @ab -ECC curve parameters(for ECC only). length 2*L
+ */
+struct dsa_keygen_req_s {
+	uint8_t *q;
+	uint8_t *r;
+	uint8_t *g;
+	uint8_t *prvkey;
+	uint8_t *pubkey;
+	uint8_t *ab;
+	uint32_t q_len;
+	uint32_t r_len;
+	uint32_t g_len;
+	uint32_t prvkey_len;
+	uint32_t pubkey_len;
+	uint32_t ab_len;
+};
+
+
+/*
+ @len_L - size of the field
+ @len_N - size of the group
+ @q -Prime number or irreducible polynomial that creates the field,length L
+ @r - Order of the field of private keys, length N
+ @g -Generator or generator point (ECC),length  L or 2*L(ECC)
+ @ab -ECC curve parameters(for ECC only). length 2*L
+ */
+struct dh_keygen_req_s {
+	uint8_t *q;
+	uint8_t *r;
+	uint8_t *g;
+	uint8_t *prvkey;
+	uint8_t *pubkey;
+	uint8_t *ab;
+	uint32_t q_len;
+	uint32_t r_len;
+	uint32_t g_len;
+	uint32_t prvkey_len;
+	uint32_t pubkey_len;
+	uint32_t ab_len;
+};
+
+/* DSA Sign request
+ @len_L - size of the field
+ @len_N - size of the group
+ @q -Prime number or irreducible polynomial that creates the field,length L
+ @r - Order of the field of private keys, length N
+ @g -Generator or generator point (ECC),length  L or 2*L(ECC)
+ @f(or m) -Message representative (typically the hash of the message)
+	    or the actual message,length N
+ @s - Own private key, length N
+ @c - First part of digital signature, length N
+ @d - Second part of digital signature. The buffer for d must be a
+      multiple of 16 bytes, as it is used to store an encrypted
+      intermediate result, which may include padding. Length N
+ @ab -ECC curve parameters(for ECC only). length 2*L
+ */
+struct dsa_sign_req_s {
+	uint8_t *q;
+	uint8_t *r;
+	uint8_t *g;
+	uint8_t *priv_key;
+	uint8_t *m;
+	uint8_t *c;
+	uint8_t *d;
+	uint8_t *ab;
+	uint32_t q_len;
+	uint32_t r_len;
+	uint32_t g_len;
+	uint32_t priv_key_len;
+	uint32_t m_len;
+	uint32_t d_len;
+	uint32_t ab_len;
+};
+
+/* DSA Verify request
+ @q -Prime number or irreducible polynomial that creates the field,length L
+ @r - Order of the field of private keys, length N
+ @g -Generator or generator point (ECC),length  L or 2*L(ECC)
+ @f(or m) -Message representative (typically the hash of the message)
+	    or the actual message,length N
+ @pub_key - Public key, length N
+ @c - First part of digital signature, length N
+ @d - Second part of digital signature. The buffer for d must be a
+      multiple of 16 bytes, as it is used to store an encrypted
+      intermediate result, which may include padding. Length N
+ @ab -ECC curve parameters(for ECC only). length 2*L
+ */
+struct dsa_verify_req_s {
+	uint8_t *q;
+	uint8_t *r;
+	uint8_t *g;
+	uint8_t *pub_key;
+	uint8_t *m;
+	uint8_t *c;
+	uint8_t *d;
+	uint8_t *ab;
+	uint32_t q_len;
+	uint32_t r_len;
+	uint32_t g_len;
+	uint32_t pub_key_len;
+	uint32_t m_len;
+	uint32_t d_len;
+	uint32_t ab_len;
+};
+
+/* DH Compute_Key request
+ @q -Prime number or irreducible polynomial that creates the field,length L
+ @a,b -ECC curve parameters, Length 2L
+ @pub_key - Public key of other party, length L or 2L
+ @s - Own private Key
+ @z - Shared secret output of Length L
+ */
+struct dh_key_req_s {
+	uint8_t *q;
+	uint8_t *ab;
+	uint8_t *pub_key; /* Other party;s public key */
+	uint8_t *s;
+	uint8_t *z;
+	uint32_t q_len;
+	uint32_t ab_len;
+	uint32_t pub_key_len;
+	uint32_t s_len;
+	uint32_t z_len;
+};
+
+enum curve_t {
+	DISCRETE_LOG,
+	ECC_PRIME,
+	ECC_BINARY,
+	MAX_ECC_TYPE
+};
+
+/*
+ * PKC request structure to be provided by cryptoAPI to driver hook functions.
+ * The request may be generated by application via crytodev interface or within
+ * kernel via tcrypt etc.
+ */
+struct pkc_request {
+	struct crypto_async_request base;
+
+	enum pkc_req_type type;
+	enum curve_t curve_type;
+	union {
+		struct rsa_keygen_req_s rsa_keygen;
+		struct rsa_pub_req_s rsa_pub_req;
+		struct rsa_priv_frm1_req_s rsa_priv_f1;
+		struct rsa_priv_frm2_req_s rsa_priv_f2;
+		struct rsa_priv_frm3_req_s rsa_priv_f3;
+		struct dsa_sign_req_s dsa_sign;
+		struct dsa_verify_req_s dsa_verify;
+		struct keygen_req_s keygen;
+		struct dh_key_req_s dh_req;
+		struct dsa_keygen_req_s dsa_keygen;
+		struct dh_keygen_req_s dh_keygenreq;
+	} req_u;
 };
 
 struct blkcipher_desc {
@@ -453,6 +765,13 @@ struct rng_alg {
 	unsigned int seedsize;
 };
 
+struct pkc_alg {
+	/* Public Key Crypto Operation Handler */
+	int (*pkc_op)(struct pkc_request *);
+	/* Minimum and Maximum Key size supported by driver */
+	unsigned int min_keysize;
+	unsigned int max_keysize;
+};
 
 #define cra_ablkcipher	cra_u.ablkcipher
 #define cra_aead	cra_u.aead
@@ -460,6 +779,7 @@ struct rng_alg {
 #define cra_cipher	cra_u.cipher
 #define cra_compress	cra_u.compress
 #define cra_rng		cra_u.rng
+#define cra_pkc	cra_u.pkc
 
 /**
  * struct crypto_alg - definition of a cryptograpic cipher algorithm
@@ -560,6 +880,7 @@ struct crypto_alg {
 		struct cipher_alg cipher;
 		struct compress_alg compress;
 		struct rng_alg rng;
+		struct pkc_alg pkc;
 	} cra_u;
 
 	int (*cra_init)(struct crypto_tfm *tfm);
@@ -661,6 +982,16 @@ struct rng_tfm {
 	int (*rng_reset)(struct crypto_rng *tfm, u8 *seed, unsigned int slen);
 };
 
+struct pkc_tfm {
+	/* Public Key Crypto Operation Handler */
+	int (*pkc_op)(struct pkc_request *req);
+
+	struct crypto_tfm *base;
+
+	unsigned int min_keysize;
+	unsigned int max_keysize;
+};
+
 #define crt_ablkcipher	crt_u.ablkcipher
 #define crt_aead	crt_u.aead
 #define crt_blkcipher	crt_u.blkcipher
@@ -668,6 +999,7 @@ struct rng_tfm {
 #define crt_hash	crt_u.hash
 #define crt_compress	crt_u.compress
 #define crt_rng		crt_u.rng
+#define crt_pkc	crt_u.pkc
 
 struct crypto_tfm {
 
@@ -681,6 +1013,7 @@ struct crypto_tfm {
 		struct hash_tfm hash;
 		struct compress_tfm compress;
 		struct rng_tfm rng;
+		struct pkc_tfm pkc;
 	} crt_u;
 
 	void (*exit)(struct crypto_tfm *tfm);
@@ -703,6 +1036,11 @@ struct crypto_blkcipher {
 };
 
 struct crypto_cipher {
+	struct crypto_tfm base;
+};
+
+/* PKC Transform structure */
+struct crypto_pkc {
 	struct crypto_tfm base;
 };
 
@@ -1920,6 +2258,77 @@ static inline void crypto_blkcipher_get_iv(struct crypto_blkcipher *tfm,
 					   u8 *dst, unsigned int len)
 {
 	memcpy(dst, crypto_blkcipher_crt(tfm)->iv, len);
+}
+
+static inline struct crypto_tfm *crypto_pkc_tfm(struct crypto_pkc *tfm)
+{
+	return &tfm->base;
+}
+
+static inline void pkc_request_set_tfm(
+	struct pkc_request *req, struct crypto_pkc *tfm)
+{
+	req->base.tfm = crypto_pkc_tfm(tfm);
+}
+
+static inline struct pkc_request *pkc_request_alloc(
+	struct crypto_pkc *tfm, gfp_t gfp)
+{
+	struct pkc_request *req;
+
+	req = kzalloc(sizeof(struct pkc_request), gfp);
+
+	if (likely(req))
+		pkc_request_set_tfm(req, tfm);
+
+	return req;
+}
+
+static inline void pkc_request_set_callback(
+	struct pkc_request *req,
+	u32 flags, crypto_completion_t complete, void *data)
+{
+	req->base.complete = complete;
+	req->base.data = data;
+	req->base.flags = flags;
+}
+
+static inline struct crypto_pkc *__crypto_pkc_cast(
+	struct crypto_tfm *tfm)
+{
+	return (struct crypto_pkc *)tfm;
+}
+
+static inline struct crypto_pkc *crypto_pkc_reqtfm(
+	struct pkc_request *req)
+{
+	return __crypto_pkc_cast(req->base.tfm);
+}
+
+static inline  struct crypto_pkc *crypto_alloc_pkc(const char *alg_name,
+				u32 type, u32 mask)
+{
+	mask |= CRYPTO_ALG_TYPE_MASK;
+
+	return __crypto_pkc_cast(crypto_alloc_base(alg_name, type, mask));
+}
+
+static inline void crypto_free_pkc(struct crypto_pkc *tfm)
+{
+	crypto_free_tfm(crypto_pkc_tfm(tfm));
+}
+
+static inline struct pkc_tfm *crypto_pkc_crt(
+	struct crypto_pkc *tfm)
+{
+	return &crypto_pkc_tfm(tfm)->crt_pkc;
+}
+
+static inline int crypto_pkc_op(struct pkc_request *req)
+{
+	struct pkc_tfm *tfm =
+		crypto_pkc_crt(crypto_pkc_reqtfm(req));
+	return tfm->pkc_op(req);
 }
 
 /**

@@ -28,7 +28,7 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "bman_private.h"
+#include "bman_low.h"
 #ifdef CONFIG_HOTPLUG_CPU
 #include <linux/cpu.h>
 #endif
@@ -70,7 +70,7 @@ static int __init fsl_bpool_init(struct device_node *node)
 	}
 	if (thresh) {
 #ifdef CONFIG_FSL_BMAN_CONFIG
-		ret = bm_pool_set(*bpid, thresh);
+		ret = bm_pool_set(be32_to_cpu(*bpid), thresh);
 		if (ret)
 			pr_err("No CCSR node for %s property '%s'\n",
 				node->full_name, "fsl,bpool-thresholds");
@@ -97,9 +97,9 @@ static int __init fsl_bpid_range_init(struct device_node *node)
 			node->full_name);
 		return -EINVAL;
 	}
-	bman_seed_bpid_range(range[0], range[1]);
+	bman_seed_bpid_range(be32_to_cpu(range[0]), be32_to_cpu(range[1]));
 	pr_info("Bman: BPID allocator includes range %d:%d\n",
-		range[0], range[1]);
+		be32_to_cpu(range[0]), be32_to_cpu(range[1]));
 	return 0;
 }
 
@@ -142,6 +142,12 @@ static struct bm_portal_config * __init parse_pcfg(struct device_node *node)
 		bman_ip_rev = BMAN_REV21;
 		bman_pool_max = 64;
 		bman_portal_max = 10;
+	} else {
+		pr_warn("unknown BMan version in portal node,"
+			"default to rev1.0\n");
+		bman_ip_rev = BMAN_REV10;
+		bman_pool_max = 64;
+		bman_portal_max = 10;
 	}
 
 	ret = of_address_to_resource(node, DPA_PORTAL_CE,
@@ -163,24 +169,36 @@ static struct bm_portal_config * __init parse_pcfg(struct device_node *node)
 			"cell-index");
 		goto err;
 	}
-	if (*index >= bman_portal_max)
+	if (be32_to_cpu(*index) >= bman_portal_max) {
+		pr_err("BMan portal cell index %d out of range, max %d\n",
+		       be32_to_cpu(*index), bman_portal_max);
 		goto err;
+	}
 
 	pcfg->public_cfg.cpu = -1;
 
 	irq = irq_of_parse_and_map(node, 0);
-	if (irq == NO_IRQ) {
+	if (irq == 0) {
 		pr_err("Can't get %s property 'interrupts'\n", node->full_name);
 		goto err;
 	}
 	pcfg->public_cfg.irq = irq;
-	pcfg->public_cfg.index = *index;
+	pcfg->public_cfg.index = be32_to_cpu(*index);
 	bman_depletion_fill(&pcfg->public_cfg.mask);
 
 	len = resource_size(&pcfg->addr_phys[DPA_PORTAL_CE]);
 	if (len != (unsigned long)len)
 		goto err;
 
+#ifdef CONFIG_ARM64
+	pcfg->addr_virt[DPA_PORTAL_CE] = ioremap_cache_ns(
+                                pcfg->addr_phys[DPA_PORTAL_CE].start,
+                                resource_size(&pcfg->addr_phys[DPA_PORTAL_CE]));
+        pcfg->addr_virt[DPA_PORTAL_CI] = ioremap(
+                                pcfg->addr_phys[DPA_PORTAL_CI].start,
+                                resource_size(&pcfg->addr_phys[DPA_PORTAL_CI]));
+
+#else
 	pcfg->addr_virt[DPA_PORTAL_CE] = ioremap_prot(
 				pcfg->addr_phys[DPA_PORTAL_CE].start,
 				(unsigned long)len,
@@ -189,10 +207,10 @@ static struct bm_portal_config * __init parse_pcfg(struct device_node *node)
 				pcfg->addr_phys[DPA_PORTAL_CI].start,
 				resource_size(&pcfg->addr_phys[DPA_PORTAL_CI]),
 				_PAGE_GUARDED | _PAGE_NO_CACHE);
-
+#endif
 	/* disable bp depletion */
-	__raw_writel(0x0, pcfg->addr_virt[DPA_PORTAL_CI] + 0x200);
-	__raw_writel(0x0, pcfg->addr_virt[DPA_PORTAL_CI] + 0x204);
+	__raw_writel(0x0, pcfg->addr_virt[DPA_PORTAL_CI] + BM_REG_SCN(0));
+	__raw_writel(0x0, pcfg->addr_virt[DPA_PORTAL_CI] + BM_REG_SCN(1));
 	return pcfg;
 err:
 	kfree(pcfg);
@@ -433,7 +451,7 @@ __init int bman_init(void)
 	}
 	if (list_empty(&shared_pcfgs) && list_empty(&unshared_pcfgs)) {
 		/* Default, give an unshared portal to each online cpu */
-		for_each_possible_cpu(cpu) {
+		for_each_online_cpu(cpu) {
 			pcfg = get_pcfg(&unused_pcfgs);
 			if (!pcfg)
 				break;
