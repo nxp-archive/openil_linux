@@ -36,6 +36,8 @@
 /* Two-stage IOMMU */
 #define VFIO_TYPE1_NESTING_IOMMU	6	/* Implies v2 */
 
+/* Freescale PAMU */
+#define VFIO_FSL_PAMU_IOMMU		7
 /*
  * The IOCTL interface is designed for extensibility by embedding the
  * structure length (argsz) and flags into structures passed between
@@ -434,6 +436,105 @@ struct vfio_iommu_type1_dma_unmap {
 };
 
 #define VFIO_IOMMU_UNMAP_DMA _IO(VFIO_TYPE, VFIO_BASE + 14)
+
+/*********** APIs for VFIO_PAMU type only ****************/
+/*
+ * VFIO_IOMMU_PAMU_GET_ATTR - _IO(VFIO_TYPE, VFIO_BASE + 15,
+ *				  struct vfio_pamu_attr)
+ *
+ * Gets the iommu attributes for the current vfio container.
+ * Caller sets argsz and attribute.  The ioctl fills in
+ * the provided struct vfio_pamu_attr based on the attribute
+ * value that was set.
+ * Return: 0 on success, -errno on failure
+ */
+struct vfio_pamu_attr {
+	__u32	argsz;
+	__u32	flags;	/* no flags currently */
+#define VFIO_ATTR_GEOMETRY	0
+#define VFIO_ATTR_WINDOWS	1
+#define VFIO_ATTR_PAMU_STASH	2
+	__u32	attribute;
+
+	union {
+		/* VFIO_ATTR_GEOMETRY */
+		struct {
+			/* first addr that can be mapped */
+			__u64 aperture_start;
+			/* last addr that can be mapped */
+			__u64 aperture_end;
+		} attr;
+
+		/* VFIO_ATTR_WINDOWS */
+		__u32 windows;  /* number of windows in the aperture
+				 * initially this will be the max number
+				 * of windows that can be set
+				 */
+		/* VFIO_ATTR_PAMU_STASH */
+		struct {
+			__u32 cpu;	/* CPU number for stashing */
+			__u32 cache;	/* cache ID for stashing */
+		} stash;
+	} attr_info;
+};
+#define VFIO_IOMMU_PAMU_GET_ATTR  _IO(VFIO_TYPE, VFIO_BASE + 15)
+
+/*
+ * VFIO_IOMMU_PAMU_SET_ATTR - _IO(VFIO_TYPE, VFIO_BASE + 16,
+ *				  struct vfio_pamu_attr)
+ *
+ * Sets the iommu attributes for the current vfio container.
+ * Caller sets struct vfio_pamu attr, including argsz and attribute and
+ * setting any fields that are valid for the attribute.
+ * Return: 0 on success, -errno on failure
+ */
+#define VFIO_IOMMU_PAMU_SET_ATTR  _IO(VFIO_TYPE, VFIO_BASE + 16)
+
+/*
+ * VFIO_IOMMU_PAMU_GET_MSI_BANK_COUNT - _IO(VFIO_TYPE, VFIO_BASE + 17, __u32)
+ *
+ * Returns the number of MSI banks for this platform.  This tells user space
+ * how many aperture windows should be reserved for MSI banks when setting
+ * the PAMU geometry and window count.
+ * Return: __u32 bank count on success, -errno on failure
+ */
+#define VFIO_IOMMU_PAMU_GET_MSI_BANK_COUNT _IO(VFIO_TYPE, VFIO_BASE + 17)
+
+/*
+ * VFIO_IOMMU_PAMU_MAP_MSI_BANK - _IO(VFIO_TYPE, VFIO_BASE + 18,
+ *				      struct vfio_pamu_msi_bank_map)
+ *
+ * Maps the MSI bank at the specified index and iova.  User space must
+ * call this ioctl once for each MSI bank (count of banks is returned by
+ * VFIO_IOMMU_PAMU_GET_MSI_BANK_COUNT).
+ * Caller provides struct vfio_pamu_msi_bank_map with all fields set.
+ * Return: 0 on success, -errno on failure
+ */
+
+struct vfio_pamu_msi_bank_map {
+	__u32	argsz;
+	__u32	flags;		/* no flags currently */
+	__u32	msi_bank_index;	/* the index of the MSI bank */
+	__u64	iova;		/* the iova the bank is to be mapped to */
+};
+#define VFIO_IOMMU_PAMU_MAP_MSI_BANK  _IO(VFIO_TYPE, VFIO_BASE + 18)
+
+/*
+ * VFIO_IOMMU_PAMU_UNMAP_MSI_BANK - _IO(VFIO_TYPE, VFIO_BASE + 19,
+ *					struct vfio_pamu_msi_bank_unmap)
+ *
+ * Unmaps the MSI bank at the specified iova.
+ * Caller provides struct vfio_pamu_msi_bank_unmap with all fields set.
+ * Operates on VFIO file descriptor (/dev/vfio/vfio).
+ * Return: 0 on success, -errno on failure
+ */
+
+struct vfio_pamu_msi_bank_unmap {
+	__u32	argsz;
+	__u32	flags;	/* no flags currently */
+	__u64	iova;	/* the iova to be unmapped to */
+};
+#define VFIO_IOMMU_PAMU_UNMAP_MSI_BANK  _IO(VFIO_TYPE, VFIO_BASE + 19)
 
 /*
  * IOCTLs to enable/disable IOMMU container usage.
