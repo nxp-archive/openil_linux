@@ -53,11 +53,7 @@
 #include "mac.h"
 
 /* DPAA platforms benefit from hardware-assisted queue management */
-#ifdef CONFIG_AS_FASTPATH
-#define DPA_NETIF_FEATURES	(NETIF_F_HW_QDISC | NETIF_F_HW_ACCEL_MQ)
-#else
 #define DPA_NETIF_FEATURES	NETIF_F_HW_ACCEL_MQ
-#endif
 
 /* Size in bytes of the FQ taildrop threshold */
 #define DPA_FQ_TD		0x200000
