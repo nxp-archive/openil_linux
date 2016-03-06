@@ -42,8 +42,10 @@
 	};
 
 	nand@2,0 {
-	     compatible = "fsl,ifc-nand";
-	     reg = <0x2 0x0 0x10000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "fsl,ifc-nand";
+		reg = <0x2 0x0 0x10000>;
 	};
 
 	cpld@3,0 {
