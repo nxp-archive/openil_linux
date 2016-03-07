@@ -833,9 +833,11 @@ static t_Error ConfigureFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
     if (unlikely(_errno < 0))
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("can_request_irq() = %d", _errno));
 #endif
-    _errno = devm_request_irq(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->irq, fm_irq, IRQF_NO_SUSPEND, "fman", p_LnxWrpFmDev);
+    _errno = devm_request_irq(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->irq, fm_irq, 0, "fman", p_LnxWrpFmDev);
     if (unlikely(_errno < 0))
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("request_irq(%d) = %d", p_LnxWrpFmDev->irq, _errno));
+
+    enable_irq_wake(p_LnxWrpFmDev->irq);
 
     if (p_LnxWrpFmDev->err_irq != 0) {
 #ifndef MODULE
@@ -843,9 +845,11 @@ static t_Error ConfigureFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
         if (unlikely(_errno < 0))
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("can_request_irq() = %d", _errno));
 #endif
-        _errno = devm_request_irq(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->err_irq, fm_err_irq, IRQF_SHARED | IRQF_NO_SUSPEND, "fman-err", p_LnxWrpFmDev);
+        _errno = devm_request_irq(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->err_irq, fm_err_irq, IRQF_SHARED, "fman-err", p_LnxWrpFmDev);
         if (unlikely(_errno < 0))
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("request_irq(%d) = %d", p_LnxWrpFmDev->err_irq, _errno));
+
+	enable_irq_wake(p_LnxWrpFmDev->err_irq);
     }
 
     p_LnxWrpFmDev->res = devm_request_mem_region(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->fmPhysBaseAddr, p_LnxWrpFmDev->fmMemSize, "fman");
