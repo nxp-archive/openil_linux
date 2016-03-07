@@ -93,6 +93,7 @@ struct caam_drv_private {
 	int secvio_irq;		/* Security violation interrupt number */
 
 #define SEC_ERRATUM_A_006899 0x01
+#define SEC_ERRATUM_A_005454 0x02
 	u32 errata;		/* SEC errata bitmask */
 
 	int virt_en;		/* Virtualization enabled in CAAM */

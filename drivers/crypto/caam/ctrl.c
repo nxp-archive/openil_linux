@@ -758,6 +758,8 @@ static int caam_probe(struct platform_device *pdev)
 	caam_id_ms = rd_reg32(&ctrl->perfmon.caam_id_ms);
 	if (caam_id_ms == SEC_ID_MS_T1040)
 		ctrlpriv->errata |= SEC_ERRATUM_A_006899;
+	else if (caam_id_ms == SEC_ID_MS_P5040)
+		ctrlpriv->errata |= SEC_ERRATUM_A_005454;
 
 	caam_id = (u64)caam_id_ms << 32 |
 		  (u64)rd_reg32(&ctrl->perfmon.caam_id_ls);

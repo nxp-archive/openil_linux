@@ -251,6 +251,7 @@ struct sec_vid {
 };
 
 #define SEC_ID_MS_T1040		0x0A120400
+#define SEC_ID_MS_P5040		0x0A130100
 
 struct caam_perfmon {
 	/* Performance Monitor Registers			f00-f9f */

@@ -327,6 +327,12 @@ struct sec4_sg_entry {
 #define LDLEN_SET_OFIFO_OFFSET_SHIFT	0
 #define LDLEN_SET_OFIFO_OFFSET_MASK	(3 << LDLEN_SET_OFIFO_OFFSET_SHIFT)
 
+/* Special Length definitions when dst={NFSM,NFM,SM} */
+#define LDLEN_MATH0			0
+#define LDLEN_MATH1			(1 << LDST_LEN_SHIFT)
+#define LDLEN_MATH2			(2 << LDST_LEN_SHIFT)
+#define LDLEN_MATH3			(3 << LDST_LEN_SHIFT)
+
 /* CCB Clear Written Register bits */
 #define CLRW_CLR_C1MODE              0x1
 #define CLRW_CLR_C1DATAS             0x4
@@ -1453,6 +1459,7 @@ struct sec4_sg_entry {
 #define MOVE_SRC_MATH3		(0x07 << MOVE_SRC_SHIFT)
 #define MOVE_SRC_INFIFO		(0x08 << MOVE_SRC_SHIFT)
 #define MOVE_SRC_INFIFO_CL	(0x09 << MOVE_SRC_SHIFT)
+#define MOVE_SRC_INFIFO_NO_NFIFO (0x0a << MOVE_SRC_SHIFT)
 
 #define MOVE_DEST_SHIFT		16
 #define MOVE_DEST_MASK		(0x0f << MOVE_DEST_SHIFT)
@@ -1477,8 +1484,12 @@ struct sec4_sg_entry {
 #define MOVE_LEN_SHIFT		0
 #define MOVE_LEN_MASK		(0xff << MOVE_LEN_SHIFT)
 
-#define MOVELEN_MRSEL_SHIFT	0
-#define MOVELEN_MRSEL_MASK	(0x3 << MOVE_LEN_SHIFT)
+#define MOVE_LEN_MRSEL_SHIFT	0
+#define MOVE_LEN_MRSEL_MASK	(0x3 << MOVE_LEN_MRSEL_SHIFT)
+#define MOVE_LEN_MRSEL_MATH0	(0 << MOVE_LEN_MRSEL_SHIFT)
+#define MOVE_LEN_MRSEL_MATH1	(1 << MOVE_LEN_MRSEL_SHIFT)
+#define MOVE_LEN_MRSEL_MATH2	(2 << MOVE_LEN_MRSEL_SHIFT)
+#define MOVE_LEN_MRSEL_MATH3	(3 << MOVE_LEN_MRSEL_SHIFT)
 
 /*
  * MATH Command Constructs
