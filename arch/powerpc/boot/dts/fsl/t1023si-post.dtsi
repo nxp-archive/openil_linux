@@ -655,11 +655,11 @@ sata@220000 {
 		};
 		/* offline - 5 */
 		port@86000 {
-			fsl,qman-channel-id = <0x80d>;
+			status = "disabled";
 		};
 		/* offline - 6 */
 		port@87000 {
-			fsl,qman-channel-id = <0x80e>;
+			status = "disabled";
 		};
 	};
 };

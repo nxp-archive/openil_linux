@@ -181,7 +181,7 @@
 
 		scfg: scfg@1570000 {
 			compatible = "fsl,ls1021a-scfg", "syscon";
-			reg = <0x0 0x1570000 0x0 0x10000>;
+			reg = <0x0 0x1570000 0x0 0xd04>;
 			big-endian;
 		};
 
@@ -681,6 +681,8 @@
 			interrupt-names = "qdma-error", "qdma-queue";
 			channels = <8>;
 			queues = <2>;
+			status-sizes = <64>;
+			queue-sizes = <64 64>;
 			big-endian;
 		};
 

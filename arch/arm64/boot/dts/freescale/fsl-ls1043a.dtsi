@@ -972,6 +972,8 @@
 			interrupt-names = "qdma-error", "qdma-queue";
 			channels = <8>;
 			queues = <2>;
+			status-sizes = <64>;
+			queue-sizes = <64 64>;
 			big-endian;
 		};
 
