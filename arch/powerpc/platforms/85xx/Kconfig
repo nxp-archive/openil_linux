@@ -18,7 +18,7 @@ if FSL_SOC_BOOKE
 if PPC32
 
 config FSL_85XX_CACHE_SRAM
-	bool
+	bool "Freescale l2cache sram support"
 	select PPC_LIB_RHEAP
 	help
 	  When selected, this option enables cache-sram support
