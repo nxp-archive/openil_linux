@@ -56,6 +56,8 @@ static int fixed_phy_update_regs(struct fixed_phy *fp)
 		bmcr |= BMCR_FULLDPLX;
 
 		switch (fp->status.speed) {
+		case 10000:
+			break;
 		case 1000:
 			bmsr |= BMSR_ESTATEN;
 			bmcr |= BMCR_SPEED1000;
@@ -76,6 +78,8 @@ static int fixed_phy_update_regs(struct fixed_phy *fp)
 		}
 	} else {
 		switch (fp->status.speed) {
+		case 10000:
+			break;
 		case 1000:
 			bmsr |= BMSR_ESTATEN;
 			bmcr |= BMCR_SPEED1000;
