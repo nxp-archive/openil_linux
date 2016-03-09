@@ -587,7 +587,7 @@ static int tls_set_sh_desc(struct crypto_aead *aead)
 	/* VSOL = payloadlen + icvlen + padlen */
 	append_math_add(desc, VARSEQOUTLEN, ZERO, REG3, 4);
 
-#ifdef __LITTLE_ENDIAN
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_LE
 	append_moveb(desc, MOVE_WAITCOMP |
 		     MOVE_SRC_MATH0 | MOVE_DEST_MATH0 | 8);
 #endif
@@ -640,7 +640,7 @@ static int tls_set_sh_desc(struct crypto_aead *aead)
 		 * SEQ OUT PTR command, Output Pointer (2 words) and
 		 * Output Length into math registers.
 		 */
-#ifdef __LITTLE_ENDIAN
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_LE
 		append_move(desc, MOVE_WAITCOMP | MOVE_SRC_DESCBUF |
 			    MOVE_DEST_MATH0 | (55 * 4 << MOVE_OFFSET_SHIFT) |
 			    20);
@@ -659,7 +659,7 @@ static int tls_set_sh_desc(struct crypto_aead *aead)
 				    (4 << LDST_OFFSET_SHIFT));
 		append_jump(desc, JUMP_TEST_ALL | JUMP_COND_CALM | 1);
 		/* Move the updated fields back to the Job Descriptor */
-#ifdef __LITTLE_ENDIAN
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_LE
 		append_move(desc, MOVE_WAITCOMP | MOVE_SRC_MATH0 |
 			    MOVE_DEST_DESCBUF | (55 * 4 << MOVE_OFFSET_SHIFT) |
 			    24);
@@ -679,7 +679,7 @@ static int tls_set_sh_desc(struct crypto_aead *aead)
 		 * Move the SEQ OUT PTR command, Output Pointer (1 word) and
 		 * Output Length into math registers.
 		 */
-#ifdef __LITTLE_ENDIAN
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_LE
 		append_move(desc, MOVE_WAITCOMP | MOVE_SRC_DESCBUF |
 			    MOVE_DEST_MATH0 | (54 * 4 << MOVE_OFFSET_SHIFT) |
 			    12);
@@ -689,8 +689,13 @@ static int tls_set_sh_desc(struct crypto_aead *aead)
 			    12);
 #endif
 		/* Transform SEQ OUT PTR command in SEQ IN PTR command */
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_LE
+		append_math_and_imm_u64(desc, REG0, REG0, IMM,
+			~((u64)(CMD_SEQ_IN_PTR ^ CMD_SEQ_OUT_PTR)));
+#else
 		append_math_and_imm_u64(desc, REG0, REG0, IMM,
 			~(((u64)(CMD_SEQ_IN_PTR ^ CMD_SEQ_OUT_PTR)) << 32));
+#endif
 		/* Append a JUMP command after the copied fields */
 		jumpback = CMD_JUMP | (char)-7;
 		append_load_imm_u32(desc, jumpback, LDST_CLASS_DECO | LDST_IMM |
@@ -698,7 +703,7 @@ static int tls_set_sh_desc(struct crypto_aead *aead)
 				    (4 << LDST_OFFSET_SHIFT));
 		append_jump(desc, JUMP_TEST_ALL | JUMP_COND_CALM | 1);
 		/* Move the updated fields back to the Job Descriptor */
-#ifdef __LITTLE_ENDIAN
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_LE
 		append_move(desc, MOVE_WAITCOMP | MOVE_SRC_MATH0 |
 			    MOVE_DEST_DESCBUF | (54 * 4 << MOVE_OFFSET_SHIFT) |
 			    16);
