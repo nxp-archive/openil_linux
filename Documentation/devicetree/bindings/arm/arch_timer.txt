@@ -25,6 +25,10 @@ to deliver its interrupts via SPIs.
 - always-on : a boolean property. If present, the timer is powered through an
   always-on power domain, therefore it never loses context.
 
+- arm,reread-timer : A boolean property. Indicates an erratum (e.g.
+  A-008585 on certain Freescale chips) that says reading the timer is
+  unreliable unless the same value is returned by back-to-back reads.
+
 ** Optional properties:
 
 - arm,cpu-registers-not-fw-configured : Firmware does not initialize

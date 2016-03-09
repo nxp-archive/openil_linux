@@ -207,7 +207,7 @@ ENDPROC(__kernel_clock_getres)
 /*
  * Read the current time from the architected counter.
  * Expects vdso_data to be initialised.
- * Clobbers the temporary registers (x9 - x15).
+ * Clobbers the temporary registers (x9 - x17).
  * Returns:
  *  - w9		= vDSO sequence counter
  *  - (x10, x11)	= (ts->tv_sec, shifted ts->tv_nsec)
@@ -217,6 +217,9 @@ ENTRY(__do_get_tspec)
 	.cfi_startproc
 
 	/* Read from the vDSO data page. */
+#ifdef CONFIG_ARCH_LAYERSCAPE
+	ldr	w17, [vdso_data, #VDSO_TIMER_REREAD]
+#endif
 	ldr	x10, [vdso_data, #VDSO_CS_CYCLE_LAST]
 	ldp	x13, x14, [vdso_data, #VDSO_XTIME_CLK_SEC]
 	ldp	w11, w12, [vdso_data, #VDSO_CS_MULT]
@@ -225,6 +228,19 @@ ENTRY(__do_get_tspec)
 	/* Read the virtual counter. */
 	isb
 	mrs	x15, cntvct_el0
+#ifdef CONFIG_ARCH_LAYERSCAPE
+	/*
+	 * Erratum A-008585 requires back-to-back reads to be identical
+	 * in order to avoid glitches.
+	 */
+	cmp	w17, #0
+	b.eq	2f
+1:	mrs	x15, cntvct_el0
+	mrs	x16, cntvct_el0
+	cmp	x16, x15
+	b.ne	1b
+2:
+#endif
 
 	/* Calculate cycle delta and convert to ns. */
 	sub	x10, x15, x10
