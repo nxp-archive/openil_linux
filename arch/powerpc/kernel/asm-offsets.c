@@ -741,6 +741,7 @@ int main(void)
 	DEFINE(VCPU_HOST_MAS4, offsetof(struct kvm_vcpu, arch.host_mas4));
 	DEFINE(VCPU_HOST_MAS6, offsetof(struct kvm_vcpu, arch.host_mas6));
 	DEFINE(VCPU_EPLC, offsetof(struct kvm_vcpu, arch.eplc));
+	DEFINE(VCPU_FAULT_LPER, offsetof(struct kvm_vcpu, arch.fault_lper));
 #endif
 
 #ifdef CONFIG_KVM_EXIT_TIMING

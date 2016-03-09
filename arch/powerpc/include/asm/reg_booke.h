@@ -55,6 +55,8 @@
 
 /* Special Purpose Registers (SPRNs)*/
 #define SPRN_DECAR	0x036	/* Decrementer Auto Reload Register */
+#define SPRN_LPER	0x038	/* Logical Page Exception Register */
+#define SPRN_LPERU	0x039	/* Logical Page Exception Register Upper */
 #define SPRN_IVPR	0x03F	/* Interrupt Vector Prefix Register */
 #define SPRN_USPRG0	0x100	/* User Special Purpose Register General 0 */
 #define SPRN_SPRG3R	0x103	/* Special Purpose Register General 3 Read */
@@ -76,6 +78,7 @@
 #define SPRN_DVC2	0x13F	/* Data Value Compare Register 2 */
 #define SPRN_LPID	0x152	/* Logical Partition ID */
 #define SPRN_MAS8	0x155	/* MMU Assist Register 8 */
+#define SPRN_LRATCFG	0x156	/* LRAT Configuration Register */
 #define SPRN_TLB0PS	0x158	/* TLB 0 Page Size Register */
 #define SPRN_TLB1PS	0x159	/* TLB 1 Page Size Register */
 #define SPRN_MAS5_MAS6	0x15c	/* MMU Assist Register 5 || 6 */
@@ -371,6 +374,9 @@
 #define ESR_ILK		0x00100000	/* Instr. Cache Locking */
 #define ESR_PUO		0x00040000	/* Unimplemented Operation exception */
 #define ESR_BO		0x00020000	/* Byte Ordering */
+#define ESR_DATA	0x00000400	/* Page Table Data Access */
+#define ESR_TLBI	0x00000200	/* Page Table TLB Ineligible */
+#define ESR_PT		0x00000100	/* Page Table Translation */
 #define ESR_SPV		0x00000080	/* Signal Processing operation */
 
 /* Bit definitions related to the DBCR0. */
@@ -669,6 +675,14 @@
 #define EPC_EPID	0x00003fff
 #define EPC_EPID_SHIFT	0
 
+/* Bit definitions for LPER */
+#define LPER_ALPN		0x000FFFFFFFFFF000ULL
+#define LPER_ALPN_SHIFT		12
+#define LPER_WIMGE		0x00000F80
+#define LPER_WIMGE_SHIFT	7
+#define LPER_LPS		0x0000000F
+#define LPER_LPS_SHIFT		0
+
 /*
  * The IBM-403 is an even more odd special case, as it is much
  * older than the IBM-405 series.  We put these down here incase someone
@@ -742,6 +756,12 @@
 #define MMUBE1_VBE4		0x00000002
 #define MMUBE1_VBE5		0x00000001
 
+#define TMRN_TMCFG0      16	/* Thread Management Configuration Register 0 */
+#define TMRN_TMCFG0_NPRIBITS       0x003f0000 /* Bits of thread priority */
+#define TMRN_TMCFG0_NPRIBITS_SHIFT 16
+#define TMRN_TMCFG0_NATHRD         0x00003f00 /* Number of active threads */
+#define TMRN_TMCFG0_NATHRD_SHIFT   8
+#define TMRN_TMCFG0_NTHRD          0x0000003f /* Number of threads */
 #define TMRN_IMSR0	0x120	/* Initial MSR Register 0 (e6500) */
 #define TMRN_IMSR1	0x121	/* Initial MSR Register 1 (e6500) */
 #define TMRN_INIA0	0x140	/* Next Instruction Address Register 0 */
