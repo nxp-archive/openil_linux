@@ -81,8 +81,8 @@
 			reg = <0x1000 0x800>;
 		};
 
-		tdma: ucc@2000 {
-			compatible = "fsl,ucc-tdm";
+		ucc_hdlc: ucc@2000 {
+			compatible = "fsl,ucc_hdlc";
 			rx-clock-name = "clk8";
 			tx-clock-name = "clk9";
 			fsl,rx-sync-clock = "rsync_pin";
@@ -93,12 +93,13 @@
 			fsl,tdm-mode = "normal";
 			fsl,tdm-id = <0>;
 			fsl,siram-entry-id = <0>;
+			fsl,tdm-interface;
 		};
 
 		serial: ucc@2200 {
 			device_type = "serial";
 			compatible = "ucc_uart";
-			port-number = <1>;
+			port-number = <0>;
 			rx-clock-name = "brg2";
 			tx-clock-name = "brg2";
 		};
