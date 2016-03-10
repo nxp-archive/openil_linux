@@ -245,6 +245,7 @@ static int __exit qoriq_cpufreq_cpu_exit(struct cpufreq_policy *policy)
 {
 	struct cpu_data *data = policy->driver_data;
 
+	cpufreq_cooling_unregister(data->cdev);
 	kfree(data->pclk);
 	kfree(data->table);
 	kfree(data);
@@ -263,6 +264,12 @@ static int qoriq_cpufreq_target(struct cpufreq_policy *policy,
 	return clk_set_parent(policy->clk, parent);
 }
 
+static void qoriq_cpufreq_stop_cpu(struct cpufreq_policy *policy)
+{
+	struct cpu_data *cpud = policy->driver_data;
+
+	cpufreq_cooling_unregister(cpud->cdev);
+}
 
 static void qoriq_cpufreq_ready(struct cpufreq_policy *policy)
 {
@@ -292,6 +299,7 @@ static struct cpufreq_driver qoriq_cpufreq_driver = {
 	.verify		= cpufreq_generic_frequency_table_verify,
 	.target_index	= qoriq_cpufreq_target,
 	.get		= cpufreq_generic_get,
+	.stop_cpu	= qoriq_cpufreq_stop_cpu,
 	.ready		= qoriq_cpufreq_ready,
 	.attr		= cpufreq_generic_attr,
 };
