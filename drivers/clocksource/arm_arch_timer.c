@@ -70,6 +70,12 @@ static struct clock_event_device __percpu *arch_timer_evt;
 static bool arch_timer_use_virtual = true;
 static bool arch_timer_c3stop;
 static bool arch_timer_mem_use_virtual;
+static __always_inline u32 arch_timer_reg_read(int access,
+		enum arch_timer_reg reg, struct clock_event_device *clk);
+
+#ifndef arm_arch_timer_reread
+bool arm_arch_timer_reread;
+#endif
 
 /*
  * Architected system timer support.
@@ -79,6 +85,9 @@ static __always_inline
 void arch_timer_reg_write(int access, enum arch_timer_reg reg, u32 val,
 			  struct clock_event_device *clk)
 {
+#ifdef CONFIG_LS2080A_ERRATA_ERR009971
+	u32 val_read;
+#endif
 	if (access == ARCH_TIMER_MEM_PHYS_ACCESS) {
 		struct arch_timer *timer = to_arch_timer(clk);
 		switch (reg) {
@@ -101,6 +110,13 @@ void arch_timer_reg_write(int access, enum arch_timer_reg reg, u32 val,
 		}
 	} else {
 		arch_timer_reg_write_cp15(access, reg, val);
+#ifdef CONFIG_LS2080A_ERRATA_ERR009971
+		val_read = arch_timer_reg_read_cp15(access, reg);
+		if ((val & 0xffffff00) != (val_read & 0xffffff00)) {
+			arch_timer_reg_write_cp15(access, reg, 0x00000000);
+			arch_timer_reg_write_cp15(access, reg, val);
+		}
+#endif
 	}
 }
 
@@ -736,6 +752,10 @@ static void __init arch_timer_of_init(struct device_node *np)
 	arch_timer_detect_rate(NULL, np);
 
 	arch_timer_c3stop = !of_property_read_bool(np, "always-on");
+
+#ifndef arm_arch_timer_reread
+	arm_arch_timer_reread = of_property_read_bool(np, "arm,reread-timer");
+#endif
 
 	/*
 	 * If we cannot rely on firmware initializing the timer registers then

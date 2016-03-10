@@ -31,6 +31,7 @@
 #include <linux/timekeeper_internal.h>
 #include <linux/vmalloc.h>
 
+#include <asm/arch_timer.h>
 #include <asm/cacheflush.h>
 #include <asm/signal32.h>
 #include <asm/vdso.h>
@@ -206,6 +207,7 @@ void update_vsyscall(struct timekeeper *tk)
 	smp_wmb();
 
 	xtime_coarse = __current_kernel_time();
+	vdso_data->timer_reread			= arm_arch_timer_reread;
 	vdso_data->use_syscall			= use_syscall;
 	vdso_data->xtime_coarse_sec		= xtime_coarse.tv_sec;
 	vdso_data->xtime_coarse_nsec		= xtime_coarse.tv_nsec;
