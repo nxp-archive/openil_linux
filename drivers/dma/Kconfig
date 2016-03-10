@@ -402,6 +402,7 @@ config FSL_QDMA
 	select DMA_VIRTUAL_CHANNELS
 	select DMA_ENGINE_RAID
 	select ASYNC_TX_ENABLE_CHANNEL_SWITCH
+	select ARCH_DMA_ADDR_T_64BIT
 	help
 	  Support the Freescale qDMA engine with command queue and legacy mode.
 	  Channel virtualization is supported through enqueuing of DMA jobs to,
