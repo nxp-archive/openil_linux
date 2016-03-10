@@ -1247,6 +1247,7 @@ static int set_ddr_quad_mode(struct spi_nor *nor, const struct flash_info *info)
 static int set_quad_mode(struct spi_nor *nor, const struct flash_info *info)
 {
 	int status;
+	u8 reg_sr;
 
 	switch (JEDEC_MFR(info)) {
 	case SNOR_MFR_MACRONIX:
@@ -1257,6 +1258,13 @@ static int set_quad_mode(struct spi_nor *nor, const struct flash_info *info)
 		}
 		return status;
 	case SNOR_MFR_MICRON:
+		reg_sr = read_sr(nor);
+		if (reg_sr & ~SPI_NOR_MICRON_WRITE_ENABLE) {
+			reg_sr &= SPI_NOR_MICRON_WRITE_ENABLE;
+
+			write_enable(nor);
+			write_sr(nor, reg_sr);
+		}
 		status = micron_quad_enable(nor);
 		if (status) {
 			dev_err(nor->dev, "Micron quad-read not enabled\n");
@@ -1354,14 +1362,6 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 	ret = spi_nor_unprotect_on_powerup(nor);
 	if (ret)
 		return ret;
-
-	if (JEDEC_MFR(info) == SNOR_MFR_MICRON) {
-		ret = read_sr(nor);
-		ret &= SPI_NOR_MICRON_WRITE_ENABLE;
-
-		write_enable(nor);
-		write_sr(nor, ret);
-	}
 
 	if (EXT_ID(info) == SPINOR_S25FS_FAMILY_ID) {
 		ret = spansion_s25fs_disable_4kb_erase(nor);
