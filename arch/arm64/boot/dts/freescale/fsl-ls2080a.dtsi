@@ -619,6 +619,7 @@
 			     <1 14 0x1>, /* Physical Non-Secure PPI, edge triggered */
 			     <1 11 0x1>, /* Virtual PPI, edge triggered */
 			     <1 10 0x1>; /* Hypervisor PPI, edge triggered */
+		arm,reread-timer;
 	};
 
 	fsl_mc: fsl-mc@80c000000 {
