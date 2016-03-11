@@ -1420,13 +1420,13 @@ static int do_ioctl_stats_get_counters(void *args)
 			kfree(prm.req_params.cnts_ids);
 			return ret;
 		}
-	}
 
-	/* Replace the application callback with wrapper function */
-	if (prm.async_req)
-		ret = dpa_stats_get_counters(prm.req_params, &prm.cnts_len, do_ioctl_req_done_cb);
-	else
-		ret = dpa_stats_get_counters(prm.req_params, &prm.cnts_len, NULL);
+		/* Replace the application callback with wrapper function */
+		ret = dpa_stats_get_counters(prm.req_params, &prm.cnts_len,
+							do_ioctl_req_done_cb);
+	} else
+		ret = dpa_stats_get_counters(prm.req_params, &prm.cnts_len,
+									NULL);
 
 	if (ret < 0) {
 		kfree(prm.req_params.cnts_ids);
@@ -1510,10 +1510,14 @@ static int do_ioctl_stats_compat_get_counters(void *args)
 			kfree(kprm.req_params.cnts_ids);
 			return ret;
 		}
-	}
 
-	ret = dpa_stats_get_counters(kprm.req_params,
-				     &kprm.cnts_len, do_ioctl_req_done_cb);
+		/* Replace the application callback with wrapper function */
+		ret = dpa_stats_get_counters(kprm.req_params, &kprm.cnts_len,
+							do_ioctl_req_done_cb);
+	} else
+		ret = dpa_stats_get_counters(kprm.req_params, &kprm.cnts_len,
+							NULL);
+
 	if (ret < 0) {
 		kfree(kprm.req_params.cnts_ids);
 		return ret;
