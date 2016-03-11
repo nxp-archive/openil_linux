@@ -1259,7 +1259,9 @@ static irqreturn_t _ethsw_irq0_handler_thread(int irq_num, void *arg)
 	struct fsl_mc_io *io = priv->mc_io;
 	uint16_t token = priv->dpsw_handle;
 	int irq_index = DPSW_IRQ_INDEX_IF;
-	uint32_t status = 0, clear = 0;
+
+	/* Mask the events and the if_id reserved bits to be cleared on read */
+	uint32_t status = DPSW_IRQ_EVENT_LINK_CHANGED | 0xFFFF0000;
 	int err;
 
 	/* Sanity check */
@@ -1271,24 +1273,22 @@ static irqreturn_t _ethsw_irq0_handler_thread(int irq_num, void *arg)
 	err = dpsw_get_irq_status(io, 0, token, irq_index, &status);
 	if (unlikely(err)) {
 		netdev_err(netdev, "Can't get irq status (err %d)", err);
-		clear = 0xffffffff;
+
+		err = dpsw_clear_irq_status(io, 0, token, irq_index,
+					    0xFFFFFFFF);
+		if (unlikely(err))
+			netdev_err(netdev, "Can't clear irq status (err %d)",
+				   err);
 		goto out;
 	}
 
-	/* FIXME clear irq status */
-
 	if (status & DPSW_IRQ_EVENT_LINK_CHANGED) {
-		clear |= DPSW_IRQ_EVENT_LINK_CHANGED;
-
 		err = ethsw_links_state_update(priv);
 		if (unlikely(err))
 			goto out;
 	}
-out:
-	err = dpsw_clear_irq_status(io, 0, token, irq_index, clear);
-	if (unlikely(err))
-		netdev_err(netdev, "Can't clear irq status (err %d)", err);
 
+out:
 	return IRQ_HANDLED;
 }
 
@@ -1300,7 +1300,7 @@ static int ethsw_setup_irqs(struct fsl_mc_device *sw_dev)
 	int err = 0;
 	struct fsl_mc_device_irq *irq;
 	const int irq_index = DPSW_IRQ_INDEX_IF;
-	uint32_t mask = ~0x0u;	/* FIXME: unmask handled irqs */
+	uint32_t mask = DPSW_IRQ_EVENT_LINK_CHANGED;
 
 	err = fsl_mc_allocate_irqs(sw_dev);
 	if (unlikely(err)) {
