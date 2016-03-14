@@ -8,7 +8,7 @@
  * warranty of any kind, whether express or implied.
  */
 
-/include/ "fsl-ls1043a-rdb.dts"
+#include "fsl-ls1043a-rdb.dts"
 
 / {
 	bp7: buffer-pool@7 {
@@ -28,7 +28,7 @@
 	bp9: buffer-pool@9 {
 		compatible = "fsl,p4080-bpool", "fsl,bpool";
 		fsl,bpid = <9>;
-		fsl,bpool-ethernet-cfg = <0 0 0 1728 0 0xfeedabba>;
+		fsl,bpool-ethernet-cfg = <0 0 0 2048 0 0xfeedabba>;
 		fsl,bpool-thresholds = <0x100 0x300 0x0 0x0>;
 	};
 
@@ -91,18 +91,18 @@
 			fsl,qman-frame-queues-oh = <0x5a 1 0x5b 1>;
 			fsl,fman-oh-port = <&fman0_oh2>;
 		};
-                oh3: dpa_fman0_oh3: dpa-fman0-oh@3 {
-                        compatible = "fsl,dpa-oh";
-                        fsl,qman-frame-queues-oh = <0x68 1 0x69 1>;
-                        fsl,bman-buffer-pools = <&bp9>;
-                        fsl,fman-oh-port = <&fman0_oh3>;
-                };
-                dpa_fman0_oh4: dpa-fman0-oh@4 {
-                        compatible = "fsl,dpa-oh";
-                        fsl,qman-frame-queues-oh = <0x70 1 0x71 1>;
-                        fsl,bman-buffer-pools = <&bp9>;
-                        fsl,fman-oh-port = <&fman0_oh4>;
-                };
+		oh3: dpa_fman0_oh3: dpa-fman0-oh@3 {
+			compatible = "fsl,dpa-oh";
+			fsl,qman-frame-queues-oh = <0x68 1 0x69 1>;
+			fsl,bman-buffer-pools = <&bp9>;
+			fsl,fman-oh-port = <&fman0_oh3>;
+		};
+		dpa_fman0_oh4: dpa-fman0-oh@4 {
+			compatible = "fsl,dpa-oh";
+			fsl,qman-frame-queues-oh = <0x70 1 0x71 1>;
+			fsl,bman-buffer-pools = <&bp9>;
+			fsl,fman-oh-port = <&fman0_oh4>;
+		};
 	};
 
 };
