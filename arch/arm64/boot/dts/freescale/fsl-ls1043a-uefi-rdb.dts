@@ -1,75 +1,58 @@
 /*
  * Device Tree Include file for Freescale Layerscape-1043A family SoC.
  *
- * Copyright (C) 2014-2015, Freescale Semiconductor
+ * Copyright 2014-2015, Freescale Semiconductor
  *
  * Mingkai Hu <Mingkai.hu@freescale.com>
  *
- * This file is licensed under the terms of the GNU General Public
- * License version 2.  This program is licensed "as is" without any
- * warranty of any kind, whether express or implied.
+ * This file is dual-licensed: you can use it either under the terms
+ * of the GPLv2 or the X11 license, at your option. Note that this dual
+ * licensing only applies to this file, and not this project as a
+ * whole.
+ *
+ *  a) This library is free software; you can redistribute it and/or
+ *     modify it under the terms of the GNU General Public License as
+ *     published by the Free Software Foundation; either version 2 of the
+ *     License, or (at your option) any later version.
+ *
+ *     This library is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *     GNU General Public License for more details.
+ *
+ * Or, alternatively,
+ *
+ *  b) Permission is hereby granted, free of charge, to any person
+ *     obtaining a copy of this software and associated documentation
+ *     files (the "Software"), to deal in the Software without
+ *     restriction, including without limitation the rights to use,
+ *     copy, modify, merge, publish, distribute, sublicense, and/or
+ *     sell copies of the Software, and to permit persons to whom the
+ *     Software is furnished to do so, subject to the following
+ *     conditions:
+ *
+ *     The above copyright notice and this permission notice shall be
+ *     included in all copies or substantial portions of the Software.
+ *
+ *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ *     OTHER DEALINGS IN THE SOFTWARE.
  */
 
 /dts-v1/;
-/include/ "fsl-ls1043a-uefi.dtsi"
+#include "fsl-ls1043a-uefi.dtsi"
 
 / {
 	model = "LS1043A RDB Board";
+	compatible = "fsl,ls1043a-rdb", "fsl,ls1043a";
 
 	aliases {
-		ethernet0 = &fm1mac1;
-		ethernet1 = &fm1mac2;
-		ethernet2 = &fm1mac3;
-		ethernet3 = &fm1mac4;
-		ethernet4 = &fm1mac5;
-		ethernet5 = &fm1mac6;
-		ethernet6 = &fm1mac9;
 		crypto = &crypto;
-	};
-
-};
-
-&dspi0 {
-	bus-num = <0>;
-	status = "okay";
-
-	flash@0 {
-		#address-cells = <1>;
-		#size-cells = <1>;
-		compatible = "micron,n25q128a13";  /* 16MB */
-		reg = <0>;
-		spi-max-frequency = <1000000>; /* input clock */
-		partition@u-boot {
-			label = "u-boot";
-			reg = <0x00000000 0x00100000>;
-			read-only;
-		};
-		partition@kernel {
-			label = "kernel";
-			reg = <0x00100000 0x00500000>;
-			read-only;
-		};
-		partition@dtb {
-			label = "dtb";
-			reg = <0x00600000 0x00100000>;
-			read-only;
-		};
-		partition@fs {
-			label = "file system";
-			reg = <0x00700000 0x00900000>;
-		};
-	};
-
-	slic@2 {
-		compatible = "maxim,ds26522";
-		reg = <2>;
-		spi-max-frequency = <2000000>;
-	};
-
-	slic@3 {
-		compatible = "maxim,ds26522";
-		reg = <3>;
-		spi-max-frequency = <2000000>;
 	};
 };
 
@@ -81,19 +64,17 @@
 		shunt-resistor = <1000>;
 	};
 	adt7461a@4c {
-		compatible = "adt7461a";
+		compatible = "adi,adt7461";
 		reg = <0x4c>;
 	};
 	eeprom@56 {
 		compatible = "at24,24c512";
 		reg = <0x52>;
 	};
-
 	eeprom@57 {
 		compatible = "at24,24c512";
 		reg = <0x53>;
 	};
-
 	rtc@68 {
 		compatible = "pericom,pt7c4338";
 		reg = <0x68>;
@@ -106,8 +87,8 @@
 	#size-cells = <1>;
 	/* NOR, NAND Flashes and FPGA on board */
 	ranges = <0x0 0x0 0x0 0x60000000 0x08000000
-		  0x2 0x0 0x0 0x7e800000 0x00010000
-		  0x3 0x0 0x0 0x7fb00000 0x00000100>;
+		  0x1 0x0 0x0 0x7e800000 0x00010000
+		  0x2 0x0 0x0 0x7fb00000 0x00000100>;
 
 		nor@0,0 {
 			compatible = "cfi-flash";
@@ -116,108 +97,48 @@
 			reg = <0x0 0x0 0x8000000>;
 			bank-width = <2>;
 			device-width = <1>;
-
-			partition@0 {
-				/* 1MB for RCW and PBI Image */
-				reg = <0x00000000 0x00100000>;
-				label = "NOR bank0 RCW Image";
-			};
-
-			partition@100000 {
-				/* 1MB for bank0 u-boot Image */
-				reg = <0x00100000 0x00100000>;
-				label = "NOR bank0 U-Boot Image";
-			};
-
-			partition@200000 {
-				/* 1 MB for bank0 u-boot Env */
-				reg = <0x00200000 0x00100000>;
-				label = "NOR bank0 U-Boot Env";
-			};
-
-			partition@300000 {
-				/* 1MB for FMan ucode */
-				reg = <0x00300000 0x00100000>;
-				label = "NOR bank0 FMan ucode";
-			};
-
-			partition@1100000 {
-				/* 40MB for bank0 FIT Image */
-				reg = <0x01100000 0x2800000>;
-				label = "NOR bank0 FIT Image";
-			};
-
-			partition@4000000 {
-				/* 1MB for bank4 RCW and PBI Image */
-				reg = <0x04000000 0x100000>;
-				label = "NOR bank4 RCW Image";
-			};
-
-			partition@4100000 {
-				/* 1MB for bank4 u-boot Image */
-				reg = <0x04100000 0x100000>;
-				label = "NOR bank4 U-Boot Image";
-			};
-
-			partition@4200000 {
-				/* 1 MB for bank4 u-boot Env */
-				reg = <0x04200000 0x100000>;
-				label = "NOR bank4 U-Boot Env";
-			};
-
-			partition@4300000 {
-				/* 1 MB for bank4 FMan ucode */
-				reg = <0x04300000 0x100000>;
-				label = "NOR bank4 FMan ucode";
-			};
-
-			partition@5100000 {
-				/* 40MB for bank4 FIT Image */
-				reg = <0x05100000 0x2800000>;
-				label = "NOR bank4 FIT Image";
-			};
 		};
 
 		nand@1,0 {
 			compatible = "fsl,ifc-nand";
 			#address-cells = <1>;
 			#size-cells = <1>;
-			reg = <0x2 0x0 0x10000>;
-
-			partition@0 {
-				/* This location must not be altered  */
-				/* 1MB for u-boot Bootloader Image */
-				reg = <0x0 0x00100000>;
-				label = "NAND U-Boot Image";
-				read-only;
-			};
-
-			partition@140000 {
-				/* 1MB for DTB Image */
-				reg = <0x00140000 0x002000>;
-				label = "NAND U-Boot Env";
-			};
-
-			partition@200000 {
-				/* 20MB for FIT Image */
-				reg = <0x00200000 0x01400000>;
-				label = "NAND FIT Image";
-			};
+			reg = <0x1 0x0 0x10000>;
 		};
 
 		cpld: board-control@2,0 {
-			compatible = "fsl,ls1043ardb-cpld", "simple-bus";
-			#address-cells = <1>;
-			#size-cells = <1>;
+			compatible = "fsl,ls1043ardb-cpld";
 			reg = <0x2 0x0 0x0000100>;
-			bank-width = <1>;
-			device-width = <1>;
-			ranges = <0 2 0 0x100>;
 		};
 };
 
-&ftm0 {
+&dspi0 {
+	bus-num = <0>;
 	status = "okay";
+
+	flash@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "n25q128a13", "jedec,spi-nor";  /* 16MB */
+		reg = <0>;
+		spi-max-frequency = <1000000>; /* input clock */
+	};
+
+	slic@2 {
+		compatible = "maxim,ds26522";
+		reg = <2>;
+		spi-max-frequency = <2000000>;
+		fsl,spi-cs-sck-delay = <100>;
+		fsl,spi-sck-cs-delay = <50>;
+	};
+
+	slic@3 {
+		compatible = "maxim,ds26522";
+		reg = <3>;
+		spi-max-frequency = <2000000>;
+		fsl,spi-cs-sck-delay = <100>;
+		fsl,spi-sck-cs-delay = <50>;
+	};
 };
 
 &duart0 {
@@ -294,8 +215,8 @@
 };
 
 &uqe {
-	tdma: ucc@2000 {
-		compatible = "fsl,ucc-tdm";
+	ucc_hdlc: ucc@2000 {
+		compatible = "fsl,ucc_hdlc";
 		rx-clock-name = "clk8";
 		tx-clock-name = "clk9";
 		fsl,rx-sync-clock = "rsync_pin";
@@ -306,20 +227,14 @@
 		fsl,tdm-mode = "normal";
 		fsl,tdm-id = <0>;
 		fsl,siram-entry-id = <0>;
+		fsl,tdm-interface;
 	};
 
-	serial: ucc@2200 {
-		compatible = "fsl,ucc_hdlc";
-		rx-clock-name = "clk10";
-		tx-clock-name = "clk11";
-		fsl,rx-sync-clock = "rsync_pin";
-		fsl,tx-sync-clock = "tsync_pin";
-		fsl,tx-timeslot = <0xfffffffe>;
-		fsl,rx-timeslot = <0xfffffffe>;
-		fsl,tdm-framer-type = "e1";
-		fsl,tdm-mode = "normal";
-		fsl,tdm-id = <1>;
-		fsl,siram-entry-id = <2>;
-		fsl,tdm-interface;
+	ucc_serial: ucc@2200 {
+		device_type = "serial";
+		compatible = "ucc_uart";
+		port-number = <0>;
+		rx-clock-name = "brg2";
+		tx-clock-name = "brg2";
 	};
 };
