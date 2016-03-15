@@ -366,6 +366,7 @@ static inline void compat_copy_fm_pcd_cc_next_engine(
                 break;
 #endif /* DPAA_VERSION >= 11 */
             case e_IOC_FM_PCD_CC:
+                param->manip_id = compat_pcd_id2ptr(compat_param->manip_id);
                 compat_copy_fm_pcd_cc_next_cc(&compat_param->params.cc_params, &param->params.cc_params, compat);
                 break;
             case e_IOC_FM_PCD_KG:
@@ -392,6 +393,7 @@ static inline void compat_copy_fm_pcd_cc_next_engine(
                 break;
 #endif /* DPAA_VERSION >= 11 */
             case e_IOC_FM_PCD_CC:
+                compat_param->manip_id = compat_pcd_ptr2id(param->manip_id);
                 compat_copy_fm_pcd_cc_next_cc(&compat_param->params.cc_params, &param->params.cc_params, compat);
                 break;
             case e_IOC_FM_PCD_KG:
