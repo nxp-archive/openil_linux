@@ -17,6 +17,7 @@
 #include <linux/memblock.h>
 #include <linux/slab.h>
 #include <linux/mman.h>
+#include <linux/of_reserved_mem.h>
 
 #ifndef CONFIG_ARM64
 #include <mm/mmu_decl.h>
@@ -30,6 +31,8 @@
 /* Physical address range of the memory reservation, exported for mm/mem.c */
 static u64 phys_start;
 static u64 phys_size;
+static u64 arg_phys_size;
+
 /* PFN versions of the above */
 static unsigned long pfn_start;
 static unsigned long pfn_size;
@@ -40,7 +43,7 @@ static DEFINE_SPINLOCK(mem_lock);
 
 /* The range of TLB1 indices */
 static unsigned int first_tlb;
-static unsigned int num_tlb;
+static unsigned int num_tlb = 1;
 static unsigned int current_tlb; /* loops around for fault handling */
 
 /* Memory reservation is represented as a list of 'mem_fragment's, some of which
@@ -1848,9 +1851,11 @@ static struct miscdevice usdpaa_miscdev = {
  * format "usdpaa_mem=<x>,<y>" is used, then <y> will be interpreted as the
  * number of TLB1 entries to reserve (default is 1). If there are more mappings
  * than there are TLB1 entries, fault-handling will occur. */
+
 static __init int usdpaa_mem(char *arg)
 {
-	phys_size = memparse(arg, &arg);
+	pr_warn("uspdaa_mem argument is depracated\n");
+	arg_phys_size = memparse(arg, &arg);
 	num_tlb = 1;
 	if (*arg == ',') {
 		unsigned long ul;
@@ -1865,23 +1870,32 @@ static __init int usdpaa_mem(char *arg)
 }
 early_param("usdpaa_mem", usdpaa_mem);
 
+static int usdpaa_mem_init(struct reserved_mem *rmem)
+{
+	phys_start = rmem->base;
+	phys_size = rmem->size;
+
+	WARN_ON(!(phys_start && phys_size));
+
+	return 0;
+}
+RESERVEDMEM_OF_DECLARE(usdpaa_mem_init, "fsl,usdpaa-mem", usdpaa_mem_init);
+
 __init int fsl_usdpaa_init_early(void)
 {
-	if (!phys_size) {
-		pr_info("No USDPAA memory, no 'usdpaa_mem' bootarg\n");
+	if (!phys_size || !phys_start) {
+		pr_info("No USDPAA memory, no 'fsl,usdpaa-mem' in device-tree\n");
 		return 0;
 	}
 	if (phys_size % PAGE_SIZE) {
-		pr_err("'usdpaa_mem' bootarg must be a multiple of page size\n");
+		pr_err("'fsl,usdpaa-mem' size must be a multiple of page size\n");
 		phys_size = 0;
 		return 0;
 	}
-	phys_start = __memblock_alloc_base(phys_size,
-					   largest_page_size(phys_size),
-					   MEMBLOCK_ALLOC_ACCESSIBLE);
-	if (!phys_start) {
-		pr_err("Failed to reserve USDPAA region (sz:%llx)\n",
-		       phys_size);
+	if (arg_phys_size && phys_size != arg_phys_size) {
+		pr_err("'usdpaa_mem argument size (0x%x) does not match device tree size (0x%x)\n",
+		       arg_phys_size, phys_size);
+		phys_size = 0;
 		return 0;
 	}
 	pfn_start = phys_start >> PAGE_SHIFT;
