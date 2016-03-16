@@ -4420,11 +4420,11 @@ int qman_ceetm_channel_set_group(struct qm_ceetm_channel *channel, int group_b,
 	struct qm_mcr_ceetm_class_scheduler_query query_result;
 	int i;
 
-	if (!prio_a || (prio_a > 7)) {
+	if (prio_a > 7) {
 		pr_err("The priority of group A is out of range\n");
 		return -EINVAL;
 	}
-	if ((group_b && !prio_b) || (prio_b > 7)) {
+	if (group_b && (prio_b > 7)) {
 		pr_err("The priority of group B is out of range\n");
 		return -EINVAL;
 	}

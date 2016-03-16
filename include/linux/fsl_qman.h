@@ -3235,7 +3235,7 @@ int qman_ceetm_channel_get_weight(struct qm_ceetm_channel *channel,
  *      CQ0, CQ1, CQ2, GROUPA, CQ3, CQ4, CQ5, CQ6, GROUPB, CQ7
  *
  * Return 0 for success. For "set" function, returns -EINVAL if prio_a or
- * prio_b are out of the range 1 - 7 (priority of group A or group B can not
+ * prio_b are out of the range 0 - 7 (priority of group A or group B can not
  * be 0, CQ0 is always the highest class queue in this channel.), or -EIO if
  * the configure scheduler command returns error. For "get" function, return
  * -EINVAL if the query scheduler command returns error.
