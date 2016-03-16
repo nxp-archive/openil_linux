@@ -31,6 +31,7 @@
 
 #include "pme2_private.h"
 #include "pme2_regs.h"
+#include <linux/of_reserved_mem.h>
 
 /* PME HW Revision */
 #define PME_REV(rev1_reg) (rev1_reg & 0x0000FFFF)
@@ -46,8 +47,6 @@
  */
 #define DRV_NAME	"fsl-pme"
 
-#define DEFAULT_PDSR_SZ (CONFIG_FSL_PME2_PDSRSIZE << 7)
-#define DEFAULT_SRE_SZ  (CONFIG_FSL_PME2_SRESIZE << 5)
 #define PDSR_TBL_ALIGN  (1 << 7)
 #define SRE_TBL_ALIGN   (1 << 5)
 #define DEFAULT_SRFCC   400
@@ -83,68 +82,22 @@ DECLARE_GLOBAL(sre_session_ctx_size, unsigned int, uint,
  * loadable.
  */
 static dma_addr_t dxe_a, sre_a;
-static size_t dxe_sz = DEFAULT_PDSR_SZ, sre_sz = DEFAULT_SRE_SZ;
+static size_t dxe_sz, sre_sz;
 
-/*
- * Parse the <name> property to extract the memory location and size and
- * memblock_reserve() it. If it isn't supplied, memblock_alloc() the default
- * size.
- */
-static __init int parse_mem_property(struct device_node *node, const char *name,
-			dma_addr_t *addr, size_t *sz, u64 align, int zero)
+static int pme_pdsr_init(struct reserved_mem *rmem)
 {
-	const u32 *pint;
-	int ret;
-
-	pint = of_get_property(node, name, &ret);
-	if (!pint || (ret != 16)) {
-		pr_info("pme: No %s property '%s', using"
-			" memblock_alloc(0x%016zx)\n",
-			node->full_name, name, *sz);
-		*addr = memblock_alloc(*sz, align);
-		if (zero)
-			memset(phys_to_virt(*addr), 0, *sz);
-		return 0;
-	}
-	pr_info("pme: Using %s property '%s'\n", node->full_name, name);
-	/* If using a "zero-pma", don't try to zero it, even if you asked */
-	if (zero && of_find_property(node, "zero-pma", &ret)) {
-		pr_info("  it's a 'zero-pma', not zeroing from s/w\n");
-		zero = 0;
-	}
-	*addr = ((u64)pint[0] << 32) | (u64)pint[1];
-	*sz = ((u64)pint[2] << 32) | (u64)pint[3];
-	if ((u64)*addr & (align - 1)) {
-		pr_err("pme: Invalid alignment, address %016llx\n", (u64)*addr);
-		return -EINVAL;
-	}
-	/*
-	 * Keep things simple, it's either all in the DRAM range or it's all
-	 * outside.
-	 */
-	if (*addr < memblock_end_of_DRAM()) {
-		if ((u64)*addr + (u64)*sz > memblock_end_of_DRAM()) {
-			pr_err("pme: outside DRAM range\n");
-			return -EINVAL;
-		}
-		if (memblock_reserve(*addr, *sz) < 0) {
-			pr_err("pme: Failed to reserve %s\n", name);
-			return -ENOMEM;
-		}
-		if (zero)
-			memset(phys_to_virt(*addr), 0, *sz);
-	} else if (zero) {
-		/* map as cacheable, non-guarded */
-		void *tmpp = ioremap_prot(*addr, *sz, 0);
-		if (!tmpp) {
-			pr_err("pme: Failed to remap\n");
-			return -EINVAL;
-		}
-		memset(tmpp, 0, *sz);
-		iounmap(tmpp);
-	}
+	dxe_a = rmem->base;
+	dxe_sz = rmem->size;
 	return 0;
 }
+static int pme_sre_init(struct reserved_mem *rmem)
+{
+	sre_a = rmem->base;
+	sre_sz = rmem->size;
+	return 0;
+}
+RESERVEDMEM_OF_DECLARE(pme_pdsr, "fsl,pme-pdsr", pme_pdsr_init);
+RESERVEDMEM_OF_DECLARE(pme_sre, "fsl,pme-sre", pme_sre_init);
 
 /* No errors/interrupts. Physical addresses are assumed <= 32bits. */
 static int __init fsl_pme2_init(struct device_node *node)
@@ -158,16 +111,10 @@ static int __init fsl_pme2_init(struct device_node *node)
 		return 0;
 	}
 	/* Check if pdsr memory already allocated */
-	if (dxe_a) {
-		pr_err("pme: Error fsl_pme2_init already done\n");
+	if (!dxe_a || !sre_a) {
+		pr_info("No PME memory in device-tree\n");
 		return -EINVAL;
 	}
-	ret = parse_mem_property(node, "fsl,pme-pdsr", &dxe_a, &dxe_sz,
-			PDSR_TBL_ALIGN, 0);
-	if (ret)
-		return ret;
-	ret = parse_mem_property(node, "fsl,pme-sre", &sre_a, &sre_sz,
-			SRE_TBL_ALIGN, 0);
 	return ret;
 }
 
