@@ -4664,7 +4664,7 @@ int qman_ceetm_cq_claim_A(struct qm_ceetm_cq **cq,
 	struct qm_ceetm_cq *p;
 	struct qm_mcc_ceetm_cq_config cq_config;
 
-	if ((idx < 7) || (idx > 15)) {
+	if ((idx < 8) || (idx > 15)) {
 		pr_err("This grouped class queue id is out of range\n");
 		return -EINVAL;
 	}
@@ -4712,7 +4712,7 @@ int qman_ceetm_cq_claim_B(struct qm_ceetm_cq **cq,
 	struct qm_ceetm_cq *p;
 	struct qm_mcc_ceetm_cq_config cq_config;
 
-	if ((idx < 11) || (idx > 15)) {
+	if ((idx < 12) || (idx > 15)) {
 		pr_err("This grouped class queue id is out of range\n");
 		return -EINVAL;
 	}
