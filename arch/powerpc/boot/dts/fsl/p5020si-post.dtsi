@@ -441,6 +441,7 @@
 		fsl,iommu-parent = <&pamu1>;
 	};
 
+/include/ "qoriq-pme-0.dtsi"
 /include/ "qoriq-qman1.dtsi"
 /include/ "qoriq-bman1.dtsi"
 
