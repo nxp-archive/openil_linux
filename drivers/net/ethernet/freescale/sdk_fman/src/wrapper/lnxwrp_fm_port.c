@@ -104,7 +104,7 @@ static enum qman_cb_dqrr_result qm_tx_conf_dqrr_cb(struct qman_portal *portal,
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 {
 	/* extract the HC frame address */
-	uint64_t hcf_va = XX_PhysToVirt(((struct qm_fd *)&dq->fd)->addr);
+	uint64_t hcf_va = (uint64_t)XX_PhysToVirt(((struct qm_fd *)&dq->fd)->addr);
 	int hcf_l = ((struct qm_fd *)&dq->fd)->length20;
 	int i;
 
@@ -251,7 +251,7 @@ static t_Error QmEnqueueCB(t_Handle h_Arg, void *p_Fd)
 }
 {
 	/* extract the HC frame address */
-	uint64_t hcf_va = XX_PhysToVirt(((struct qm_fd *) p_Fd)->addr);
+	uint64_t hcf_va = (uint64_t)XX_PhysToVirt(((struct qm_fd *) p_Fd)->addr);
 	int hcf_l = ((struct qm_fd *)p_Fd)->length20;
 	int i;
 
