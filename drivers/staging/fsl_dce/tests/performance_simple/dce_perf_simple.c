@@ -449,15 +449,6 @@ static int read_file(const char *file, char **data, int *data_len)
 		goto out;
 	}
 
-	/*
-	 * If we can't read the file, it's no good.
-	 * If we can't write the file, use it read-only.
-	 */
-	if (!filp->f_op->read) {
-		pr_err("file not readable: %s\n", file);
-		goto out;
-	}
-
 	size = i_size_read(inode->i_mapping->host);
 	if (size < 0) {
 		pr_err("unable to find file size: %s\n", file);
