@@ -92,8 +92,11 @@
 
 #define DESC_RFC4543_BASE		(3 * CAAM_CMD_SZ)
 #define DESC_RFC4543_ENC_LEN		(DESC_RFC4543_BASE + 25 * CAAM_CMD_SZ)
+#define DESC_RFC4543_ERR_ENC_LEN	(DESC_RFC4543_BASE + 33 * CAAM_CMD_SZ)
 #define DESC_RFC4543_DEC_LEN		(DESC_RFC4543_BASE + 27 * CAAM_CMD_SZ)
+#define DESC_RFC4543_ERR_DEC_LEN	(DESC_RFC4543_BASE + 35 * CAAM_CMD_SZ)
 #define DESC_RFC4543_GIVENC_LEN		(DESC_RFC4543_BASE + 30 * CAAM_CMD_SZ)
+#define DESC_RFC4543_ERR_GIVENC_LEN	(DESC_RFC4543_BASE + 38 * CAAM_CMD_SZ)
 
 #define DESC_ABLKCIPHER_BASE		(3 * CAAM_CMD_SZ)
 #define DESC_ABLKCIPHER_ENC_LEN		(DESC_ABLKCIPHER_BASE + \
@@ -101,7 +104,7 @@
 #define DESC_ABLKCIPHER_DEC_LEN		(DESC_ABLKCIPHER_BASE + \
 					 15 * CAAM_CMD_SZ)
 
-#define DESC_MAX_USED_BYTES		(DESC_RFC4543_GIVENC_LEN + \
+#define DESC_MAX_USED_BYTES		(DESC_RFC4543_ERR_GIVENC_LEN + \
 					 CAAM_MAX_KEY_SIZE)
 #define DESC_MAX_USED_LEN		(DESC_MAX_USED_BYTES / CAAM_CMD_SZ)
 
@@ -1655,8 +1658,12 @@ static int rfc4543_set_sh_desc(struct crypto_aead *aead)
 	bool keys_fit_inline = false;
 	u32 *key_jump_cmd, *write_iv_cmd, *write_aad_cmd;
 	u32 *read_move_cmd, *write_move_cmd;
+	u32 *pad_jump_cmd, *uncond_jump_cmd;
 	u32 *desc;
-	u32 geniv;
+	u32 geniv, nfifo;
+	int desc_len;
+	struct caam_drv_private *ctrlpriv = dev_get_drvdata(jrdev->parent);
+	bool erratum_A_005454 = ctrlpriv->errata & SEC_ERRATUM_A_005454;
 
 	if (!ctx->enckeylen || !ctx->authsize)
 		return 0;
@@ -1666,8 +1673,9 @@ static int rfc4543_set_sh_desc(struct crypto_aead *aead)
 	 * Job Descriptor and Shared Descriptor
 	 * must fit into the 64-word Descriptor h/w Buffer
 	 */
-	if (DESC_RFC4543_ENC_LEN + DESC_JOB_IO_LEN +
-	    ctx->enckeylen <= CAAM_DESC_BYTES_MAX)
+	desc_len = DESC_JOB_IO_LEN + ctx->enckeylen + (erratum_A_005454 ?
+		   DESC_RFC4543_ERR_ENC_LEN : DESC_RFC4543_ENC_LEN);
+	if (desc_len <= CAAM_DESC_BYTES_MAX)
 		keys_fit_inline = true;
 
 	desc = ctx->sh_desc_enc;
@@ -1688,6 +1696,9 @@ static int rfc4543_set_sh_desc(struct crypto_aead *aead)
 	/* Class 1 operation */
 	append_operation(desc, ctx->class1_alg_type |
 			 OP_ALG_AS_INITFINAL | OP_ALG_ENCRYPT);
+
+	if (erratum_A_005454)
+		append_math_add(desc, REG2, SEQINLEN, ZERO, CAAM_CMD_SZ);
 
 	/* Load AES-GMAC ESP IV into Math1 register */
 	append_cmd(desc, CMD_SEQ_LOAD | LDST_SRCDST_WORD_DECO_MATH1 |
@@ -1732,15 +1743,19 @@ static int rfc4543_set_sh_desc(struct crypto_aead *aead)
 	/* Will write cryptlen bytes */
 	append_math_add(desc, VARSEQOUTLEN, ZERO, REG3, CAAM_CMD_SZ);
 
-	/*
-	 * MOVE_LEN opcode is not available in all SEC HW revisions,
-	 * thus need to do some magic, i.e. self-patch the descriptor
-	 * buffer.
-	 */
-	read_move_cmd = append_move(desc, MOVE_SRC_DESCBUF | MOVE_DEST_MATH3 |
-				    (0x6 << MOVE_LEN_SHIFT));
-	write_move_cmd = append_move(desc, MOVE_SRC_MATH3 | MOVE_DEST_DESCBUF |
-				     (0x8 << MOVE_LEN_SHIFT));
+	if (!erratum_A_005454) {
+		/*
+		 * MOVE_LEN opcode is not available in all SEC HW revisions,
+		 * thus need to do some magic, i.e. self-patch the descriptor
+		 * buffer.
+		 */
+		read_move_cmd = append_move(desc, MOVE_SRC_DESCBUF |
+					    MOVE_DEST_MATH3 |
+					    (0x6 << MOVE_LEN_SHIFT));
+		write_move_cmd = append_move(desc, MOVE_SRC_MATH3 |
+					     MOVE_DEST_DESCBUF |
+					     (0x8 << MOVE_LEN_SHIFT));
+	}
 
 	/* Authenticate AES-GMAC ESP IV  */
 	append_cmd(desc, CMD_FIFO_LOAD | FIFOLD_CLASS_CLASS1 | IMMEDIATE |
@@ -1751,14 +1766,55 @@ static int rfc4543_set_sh_desc(struct crypto_aead *aead)
 	append_cmd(desc, 0x00000000);
 	/* End of blank commands */
 
-	/* Read and write cryptlen bytes */
-	aead_append_src_dst(desc, FIFOLD_TYPE_AAD);
+	if (erratum_A_005454) {
+		/* Read and write cryptlen bytes; don't touch NFIFO */
+		aead_append_src_dst(desc, FIFOLD_TYPE_NOINFOFIFO);
 
-	set_move_tgt_here(desc, read_move_cmd);
-	set_move_tgt_here(desc, write_move_cmd);
-	append_cmd(desc, CMD_LOAD | DISABLE_AUTO_INFO_FIFO);
-	/* Move payload data to OFIFO */
-	append_move(desc, MOVE_SRC_INFIFO_CL | MOVE_DEST_OUTFIFO);
+		/* If C1 data AES-BLOCK-aligned, don't generate padding */
+		append_math_and_imm_u32(desc, NONE, REG2, IMM,
+					AES_BLOCK_SIZE - 1);
+		pad_jump_cmd = append_jump(desc, JUMP_COND_MATH_Z |
+					   JUMP_TEST_ALL);
+
+		/* generate NFIFO entry for moving data */
+		nfifo = NFIFOENTRY_STYPE_DFIFO | NFIFOENTRY_DEST_BOTH |
+			NFIFOENTRY_DTYPE_AAD | NFIFOENTRY_LC2;
+		append_load_imm_u32(desc, nfifo, LDST_CLASS_IND_CCB |
+				    LDST_SRCDST_WORD_INFO_FIFO_SZM | LDST_IMM |
+				    LDLEN_MATH3);
+
+		/* generate NFIFO entry for padding */
+		nfifo = NFIFOENTRY_STYPE_PAD | NFIFOENTRY_DEST_CLASS1 |
+			NFIFOENTRY_DTYPE_AAD | NFIFOENTRY_LC1 |
+			NFIFOENTRY_PTYPE_ZEROS | NFIFOENTRY_BND |
+			(AES_BLOCK_SIZE << NFIFOENTRY_DLEN_SHIFT);
+		append_load_imm_u32(desc, nfifo, LDST_CLASS_IND_CCB |
+				    LDST_SRCDST_WORD_INFO_FIFO | LDST_IMM);
+		uncond_jump_cmd = append_jump(desc, JUMP_TEST_ALL);
+
+		set_jump_tgt_here(desc, pad_jump_cmd);
+		/* generate NFIFO entry for moving data */
+		nfifo = NFIFOENTRY_STYPE_DFIFO | NFIFOENTRY_DEST_BOTH |
+			NFIFOENTRY_DTYPE_AAD | NFIFOENTRY_LC1 | NFIFOENTRY_LC2;
+		append_load_imm_u32(desc, nfifo, LDST_CLASS_IND_CCB |
+				    LDST_SRCDST_WORD_INFO_FIFO_SZM | LDST_IMM |
+				    LDLEN_MATH3);
+
+		set_jump_tgt_here(desc, uncond_jump_cmd);
+		/* Move payload data to OFIFO; don't touch NFIFO */
+		append_cmd(desc, CMD_MOVE_LEN | MOVE_SRC_INFIFO_NO_NFIFO |
+			   MOVE_DEST_OUTFIFO | MOVE_AUX_MS |
+			   MOVE_LEN_MRSEL_MATH3);
+	} else {
+		/* Read and write cryptlen bytes */
+		aead_append_src_dst(desc, FIFOLD_TYPE_AAD);
+
+		set_move_tgt_here(desc, read_move_cmd);
+		set_move_tgt_here(desc, write_move_cmd);
+		append_cmd(desc, CMD_LOAD | DISABLE_AUTO_INFO_FIFO);
+		/* Move payload data to OFIFO */
+		append_move(desc, MOVE_SRC_INFIFO_CL | MOVE_DEST_OUTFIFO);
+	}
 
 	/* Write ICV */
 	append_seq_store(desc, ctx->authsize, LDST_CLASS_1_CCB |
@@ -1782,8 +1838,9 @@ static int rfc4543_set_sh_desc(struct crypto_aead *aead)
 	 * must all fit into the 64-word Descriptor h/w Buffer
 	 */
 	keys_fit_inline = false;
-	if (DESC_RFC4543_DEC_LEN + DESC_JOB_IO_LEN +
-	    ctx->enckeylen <= CAAM_DESC_BYTES_MAX)
+	desc_len = DESC_JOB_IO_LEN + ctx->enckeylen + (erratum_A_005454 ?
+		   DESC_RFC4543_ERR_DEC_LEN : DESC_RFC4543_DEC_LEN);
+	if (desc_len <= CAAM_DESC_BYTES_MAX)
 		keys_fit_inline = true;
 
 	desc = ctx->sh_desc_dec;
@@ -1828,15 +1885,19 @@ static int rfc4543_set_sh_desc(struct crypto_aead *aead)
 	append_math_sub(desc, REG2, SEQOUTLEN, REG0, CAAM_CMD_SZ);
 	append_math_sub(desc, VARSEQINLEN, REG3, REG2, CAAM_CMD_SZ);
 
-	/*
-	 * MOVE_LEN opcode is not available in all SEC HW revisions,
-	 * thus need to do some magic, i.e. self-patch the descriptor
-	 * buffer.
-	 */
-	read_move_cmd = append_move(desc, MOVE_SRC_DESCBUF | MOVE_DEST_MATH3 |
-				    (0x6 << MOVE_LEN_SHIFT));
-	write_move_cmd = append_move(desc, MOVE_SRC_MATH3 | MOVE_DEST_DESCBUF |
-				     (0x8 << MOVE_LEN_SHIFT));
+	if (!erratum_A_005454) {
+		/*
+		 * MOVE_LEN opcode is not available in all SEC HW revisions,
+		 * thus need to do some magic, i.e. self-patch the descriptor
+		 * buffer.
+		 */
+		read_move_cmd = append_move(desc, MOVE_SRC_DESCBUF |
+					    MOVE_DEST_MATH3 |
+					    (0x6 << MOVE_LEN_SHIFT));
+		write_move_cmd = append_move(desc, MOVE_SRC_MATH3 |
+					     MOVE_DEST_DESCBUF |
+					     (0x8 << MOVE_LEN_SHIFT));
+	}
 
 	/* Read Salt and AES-GMAC ESP IV */
 	append_cmd(desc, CMD_FIFO_LOAD | FIFOLD_CLASS_CLASS1 | IMMEDIATE |
@@ -1871,16 +1932,59 @@ static int rfc4543_set_sh_desc(struct crypto_aead *aead)
 	/* Store payload data */
 	append_seq_fifo_store(desc, 0, FIFOST_TYPE_MESSAGE_DATA | FIFOLDST_VLF);
 
-	/* In-snoop cryptlen data */
-	append_seq_fifo_load(desc, 0, FIFOLD_CLASS_BOTH | FIFOLDST_VLF |
-			     FIFOLD_TYPE_AAD | FIFOLD_TYPE_LAST2FLUSH1);
+	if (erratum_A_005454) {
+		/* In-snoop cryptlen data; don't touch NFIFO */
+		append_seq_fifo_load(desc, 0, FIFOLD_CLASS_BOTH | FIFOLDST_VLF |
+				     FIFOLD_TYPE_NOINFOFIFO);
 
-	set_move_tgt_here(desc, read_move_cmd);
-	set_move_tgt_here(desc, write_move_cmd);
-	append_cmd(desc, CMD_LOAD | DISABLE_AUTO_INFO_FIFO);
-	/* Move payload data to OFIFO */
-	append_move(desc, MOVE_SRC_INFIFO_CL | MOVE_DEST_OUTFIFO);
-	append_cmd(desc, CMD_LOAD | ENABLE_AUTO_INFO_FIFO);
+		/* If C1 data AES-BLOCK-aligned, don't generate padding */
+		append_math_add_imm_u32(desc, REG1, REG3, IMM, tfm->ivsize);
+		append_math_and_imm_u32(desc, NONE, REG1, IMM,
+					AES_BLOCK_SIZE - 1);
+		pad_jump_cmd = append_jump(desc, JUMP_COND_MATH_Z |
+					   JUMP_TEST_ALL);
+
+		/* generate NFIFO entry for moving data */
+		nfifo = NFIFOENTRY_STYPE_DFIFO | NFIFOENTRY_DEST_BOTH |
+			NFIFOENTRY_DTYPE_AAD | NFIFOENTRY_LC2;
+		append_load_imm_u32(desc, nfifo, LDST_CLASS_IND_CCB |
+				    LDST_SRCDST_WORD_INFO_FIFO_SZM | LDST_IMM |
+				    LDLEN_MATH2);
+
+		/* generate NFIFO entry for padding */
+		nfifo = NFIFOENTRY_STYPE_PAD | NFIFOENTRY_DEST_CLASS1 |
+			NFIFOENTRY_DTYPE_AAD | NFIFOENTRY_FC1 |
+			NFIFOENTRY_PTYPE_ZEROS | NFIFOENTRY_BND |
+			(AES_BLOCK_SIZE << NFIFOENTRY_DLEN_SHIFT);
+		append_load_imm_u32(desc, nfifo, LDST_CLASS_IND_CCB |
+				    LDST_SRCDST_WORD_INFO_FIFO | LDST_IMM);
+		uncond_jump_cmd = append_jump(desc, JUMP_TEST_ALL);
+
+		set_jump_tgt_here(desc, pad_jump_cmd);
+		/* generate NFIFO entry for moving data */
+		nfifo = NFIFOENTRY_STYPE_DFIFO | NFIFOENTRY_DEST_BOTH |
+			NFIFOENTRY_DTYPE_AAD | NFIFOENTRY_LC2 | NFIFOENTRY_FC1;
+		append_load_imm_u32(desc, nfifo, LDST_CLASS_IND_CCB |
+				    LDST_SRCDST_WORD_INFO_FIFO_SZM | LDST_IMM |
+				    LDLEN_MATH2);
+
+		set_jump_tgt_here(desc, uncond_jump_cmd);
+		/* Move payload data to OFIFO; don't touch NFIFO */
+		append_cmd(desc, CMD_MOVE_LEN | MOVE_SRC_INFIFO_NO_NFIFO |
+			   MOVE_DEST_OUTFIFO | MOVE_AUX_MS |
+			   MOVE_LEN_MRSEL_MATH3);
+	} else {
+		/* In-snoop cryptlen data */
+		append_seq_fifo_load(desc, 0, FIFOLD_CLASS_BOTH | FIFOLDST_VLF |
+				     FIFOLD_TYPE_AAD | FIFOLD_TYPE_LAST2FLUSH1);
+
+		set_move_tgt_here(desc, read_move_cmd);
+		set_move_tgt_here(desc, write_move_cmd);
+		append_cmd(desc, CMD_LOAD | DISABLE_AUTO_INFO_FIFO);
+		/* Move payload data to OFIFO */
+		append_move(desc, MOVE_SRC_INFIFO_CL | MOVE_DEST_OUTFIFO);
+		append_cmd(desc, CMD_LOAD | ENABLE_AUTO_INFO_FIFO);
+	}
 
 	/* Read ICV */
 	append_seq_fifo_load(desc, ctx->authsize, FIFOLD_CLASS_CLASS1 |
@@ -1904,8 +2008,9 @@ static int rfc4543_set_sh_desc(struct crypto_aead *aead)
 	 * must all fit into the 64-word Descriptor h/w Buffer
 	 */
 	keys_fit_inline = false;
-	if (DESC_RFC4543_GIVENC_LEN + DESC_JOB_IO_LEN +
-	    ctx->enckeylen <= CAAM_DESC_BYTES_MAX)
+	desc_len = DESC_JOB_IO_LEN + ctx->enckeylen + (erratum_A_005454 ?
+		   DESC_RFC4543_ERR_GIVENC_LEN : DESC_RFC4543_GIVENC_LEN);
+	if (desc_len <= CAAM_DESC_BYTES_MAX)
 		keys_fit_inline = true;
 
 	/* rfc4543_givencrypt shared descriptor */
@@ -1961,15 +2066,21 @@ static int rfc4543_set_sh_desc(struct crypto_aead *aead)
 	/* Will write ivsize + cryptlen */
 	append_math_add(desc, VARSEQOUTLEN, REG3, REG0, CAAM_CMD_SZ);
 
-	/*
-	 * MOVE_LEN opcode is not available in all SEC HW revisions,
-	 * thus need to do some magic, i.e. self-patch the descriptor
-	 * buffer.
-	 */
-	read_move_cmd = append_move(desc, MOVE_SRC_DESCBUF | MOVE_DEST_MATH3 |
-				    (0x6 << MOVE_LEN_SHIFT));
-	write_move_cmd = append_move(desc, MOVE_SRC_MATH3 | MOVE_DEST_DESCBUF |
-				     (0x8 << MOVE_LEN_SHIFT));
+	if (erratum_A_005454) {
+		append_math_sub(desc, REG2, SEQINLEN, REG0, CAAM_CMD_SZ);
+	} else {
+		/*
+		 * MOVE_LEN opcode is not available in all SEC HW revisions,
+		 * thus need to do some magic, i.e. self-patch the descriptor
+		 * buffer.
+		 */
+		read_move_cmd = append_move(desc, MOVE_SRC_DESCBUF |
+					    MOVE_DEST_MATH3 |
+					    (0x6 << MOVE_LEN_SHIFT));
+		write_move_cmd = append_move(desc, MOVE_SRC_MATH3 |
+					     MOVE_DEST_DESCBUF |
+					     (0x8 << MOVE_LEN_SHIFT));
+	}
 
 	/* Read Salt and AES-GMAC generated IV */
 	append_cmd(desc, CMD_FIFO_LOAD | FIFOLD_CLASS_CLASS1 | IMMEDIATE |
@@ -2001,14 +2112,57 @@ static int rfc4543_set_sh_desc(struct crypto_aead *aead)
 	append_cmd(desc, 0x00000000);
 	/* End of blank commands */
 
-	/* Read and write cryptlen bytes */
-	aead_append_src_dst(desc, FIFOLD_TYPE_AAD);
+	if (erratum_A_005454) {
+		append_math_add(desc, REG1, SEQINLEN, ZERO, CAAM_CMD_SZ);
 
-	set_move_tgt_here(desc, read_move_cmd);
-	set_move_tgt_here(desc, write_move_cmd);
-	append_cmd(desc, CMD_LOAD | DISABLE_AUTO_INFO_FIFO);
-	/* Move payload data to OFIFO */
-	append_move(desc, MOVE_SRC_INFIFO_CL | MOVE_DEST_OUTFIFO);
+		/* Read and write cryptlen bytes; don't touch NFIFO */
+		aead_append_src_dst(desc, FIFOLD_TYPE_NOINFOFIFO);
+
+		/* If C1 data AES-BLOCK-aligned, don't generate padding */
+		append_math_and_imm_u32(desc, NONE, REG2, IMM,
+					AES_BLOCK_SIZE - 1);
+		pad_jump_cmd = append_jump(desc, JUMP_COND_MATH_Z |
+					   JUMP_TEST_ALL);
+
+		/* generate NFIFO entry for moving data */
+		nfifo = NFIFOENTRY_STYPE_DFIFO | NFIFOENTRY_DEST_BOTH |
+			NFIFOENTRY_DTYPE_AAD | NFIFOENTRY_LC2;
+		append_load_imm_u32(desc, nfifo, LDST_CLASS_IND_CCB |
+				    LDST_SRCDST_WORD_INFO_FIFO_SZM | LDST_IMM |
+				    LDLEN_MATH1);
+
+		/* generate NFIFO entry for padding */
+		nfifo = NFIFOENTRY_STYPE_PAD | NFIFOENTRY_DEST_CLASS1 |
+			NFIFOENTRY_DTYPE_AAD | NFIFOENTRY_LC1 |
+			NFIFOENTRY_PTYPE_ZEROS | NFIFOENTRY_BND |
+			(AES_BLOCK_SIZE << NFIFOENTRY_DLEN_SHIFT);
+		append_load_imm_u32(desc, nfifo, LDST_CLASS_IND_CCB |
+				    LDST_SRCDST_WORD_INFO_FIFO | LDST_IMM);
+		uncond_jump_cmd = append_jump(desc, JUMP_TEST_ALL);
+
+		set_jump_tgt_here(desc, pad_jump_cmd);
+		/*  generate NFIFO entry for moving data */
+		nfifo = NFIFOENTRY_STYPE_DFIFO | NFIFOENTRY_DEST_BOTH |
+			NFIFOENTRY_DTYPE_AAD | NFIFOENTRY_LC1 | NFIFOENTRY_LC2;
+		append_load_imm_u32(desc, nfifo, LDST_CLASS_IND_CCB |
+				    LDST_SRCDST_WORD_INFO_FIFO_SZM | LDST_IMM |
+				    LDLEN_MATH1);
+
+		set_jump_tgt_here(desc, uncond_jump_cmd);
+		/* Move payload data to OFIFO; don't touch NFIFO */
+		append_cmd(desc, CMD_MOVE_LEN | MOVE_SRC_INFIFO_NO_NFIFO |
+			   MOVE_DEST_OUTFIFO | MOVE_AUX_MS |
+			   MOVE_LEN_MRSEL_MATH3);
+	} else {
+		/* Read and write cryptlen bytes */
+		aead_append_src_dst(desc, FIFOLD_TYPE_AAD);
+
+		set_move_tgt_here(desc, read_move_cmd);
+		set_move_tgt_here(desc, write_move_cmd);
+		append_cmd(desc, CMD_LOAD | DISABLE_AUTO_INFO_FIFO);
+		/* Move payload data to OFIFO */
+		append_move(desc, MOVE_SRC_INFIFO_CL | MOVE_DEST_OUTFIFO);
+	}
 
 	/* Write ICV */
 	append_seq_store(desc, ctx->authsize, LDST_CLASS_1_CCB |
