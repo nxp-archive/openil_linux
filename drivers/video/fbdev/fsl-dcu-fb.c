@@ -523,17 +523,19 @@ static int map_video_memory(struct fb_info *info)
 	struct mfb_info *mfbi = info->par;
 	struct dcu_fb_data *dcufb = mfbi->parent;
 	u32 smem_len = info->fix.line_length * info->var.yres_virtual;
+	dma_addr_t smem_start;
 
 	info->fix.smem_len = smem_len;
 
 	info->screen_base = dma_alloc_writecombine(info->device,
-		info->fix.smem_len, (dma_addr_t *)&info->fix.smem_start,
+		info->fix.smem_len, &smem_start,
 		GFP_KERNEL);
 	if (!info->screen_base) {
 		dev_err(dcufb->dev, "unable to allocate fb memory\n");
 		return -ENOMEM;
 	}
 
+	info->fix.smem_start = smem_start;
 	memset(info->screen_base, 0, info->fix.smem_len);
 
 	return 0;
