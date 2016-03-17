@@ -198,6 +198,8 @@
 #define FLEXCAN_HAS_V10_FEATURES	BIT(1) /* For core version >= 10 */
 #define FLEXCAN_HAS_BROKEN_ERR_STATE	BIT(2) /* [TR]WRN_INT not connected */
 #define FLEXCAN_HAS_MECR_FEATURES	BIT(3) /* Memory error detection */
+#define FLEXCAN_HAS_ONLY_LEGACY_RX_SUPPORT \
+	BIT(4) /* No RX FIFO mode support */
 
 /* Structure of the message buffer */
 struct flexcan_mb {
@@ -267,7 +269,23 @@ static struct flexcan_devtype_data fsl_imx28_devtype_data;
 static struct flexcan_devtype_data fsl_imx6q_devtype_data = {
 	.features = FLEXCAN_HAS_V10_FEATURES,
 };
+
 static struct flexcan_devtype_data fsl_vf610_devtype_data = {
+	.features = FLEXCAN_HAS_V10_FEATURES | FLEXCAN_HAS_MECR_FEATURES,
+};
+
+/* LS1021A-Rev1 has a broken RX-FIFO support. So only legacy RX message-buffers
+ * work here.
+ */
+static struct flexcan_devtype_data fsl_ls1021a_devtype_data = {
+	.features = FLEXCAN_HAS_V10_FEATURES | FLEXCAN_HAS_MECR_FEATURES |
+		    FLEXCAN_HAS_ONLY_LEGACY_RX_SUPPORT,
+};
+
+/* LS1021A-Rev2 has functional RX-FIFO mode, so no need to fall back to
+ * the legacy mode.
+ */
+static struct flexcan_devtype_data fsl_ls1021a_r2_devtype_data = {
 	.features = FLEXCAN_HAS_V10_FEATURES | FLEXCAN_HAS_MECR_FEATURES,
 };
 
@@ -1139,6 +1157,10 @@ static void unregister_flexcandev(struct net_device *dev)
 static const struct of_device_id flexcan_of_match[] = {
 	{ .compatible = "fsl,imx6q-flexcan", .data = &fsl_imx6q_devtype_data, },
 	{ .compatible = "fsl,imx28-flexcan", .data = &fsl_imx28_devtype_data, },
+	{ .compatible = "fsl,ls1021a-flexcan",
+	  .data = &fsl_ls1021a_devtype_data, },
+	{ .compatible = "fsl,ls1021ar2-flexcan",
+	  .data = &fsl_ls1021a_r2_devtype_data, },
 	{ .compatible = "fsl,p1010-flexcan", .data = &fsl_p1010_devtype_data, },
 	{ .compatible = "fsl,vf610-flexcan", .data = &fsl_vf610_devtype_data, },
 	{ /* sentinel */ },
