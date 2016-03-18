@@ -58,6 +58,7 @@ int mc_get_version(struct fsl_mc_io *mc_io,
 
 	return 0;
 }
+EXPORT_SYMBOL(mc_get_version);
 
 int dpmng_get_container_id(struct fsl_mc_io *mc_io,
 			   uint32_t cmd_flags,
