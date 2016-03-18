@@ -36,4 +36,6 @@ pme: pme@316000 {
 	compatible = "fsl,pme";
 	reg = <0x316000 0x10000>;
 	interrupts = <16 2 1 5>;
+	memory-region = <&pme_pdsr &pme_sre>;
 };
+

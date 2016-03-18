@@ -59,6 +59,7 @@
 
 		crypto = &crypto;
 
+		pme = &pme;
 		qman = &qman;
 		bman = &bman;
 		fman0 = &fman0;

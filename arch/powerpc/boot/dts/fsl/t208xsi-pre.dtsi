@@ -51,7 +51,8 @@
 		serial3 = &serial3;
 
 		crypto = &crypto;
-		man = &qman;
+		pme = &pme;
+		qman = &qman;
 		bman = &bman;
 		fman0 = &fman0;
 		ethernet0 = &fm1mac1;

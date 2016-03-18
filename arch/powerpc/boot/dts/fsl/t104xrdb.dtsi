@@ -50,6 +50,18 @@
 			size = <0 0x2000000>;
 			alignment = <0 0x2000000>;
 		};
+		pme_pdsr: pme-pdsr {
+			compatible = "fsl,pme-pdsr";
+			alloc-ranges = <0 0 0x10000 0>;
+			size = <0 0x1000000>;
+			alignment = <0 0x1000000>;
+		};
+		pme_sre: pme-sre {
+			 compatible = "fsl,pme-sre";
+			 alloc-ranges = <0 0 0x10000 0>;
+			 size = <0 0xa00000>;
+			 alignment = <0 0xa00000>;
+		};
 	};
 
 	ifc: localbus@ffe124000 {
