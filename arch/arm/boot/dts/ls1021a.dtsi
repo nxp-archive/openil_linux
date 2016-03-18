@@ -805,6 +805,42 @@
 			};
 		};
 
+		can0: can@2a70000 {
+			compatible = "fsl,ls1021ar2-flexcan";
+			reg = <0x0 0x2a70000 0x0 0x1000>;
+			interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&platform_clk 1>, <&platform_clk 1>;
+			clock-names = "ipg", "per";
+			little-endian;
+		};
+
+		can1: can@2a80000 {
+			compatible = "fsl,ls1021ar2-flexcan";
+			reg = <0x0 0x2a80000 0x0 0x1000>;
+			interrupts = <GIC_SPI 127 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&platform_clk 1>, <&platform_clk 1>;
+			clock-names = "ipg", "per";
+			little-endian;
+		};
+
+		can2: can@2a90000 {
+			compatible = "fsl,ls1021ar2-flexcan";
+			reg = <0x0 0x2a90000 0x0 0x1000>;
+			interrupts = <GIC_SPI 128 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&platform_clk 1>, <&platform_clk 1>;
+			clock-names = "ipg", "per";
+			little-endian;
+		};
+
+		can3: can@2aa0000 {
+			compatible = "fsl,ls1021ar2-flexcan";
+			reg = <0x0 0x2aa0000 0x0 0x1000>;
+			interrupts = <GIC_SPI 129 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&platform_clk 1>, <&platform_clk 1>;
+			clock-names = "ipg", "per";
+			little-endian;
+		};
+
 		usb@8600000 {
 			compatible = "fsl-usb2-dr-v2.5", "fsl-usb2-dr";
 			reg = <0x0 0x8600000 0x0 0x1000>;
