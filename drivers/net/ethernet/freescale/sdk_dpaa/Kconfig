@@ -19,6 +19,13 @@ config FSL_DPAA_MACSEC
 	---help---
 	  Enable MACSEC support in DPAA.
 
+config FSL_DPAA_CEETM
+	bool "DPAA CEETM QoS"
+	select NET_SCHED
+	default n
+	---help---
+	Enable QoS offloading support through the CEETM hardware block.
+
 config FSL_DPAA_OFFLINE_PORTS
 	bool "Offline Ports support"
 	depends on FSL_SDK_DPAA_ETH

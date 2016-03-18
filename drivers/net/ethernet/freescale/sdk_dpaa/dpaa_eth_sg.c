@@ -48,6 +48,9 @@
 #ifdef CONFIG_FSL_DPAA_1588
 #include "dpaa_1588.h"
 #endif
+#ifdef CONFIG_FSL_DPAA_CEETM
+#include "dpaa_eth_ceetm.h"
+#endif
 
 /* DMA map and add a page frag back into the bpool.
  * @vaddr fragment must have been allocated with netdev_alloc_frag(),
@@ -977,6 +980,12 @@ int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 #endif
 
 	priv = netdev_priv(net_dev);
+
+#ifdef CONFIG_FSL_DPAA_CEETM
+	if (priv->ceetm_en)
+		return ceetm_tx(skb, net_dev);
+#endif
+
 	egress_fq = priv->egress_fqs[queue_mapping];
 	conf_fq = priv->conf_fqs[queue_mapping];
 
