@@ -66,18 +66,19 @@ static void qoriq_set_wakeup_source(struct device *dev, void *enable)
 
 	/* fman mac node */
 	phandle_prop = of_get_property(dev->of_node, "fsl,fman-mac", NULL);
-	mac_node = of_find_node_by_phandle(*phandle_prop);
-	ret = fsl_set_power_except(mac_node);
-	if (!ret)
-		return;
+	if (phandle_prop) {
+		mac_node = of_find_node_by_phandle(*phandle_prop);
+		ret = fsl_set_power_except(mac_node);
+		if (!ret)
+			/* enable FMan if one MAC is enabled */
+			fsl_set_power_except(mac_node->parent);
+	}
 }
 
 static int qoriq_suspend_enter(suspend_state_t state)
 {
 	int ret = 0;
 
-	wake_mask = 0;
-	dpm_for_each_dev(NULL, qoriq_set_wakeup_source);
 	/* clear the default value */
 	qoriq_pm_ops->set_ip_power(false, 0x0ffffffff);
 	qoriq_pm_ops->set_ip_power(true, wake_mask);
@@ -111,6 +112,14 @@ static int qoriq_suspend_valid(suspend_state_t state)
 	return 0;
 }
 
+static int qoriq_suspend_begin(suspend_state_t state)
+{
+	wake_mask = 0;
+	dpm_for_each_dev(NULL, qoriq_set_wakeup_source);
+
+	return 0;
+}
+
 static const char * const boards_deepsleep[] __initconst = {
 	"fsl,T1024QDS",
 	"fsl,T1024RDB",
@@ -126,6 +135,7 @@ static const char * const boards_deepsleep[] __initconst = {
 static const struct platform_suspend_ops qoriq_suspend_ops = {
 	.valid = qoriq_suspend_valid,
 	.enter = qoriq_suspend_enter,
+	.begin = qoriq_suspend_begin,
 };
 
 static int __init qoriq_suspend_init(void)
