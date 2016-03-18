@@ -18,6 +18,10 @@ Optional properties:
 
 - xceiver-supply: Regulator that powers the CAN transceiver
 
+- little-endian: If the FlexCAN IP on this SoC is little-endian, use
+                 this property. By default it is assumed that the IP
+                 is big-endian
+
 Example:
 
 	can@1c000 {
