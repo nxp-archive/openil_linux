@@ -57,6 +57,7 @@
 			};
 		};
 		fman0: fman@400000 {
+			rcpm-wakeup = <&rcpm 0x00000008>;
 
 			enet0: ethernet@e0000 {
 				status = "disabled";
@@ -73,11 +74,13 @@
 			enet3: ethernet@e6000 {
 				phy-handle = <&phy_rgmii_0>;
 				phy-connection-type = "rgmii";
+				rcpm-wakeup = <&rcpm 0x10000000>;
 			};
 
 			enet4: ethernet@e8000 {
 				phy-handle = <&phy_rgmii_1>;
 				phy-connection-type = "rgmii";
+				rcpm-wakeup = <&rcpm 0x08000000>;
 			};
 
 			mdio0: mdio@fc000 {
