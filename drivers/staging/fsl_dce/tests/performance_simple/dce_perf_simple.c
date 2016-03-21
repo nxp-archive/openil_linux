@@ -449,15 +449,6 @@ static int read_file(const char *file, char **data, int *data_len)
 		goto out;
 	}
 
-	/*
-	 * If we can't read the file, it's no good.
-	 * If we can't write the file, use it read-only.
-	 */
-	if (!filp->f_op->read) {
-		pr_err("file not readable: %s\n", file);
-		goto out;
-	}
-
 	size = i_size_read(inode->i_mapping->host);
 	if (size < 0) {
 		pr_err("unable to find file size: %s\n", file);
@@ -741,11 +732,11 @@ void dce_loopback_shutdown(void)
 		estimate_Mbps *= scaled_val;
 		do_div(estimate_Mbps, 1000);
 
-		pr_info("Compression thoughput:      %llu Mbps (%llu Mbps for 400 Mhz DCE)\n",
+		pr_info("Compression throughput:      %llu Mbps (%llu Mbps for 400 Mhz DCE)\n",
 			comp_Mbps, estimate_Mbps);
 
 	} else {
-		pr_info("Compression thoughput:   None\n");
+		pr_info("Compression throughput:   None\n");
 	}
 
 	/* Calculate Decompression Mbps */
@@ -759,10 +750,10 @@ void dce_loopback_shutdown(void)
 		estimate_Mbps *= scaled_val;
 		do_div(estimate_Mbps, 1000);
 
-		pr_info("Decompression thoughput:    %llu Mbps (%llu Mbps for 400 Mhz DCE)\n",
+		pr_info("Decompression throughput:    %llu Mbps (%llu Mbps for 400 Mhz DCE)\n",
 			decomp_Mbps, estimate_Mbps);
 	} else {
-		pr_info("Decompression thoughput: None\n");
+		pr_info("Decompression throughput: None\n");
 	}
 	/* write output date */
 	if (out_file) {
