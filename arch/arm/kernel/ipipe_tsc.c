@@ -126,7 +126,7 @@ void __init __ipipe_tsc_register(struct __ipipe_tscinfo *info)
 
 	default:
 	unimplemented:
-		printk("I-pipel: Unimplemented tsc configuration, "
+		printk("I-pipe: Unimplemented tsc configuration, "
 		       "type: %d, mask: 0x%08Lx\n", info->type, info->u.mask);
 		BUG();
 	}
@@ -163,8 +163,8 @@ void __init __ipipe_tsc_register(struct __ipipe_tscinfo *info)
 
 	wrap_ms *= HZ / 2;
 	do_div(wrap_ms, 1000);
-	if (wrap_ms > 0xffffffff)
-		wrap_ms = 0xffffffff;
+	if (wrap_ms > 0x7fffffff)
+		wrap_ms = 0x7fffffff;
 	ipipe_tsc_update_timer.data = wrap_ms;
 	ipipe_tsc_update_timer.function = __ipipe_tsc_update_fn;
 	mod_timer(&ipipe_tsc_update_timer,
