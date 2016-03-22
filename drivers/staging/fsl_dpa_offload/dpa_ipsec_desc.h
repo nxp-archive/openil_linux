@@ -41,32 +41,6 @@
 					 * shared descriptor length is 50 words
 					 */
 
-/* preheader */
-struct preheader {
-	union {
-		uint32_t word;
-		struct {
-			uint16_t rsvd63_48;
-			unsigned int rsvd47_39:9;
-			unsigned int idlen:7;
-		} field;
-	} __packed hi;
-
-	union {
-		uint32_t word;
-		struct {
-			unsigned int rsvd31_30:2;
-			unsigned int fsgt:1;
-			unsigned int lng:1;
-			unsigned int offset:2;
-			unsigned int abs:1;
-			unsigned int add_buf:1;
-			uint8_t pool_id;
-			uint16_t pool_buffer_size;
-		} field;
-	} __packed lo;
-} __packed;
-
 struct desc_hdr {
 	uint32_t hdr_word;
 	union {
@@ -76,7 +50,7 @@ struct desc_hdr {
 };
 
 struct sec_descriptor {
-	struct preheader preheader;	/* SEC preheader */
+	u64	preheader;
 	/* SEC Shared Descriptor */
 	union {
 		uint32_t desc[MAX_CAAM_DESCSIZE];
