@@ -3,6 +3,6 @@
 #
 ccflags-y += -DVERSION=\"\"
 
-obj-$(CONFIG_FSL_DPAA2_CAAM) += fsl-dpaa2-caam.o dpseci.o
+obj-$(CONFIG_FSL_DPAA2_CAAM) += fsl-dpaa2-caam.o
 
-fsl-dpaa2-caam-objs    := dpaa2-caam.o error.o
+fsl-dpaa2-caam-objs    := dpaa2-caam.o error.o dpseci.o
