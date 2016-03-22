@@ -254,7 +254,7 @@ static void _dpa_rx_error(struct net_device *net_dev,
 		pr_warn_once("fsl-dpa: non-zero error counters in fman statistics (sysfs)\n");
 	else
 		if (netif_msg_hw(priv) && net_ratelimit())
-			netdev_err(net_dev, "Err FD status = 0x%08x\n",
+			netdev_dbg(net_dev, "Err FD status = 0x%08x\n",
 					fd->status & FM_FD_STAT_RX_ERRORS);
 #ifdef CONFIG_FSL_DPAA_HOOKS
 	if (dpaa_eth_hooks.rx_error &&
