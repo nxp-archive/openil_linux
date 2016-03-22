@@ -206,7 +206,10 @@ static inline irqreturn_t timer_handler(int irq, const int access,
 			itimer->irq = irq;
 #endif /* CONFIG_IPIPE */
 	  stolen:
-		__ipipe_tsc_update();
+		/*
+		 * This is a 64bit clock source, no need for TSC
+		 * update.
+		 */
 		evt->event_handler(evt);
 		return IRQ_HANDLED;
 	}
