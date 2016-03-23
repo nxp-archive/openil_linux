@@ -410,7 +410,6 @@ config NOMMU_INITIAL_TRIM_EXCESS
 config TRANSPARENT_HUGEPAGE
 	bool "Transparent Hugepage Support"
 	depends on HAVE_ARCH_TRANSPARENT_HUGEPAGE
-	depends on !IPIPE
 	select COMPACTION
 	help
 	  Transparent Hugepages allows the kernel to use huge pages and
