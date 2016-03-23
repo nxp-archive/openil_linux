@@ -933,6 +933,7 @@ static void kvmppc_restart_interrupt(struct kvm_vcpu *vcpu,
 #endif
 		break;
 	case BOOKE_INTERRUPT_CRITICAL:
+		kvmppc_fill_pt_regs(&regs);
 		unknown_exception(&regs);
 		break;
 	case BOOKE_INTERRUPT_DEBUG:
@@ -1320,6 +1321,47 @@ int kvmppc_handle_exit(struct kvm_run *run, struct kvm_vcpu *vcpu,
 		srcu_read_unlock(&vcpu->kvm->srcu, idx);
 		break;
 	}
+
+#if defined(CONFIG_PPC64) && defined(CONFIG_KVM_BOOKE_HV)
+	case BOOKE_INTERRUPT_LRAT_ERROR:
+	{
+		gfn_t gfn;
+
+		/*
+		 * Guest TLB management instructions (EPCR.DGTMI == 0) is not
+		 * supported for now
+		 */
+		if (!(vcpu->arch.fault_esr & ESR_PT)) {
+			WARN_ONCE(1, "%s: Guest TLB management instructions not supported!\n",
+				  __func__);
+			break;
+		}
+
+		gfn = (vcpu->arch.fault_lper & LPER_ALPN) >> LPER_ALPN_SHIFT;
+
+		idx = srcu_read_lock(&vcpu->kvm->srcu);
+
+		if (kvm_is_visible_gfn(vcpu->kvm, gfn)) {
+			kvmppc_lrat_map(vcpu, gfn);
+			r = RESUME_GUEST;
+		} else if (vcpu->arch.fault_esr & ESR_DATA) {
+			vcpu->arch.paddr_accessed = (gfn << PAGE_SHIFT)
+				| (vcpu->arch.fault_dear & (PAGE_SIZE - 1));
+			vcpu->arch.vaddr_accessed =
+				vcpu->arch.fault_dear;
+
+			r = kvmppc_emulate_mmio(run, vcpu);
+			kvmppc_account_exit(vcpu, MMIO_EXITS);
+		} else {
+			kvmppc_booke_queue_irqprio(vcpu,
+						BOOKE_IRQPRIO_MACHINE_CHECK);
+			r = RESUME_GUEST;
+		}
+
+		srcu_read_unlock(&vcpu->kvm->srcu, idx);
+		break;
+	}
+#endif
 
 	case BOOKE_INTERRUPT_DEBUG: {
 		r = kvmppc_handle_debug(run, vcpu);

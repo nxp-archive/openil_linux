@@ -113,7 +113,7 @@ void settlbcam(int index, unsigned long virt, phys_addr_t phys,
 
 	tsize = __ilog2(size) - 10;
 
-#ifdef CONFIG_SMP
+#if defined(CONFIG_SMP) || defined(CONFIG_PPC_E500MC)
 	if ((flags & _PAGE_NO_CACHE) == 0)
 		flags |= _PAGE_COHERENT;
 #endif
@@ -213,6 +213,16 @@ static unsigned long map_mem_in_cams_addr(phys_addr_t phys, unsigned long virt,
 	get_paca()->tcd.esel_next = i;
 	get_paca()->tcd.esel_max = mfspr(SPRN_TLB1CFG) & TLBnCFG_N_ENTRY;
 	get_paca()->tcd.esel_first = i;
+
+#ifdef CONFIG_KVM_BOOKE_HV
+	get_paca()->tcd.lrat_next = 0;
+	if (((mfspr(SPRN_MMUCFG) & MMUCFG_MAVN) == MMUCFG_MAVN_V2) &&
+	    (mfspr(SPRN_MMUCFG) & MMUCFG_LRAT)) {
+		get_paca()->tcd.lrat_max = mfspr(SPRN_LRATCFG) & LRATCFG_NENTRY;
+	} else {
+		get_paca()->tcd.lrat_max = 0;
+	}
+#endif
 #endif
 
 	return amount_mapped;
