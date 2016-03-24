@@ -1,7 +1,7 @@
 /*
- * T1040/T1042 Silicon/SoC Device Tree Source (pre include)
+ * T1042RDB Device Tree Source
  *
- * Copyright 2013 Freescale Semiconductor Inc.
+ * Copyright 2016 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -20,7 +20,7 @@
  * Foundation, either version 2 of that License or (at your option) any
  * later version.
  *
- * THIS SOFTWARE IS PROVIDED BY Freescale Semiconductor ``AS IS'' AND ANY
+ * THIS SOFTWARE IS PROVIDED BY Freescale Semiconductor "AS IS" AND ANY
  * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  * DISCLAIMED. IN NO EVENT SHALL Freescale Semiconductor BE LIABLE FOR ANY
@@ -32,86 +32,22 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/dts-v1/;
-
-/include/ "e5500_power_isa.dtsi"
+#include "t1042rdb.dts"
 
 / {
-	#address-cells = <2>;
-	#size-cells = <2>;
-	interrupt-parent = <&mpic>;
+	chosen {
+		name = "chosen";
 
-	aliases {
-		ccsr = &soc;
-		dcsr = &dcsr;
-
-		serial0 = &serial0;
-		serial1 = &serial1;
-		serial2 = &serial2;
-		serial3 = &serial3;
-		pci0 = &pci0;
-		pci1 = &pci1;
-		pci2 = &pci2;
-		pci3 = &pci3;
-		usb0 = &usb0;
-		usb1 = &usb1;
-		sdhc = &sdhc;
-
-		crypto = &crypto;
-
-		pme = &pme;
-		qman = &qman;
-		bman = &bman;
-		fman0 = &fman0;
-		ethernet0 = &enet0;
-		ethernet1 = &enet1;
-		ethernet2 = &enet2;
-		ethernet3 = &enet3;
-		ethernet4 = &enet4;
-	};
-
-	cpus {
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		cpu0: PowerPC,e5500@0 {
-			device_type = "cpu";
-			reg = <0>;
-			clocks = <&clockgen 1 0>;
-			next-level-cache = <&L2_1>;
-			#cooling-cells = <2>;
-			L2_1: l2-cache {
-				next-level-cache = <&cpc>;
-			};
-		};
-		cpu1: PowerPC,e5500@1 {
-			device_type = "cpu";
-			reg = <1>;
-			clocks = <&clockgen 1 1>;
-			next-level-cache = <&L2_2>;
-			#cooling-cells = <2>;
-			L2_2: l2-cache {
-				next-level-cache = <&cpc>;
-			};
-		};
-		cpu2: PowerPC,e5500@2 {
-			device_type = "cpu";
-			reg = <2>;
-			clocks = <&clockgen 1 2>;
-			next-level-cache = <&L2_3>;
-			#cooling-cells = <2>;
-			L2_3: l2-cache {
-				next-level-cache = <&cpc>;
-			};
-		};
-		cpu3: PowerPC,e5500@3 {
-			device_type = "cpu";
-			reg = <3>;
-			clocks = <&clockgen 1 3>;
-			next-level-cache = <&L2_4>;
-			#cooling-cells = <2>;
-			L2_4: l2-cache {
-				next-level-cache = <&cpc>;
+		dpaa-extended-args {
+			fman1-extd-args {
+				cell-index = <0>;
+				compatible = "fsl,fman-extended-args";
+				fman1_rx3-extd-args {
+					cell-index = <3>;
+					compatible = "fsl,fman-port-1g-rx-extended-args";
+					ar-tables-sizes = <10 10 10 10 10 10 20 2000>;
+					ar-filters-sizes = <10 20 20>;
+				};
 			};
 		};
 	};
