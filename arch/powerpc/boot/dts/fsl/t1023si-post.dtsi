@@ -421,38 +421,9 @@
 		fsl,liodn-bits = <12>;
 	};
 
-	clockgen: global-utilities@e1000 {
-		compatible = "fsl,t1024-clockgen", "fsl,qoriq-clockgen-2.0",
-				   "fixed-clock";
-		reg = <0xe1000 0x1000>;
-		clock-output-names = "sysclk";
-		#clock-cells = <0>;
-
-		#address-cells = <1>;
-		#size-cells = <1>;
-		pll0: pll0@800 {
-			#clock-cells = <1>;
-			reg = <0x800 4>;
-			compatible = "fsl,core-pll-clock";
-			clocks = <&clockgen>;
-			clock-output-names = "pll0", "pll0-div2";
-		};
-		mux0: mux0@0 {
-			#clock-cells = <0>;
-			reg = <0x0 4>;
-			compatible = "fsl,core-mux-clock";
-			clocks = <&pll0 0>, <&pll0 1>;
-			clock-names = "pll0_0", "pll0_1";
-			clock-output-names = "cmux0";
-		};
-		mux1: mux1@20 {
-			#clock-cells = <0>;
-			reg = <0x20 4>;
-			compatible = "fsl,core-mux-clock";
-			clocks = <&pll0 0>, <&pll0 1>;
-			clock-names = "pll0_0", "pll0_1";
-			clock-output-names = "cmux1";
-		};
+/include/ "qoriq-clockgen2.dtsi"
+	global-utilities@e1000 {
+		compatible = "fsl,t1023-clockgen", "fsl,qoriq-clockgen-2.0";
 	};
 
 	rcpm: global-utilities@e2000 {

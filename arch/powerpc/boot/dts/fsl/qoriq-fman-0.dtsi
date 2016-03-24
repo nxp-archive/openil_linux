@@ -39,10 +39,10 @@ fman0: fman@400000 {
 	compatible = "fsl,fman", "simple-bus";
 	ranges = <0 0x400000 0x100000>;
 	reg = <0x400000 0x100000>;
-	clock-frequency = <0>;
-	interrupts = <
-		96 2 0 0
-		16 2 1 1>;
+	interrupts = <96 2 0 0>, <16 2 1 1>;
+	clocks = <&clockgen 3 0>;
+	clock-names = "fmanclk";
+	fsl,qman-channel-range = <0x40 0xc>;
 
 	cc {
 		compatible = "fsl,fman-cc";
