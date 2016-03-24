@@ -94,11 +94,24 @@
 #define RATIO_PST1Q			0xd
 #define RATIO_EQ			0x20
 
+#define GCR1_CTL_SNP_START_MASK		0x00002000
 #define GCR1_SNP_START_MASK		0x00000040
 #define RECR1_SNP_DONE_MASK		0x00000004
+#define RECR1_CTL_SNP_DONE_MASK		0x00000002
 #define TCSR1_SNP_DATA_MASK		0x0000ffc0
 #define TCSR1_SNP_DATA_SHIFT		6
 #define TCSR1_EQ_SNPBIN_SIGN_MASK	0x100
+
+#define RECR1_GAINK2_MASK		0x0f000000
+#define RECR1_GAINK2_SHIFT		24
+#define RECR1_GAINK3_MASK		0x000f0000
+#define RECR1_GAINK3_SHIFT		16
+#define RECR1_OFFSET_MASK		0x00003f80
+#define RECR1_OFFSET_SHIFT		7
+#define RECR1_BLW_MASK			0x00000f80
+#define RECR1_BLW_SHIFT			7
+#define EYE_CTRL_SHIFT			12
+#define BASE_WAND_SHIFT			10
 
 #define XGKR_TIMEOUT			1050
 #define AN_ABILITY_MASK			0x9
@@ -135,6 +148,12 @@
 #define FSL_LANE_G_BASE			0x980
 #define FSL_LANE_H_BASE			0x9C0
 #define GCR0_RESET_MASK			0x600000
+
+#define NEW_ALGORITHM_TRAIN_TX
+#ifdef	NEW_ALGORITHM_TRAIN_TX
+#define	FORCE_INC_COP1_NUMBER		0
+#define	FORCE_INC_COM1_NUMBER		1
+#endif
 
 enum fsl_xgkr_driver {
 	FSL_XGKR_REV1,
@@ -233,6 +252,10 @@ struct training_state_machine {
 	bool sent_init;
 	int m1_min_max_cnt;
 	int long_min_max_cnt;
+#ifdef	NEW_ALGORITHM_TRAIN_TX
+	int pre_inc;
+	int post_inc;
+#endif
 };
 
 struct fsl_xgkr_inst {
@@ -272,6 +295,10 @@ static void init_state_machine(struct training_state_machine *s_m)
 	s_m->sent_init = false;
 	s_m->m1_min_max_cnt = 0;
 	s_m->long_min_max_cnt = 0;
+#ifdef	NEW_ALGORITHM_TRAIN_TX
+	s_m->pre_inc = FORCE_INC_COM1_NUMBER;
+	s_m->post_inc = FORCE_INC_COP1_NUMBER;
+#endif
 }
 
 void tune_tecr0(struct fsl_xgkr_inst *inst)
@@ -374,6 +401,73 @@ static void init_inst(struct fsl_xgkr_inst *inst, int reset)
 	ld_coe_status(inst);
 }
 
+#ifdef	NEW_ALGORITHM_TRAIN_TX
+static int get_median_gaink2(u32 *reg)
+{
+	int gaink2_snap_shot[BIN_SNAPSHOT_NUM];
+	u32 rx_eq_snp;
+	struct per_lane_ctrl_status *reg_base;
+	int timeout;
+	int i, j, tmp, pos;
+
+	reg_base = (struct per_lane_ctrl_status *)reg;
+
+	for (i = 0; i < BIN_SNAPSHOT_NUM; i++) {
+		/* wait RECR1_CTL_SNP_DONE_MASK has cleared */
+		timeout = 100;
+		while (ioread32be(&reg_base->recr1) &
+		       RECR1_CTL_SNP_DONE_MASK) {
+			udelay(1);
+			timeout--;
+			if (timeout == 0)
+				break;
+		}
+
+		/* start snap shot */
+		iowrite32be((ioread32be(&reg_base->gcr1) |
+			    GCR1_CTL_SNP_START_MASK),
+			    &reg_base->gcr1);
+
+		/* wait for SNP done */
+		timeout = 100;
+		while (!(ioread32be(&reg_base->recr1) &
+		       RECR1_CTL_SNP_DONE_MASK)) {
+			udelay(1);
+			timeout--;
+			if (timeout == 0)
+				break;
+		}
+
+		/* read and save the snap shot */
+		rx_eq_snp = ioread32be(&reg_base->recr1);
+		gaink2_snap_shot[i] = (rx_eq_snp & RECR1_GAINK2_MASK) >>
+					RECR1_GAINK2_SHIFT;
+
+		/* terminate the snap shot by setting GCR1[REQ_CTL_SNP] */
+		iowrite32be((ioread32be(&reg_base->gcr1) &
+			    ~GCR1_CTL_SNP_START_MASK),
+			    &reg_base->gcr1);
+	}
+
+	/* get median of the 5 snap shot */
+	for (i = 0; i < BIN_SNAPSHOT_NUM - 1; i++) {
+		tmp = gaink2_snap_shot[i];
+		pos = i;
+		for (j = i + 1; j < BIN_SNAPSHOT_NUM; j++) {
+			if (gaink2_snap_shot[j] < tmp) {
+				tmp = gaink2_snap_shot[j];
+				pos = j;
+			}
+		}
+
+		gaink2_snap_shot[pos] = gaink2_snap_shot[i];
+		gaink2_snap_shot[i] = tmp;
+	}
+
+	return gaink2_snap_shot[2];
+}
+#endif
+
 static bool is_bin_early(int bin_sel, void __iomem *reg)
 {
 	bool early = false;
@@ -446,6 +540,9 @@ static void train_tx(struct fsl_xgkr_inst *inst)
 	u32 status_cop1, status_coz, status_com1;
 	u32 req_cop1, req_coz, req_com1, req_preset, req_init;
 	u32 temp;
+#ifdef	NEW_ALGORITHM_TRAIN_TX
+	u32 median_gaink2;
+#endif
 
 recheck:
 	if (s_m->bin_long_stop && s_m->bin_m1_stop) {
@@ -516,6 +613,21 @@ recheck:
 	if (status_cop1 != COE_NOTUPDATED) {
 		if (req_cop1) {
 			inst->ld_update &= ~COP1_MASK;
+#ifdef	NEW_ALGORITHM_TRAIN_TX
+			if (s_m->post_inc) {
+				if (req_cop1 == INCREMENT &&
+				    status_cop1 == COE_MAX) {
+					s_m->post_inc = 0;
+					s_m->bin_long_stop = true;
+					s_m->bin_m1_stop = true;
+				} else {
+					s_m->post_inc -= 1;
+				}
+
+				ld_coe_update(inst);
+				goto recheck;
+			}
+#endif
 			if ((req_cop1 == DECREMENT && status_cop1 == COE_MIN) ||
 			    (req_cop1 == INCREMENT && status_cop1 == COE_MAX)) {
 				s_m->long_min_max_cnt++;
@@ -536,6 +648,18 @@ recheck:
 	if (status_com1 != COE_NOTUPDATED) {
 		if (req_com1) {
 			inst->ld_update &= ~COM1_MASK;
+#ifdef	NEW_ALGORITHM_TRAIN_TX
+			if (s_m->pre_inc) {
+				if (req_com1 == INCREMENT &&
+				    status_com1 == COE_MAX)
+					s_m->pre_inc = 0;
+				else
+					s_m->pre_inc -= 1;
+
+				ld_coe_update(inst);
+				goto recheck;
+			}
+#endif
 			/* Stop If we have reached the limit for a parameter. */
 			if ((req_com1 == DECREMENT && status_com1 == COE_MIN) ||
 			    (req_com1 == INCREMENT && status_com1 == COE_MAX)) {
@@ -565,6 +689,39 @@ recheck:
 		 * not updated.
 		 */
 		return;
+
+#ifdef	NEW_ALGORITHM_TRAIN_TX
+	if (!(inst->ld_update & (PRESET_MASK | INIT_MASK))) {
+		if (s_m->pre_inc) {
+			inst->ld_update = INCREMENT << COM1_SHIFT;
+			ld_coe_update(inst);
+			return;
+		}
+
+		if (status_cop1 != COE_MAX) {
+			median_gaink2 = get_median_gaink2(inst->reg_base);
+			if (median_gaink2 == 0xf) {
+				s_m->post_inc = 1;
+			} else {
+				/* Gaink2 median lower than "F" */
+				s_m->bin_m1_stop = true;
+				s_m->bin_long_stop = true;
+				goto recheck;
+			}
+		} else {
+			/* C1 MAX */
+			s_m->bin_m1_stop = true;
+			s_m->bin_long_stop = true;
+			goto recheck;
+		}
+
+		if (s_m->post_inc) {
+			inst->ld_update = INCREMENT << COP1_SHIFT;
+			ld_coe_update(inst);
+			return;
+		}
+	}
+#endif
 
 	/* snapshot and select bin */
 	bin_m1_early = is_bin_early(BIN_M1, inst->reg_base);
