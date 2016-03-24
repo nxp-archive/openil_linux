@@ -521,6 +521,7 @@ recheck:
 				s_m->long_min_max_cnt++;
 				if (s_m->long_min_max_cnt >= TIMEOUT_LONG) {
 					s_m->bin_long_stop = true;
+					ld_coe_update(inst);
 					goto recheck;
 				}
 			}
@@ -541,6 +542,7 @@ recheck:
 				s_m->m1_min_max_cnt++;
 				if (s_m->m1_min_max_cnt >= TIMEOUT_M1) {
 					s_m->bin_m1_stop = true;
+					ld_coe_update(inst);
 					goto recheck;
 				}
 			}
@@ -554,6 +556,15 @@ recheck:
 		 */
 		goto recheck;
 	}
+
+	/* Do nothing if we have pending request. */
+	if ((req_coz || req_com1 || req_cop1))
+		return;
+	else if (lp_status)
+		/* No pending request but LP status was not reverted to
+		 * not updated.
+		 */
+		return;
 
 	/* snapshot and select bin */
 	bin_m1_early = is_bin_early(BIN_M1, inst->reg_base);
@@ -588,6 +599,7 @@ recheck:
 					inst->ld_update |= temp;
 					ld_coe_update(inst);
 					s_m->bin_m1_late_early = bin_m1_early;
+					return;
 				}
 			}
 
