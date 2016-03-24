@@ -49,6 +49,7 @@
 #define CCSR_SCFG_PMCINTSR	0x168
 #define CCSR_SCFG_SPARECR2	0x504
 #define CCSR_SCFG_SPARECR3	0x508
+#define CCSR_SCFG_SPARECR4	0x50c
 #define CCSR_SCFG_CLUSTERPMCR	0x904
 #define CCSR_SCFG_CLUSTERPMCR_WFIL2EN	0x80000000
 
@@ -260,8 +261,10 @@ static void ls1_set_resume_entry(void *base)
 	/* the bootloader will finally jump to this address to resume kernel */
 	resume_addr = (u32)(__pa(ls1_deepsleep_resume));
 
-	/* use the register SPARECR2 to save the return entry */
-	iowrite32(resume_addr, base + CCSR_SCFG_SPARECR2);
+	iowrite32(0, base + CCSR_SCFG_SPARECR2);
+
+	/* use the register SPARECR4 to save the return entry */
+	iowrite32(resume_addr, base + CCSR_SCFG_SPARECR4);
 }
 
 static void ls1_copy_sram_code(void)
