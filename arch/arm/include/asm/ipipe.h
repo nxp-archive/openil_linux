@@ -44,7 +44,7 @@ extern unsigned long arm_return_addr(int level);
 #include <linux/jump_label.h>
 #include <linux/ipipe_trace.h>
 
-#define IPIPE_CORE_RELEASE	2
+#define IPIPE_CORE_RELEASE	3
 
 struct ipipe_domain;
 struct timekeeper;
