@@ -23,6 +23,7 @@
 #include <linux/spinlock.h>
 #include <linux/log2.h>
 #include <linux/io.h>
+#include <linux/kconfig.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 
@@ -49,6 +50,13 @@ struct l2c_init_data {
 
 #ifdef CONFIG_IPIPE
 #define CACHE_RANGE_ATOMIC_MAX	512UL
+static int l2x0_wa = -1;
+static int __init l2x0_setup_wa(char *str)
+{
+	l2x0_wa = !!simple_strtol(str, NULL, 0);
+	return 0;
+}
+early_param("l2x0_write_allocate", l2x0_setup_wa);
 #else
 #define CACHE_RANGE_ATOMIC_MAX	4096UL
 #endif
@@ -802,6 +810,22 @@ static int __init __l2c_init(const struct l2c_init_data *data,
 	 */
 	if (aux_val & aux_mask)
 		pr_alert("L2C: platform provided aux values permit register corruption.\n");
+
+	if (IS_ENABLED(CONFIG_IPIPE)) {
+		switch (cache_id & L2X0_CACHE_ID_PART_MASK) {
+		case L2X0_CACHE_ID_PART_L310:
+		case L2X0_CACHE_ID_PART_L220:
+			if (l2x0_wa < 0) {
+				l2x0_wa = 0;
+				pr_alert("L2C: I-pipe: l2x0_write_allocate= not specified, defaults to 0 (disabled).\n");
+			}
+			aux_mask &= ~L220_AUX_CTRL_FWA_MASK;
+			aux_val &= ~L220_AUX_CTRL_FWA_MASK;
+			aux_val |= (!l2x0_wa) << L220_AUX_CTRL_FWA_SHIFT;
+		}
+		if (l2x0_wa)
+			pr_alert("L2C: I-pipe: write-allocate enabled, induces high latencies.\n");
+	}
 
 	old_aux = aux = readl_relaxed(l2x0_base + L2X0_AUX_CTRL);
 	aux &= aux_mask;
