@@ -160,7 +160,7 @@
 			compatible = "fsl,esdhc";
 			reg = <0x0 0x1560000 0x0 0x10000>;
 			interrupts = <GIC_SPI 94 IRQ_TYPE_LEVEL_HIGH>;
-			clock-frequency = <0>;
+			clocks = <&clockgen 4 0>;
 			voltage-ranges = <1800 1800 3300 3300>;
 			sdhci,auto-cmd12;
 			big-endian;
@@ -227,6 +227,7 @@
 		clockgen: clocking@1ee1000 {
 			#address-cells = <1>;
 			#size-cells = <1>;
+			#clock-cells = <2>;
 			ranges = <0x0 0x0 0x1ee1000 0x10000>;
 			compatible = "fsl,ls1021a-clockgen";
 

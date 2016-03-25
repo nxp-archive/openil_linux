@@ -36,5 +36,5 @@ sdhc: sdhc@114000 {
 	compatible = "fsl,esdhc";
 	reg = <0x114000 0x1000>;
 	interrupts = <48 2 0 0>;
-	clock-frequency = <0>;
+	clocks = <&clockgen 4 1>;
 };
