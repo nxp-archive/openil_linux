@@ -182,24 +182,23 @@ static void imx_gpc_irq_unmask(struct irq_data *d)
 {
 	unsigned long flags;
 
-	raw_spin_lock_irqsave_cond(&gpc_lock, flags);
+	raw_spin_lock_irqsave(&gpc_lock, flags);
 	imx_gpc_hwirq_unmask(d->hwirq);
-	raw_spin_unlock(&gpc_lock);
+	__ipipe_spin_unlock_irqbegin(&gpc_lock);
 	irq_chip_unmask_parent(d);
-	/* Parent IC will handle virtual unlocking */
-	hard_cond_local_irq_restore(flags);
+	__ipipe_spin_unlock_irqcomplete(flags);
 }
 
 static void imx_gpc_irq_mask(struct irq_data *d)
 {
 	unsigned long flags;
 
-	raw_spin_lock_irqsave_cond(&gpc_lock, flags);
+	raw_spin_lock_irqsave(&gpc_lock, flags);
 	/* Parent IC will handle virtual locking */
 	imx_gpc_hwirq_mask(d->hwirq);
-	raw_spin_unlock(&gpc_lock);
+	__ipipe_spin_unlock_irqbegin(&gpc_lock);
 	irq_chip_mask_parent(d);
-	hard_cond_local_irq_restore(flags);
+	__ipipe_spin_unlock_irqcomplete(flags);
 }
 
 #ifdef CONFIG_IPIPE
