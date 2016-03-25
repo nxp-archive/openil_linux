@@ -31,6 +31,7 @@
 #include <linux/err.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/clk.h>
 #ifdef CONFIG_PPC
 #include <asm/machdep.h>
 #endif
@@ -71,7 +72,8 @@ void sdhci_get_of_property(struct platform_device *pdev)
 	struct device_node *np = pdev->dev.of_node;
 	struct sdhci_host *host = platform_get_drvdata(pdev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
-	const __be32 *clk;
+	struct clk *clk;
+	u32 clk_rate;
 	u32 bus_width;
 	int size;
 
@@ -104,9 +106,14 @@ void sdhci_get_of_property(struct platform_device *pdev)
 	if (of_device_is_compatible(np, "fsl,t4240-esdhc"))
 		host->quirks2 |= SDHCI_QUIRK2_BROKEN_TRIM;
 
-	clk = of_get_property(np, "clock-frequency", &size);
-	if (clk && size == sizeof(*clk) && *clk)
-		pltfm_host->clock = be32_to_cpup(clk);
+	clk = of_clk_get(np, 0);
+	if (IS_ERR(clk))
+		of_node_put(np);
+	clk_rate = clk_get_rate(clk);
+	if (!clk_rate)
+		of_node_put(np);
+	else
+		pltfm_host->clock = clk_rate;
 
 	if (of_find_property(np, "keep-power-in-suspend", NULL))
 		host->mmc->pm_caps |= MMC_PM_KEEP_POWER;
