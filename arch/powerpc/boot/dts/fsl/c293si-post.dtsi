@@ -190,4 +190,6 @@
 		reg = <0xe0000 0x1000>;
 		fsl,has-rstcr;
 	};
+
+/include/ "qoriq-clockgen1.dtsi"
 };
