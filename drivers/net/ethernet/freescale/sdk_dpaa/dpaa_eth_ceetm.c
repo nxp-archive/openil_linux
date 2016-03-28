@@ -1126,7 +1126,122 @@ static void ceetm_cls_put(struct Qdisc *sch, unsigned long arg)
 		ceetm_cls_destroy(sch, cl);
 }
 
-/* Add a ceetm root class or configure a ceetm prio class */
+static int ceetm_cls_change_root(struct ceetm_class *cl,
+				struct tc_ceetm_copt *copt,
+				struct net_device *dev)
+{
+	int err;
+	u64 bps;
+
+	if ((bool)copt->shaped != cl->shaped) {
+		pr_err("CEETM: class %X is %s\n", cl->common.classid,
+			cl->shaped ? "shaped" : "unshaped");
+		return -EINVAL;
+	}
+
+	if (cl->shaped && cl->root.rate != copt->rate) {
+		bps = copt->rate << 3; /* Bps -> bps */
+		err = qman_ceetm_channel_set_commit_rate_bps(cl->root.ch, bps,
+							     dev->mtu);
+		if (err)
+			goto change_cls_err;
+		cl->root.rate = copt->rate;
+	}
+
+	if (cl->shaped && cl->root.ceil != copt->ceil) {
+		bps = copt->ceil << 3; /* Bps -> bps */
+		err = qman_ceetm_channel_set_excess_rate_bps(cl->root.ch, bps,
+							     dev->mtu);
+		if (err)
+			goto change_cls_err;
+		cl->root.ceil = copt->ceil;
+	}
+
+	if (!cl->shaped && cl->root.tbl != copt->tbl) {
+		err = qman_ceetm_channel_set_weight(cl->root.ch, copt->tbl);
+		if (err)
+			goto change_cls_err;
+		cl->root.tbl = copt->tbl;
+	}
+
+	return 0;
+
+change_cls_err:
+	pr_err(KBUILD_BASENAME " : %s : failed to configure the ceetm root "
+				"class %X\n", __func__, cl->common.classid);
+	return err;
+}
+
+static int ceetm_cls_change_prio(struct ceetm_class *cl,
+				struct tc_ceetm_copt *copt)
+{
+	int err;
+
+	if (!cl->shaped && (copt->cr || copt->er)) {
+		pr_err("CEETM: only shaped classes can have CR and "
+			"ER enabled\n");
+		return -EINVAL;
+	}
+
+	if (cl->prio.cr != (bool)copt->cr) {
+		err = qman_ceetm_channel_set_cq_cr_eligibility(
+						cl->prio.cq->parent,
+						cl->prio.cq->idx,
+						copt->cr);
+		if (err)
+			goto change_cls_err;
+		cl->prio.cr = copt->cr;
+	}
+
+	if (cl->prio.er != (bool)copt->er) {
+		err = qman_ceetm_channel_set_cq_er_eligibility(
+						cl->prio.cq->parent,
+						cl->prio.cq->idx,
+						copt->er);
+		if (err)
+			goto change_cls_err;
+		cl->prio.er = copt->er;
+	}
+
+	return 0;
+
+change_cls_err:
+	pr_err(KBUILD_BASENAME " : %s : failed to configure "
+				"the ceetm prio class %X\n",
+				__func__,
+				cl->common.classid);
+	return err;
+
+
+}
+
+static int ceetm_cls_change_wbfs(struct ceetm_class *cl,
+				struct tc_ceetm_copt *copt)
+{
+	int err;
+
+	if (copt->weight != cl->wbfs.weight) {
+		/* Configure the CQ weight: real number multiplied by 100 to
+		 * get rid of the fraction
+		 */
+		err = qman_ceetm_set_queue_weight_in_ratio(cl->wbfs.cq,
+							copt->weight * 100);
+
+		if (err) {
+			pr_err(KBUILD_BASENAME " : %s : failed to "
+					"configure the ceetm wbfs "
+					"class %X\n", __func__,
+					cl->common.classid);
+			return err;
+		}
+
+		cl->wbfs.weight = copt->weight;
+	}
+
+	return 0;
+}
+
+/* Add a ceetm root class or configure a ceetm root/prio/wbfs class */
 static int ceetm_cls_change(struct Qdisc *sch, u32 classid,
 			    u32 parentid, struct nlattr **tca,
 			    unsigned long *arg)
@@ -1188,42 +1303,29 @@ static int ceetm_cls_change(struct Qdisc *sch, u32 classid,
 
 	copt = nla_data(tb[TCA_CEETM_COPT]);
 
-	/* Configure an existing ceetm prio class */
+	/* Configure an existing ceetm class */
 	if (cl) {
-		if (copt->type != CEETM_PRIO) {
-			pr_err("CEETM: only prio ceetm classes can be changed\n");
+		if (copt->type != cl->type) {
+			pr_err("CEETM: class %X is not of the provided type\n",
+					cl->common.classid);
 			return -EINVAL;
 		}
 
-		if (!cl->shaped && (copt->cr || copt->er)) {
-			pr_err("CEETM: only shaped classes can have CR and "
-				"ER enabled\n");
+		switch (copt->type) {
+		case CEETM_ROOT:
+			return ceetm_cls_change_root(cl, copt, dev);
+
+		case CEETM_PRIO:
+			return ceetm_cls_change_prio(cl, copt);
+
+		case CEETM_WBFS:
+			return ceetm_cls_change_wbfs(cl, copt);
+
+		default:
+			pr_err(KBUILD_BASENAME " : %s : invalid class\n",
+						__func__);
 			return -EINVAL;
 		}
-
-		if (cl->prio.cr != (bool)copt->cr)
-			err = qman_ceetm_channel_set_cq_cr_eligibility(
-							cl->prio.cq->parent,
-							cl->prio.cq->idx,
-							copt->cr);
-
-		if (!err && cl->prio.er != (bool)copt->er)
-			err = qman_ceetm_channel_set_cq_er_eligibility(
-							cl->prio.cq->parent,
-							cl->prio.cq->idx,
-							copt->er);
-
-		if (err) {
-			pr_err(KBUILD_BASENAME " : %s : failed to configure "
-						"the ceetm prio class %X\n",
-						__func__,
-						cl->common.classid);
-			return err;
-		}
-
-		cl->prio.cr = copt->cr;
-		cl->prio.er = copt->er;
-		return 0;
 	}
 
 	/* Add a new root ceetm class */
