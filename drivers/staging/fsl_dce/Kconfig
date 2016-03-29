@@ -1,32 +1,47 @@
 config FSL_DCE
-	tristate "Freescale Decompression Compression Engine support"
+	bool "FSL Decompression Compression Engine (DCE) support"
 	depends on FSL_QMAN
-	help
-	  Say Y here to include support for the Freescale DCE driver.
-	  To compile this driver as a module, choose M here: the module
-	  will be called dce
-
-if FSL_DCE
+	---help---
+	  Say Y here to include support for the Freescale Decompression
+	  Compression Engine. This accelerator can be used to offload RFC 1950
+	  ZLIB, RFC 1951 DEFLATE and RFC 1952 GZIP compression and decompression
+	  work. Example applications that show simple usage and measure
+	  throughput are available in the DCE tests directory
 
 config FSL_DCE_CONFIG
-	tristate "Freescale DCE device management"
+	bool "FSL DCE device management"
+	depends on FSL_DCE
 	default y
-	help
-	  Say Y here to include support for the Freescale DCE driver.
-	  To compile this driver as a module, choose M here: the module
-	  will be called dce
+	---help---
+	  Say Y here to include support for FSL DCE configuration. This is
+	  separate from FSL_DCE because it should not be included in virtual
+	  kernels. Only the hyper-visor would include this module in systems
+	  with multiple Linux instances. In regular systems this should be a
+	  built-in module
 
 config FSL_DCE_DEBUGFS
-	tristate "Freescale Decompression Compression Engine DebugFS interface"
+	tristate "FSL DCE DebugFS interface"
+	depends on FSL_DCE
 	default y
-	help
-	  Say Y here to include debugfs interface
+	---help---
+	  Say Y here to include debugfs interface. This interface allows reading
+	  of DCE Configuration Control and Status Register (CCSR) memory. the
+	  CCSR definition map is documented in the DCE block guide. DCE Address
+	  offsets can be written to /sys/kernel/debug/dce/ccsrmem_addr and then
+	  the value in the register can be read or written using
+	  /sys/kernel/debug/dce/ccsrmem_rw
+
+	  e.g.
+	  root@t4240qds:~# echo 0x03C > /sys/kernel/debug/dce/ccsrmem_addr
+	  root@t4240qds:~# cat /sys/kernel/debug/dce/ccsrmem_rw
+	  DCE register offset = 0x3c
+	  value = 0x00000001
 
 config FSL_DCE_TESTS
-	tristate "Build dce test"
-	depends on m
+	tristate "FSL DCE primitives tests"
+	depends on FSL_DCE
 	default m
-	help
-	  Build dce test module
-
-endif # FSL_DCE
+	---help---
+	  DCE primitives tests. Select to build DCE compression and
+	  decompression tests using stateful and stateless asynchronous
+	  interfaces to DCE. Use modinfo to view tests parameters
