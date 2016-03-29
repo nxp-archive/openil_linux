@@ -254,9 +254,9 @@
 			compatible = "fsl,fman", "simple-bus";
 			ranges = <0x0 0x00 0x1a00000 0x100000>;
 			reg = <0x00 0x1a00000 0x0 0x100000>;
-			clock-frequency = <0>;
-			interrupts = <0 44 0x4>,
-				     <0 45 0x4>;
+			interrupts = <0 44 0x4>, <0 45 0x4>;
+			clocks = <&clockgen 3 0>;
+			clock-names = "fmanclk";
 
 			cc {
 				compatible = "fsl,fman-cc";
