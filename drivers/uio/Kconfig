@@ -198,4 +198,10 @@ config UIO_FSL_RMU
 	  expose the RMU regiter space to user space.
 
 	  If you don't know what to do here, say N.
+
+config UIO_FSL_SEC
+	tristate "Freescale SEC support"
+	depends on CRYPTO_DEV_FSL_CAAM=n
+	default n
+
 endif
