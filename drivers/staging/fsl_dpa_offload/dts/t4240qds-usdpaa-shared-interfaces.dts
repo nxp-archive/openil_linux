@@ -98,12 +98,6 @@
 	};
 
 	fsl,dpaa {
-		ethernet@4 {
-			compatible = "fsl,t4240-dpa-ethernet-init", "fsl,dpa-ethernet-init";
-			fsl,bman-buffer-pools = <&bp16>;
-			fsl,qman-frame-queues-rx = <0x58 1 0x59 1>;
-			fsl,qman-frame-queues-tx = <0x78 1 0x79 1>;
-		};
 		ethernet@6 {
 			compatible = "fsl,t4240-dpa-ethernet-init", "fsl,dpa-ethernet-init";
 			fsl,bman-buffer-pools = <&bp16>;
@@ -116,13 +110,13 @@
 			fsl,qman-frame-queues-rx = <0x5e 1 0x5f 1>;
 			fsl,qman-frame-queues-tx = <0x7e 1 0x7f 1>;
 		};
-		ethernet@12 {
+		ethernet@8 {
 			compatible = "fsl,t4240-dpa-ethernet-init", "fsl,dpa-ethernet-init";
 			fsl,bman-buffer-pools = <&bp16>;
 			fsl,qman-frame-queues-rx = <0x68 1 0x69 1>;
 			fsl,qman-frame-queues-tx = <0x88 1 0x89 1>;
 		};
-		ethernet@14 {
+		ethernet@9 {
 			compatible = "fsl,t4240-dpa-ethernet-init", "fsl,dpa-ethernet-init";
 			fsl,bman-buffer-pools = <&bp16>;
 			fsl,qman-frame-queues-rx = <0x6c 1 0x6d 1>;
@@ -159,11 +153,11 @@
 			local-mac-address = [00 11 22 33 44 66];
 		};
 		ethernet@18 {
-                        compatible = "fsl,t4240-dpa-ethernet-macless", "fsl,dpa-ethernet-macless";
-                        fsl,bman-buffer-pools = <&bp16>;
-                        fsl,qman-frame-queues-rx = <6000 8>;
-                        fsl,qman-frame-queues-tx = <6008 8>;
-                        local-mac-address = [00 11 22 33 44 77];
+			compatible = "fsl,t4240-dpa-ethernet-macless", "fsl,dpa-ethernet-macless";
+			fsl,bman-buffer-pools = <&bp16>;
+			fsl,qman-frame-queues-rx = <6000 8>;
+			fsl,qman-frame-queues-tx = <6008 8>;
+			local-mac-address = [00 11 22 33 44 77];
         };
         ethernet@19 {
 			compatible = "fsl,t4240-dpa-ethernet-generic", "fsl,dpa-ethernet-generic";
@@ -190,9 +184,21 @@
 		};
 		dpa_fman0_oh4: dpa-fman0-oh@4 {
 			compatible = "fsl,dpa-oh";
-			fsl,qman-frame-queues-oh = <0x94 1 0x795 1>;
+			fsl,qman-frame-queues-oh = <0x94 1 0x95 1>;
 			fsl,bman-buffer-pools = <&bp9>;
 			fsl,fman-oh-port = <&fman0_oh4>;
+		};
+	};
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		usdpaa_mem: usdpaa_mem {
+			compatible = "fsl,usdpaa-mem";
+			alloc-ranges = <0 0 0x10000 0>;
+			size = <0 0x10000000>;
+			alignment = <0 0x10000000>;
 		};
 	};
 };
