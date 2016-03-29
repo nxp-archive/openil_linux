@@ -1651,10 +1651,10 @@ static inline u64 get_huffman_residue_cl2(const struct scf_128b *scf)
  * enum dce_status - This enumeration depicts all of the possible status codes
  *	that can appear in the output frame status field.
  *
- * @FULLY_PROCESSED:	The work unit data was fully processed without
+ * @FULLY_PROCESSED	The work unit data was fully processed without
  *			encountering an exception, and the work unit was not
  *			marked as an end of Stream (no DCE_Z_FINISH parameter).
- * @STREAM_END:		The work unit data was fully processed without
+ * @STREAM_END		The work unit data was fully processed without
  *			encountering an exception, and was marked as an end of
  *			Stream with the DCE_Z_FINISH flush parameter.
  * @INPUT_STARVED	The compressed input Frame did not contain an integral
@@ -1665,7 +1665,11 @@ static inline u64 get_huffman_residue_cl2(const struct scf_128b *scf)
  *			end of block code;
  *			i.e. “invalid code * missing end-of-block” in *msg
  *			(zlib software library equivalent).
- * @Z_BLOCK_SUSPENDED	The decompressor module halted processing of an input
+ * @MEMBER_END_SUSPEND	The decompresser module halted processing of an input
+ *			Frame at the end of a compressed member (after the
+ *			BFINAL block and any gzip trailer). This code can only
+ *			occur on stateful Flows in recycling mode
+ * @Z_BLOCK_SUSPENED	The decompresser module halted processing of an input
  *			Frame at the end of a compressed block (or block header
  *			if Z_FLUSH = Z_BLOCK or Z_TREES). This code can only
  *			occur on stateful Flows in recycling mode
@@ -1865,7 +1869,8 @@ enum dce_status {
 	FULLY_PROCESSED				= 0x00,
 	STREAM_END				= 0x01,
 	INPUT_STARVED				= 0x10,
-	Z_BLOCK_SUSPENDED			= 0x12,
+	MEMBER_END_SUSPEND			= 0x11,
+	Z_BLOCK_SUSPEND				= 0x12,
 	OUTPUT_BLOCKED_SUSPEND			= 0x14,
 	ACQUIRE_DATA_BUFFER_DENIED_SUSPEND	= 0x15,
 	ACQUIRE_TABLE_BUFFER_DENIED_SUSPEND	= 0x16,
