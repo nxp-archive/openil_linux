@@ -838,6 +838,13 @@ static int ceetm_init_wbfs(struct Qdisc *sch, struct ceetm_qdisc *priv,
 		goto err_init_wbfs;
 	}
 
+	if (!qopt->qcount || !qopt->qweight[0]) {
+		pr_err("CEETM: qcount and qweight are mandatory for a wbfs "
+			"ceetm qdisc\n");
+		err = -EINVAL;
+		goto err_init_wbfs;
+	}
+
 	priv->shaped = parent_cl->shaped;
 
 	if (!priv->shaped && (qopt->cr || qopt->er)) {
@@ -1079,6 +1086,181 @@ static int ceetm_init(struct Qdisc *sch, struct nlattr *opt)
 	default:
 		pr_err(KBUILD_BASENAME " : %s : invalid qdisc\n", __func__);
 		ceetm_destroy(sch);
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
+/* Edit a root ceetm qdisc */
+static int ceetm_change_root(struct Qdisc *sch, struct ceetm_qdisc *priv,
+			struct net_device *dev, struct tc_ceetm_qopt *qopt)
+{
+	int err = 0;
+	u64 bps;
+
+	if (priv->shaped != (bool)qopt->shaped) {
+		pr_err("CEETM: qdisc %X is %s\n", sch->handle,
+			priv->shaped ? "shaped" : "unshaped");
+		return -EINVAL;
+	}
+
+	/* Nothing to modify for unshaped qdiscs */
+	if (!priv->shaped)
+		return 0;
+
+	/* Configure the LNI shaper */
+	if (priv->root.overhead != qopt->overhead) {
+		err = qman_ceetm_lni_enable_shaper(priv->root.lni, 1,
+						qopt->overhead);
+		if (err)
+			goto change_err;
+		priv->root.overhead = qopt->overhead;
+	}
+
+	if (priv->root.rate != qopt->rate) {
+		bps = qopt->rate << 3; /* Bps -> bps */
+		err = qman_ceetm_lni_set_commit_rate_bps(priv->root.lni, bps,
+							dev->mtu);
+		if (err)
+			goto change_err;
+		priv->root.rate = qopt->rate;
+	}
+
+	if (priv->root.ceil != qopt->ceil) {
+		bps = qopt->ceil << 3; /* Bps -> bps */
+		err = qman_ceetm_lni_set_excess_rate_bps(priv->root.lni, bps,
+							dev->mtu);
+		if (err)
+			goto change_err;
+		priv->root.ceil = qopt->ceil;
+	}
+
+	return 0;
+
+change_err:
+	pr_err(KBUILD_BASENAME " : %s : failed to configure the root " \
+				" ceetm qdisc %X\n", __func__, sch->handle);
+	return err;
+}
+
+/* Edit a wbfs ceetm qdisc */
+static int ceetm_change_wbfs(struct Qdisc *sch, struct ceetm_qdisc *priv,
+			struct tc_ceetm_qopt *qopt)
+{
+	int err;
+	bool group_b;
+	struct qm_ceetm_channel *channel;
+	struct ceetm_class *prio_class, *root_class;
+	struct ceetm_qdisc *prio_qdisc;
+
+	if (qopt->qcount) {
+		pr_err("CEETM: the qcount can not be modified\n");
+		return -EINVAL;
+	}
+
+	if (qopt->qweight[0]) {
+		pr_err("CEETM: the qweight can be modified through the wbfs "
+			"classes\n");
+		return -EINVAL;
+	}
+
+	if (!priv->shaped && (qopt->cr || qopt->er)) {
+		pr_err("CEETM: CR/ER can be enabled only for shaped wbfs "
+			"ceetm qdiscs\n");
+		return -EINVAL;
+	}
+
+	if (priv->shaped && !(qopt->cr || qopt->er)) {
+		pr_err("CEETM: either CR or ER must be enabled for shaped "
+			"wbfs ceetm qdiscs\n");
+		return -EINVAL;
+	}
+
+	/* Nothing to modify for unshaped qdiscs */
+	if (!priv->shaped)
+		return 0;
+
+	prio_class = priv->wbfs.parent;
+	prio_qdisc = qdisc_priv(prio_class->parent);
+	root_class = prio_qdisc->prio.parent;
+	channel = root_class->root.ch;
+	group_b = priv->wbfs.group_type == WBFS_GRP_B;
+
+	if (qopt->cr != priv->wbfs.cr) {
+		err = qman_ceetm_channel_set_group_cr_eligibility(channel,
+								group_b,
+								qopt->cr);
+		if (err)
+			goto change_err;
+		priv->wbfs.cr = qopt->cr;
+	}
+
+	if (qopt->er != priv->wbfs.er) {
+		err = qman_ceetm_channel_set_group_er_eligibility(channel,
+								group_b,
+								qopt->er);
+		if (err)
+			goto change_err;
+		priv->wbfs.er = qopt->er;
+	}
+
+	return 0;
+
+change_err:
+	pr_err(KBUILD_BASENAME " : %s : failed to configure the wbfs " \
+				" ceetm qdisc %X\n", __func__, sch->handle);
+	return err;
+}
+
+/* Edit a ceetm qdisc */
+static int ceetm_change(struct Qdisc *sch, struct nlattr *opt)
+{
+	struct tc_ceetm_qopt *qopt;
+	struct nlattr *tb[TCA_CEETM_QOPS + 1];
+	int ret;
+	struct ceetm_qdisc *priv = qdisc_priv(sch);
+	struct net_device *dev = qdisc_dev(sch);
+
+	pr_debug(KBUILD_BASENAME " : %s : qdisc %X\n", __func__, sch->handle);
+
+	ret = nla_parse_nested(tb, TCA_CEETM_QOPS, opt, ceetm_policy);
+	if (ret < 0) {
+		pr_err(KBUILD_BASENAME " : %s : tc error\n", __func__);
+		return ret;
+	}
+
+	if (tb[TCA_CEETM_QOPS] == NULL) {
+		pr_err(KBUILD_BASENAME " : %s : tc error\n", __func__);
+		return -EINVAL;
+	}
+
+	if (TC_H_MIN(sch->handle)) {
+		pr_err("CEETM: a qdisc should not have a minor\n");
+		return -EINVAL;
+	}
+
+	qopt = nla_data(tb[TCA_CEETM_QOPS]);
+
+	if (priv->type != qopt->type) {
+		pr_err("CEETM: qdisc %X is not of the provided type\n",
+				sch->handle);
+		return -EINVAL;
+	}
+
+	switch (priv->type) {
+	case CEETM_ROOT:
+		ret = ceetm_change_root(sch, priv, dev, qopt);
+		break;
+	case CEETM_PRIO:
+		pr_err("CEETM: prio qdiscs can not be modified\n");
+		ret = -EINVAL;
+		break;
+	case CEETM_WBFS:
+		ret = ceetm_change_wbfs(sch, priv, qopt);
+		break;
+	default:
+		pr_err(KBUILD_BASENAME " : %s : invalid qdisc\n", __func__);
 		ret = -EINVAL;
 	}
 
@@ -1655,6 +1837,7 @@ struct Qdisc_ops ceetm_qdisc_ops __read_mostly = {
 	.cl_ops		=	&ceetm_cls_ops,
 	.init		=	ceetm_init,
 	.destroy	=	ceetm_destroy,
+	.change		=	ceetm_change,
 	.dump		=	ceetm_dump,
 	.attach		=	ceetm_attach,
 	.owner		=	THIS_MODULE,
