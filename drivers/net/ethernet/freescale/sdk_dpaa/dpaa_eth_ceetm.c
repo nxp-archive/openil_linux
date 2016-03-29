@@ -1045,6 +1045,11 @@ static int ceetm_init(struct Qdisc *sch, struct nlattr *opt)
 	if (!netif_is_multiqueue(dev))
 		return -EOPNOTSUPP;
 
+	if (!opt) {
+		pr_err(KBUILD_BASENAME " : %s : tc error\n", __func__);
+		return -EINVAL;
+	}
+
 	ret = nla_parse_nested(tb, TCA_CEETM_QOPS, opt, ceetm_policy);
 	if (ret < 0) {
 		pr_err(KBUILD_BASENAME " : %s : tc error\n", __func__);
@@ -1698,7 +1703,7 @@ static int ceetm_cls_delete(struct Qdisc *sch, unsigned long arg)
 	/* The refcnt should be at least 1 since we have incremented it in
 	   get(). Will decrement again in put() where we will call destroy()
 	   to actually free the memory if it reaches 0. */
-	BUG_ON(cl->refcnt == 0);
+	WARN_ON(cl->refcnt == 0);
 
 	sch_tree_unlock(sch);
 	return 0;
