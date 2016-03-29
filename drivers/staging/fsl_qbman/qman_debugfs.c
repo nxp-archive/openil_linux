@@ -806,12 +806,11 @@ static int query_ccgr_show(struct seq_file *file, void *offset)
 		ccgr_query.cm_query.wr_parm_r.Pn);
 
 	seq_printf(file, " wr_en_g: %u, wr_en_y: %u, we_en_r: %u\n",
-		((ccgr_query.cm_query.ctl >> 6) & 0x1),
-		((ccgr_query.cm_query.ctl >> 5 & 0x1)),
-		((ccgr_query.cm_query.ctl >> 4) & 0x1));
+		ccgr_query.cm_query.ctl_wr_en_g,
+		ccgr_query.cm_query.ctl_wr_en_y,
+		ccgr_query.cm_query.ctl_wr_en_r);
 
-	seq_printf(file, " cscn_en: %u\n", ((ccgr_query.cm_query.ctl >> 1) &
-						0x1));
+	seq_printf(file, " cscn_en: %u\n", ccgr_query.cm_query.ctl_cscn_en);
 	seq_puts(file, " cscn_targ_dcp:\n");
 	mask = 0x80000000;
 	for (i = 0; i < 32; i++) {
@@ -831,7 +830,7 @@ static int query_ccgr_show(struct seq_file *file, void *offset)
 		}
 	}
 
-	seq_printf(file, " td_en: %u\n", (ccgr_query.cm_query.ctl >> 3));
+	seq_printf(file, " td_en: %u\n", ccgr_query.cm_query.ctl_td_en);
 
 	seq_printf(file, " cs_thresh_in_TA: %u, cs_thresh_in_Tn: %u\n",
 			ccgr_query.cm_query.cs_thres.TA,
@@ -846,7 +845,7 @@ static int query_ccgr_show(struct seq_file *file, void *offset)
 			ccgr_query.cm_query.td_thres.Tn);
 
 	seq_printf(file, " mode: %s\n",
-			((ccgr_query.cm_query.ctl & 0x1) &
+			(ccgr_query.cm_query.ctl_mode &
 			QMAN_CGR_MODE_FRAME) ?
 			"frame count" : "byte count");
 	seq_printf(file, " i_cnt: %llu\n", (u64)ccgr_query.cm_query.i_cnt);
