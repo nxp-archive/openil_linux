@@ -51,7 +51,7 @@ static void chunk_base_cb(struct fsl_dce_flow *flow, const struct qm_fd *fd,
 }
 
 int fsl_dce_chunk_setup2(struct fsl_dce_chunk *chunk,
-	uint32_t flags,
+	u32 flags,
 	enum dce_mode mode,
 	enum dce_compression_format cf,
 	struct dce_bman_cfg *bcfg,
@@ -94,7 +94,7 @@ int fsl_dce_chunk_fifo_len(struct fsl_dce_chunk *chunk)
 EXPORT_SYMBOL(fsl_dce_chunk_fifo_len);
 
 
-int fsl_dce_chunk_destroy(struct fsl_dce_chunk *chunk, uint32_t flags,
+int fsl_dce_chunk_destroy(struct fsl_dce_chunk *chunk, u32 flags,
 			void *callback_tag)
 {
 	return fsl_dce_flow_finish(&chunk->flow, flags);
@@ -102,7 +102,7 @@ int fsl_dce_chunk_destroy(struct fsl_dce_chunk *chunk, uint32_t flags,
 EXPORT_SYMBOL(fsl_dce_chunk_destroy);
 
 
-int fsl_dce_chunk_process(struct fsl_dce_chunk *chunk, uint32_t flags,
+int fsl_dce_chunk_process(struct fsl_dce_chunk *chunk, u32 flags,
 			struct qm_fd *fd, void *callback_tag)
 {
 	if (chunk->cf == DCE_CF_ZLIB)
@@ -119,7 +119,7 @@ int fsl_dce_chunk_process(struct fsl_dce_chunk *chunk, uint32_t flags,
 }
 EXPORT_SYMBOL(fsl_dce_chunk_process);
 
-int fsl_dce_chunk_nop(struct fsl_dce_chunk *chunk, uint32_t flags,
+int fsl_dce_chunk_nop(struct fsl_dce_chunk *chunk, u32 flags,
 	void *callback_tag)
 {
 	return fsl_dce_nop(&chunk->flow, flags, callback_tag);
@@ -127,10 +127,10 @@ int fsl_dce_chunk_nop(struct fsl_dce_chunk *chunk, uint32_t flags,
 EXPORT_SYMBOL(fsl_dce_chunk_nop);
 
 int fsl_dce_chunk_deflate_params(struct fsl_dce_chunk *chunk,
-	uint32_t bman_output_offset,
+	u32 bman_output_offset,
 	bool bman_release_input,
 	bool base64,
-	uint32_t ce)
+	u32 ce)
 {
 	fsl_dce_flow_setopt_outputoffset(&chunk->flow, bman_output_offset);
 	fsl_dce_flow_setopt_release_input(&chunk->flow, bman_release_input);
@@ -141,7 +141,7 @@ int fsl_dce_chunk_deflate_params(struct fsl_dce_chunk *chunk,
 EXPORT_SYMBOL(fsl_dce_chunk_deflate_params);
 
 int fsl_dce_chunk_inflate_params(struct fsl_dce_chunk *chunk,
-	uint32_t bman_output_offset,
+	u32 bman_output_offset,
 	bool bman_release_input,
 	bool base64)
 {

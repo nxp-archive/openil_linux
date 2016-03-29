@@ -52,7 +52,7 @@ static void stream_base_cb(struct fsl_dce_flow *flow, const struct qm_fd *fd,
 }
 
 int fsl_dce_stream_setup(struct fsl_dce_stream *stream,
-	uint32_t flags,
+	u32 flags,
 	enum dce_mode mode,
 	enum dce_compression_format cf,
 	fsl_dce_process_cb process_cb,
@@ -177,7 +177,7 @@ void fsl_dce_attach_3mbr_sgtable_2_fd(struct qm_sg_entry sg_table[3],
 EXPORT_SYMBOL(fsl_dce_attach_3mbr_sgtable_2_fd);
 
 int fsl_dce_stream_setup2(struct fsl_dce_stream *stream,
-	uint32_t flags,
+	u32 flags,
 	enum dce_mode mode,
 	enum dce_compression_format cf,
 	enum dce_processing_mode pmode,
@@ -243,7 +243,7 @@ int fsl_dce_stream_fifo_len(struct fsl_dce_stream *stream)
 }
 EXPORT_SYMBOL(fsl_dce_stream_fifo_len);
 
-int fsl_dce_stream_destroy(struct fsl_dce_stream *stream, uint32_t flags,
+int fsl_dce_stream_destroy(struct fsl_dce_stream *stream, u32 flags,
 			void *callback_tag)
 {
 	int ret;
@@ -265,7 +265,7 @@ int fsl_dce_stream_init_scr(struct fsl_dce_stream *stream, struct qm_fd *fd,
 }
 EXPORT_SYMBOL(fsl_dce_stream_init_scr);
 
-int fsl_dce_stream_process(struct fsl_dce_stream *stream, uint32_t flags,
+int fsl_dce_stream_process(struct fsl_dce_stream *stream, u32 flags,
 	struct qm_fd *fd, bool initial_frame, int z_flush, void *callback_tag)
 {
 	if (stream->cf == DCE_CF_ZLIB)
@@ -293,14 +293,14 @@ int fsl_dce_stream_process(struct fsl_dce_stream *stream, uint32_t flags,
 }
 EXPORT_SYMBOL(fsl_dce_stream_process);
 
-int fsl_dce_stream_nop(struct fsl_dce_stream *stream, uint32_t flags,
+int fsl_dce_stream_nop(struct fsl_dce_stream *stream, u32 flags,
 	void *callback_tag)
 {
 	return fsl_dce_nop(&stream->flow, flags, callback_tag);
 }
 EXPORT_SYMBOL(fsl_dce_stream_nop);
 
-int fsl_dce_stream_scr_invalidate(struct fsl_dce_stream *stream, uint32_t flags,
+int fsl_dce_stream_scr_invalidate(struct fsl_dce_stream *stream, u32 flags,
 	void *callback_tag)
 {
 	return fsl_dce_scr_invalidate(&stream->flow, flags, callback_tag);
@@ -308,10 +308,10 @@ int fsl_dce_stream_scr_invalidate(struct fsl_dce_stream *stream, uint32_t flags,
 EXPORT_SYMBOL(fsl_dce_stream_scr_invalidate);
 
 int fsl_dce_stream_deflate_params(struct fsl_dce_stream *stream,
-	uint32_t bman_output_offset,
+	u32 bman_output_offset,
 	bool bman_release_input,
 	bool base64,
-	uint32_t ce)
+	u32 ce)
 {
 	if (dce_ip_rev == DCE_REV10) {
 		/* B64 unsupported */
@@ -330,7 +330,7 @@ int fsl_dce_stream_deflate_params(struct fsl_dce_stream *stream,
 EXPORT_SYMBOL(fsl_dce_stream_deflate_params);
 
 int fsl_dce_stream_inflate_params(struct fsl_dce_stream *stream,
-	uint32_t bman_output_offset,
+	u32 bman_output_offset,
 	bool bman_release_input,
 	bool base64)
 {

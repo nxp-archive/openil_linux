@@ -32,7 +32,7 @@
  */
 #define SET_BF64(dest, field, value)	\
 	(dest = \
-	((dest & ~field##_MASK) | ((((uint64_t)value) << field##_SHIFT) & \
+	((dest & ~field##_MASK) | ((((u64)value) << field##_SHIFT) & \
 					field##_MASK)))
 
 #define SET_BF64_IDX(dest, field, value)	\

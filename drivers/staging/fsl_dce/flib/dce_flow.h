@@ -127,11 +127,11 @@ enum dce_compression_format {
 struct dce_bman_cfg {
 	/* scatter gather entries size */
 	enum dce_tsize_coding tsize;
-	uint32_t tbpid;
+	u32 tbpid;
 	/* data buffer configuration */
-	uint32_t dmant; /* range 1..16, gets translated internally */
-	uint32_t dexp; /* range 7..22, gets translated internally */
-	uint32_t dbpid;
+	u32 dmant; /* range 1..16, gets translated internally */
+	u32 dexp; /* range 7..22, gets translated internally */
+	u32 dbpid;
 };
 
 /* predeclaration of structure */
@@ -168,7 +168,7 @@ struct fsl_dce_flow_cbs {
  */
 struct fsl_dce_cmd_token {
 	void *callback_tag;
-	uint32_t flags;
+	u32 flags;
 };
 
 /**
@@ -197,26 +197,26 @@ struct fsl_dce_flow {
 	struct fsl_dce_flow_cbs cbs;
 	enum dce_mode mode;
 	struct dce_bman_cfg bcfg;
-	uint16_t actual_fifo_depth;
-	uint16_t wanted_fifo_depth;
+	u16 actual_fifo_depth;
+	u16 wanted_fifo_depth;
 	DECLARE_KFIFO_PTR(fifo, struct fsl_dce_cmd_token);
-	uint32_t fqtx_id;
-	uint32_t fqrx_id;
+	u32 fqtx_id;
+	u32 fqrx_id;
 	bool use_specified_txfq_dest;
-	uint32_t txfq_dest;
-	uint32_t flags;
-	uint32_t proc_flags;
+	u32 txfq_dest;
+	u32 flags;
+	u32 proc_flags;
 };
 
-void fsl_dce_flow_setopt_fqtx_id(struct fsl_dce_flow *flow, uint32_t id);
-void fsl_dce_flow_setopt_fqrx_id(struct fsl_dce_flow *flow, uint32_t id);
+void fsl_dce_flow_setopt_fqtx_id(struct fsl_dce_flow *flow, u32 id);
+void fsl_dce_flow_setopt_fqrx_id(struct fsl_dce_flow *flow, u32 id);
 void fsl_dce_flow_setopt_bcfg(struct fsl_dce_flow *flow,
 				struct dce_bman_cfg bcfg);
-int fsl_dce_flow_setopt_txfqdest(struct fsl_dce_flow *flow, uint32_t dest);
+int fsl_dce_flow_setopt_txfqdest(struct fsl_dce_flow *flow, u32 dest);
 int fsl_dce_flow_setopt_outputoffset(struct fsl_dce_flow *flow,
-				uint32_t val); /* DCE_PROCESS_OO_*** value */
+				u32 val); /* DCE_PROCESS_OO_*** value */
 int fsl_dce_flow_setopt_compression_effort(struct fsl_dce_flow *flow,
-				uint32_t val); /* DCE_PROCESS_CE_*** value */
+				u32 val); /* DCE_PROCESS_CE_*** value */
 int fsl_dce_flow_setopt_release_input(struct fsl_dce_flow *flow, bool val);
 int fsl_dce_flow_setopt_base64(struct fsl_dce_flow *flow, bool val);
 
@@ -242,7 +242,7 @@ struct fsl_dce_flow_init_params {
 	enum dce_mode mode;
 	enum dce_state_config state_config;
 	enum dce_processing_mode p_mode;
-	uint16_t fifo_depth;
+	u16 fifo_depth;
 	fsl_dce_base_cb base_cb;
 	fsl_dce_process_cb process_cb;
 	fsl_dce_nop_cb nop_cb;
@@ -304,7 +304,7 @@ int fsl_dce_flow_fifo_len(struct fsl_dce_flow *flow);
  *
  * The QMan frame queues will be put out-of-service and destroyed.
  */
-int fsl_dce_flow_finish(struct fsl_dce_flow *flow, uint32_t flags);
+int fsl_dce_flow_finish(struct fsl_dce_flow *flow, u32 flags);
 
 /* Flags for operations */
 #ifdef CONFIG_FSL_DPA_CAN_WAIT
@@ -401,7 +401,7 @@ int fsl_dce_flow_finish(struct fsl_dce_flow *flow, uint32_t flags);
  * supports the same set of flush parameters as zlib inflate() and deflate()
  * calls do.
  */
-int fsl_dce_process(struct fsl_dce_flow *flow, uint32_t flags,
+int fsl_dce_process(struct fsl_dce_flow *flow, u32 flags,
 		struct qm_fd *fd, void *callback_tag);
 
 /**
@@ -419,7 +419,7 @@ int fsl_dce_process(struct fsl_dce_flow *flow, uint32_t flags,
  * fully processed, without needing to send a compress or decompress command
  * through the DCE.
  */
-int fsl_dce_nop(struct fsl_dce_flow *flow, uint32_t flags, void *callback_tag);
+int fsl_dce_nop(struct fsl_dce_flow *flow, u32 flags, void *callback_tag);
 
 /**
  * fsl_dce_scr_invalidate - send a DCE Context Invalidate request
@@ -440,7 +440,7 @@ int fsl_dce_nop(struct fsl_dce_flow *flow, uint32_t flags, void *callback_tag);
  * command is only useful when processed on a stateful Flow. If it is received
  * on a stateless Frame Queue it has no effect.
  */
-int fsl_dce_scr_invalidate(struct fsl_dce_flow *flow, uint32_t flags,
+int fsl_dce_scr_invalidate(struct fsl_dce_flow *flow, u32 flags,
 			void *callback_tag);
 
 #endif /* DCE_FLOW_H */

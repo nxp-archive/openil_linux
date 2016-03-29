@@ -95,7 +95,7 @@ static int b_dmant = 1;
 module_param(b_dmant, int, S_IRUGO);
 MODULE_PARM_DESC(b_dmant, "Bman dmant value, default=1");
 
-static uint32_t bman_data_buff_size;
+static u32 bman_data_buff_size;
 
 static int block_size = 4096;
 module_param(block_size, int, S_IRUGO);
@@ -155,7 +155,7 @@ struct test_data_s {
 
 struct test_data_s *test_data;
 
-static uint64_t start_time, end_time;
+static u64 start_time, end_time;
 
 /* Loopback support */
 static int do_operation(void);
@@ -163,7 +163,7 @@ static int do_operation(void);
 /* Alternate Time Base */
 #define SPR_ATBL	526
 #define SPR_ATBU	527
-static inline uint64_t mfatb(void)
+static inline u64 mfatb(void)
 {
 	return mfspr(SPR_ATBL);
 }
@@ -328,10 +328,10 @@ static int copy_bman_output_to_buffer(struct qm_sg_entry *sg, size_t cpylen,
 {
 	dma_addr_t phy_addr;
 	void *cpumem;
-	uint64_t cal_total_lenght = 0;
+	u64 cal_total_length = 0;
 	char *pos = buffer;
 	struct qm_sg_entry *entry;
-	uint64_t remaining = cpylen;
+	u64 remaining = cpylen;
 
 	/*
 	 * As per DPAA:
@@ -350,14 +350,14 @@ static int copy_bman_output_to_buffer(struct qm_sg_entry *sg, size_t cpylen,
 		entry = s_entry;
 		do {
 			if (!entry->extension) {
-				uint64_t to_copy;
+				u64 to_copy;
 
 				phy_addr = qm_sg_addr(entry);
 				fsl_dce_unmap(phy_addr);
 				cpumem = phys_to_virt(phy_addr);
-				to_copy = min_t(uint64_t, entry->length,
+				to_copy = min_t(u64, entry->length,
 					remaining);
-				cal_total_lenght += to_copy;
+				cal_total_length += to_copy;
 				remaining -= to_copy;
 				memcpy(pos, cpumem, to_copy);
 				pos += to_copy;
@@ -390,9 +390,9 @@ static int copy_bman_output_to_buffer(struct qm_sg_entry *sg, size_t cpylen,
 			}
 		} while (1);
 
-		if (cpylen != cal_total_lenght)
+		if (cpylen != cal_total_length)
 			pr_info("total frame length != calulated length (%lu) (%llu)\n",
-				cpylen, cal_total_lenght);
+				cpylen, cal_total_length);
 	} else {
 		phy_addr = qm_sg_addr(sg);
 		if (phy_addr != 0) {
@@ -736,17 +736,17 @@ int dce_sf_performance_init(void)
 
 void dce_sf_performance_shutdown(void)
 {
-	uint64_t run_time_cycle;
-	uint64_t total_compress_bytes = 0;
-	uint64_t total_decompress_bytes = 0;
-	uint64_t comp_Mbps = 0;
-	uint64_t decomp_Mbps = 0;
+	u64 run_time_cycle;
+	u64 total_compress_bytes = 0;
+	u64 total_decompress_bytes = 0;
+	u64 comp_Mbps = 0;
+	u64 decomp_Mbps = 0;
 	unsigned int cpufreq = 0;
-	uint64_t run_time_usec = 0;
-	uint32_t sysfreq = 0, dce_freq = 0;
-	uint64_t dce_max_freq = 400000000; /* Hz */
-	uint64_t scaled_val;
-	uint64_t temp;
+	u64 run_time_usec = 0;
+	u32 sysfreq = 0, dce_freq = 0;
+	u64 dce_max_freq = 400000000; /* Hz */
+	u64 scaled_val;
+	u64 temp;
 
 	sysfreq = fsl_get_sys_freq();
 	dce_freq = sysfreq;
@@ -788,7 +788,7 @@ void dce_sf_performance_shutdown(void)
 
 	/* Calculate Compression Mbps */
 	if (total_compress_bytes) {
-		uint64_t estimate_Mbps;
+		u64 estimate_Mbps;
 
 		comp_Mbps = total_compress_bytes * 8;
 		do_div(comp_Mbps, run_time_usec);
@@ -806,7 +806,7 @@ void dce_sf_performance_shutdown(void)
 
 	/* Calculate Decompression Mbps */
 	if (total_decompress_bytes) {
-		uint64_t estimate_Mbps;
+		u64 estimate_Mbps;
 
 		decomp_Mbps = total_decompress_bytes * 8;
 		do_div(decomp_Mbps, run_time_usec);
@@ -854,7 +854,7 @@ static int do_operation(void)
 	struct dce_bman_cfg bcfg;
 	int chunk_count;
 	struct list_head *pos;
-	uint32_t total_out = 0;
+	u32 total_out = 0;
 	char *p_out;
 
 	pr_info("DCE thread on cpu %d\n", smp_processor_id());
@@ -872,11 +872,11 @@ static int do_operation(void)
 		bcfg.dexp = b_dexp;
 
 		pr_info("Bman info: tsize = %u, tbpid = %u, dbpid = %u, dmant = %u, dexp = %u\n",
-			(uint32_t)bcfg.tsize,
-			(uint32_t)bcfg.tbpid,
-			(uint32_t)bcfg.dbpid,
-			(uint32_t)bcfg.dmant,
-			(uint32_t)bcfg.dexp);
+			(u32)bcfg.tsize,
+			(u32)bcfg.tbpid,
+			(u32)bcfg.dbpid,
+			(u32)bcfg.dmant,
+			(u32)bcfg.dexp);
 	}
 
 	chunk_count = test_data->input_data_len / chunking_size;
@@ -1034,7 +1034,7 @@ static int do_operation(void)
 	i = 0;
 
 	list_for_each(pos, &test_data->request_list) {
-		uint32_t flags = 0;
+		u32 flags = 0;
 
 		def_process_req = list_entry(
 			pos, struct dce_process_cf_gzip_req, node);
