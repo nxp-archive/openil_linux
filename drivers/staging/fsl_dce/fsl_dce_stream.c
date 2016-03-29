@@ -141,9 +141,9 @@ void fsl_dce_build_scf_uspc(struct fsl_dce_stream *stream, struct scf_64b *scf)
 {
 	set_pending_output_ptr(scf, fsl_dce_map(stream->pending_output_ptr));
 	if (stream->flow.mode == DCE_COMPRESSION)
-		set_history_ptr(scf, fsl_dce_map(stream->hw_comp_scr));
+		set_history_ptr(scf, fsl_dce_map(stream->comp_hist));
 	else {
-		set_history_ptr(scf, fsl_dce_map(stream->hw_decomp_scr));
+		set_history_ptr(scf, fsl_dce_map(stream->decomp_hist));
 		set_decomp_ctxt_ptr(scf, fsl_dce_map(stream->decomp_ctx_ptr));
 	}
 	set_pmode(scf, stream->pmode);
