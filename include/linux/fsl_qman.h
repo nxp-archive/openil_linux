@@ -733,19 +733,11 @@ struct qm_cgr_wr_parm {
 	union {
 		u32 word;
 		struct {
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u32 MA:8;
 			u32 Mn:5;
 			u32 SA:7; /* must be between 64-127 */
 			u32 Sn:6;
 			u32 Pn:6;
-#else
-			u32 Pn:6;
-			u32 Sn:6;
-			u32 SA:7; /* must be between 64-127 */
-			u32 Mn:5;
-			u32 MA:8;
-#endif
 		} __packed;
 	};
 } __packed;
@@ -756,15 +748,20 @@ struct qm_cgr_wr_parm {
  *   CS threshold = TA * (2 ^ Tn)
  */
 struct qm_cgr_cs_thres {
+	union {
+		u16 hword;
+		struct {
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-	u16 __reserved:3;
-	u16 TA:8;
-	u16 Tn:5;
+			u16 __reserved:3;
+			u16 TA:8;
+			u16 Tn:5;
 #else
-	u16 Tn:5;
-	u16 TA:8;
-	u16 __reserved:3;
+			u16 Tn:5;
+			u16 TA:8;
+			u16 __reserved:3;
 #endif
+		} __packed;
+	};
 } __packed;
 /* This identical structure of CGR fields is present in the "Init/Modify CGR"
  * commands and the "Query CGR" result. It's suctioned out here into its own
@@ -957,7 +954,17 @@ struct qm_mcc_ceetm_class_scheduler_config {
 	u16 cqcid;
 	u8 dcpid;
 	u8 __reserved2[6];
-	u8 gpc;
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	u8 gpc_reserved:1;
+	u8 gpc_combine_flag:1;
+	u8 gpc_prio_b:3;
+	u8 gpc_prio_a:3;
+#else
+	u8 gpc_prio_a:3;
+	u8 gpc_prio_b:3;
+	u8 gpc_combine_flag:1;
+	u8 gpc_reserved:1;
+#endif
 	u16 crem;
 	u16 erem;
 	u8 w[8];
@@ -992,7 +999,15 @@ struct qm_mcc_ceetm_mapping_shaper_tcfc_config {
 	u8 dcpid;
 	union {
 		struct {
-			u8 map;
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+			u8 map_shaped:1;
+			u8 map_reserved:4;
+			u8 map_lni_id:3;
+#else
+			u8 map_lni_id:3;
+			u8 map_reserved:4;
+			u8 map_shaped:1;
+#endif
 			u8 __reserved2[58];
 		} __packed channel_mapping;
 		struct {
@@ -1006,7 +1021,15 @@ struct qm_mcc_ceetm_mapping_shaper_tcfc_config {
 			u8 __reserved2[58];
 		} __packed sp_mapping;
 		struct {
-			u8 cpl;
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+			u8 cpl:1;
+			u8 cpl_reserved:2;
+			u8 oal:5;
+#else
+			u8 oal:5;
+			u8 cpl_reserved:2;
+			u8 cpl:1;
+#endif
 			u32 crtcr:24;
 			u32 ertcr:24;
 			u16 crtbl;
@@ -1037,7 +1060,25 @@ struct qm_mcc_ceetm_ccgr_config {
 	u16 we_mask;
 	union {
 		struct {
-			u8 ctl;
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+			u8 ctl_reserved:1;
+			u8 ctl_wr_en_g:1;
+			u8 ctl_wr_en_y:1;
+			u8 ctl_wr_en_r:1;
+			u8 ctl_td_en:1;
+			u8 ctl_td_mode:1;
+			u8 ctl_cscn_en:1;
+			u8 ctl_mode:1;
+#else
+			u8 ctl_mode:1;
+			u8 ctl_cscn_en:1;
+			u8 ctl_td_mode:1;
+			u8 ctl_td_en:1;
+			u8 ctl_wr_en_r:1;
+			u8 ctl_wr_en_y:1;
+			u8 ctl_wr_en_g:1;
+			u8 ctl_reserved:1;
+#endif
 			u8 cdv;
 			u16 cscn_tupd;
 			u8 oal;
@@ -1454,7 +1495,17 @@ struct qm_mcr_ceetm_class_scheduler_config {
 
 struct qm_mcr_ceetm_class_scheduler_query {
 	u8 __reserved1[9];
-	u8 gpc;
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	u8 gpc_reserved:1;
+	u8 gpc_combine_flag:1;
+	u8 gpc_prio_b:3;
+	u8 gpc_prio_a:3;
+#else
+	u8 gpc_prio_a:3;
+	u8 gpc_prio_b:3;
+	u8 gpc_combine_flag:1;
+	u8 gpc_reserved:1;
+#endif
 	u16 crem;
 	u16 erem;
 	u8 w[8];
@@ -1480,16 +1531,37 @@ struct qm_mcr_ceetm_mapping_shaper_tcfc_query {
 	u8 __reserved1;
 	union {
 		struct {
-			u8 map;
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+			u8 map_shaped:1;
+			u8 map_reserved:4;
+			u8 map_lni_id:3;
+#else
+			u8 map_lni_id:3;
+			u8 map_reserved:4;
+			u8 map_shaped:1;
+#endif
 			u8 __reserved2[58];
 		} __packed channel_mapping_query;
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u8 map_reserved:5;
 			u8 map_lni_id:3;
+#else
+			u8 map_lni_id:3;
+			u8 map_reserved:5;
+#endif
 			u8 __reserved2[58];
 		} __packed sp_mapping_query;
 		struct {
-			u8 cpl;
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+			u8 cpl:1;
+			u8 cpl_reserved:2;
+			u8 oal:5;
+#else
+			u8 oal:5;
+			u8 cpl_reserved:2;
+			u8 cpl:1;
+#endif
 			u32 crtcr:24;
 			u32 ertcr:24;
 			u16 crtbl;
@@ -1526,7 +1598,25 @@ struct qm_mcr_ceetm_ccgr_query {
 	u8 __reserved1[6];
 	union {
 		struct {
-			u8 ctl;
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+			u8 ctl_reserved:1;
+			u8 ctl_wr_en_g:1;
+			u8 ctl_wr_en_y:1;
+			u8 ctl_wr_en_r:1;
+			u8 ctl_td_en:1;
+			u8 ctl_td_mode:1;
+			u8 ctl_cscn_en:1;
+			u8 ctl_mode:1;
+#else
+			u8 ctl_mode:1;
+			u8 ctl_cscn_en:1;
+			u8 ctl_td_mode:1;
+			u8 ctl_td_en:1;
+			u8 ctl_wr_en_r:1;
+			u8 ctl_wr_en_y:1;
+			u8 ctl_wr_en_g:1;
+			u8 ctl_reserved:1;
+#endif
 			u8 cdv;
 			u8 __reserved2[2];
 			u8 oal;
@@ -3603,7 +3693,6 @@ struct qm_ceetm_ccg_params {
 };
 /* Bits used in 'we_mask' to qman_ceetm_ccg_set(), controls which attributes of
  * the CCGR are to be updated. */
-#define QM_CCGR_WE_CDV		0x0000 /* cdv */
 #define QM_CCGR_WE_MODE         0x0001 /* mode (bytes/frames) */
 #define QM_CCGR_WE_CS_THRES_IN  0x0002 /* congestion state entry threshold */
 #define QM_CCGR_WE_TD_EN        0x0004 /* congestion state tail-drop enable */
@@ -3619,6 +3708,7 @@ struct qm_ceetm_ccg_params {
 #define QM_CCGR_WE_CS_THRES_OUT 0x1000 /* congestion state exit threshold */
 #define QM_CCGR_WE_TD_THRES     0x2000 /* tail-drop threshold */
 #define QM_CCGR_WE_TD_MODE      0x4000 /* tail-drop mode (state/threshold) */
+#define QM_CCGR_WE_CDV		0x8000 /* cdv */
 
 /**
  * qman_ceetm_ccg_set
