@@ -348,7 +348,8 @@ static int __cold mac_probe(struct platform_device *_of_dev)
 					SUPPORTED_100baseT_Half);
 
 	/* Gigabit support (no half-duplex) */
-	if (mac_dev->max_speed == 1000)
+	if (mac_dev->max_speed == SPEED_1000 ||
+	    mac_dev->max_speed == SPEED_2500)
 		mac_dev->if_support |= SUPPORTED_1000baseT_Full;
 
 	/* The 10G interface only supports one mode */
