@@ -77,6 +77,12 @@
 		fsl,bpid = <12>;
 		fsl,bpool-thresholds = <0x100 0x300 0x0 0x0>;
 	};
+	bp13: buffer-pool@13 {
+			compatible = "fsl,b4420-bpool", "fsl,bpool";
+			fsl,bpid = <13>;
+			fsl,bpool-ethernet-cfg = <0 2048 0 1728 0 0>;
+			fsl,bpool-thresholds = <0x100 0x300 0x0 0x0>;
+	};
 	bp16: buffer-pool@16 {
 		compatible = "fsl,b4420-bpool", "fsl,bpool";
 		fsl,bpid = <16>;
@@ -156,6 +162,19 @@
 			fsl,qman-frame-queues-oh = <0x70 1 0x71 1>;
 			fsl,bman-buffer-pools = <&bp9>;
 			fsl,fman-oh-port = <&fman0_oh4>;
+		};
+
+	};
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		usdpaa_mem: usdpaa_mem {
+			compatible = "fsl,usdpaa-mem";
+			alloc-ranges = <0 0 0x10000 0>;
+			size = <0 0x10000000>;
+			alignment = <0 0x10000000>;
 		};
 	};
 };
