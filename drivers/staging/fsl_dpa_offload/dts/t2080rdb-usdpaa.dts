@@ -1,5 +1,5 @@
 /*
- * T2080PCIe-RDB USDPAA Device Tree Source
+ * T2080RDB USDPAA Device Tree Source
  *
  * Copyright 2014 Freescale Semiconductor Inc.
  *
@@ -97,6 +97,7 @@
 			fsl,qman-frame-queues-rx = <0x92 1 0x93 1>;
 			fsl,qman-frame-queues-tx = <0x9a 1 0x9b 1>;
 		};
+
 		ethernet@2 {/* 1G */
 			compatible = "fsl,t2080-dpa-ethernet-init", "fsl,dpa-ethernet-init";
 			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
@@ -140,6 +141,13 @@
 			fsl,qman-frame-queues-tx = <5008 8>;
 			local-mac-address = [00 11 22 33 44 66];
 		};
+		ethernet@12 {
+			compatible = "fsl,t2080-dpa-ethernet-macless", "fsl,dpa-ethernet-macless";
+			fsl,bman-buffer-pools = <&bp16>;
+			fsl,qman-frame-queues-rx = <6000 8>;
+			fsl,qman-frame-queues-tx = <6008 8>;
+			local-mac-address = [00 11 22 33 44 77];
+		};
 		dpa-fman0-oh@2 {
 			compatible = "fsl,dpa-oh";
 			/* Define frame queues for the OH port*/
@@ -159,6 +167,18 @@
 			fsl,qman-frame-queues-oh = <0x70 1 0x71 1>;
 			fsl,bman-buffer-pools = <&bp9>;
 			fsl,fman-oh-port = <&fman0_oh4>;
+		};
+	};
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		usdpaa_mem: usdpaa_mem {
+			compatible = "fsl,usdpaa-mem";
+			alloc-ranges = <0 0 0x10000 0>;
+			size = <0 0x10000000>;
+			alignment = <0 0x10000000>;
 		};
 	};
 };
