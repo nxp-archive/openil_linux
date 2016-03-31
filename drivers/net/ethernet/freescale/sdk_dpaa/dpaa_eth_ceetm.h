@@ -216,12 +216,12 @@ struct ceetm_qdisc_stats {
 struct ceetm_class_stats {
 	struct gnet_stats_basic_packed bstats;
 	__u32 ern_drop_count;
-	__u32 cgr_congested_count;
+	__u32 congested_count;
 };
 
 struct tc_ceetm_xstats {
 	__u32 ern_drop_count;
-	__u32 cgr_congested_count;
+	__u32 congested_count;
 	__u64 frame_count;
 	__u64 byte_count;
 };
