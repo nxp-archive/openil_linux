@@ -338,9 +338,8 @@ int dprc_scan_objects(struct fsl_mc_device *mc_bus_dev,
 			 * shareability attribute, make simplifying assumption
 			 * that only SEC is not shareable.
 			 */
-			if ((mc_bus_dev->obj_desc.ver_major == 5) &&
-			    (mc_bus_dev->obj_desc.ver_minor == 0) &&
-			    (strcmp(obj_desc->type, "dpseci") == 0))
+			if ((strcmp(obj_desc->type, "dpseci") == 0) &&
+			    (obj_desc->ver_major < 4))
 				obj_desc->flags |=
 					DPRC_OBJ_FLAG_NO_MEM_SHAREABILITY;
 
