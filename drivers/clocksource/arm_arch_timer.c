@@ -75,6 +75,7 @@ static __always_inline u32 arch_timer_reg_read(int access,
 
 #ifndef arm_arch_timer_reread
 bool arm_arch_timer_reread;
+EXPORT_SYMBOL(arm_arch_timer_reread);
 #endif
 
 /*
