@@ -106,25 +106,31 @@
 			fsl,qman-frame-queues-rx = <0x5a 1 0x5b 1>;
 			fsl,qman-frame-queues-tx = <0x7a 1 0x7b 1>;
 		};
-
-        /* ethernet@16 declared as MAC-less interface with no "fsl,fman-mac" property.
+		/* ethernet@6 declared as MAC-less interface with no "fsl,fman-mac" property.
 		 * USDPAA will seed buffers to this buffer pool and initialize 8 TX Frame
 		 * queues. The ethernet driver will initialize 8 RX default Frame queues.
 		 * On receiving frame at this interface, the ethernet driver will do
 		 * kmap_atomic/kunmap_atomic for that frame. */
-		ethernet@16 {
-			compatible = "fsl,p2041-dpa-ethernet", "fsl,dpa-ethernet";
+		ethernet@6 {
+			compatible = "fsl,p2041-dpa-ethernet-macless", "fsl,dpa-ethernet-macless";
 			fsl,bman-buffer-pools = <&bp16>;
 			fsl,qman-frame-queues-rx = <4000 8>;
 			fsl,qman-frame-queues-tx = <4008 8>;
 			local-mac-address = [00 11 22 33 44 55];
 		};
-		ethernet@17 {
-			compatible = "fsl,p2041-dpa-ethernet", "fsl,dpa-ethernet";
+		ethernet@7 {
+			compatible = "fsl,p2041-dpa-ethernet-macless", "fsl,dpa-ethernet-macless";
 			fsl,bman-buffer-pools = <&bp16>;
 			fsl,qman-frame-queues-rx = <5000 8>;
 			fsl,qman-frame-queues-tx = <5008 8>;
 			local-mac-address = [00 11 22 33 44 66];
+		};
+		ethernet@8 {
+			compatible = "fsl,p2041-dpa-ethernet-macless", "fsl,dpa-ethernet-macless";
+			fsl,bman-buffer-pools = <&bp16>;
+			fsl,qman-frame-queues-rx = <6000 8>;
+			fsl,qman-frame-queues-tx = <6008 8>;
+			local-mac-address = [00 11 22 33 44 77];
 		};
 
         dpa-fman0-oh@1 {
@@ -149,6 +155,18 @@
 			fsl,qman-frame-queues-oh = <0x68 1 0x69 1>;
 			fsl,bman-buffer-pools = <&bp9>;
 			fsl,fman-oh-port = <&fman0_oh3>;
+		};
+	};
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		usdpaa_mem: usdpaa_mem {
+			compatible = "fsl,usdpaa-mem";
+			alloc-ranges = <0 0 0x10000 0>;
+			size = <0 0x10000000>;
+			alignment = <0 0x10000000>;
 		};
 	};
 };

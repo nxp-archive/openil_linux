@@ -62,17 +62,17 @@
 		fsl,bpool-thresholds = <0x100 0x300 0x0 0x0>;
 	};
 	bp16: buffer-pool@16 {
-		compatible = "fsl,p4080-bpool", "fsl,bpool";
-		fsl,bpid = <16>;
-		fsl,bpool-ethernet-cfg = <0 2048 0 1728 0 0>;
-		fsl,bpool-thresholds = <0x100 0x300 0x0 0x0>;
-	};
+                        compatible = "fsl,p4080-bpool", "fsl,bpool";
+                        fsl,bpid = <16>;
+                        fsl,bpool-ethernet-cfg = <0 2048 0 1728 0 0>;
+                        fsl,bpool-thresholds = <0x100 0x300 0x0 0x0>;
+       };
 	bp17: buffer-pool@17 {
-		compatible = "fsl,p4080-bpool", "fsl,bpool";
-		fsl,bpid = <17>;
-		fsl,bpool-ethernet-cfg = <0 2048 0 1728 0 0>;
-		fsl,bpool-thresholds = <0x100 0x300 0x0 0x0>;
-	};
+                        compatible = "fsl,p4080-bpool", "fsl,bpool";
+                        fsl,bpid = <17>;
+                        fsl,bpool-ethernet-cfg = <0 2048 0 1728 0 0>;
+                        fsl,bpool-thresholds = <0x100 0x300 0x0 0x0>;
+       };
 	fsl,dpaa {
 		ethernet@0 {
 			compatible = "fsl,p4080-dpa-ethernet-init", "fsl,dpa-ethernet-init";
@@ -158,12 +158,12 @@
 			local-mac-address = [00 11 22 33 44 66];
 		};
 		ethernet@18 {
-                        compatible = "fsl,p4080-dpa-ethernet-macless", "fsl,dpa-ethernet-macless";
-                        fsl,bman-buffer-pools = <&bp16>;
-                        fsl,qman-frame-queues-rx = <6000 8>;
-                        fsl,qman-frame-queues-tx = <6008 8>;
-                        local-mac-address = [00 11 22 33 44 77];
-                };
+			compatible = "fsl,p4080-dpa-ethernet-macless", "fsl,dpa-ethernet-macless";
+			fsl,bman-buffer-pools = <&bp16>;
+			fsl,qman-frame-queues-rx = <6000 8>;
+			fsl,qman-frame-queues-tx = <6008 8>;
+			local-mac-address = [00 11 22 33 44 77];
+		};
 		dpa_fman1_oh1: dpa-fman1-oh@1 {
 			compatible = "fsl,dpa-oh";
 			/* Define frame queues for the OH port*/
@@ -186,6 +186,18 @@
 			fsl,qman-frame-queues-oh = <0x70 1 0x71 1>;
 			fsl,bman-buffer-pools = <&bp9>;
 			fsl,fman-oh-port = <&fman1_oh3>;
+		};
+	};
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		usdpaa_mem: usdpaa_mem {
+			compatible = "fsl,usdpaa-mem";
+			alloc-ranges = <0 0 0x10000 0>;
+			size = <0 0x10000000>;
+			alignment = <0 0x10000000>;
 		};
 	};
 };
