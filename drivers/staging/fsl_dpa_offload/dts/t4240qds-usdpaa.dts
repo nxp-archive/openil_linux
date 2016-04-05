@@ -77,6 +77,13 @@
 		fsl,bpid = <12>;
 		fsl,bpool-thresholds = <0x100 0x300 0x0 0x0>;
 	};
+	bp13: buffer-pool@13 {
+			compatible = "fsl,t4240-bpool", "fsl,bpool";
+			fsl,bpid = <13>;
+			fsl,bpool-ethernet-cfg = <0 2048 0 1728 0 0>;
+			fsl,bpool-thresholds = <0x100 0x300 0x0 0x0>;
+			fsl,bpool-ethernet-seeds;
+	};
 
 	bp16: buffer-pool@16 {
 		compatible = "fsl,t4240-bpool", "fsl,bpool";
@@ -86,12 +93,6 @@
 	};
 
 	fsl,dpaa {
-		ethernet@4 {
-			compatible = "fsl,t4240-dpa-ethernet-init", "fsl,dpa-ethernet-init";
-			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
-			fsl,qman-frame-queues-rx = <0x58 1 0x59 1>;
-			fsl,qman-frame-queues-tx = <0x78 1 0x79 1>;
-		};
 		ethernet@6 {
 			compatible = "fsl,t4240-dpa-ethernet-init", "fsl,dpa-ethernet-init";
 			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
@@ -104,25 +105,18 @@
 			fsl,qman-frame-queues-rx = <0x5e 1 0x5f 1>;
 			fsl,qman-frame-queues-tx = <0x7e 1 0x7f 1>;
 		};
-		ethernet@12 {
+		ethernet@8 {
 			compatible = "fsl,t4240-dpa-ethernet-init", "fsl,dpa-ethernet-init";
 			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
 			fsl,qman-frame-queues-rx = <0x68 1 0x69 1>;
 			fsl,qman-frame-queues-tx = <0x88 1 0x89 1>;
 		};
-		ethernet@14 {
+		ethernet@9 {
 			compatible = "fsl,t4240-dpa-ethernet-init", "fsl,dpa-ethernet-init";
 			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
 			fsl,qman-frame-queues-rx = <0x6c 1 0x6d 1>;
 			fsl,qman-frame-queues-tx = <0x8c 1 0x8d 1>;
 		};
-		ethernet@15 {
-			compatible = "fsl,t4240-dpa-ethernet-init", "fsl,dpa-ethernet-init";
-			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
-			fsl,qman-frame-queues-rx = <0x6e 1 0x6f 1>;
-			fsl,qman-frame-queues-tx = <0x8e 1 0x8f 1>;
-		};
-
 		ethernet@16 {
 			compatible = "fsl,t4240-dpa-ethernet-macless", "fsl,dpa-ethernet-macless";
 			fsl,bman-buffer-pools = <&bp16>;
@@ -161,9 +155,22 @@
 		};
 		dpa_fman0_oh4: dpa-fman0-oh@4 {
 			compatible = "fsl,dpa-oh";
-			fsl,qman-frame-queues-oh = <0x94 1 0x795 1>;
+			fsl,qman-frame-queues-oh = <0x94 1 0x95 1>;
 			fsl,bman-buffer-pools = <&bp9>;
 			fsl,fman-oh-port = <&fman0_oh4>;
+		};
+
+	};
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		usdpaa_mem: usdpaa_mem {
+			compatible = "fsl,usdpaa-mem";
+			alloc-ranges = <0 0 0x10000 0>;
+			size = <0 0x10000000>;
+			alignment = <0 0x10000000>;
 		};
 	};
 };

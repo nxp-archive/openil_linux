@@ -1,7 +1,7 @@
 /*
  * B4860QDS Device Tree Source
  *
- * Copyright 2012 Freescale Semiconductor Inc.
+ * Copyright 2013 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -130,6 +130,23 @@
 			fsl,qman-frame-queues-rx = <0x5a 1 0x5b 1>;
 			fsl,qman-frame-queues-tx = <0x7a 1 0x7b 1>;
 		};
+		ethernet@8 {
+			compatible = "fsl,b4860-dpa-ethernet-init", "fsl,dpa-ethernet-init";
+			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
+			fsl,qman-frame-queues-rx = <0x5c 1 0x5d 1>;
+			fsl,qman-frame-queues-tx = <0x7c 1 0x7d 1>;
+		};
+		/* ethernet@9 declared as shared MAC. USDPAA will seed buffers to
+		 * this buffer pool. The ethernet driver will initialize the RX default,
+		 * RX error, TX error, TX confirm and 8 TX Frame queues. On receiving frame
+		 * at this interface, the ethernet driver will do kmap_atomic/kunmap_atomic
+		 * for that frame. */
+		ethernet@9 {
+			compatible = "fsl,b4860-dpa-ethernet-shared", "fsl,dpa-ethernet-shared";
+			fsl,bman-buffer-pools = <&bp17>;
+			fsl,qman-frame-queues-rx = <0x5e 1 0x5f 1 0x2000 3>;
+			fsl,qman-frame-queues-tx = <0 1 0 1 0x3000 8>;
+		};
 
 	       /* ethernet@16 declared as MAC-less interface with no "fsl,fman-mac" property.
                  * USDPAA will seed buffers to this buffer pool and initialize 8 TX Frame
@@ -185,6 +202,18 @@
 			fsl,qman-frame-queues-oh = <0x70 1 0x71 1>;
 			fsl,bman-buffer-pools = <&bp9>;
 			fsl,fman-oh-port = <&fman0_oh4>;
+		};
+	};
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		usdpaa_mem: usdpaa_mem {
+			compatible = "fsl,usdpaa-mem";
+			alloc-ranges = <0 0 0x10000 0>;
+			size = <0 0x10000000>;
+			alignment = <0 0x10000000>;
 		};
 	};
 };
