@@ -35,7 +35,8 @@
 #define MC_CMD_NUM_OF_PARAMS	7
 
 #define MAKE_UMASK64(_width) \
-	((uint64_t)((_width) < 64 ? ((uint64_t)1 << (_width)) - 1 : -1))
+	((uint64_t)((_width) < 64 ? ((uint64_t)1 << (_width)) - 1 : \
+				    (uint64_t)-1))
 
 static inline uint64_t mc_enc(int lsoffset, int width, uint64_t val)
 {
