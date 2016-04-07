@@ -279,20 +279,15 @@ static int __cold start(struct mac_device *mac_dev)
 
 	_errno = fm_mac_enable(mac_dev->get_mac_handle(mac_dev));
 
-	if (!_errno && phy_dev) {
-		if (macdev2enetinterface(mac_dev) != e_ENET_MODE_XGMII_10000)
-			phy_start(phy_dev);
-		else if (phy_dev->drv->read_status)
-			phy_dev->drv->read_status(phy_dev);
-	}
+	if (!_errno && phy_dev)
+		phy_start(phy_dev);
 
 	return _errno;
 }
 
 static int __cold stop(struct mac_device *mac_dev)
 {
-	if (mac_dev->phy_dev &&
-		(macdev2enetinterface(mac_dev) != e_ENET_MODE_XGMII_10000))
+	if (mac_dev->phy_dev)
 		phy_stop(mac_dev->phy_dev);
 
 	return fm_mac_disable(mac_dev->get_mac_handle(mac_dev));
@@ -477,8 +472,8 @@ static int xgmac_init_phy(struct net_device *net_dev,
 		phy_dev = phy_attach(net_dev, mac_dev->fixed_bus_id,
 				     mac_dev->phy_if);
 	else
-		phy_dev = of_phy_attach(net_dev, mac_dev->phy_node, 0,
-					mac_dev->phy_if);
+		phy_dev = of_phy_connect(net_dev, mac_dev->phy_node,
+					 &adjust_link, 0, mac_dev->phy_if);
 	if (unlikely(phy_dev == NULL) || IS_ERR(phy_dev)) {
 		netdev_err(net_dev, "Could not attach to PHY %s\n",
 				mac_dev->phy_node ?
@@ -510,8 +505,9 @@ static int memac_init_phy(struct net_device *net_dev,
 			mac_dev->phy_dev = NULL;
 			return 0;
 		} else
-			phy_dev = of_phy_attach(net_dev, mac_dev->phy_node, 0,
-						mac_dev->phy_if);
+			phy_dev = of_phy_connect(net_dev, mac_dev->phy_node,
+						 &adjust_link, 0,
+						 mac_dev->phy_if);
 	} else {
 		if (!mac_dev->phy_node)
 			phy_dev = phy_connect(net_dev, mac_dev->fixed_bus_id,
