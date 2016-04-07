@@ -134,8 +134,8 @@
 		ethernet@18 {
 			compatible = "fsl,t4240-dpa-ethernet-macless", "fsl,dpa-ethernet-macless";
 			fsl,bman-buffer-pools = <&bp16>;
-			fsl,qman-frame-queues-rx = <6000 8>;
-			fsl,qman-frame-queues-tx = <6008 8>;
+			fsl,qman-frame-queues-rx = <7000 8>;
+			fsl,qman-frame-queues-tx = <7008 8>;
 			local-mac-address = [00 11 22 33 44 77];
 		};
 
