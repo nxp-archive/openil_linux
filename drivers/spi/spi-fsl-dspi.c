@@ -637,6 +637,9 @@ static const struct regmap_config dspi_regmap_config = {
 	.val_bits = 32,
 	.reg_stride = 4,
 	.max_register = 0x88,
+#ifdef CONFIG_CPU_BIG_ENDIAN
+	.val_format_endian = REGMAP_ENDIAN_LITTLE,
+#endif
 };
 
 static int dspi_probe(struct platform_device *pdev)
