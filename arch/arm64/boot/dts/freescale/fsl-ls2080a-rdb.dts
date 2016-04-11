@@ -133,6 +133,7 @@
 };
 
 &emdio1 {
+	status = "disabled";
 	/* CS4340 PHYs */
 	mdio1_phy1: emdio1_phy@1 {
 		reg = <0x10>;
