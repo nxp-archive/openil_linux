@@ -173,7 +173,7 @@
 			/* Define frame queues for the OH port*/
 			/* <OH Rx error, OH Rx default> */
 			fsl,qman-frame-queues-oh = <0x90 1 0x91 1>;
-			fsl,bman-buffer-pools = <&bp18>;
+			fsl,bman-buffer-pools = <&bp16>;
 			fsl,fman-oh-port = <&fman0_oh2>;
 		};
 		dpa_fman0_oh3: dpa-fman0-oh@3 {
