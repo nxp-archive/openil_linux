@@ -856,6 +856,7 @@
 			dr_mode = "host";
 			configure-gfladj;
 			dma-coherent;
+			snps,dis_rxdet_inp3_quirk;
 		};
 
 		pcie@3400000 {
