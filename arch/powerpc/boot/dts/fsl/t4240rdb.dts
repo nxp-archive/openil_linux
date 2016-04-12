@@ -54,18 +54,18 @@
 		ethernet1 = &enet1;
 		ethernet2 = &enet2;
 		ethernet3 = &enet3;
-		ethernet4 = &enet4;
-		ethernet5 = &enet5;
-		ethernet6 = &enet6;
-		ethernet7 = &enet7;
-		ethernet8 = &enet8;
-		ethernet9 = &enet9;
-		ethernet10 = &enet10;
-		ethernet11 = &enet11;
-		ethernet12 = &enet12;
-		ethernet13 = &enet13;
-		ethernet14 = &enet14;
-		ethernet15 = &enet15;
+		ethernet4 = &enet6;
+		ethernet5 = &enet7;
+		ethernet6 = &enet8;
+		ethernet7 = &enet9;
+		ethernet8 = &enet10;
+		ethernet9 = &enet11;
+		ethernet10 = &enet14;
+		ethernet11 = &enet15;
+		ethernet12 = &enet4;
+		ethernet13 = &enet5;
+		ethernet14 = &enet12;
+		ethernet15 = &enet13;
 	};
 
 	ifc: localbus@ffe124000 {
