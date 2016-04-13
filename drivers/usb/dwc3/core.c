@@ -386,6 +386,9 @@ static void dwc3_phy_setup(struct dwc3 *dwc)
 	if (dwc->u2ss_inp3_quirk)
 		reg |= DWC3_GUSB3PIPECTL_U2SSINP3OK;
 
+	if (dwc->dis_rxdet_inp3_quirk)
+		reg |= DWC3_GUSB3PIPECTL_DISRXDETINP3;
+
 	if (dwc->req_p1p2p3_quirk)
 		reg |= DWC3_GUSB3PIPECTL_REQP1P2P3;
 
@@ -833,6 +836,8 @@ static int dwc3_probe(struct platform_device *pdev)
 				"snps,dis_u3_susphy_quirk");
 		dwc->dis_u2_susphy_quirk = of_property_read_bool(node,
 				"snps,dis_u2_susphy_quirk");
+		dwc->dis_rxdet_inp3_quirk = device_property_read_bool(dev,
+				"snps,dis_rxdet_inp3_quirk");
 
 		dwc->tx_de_emphasis_quirk = of_property_read_bool(node,
 				"snps,tx_de_emphasis_quirk");
@@ -861,6 +866,7 @@ static int dwc3_probe(struct platform_device *pdev)
 		dwc->rx_detect_poll_quirk = pdata->rx_detect_poll_quirk;
 		dwc->dis_u3_susphy_quirk = pdata->dis_u3_susphy_quirk;
 		dwc->dis_u2_susphy_quirk = pdata->dis_u2_susphy_quirk;
+		dwc->dis_rxdet_inp3_quirk = pdata->dis_rxdet_inp3_quirk;
 
 		dwc->tx_de_emphasis_quirk = pdata->tx_de_emphasis_quirk;
 		if (pdata->tx_de_emphasis)
