@@ -939,6 +939,7 @@
 			interrupts = <0 60 0x4>;
 			dr_mode = "host";
 			configure-gfladj;
+			snps,dis_rxdet_inp3_quirk;
 		};
 
 		usb1: usb3@3000000 {
@@ -947,6 +948,7 @@
 			interrupts = <0 61 0x4>;
 			dr_mode = "host";
 			configure-gfladj;
+			snps,dis_rxdet_inp3_quirk;
 		};
 
 		usb2: usb3@3100000 {
@@ -955,6 +957,7 @@
 			interrupts = <0 63 0x4>;
 			dr_mode = "host";
 			configure-gfladj;
+			snps,dis_rxdet_inp3_quirk;
 		};
 
 		sata: sata@3200000 {
