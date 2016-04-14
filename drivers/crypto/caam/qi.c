@@ -72,6 +72,14 @@ static struct caam_qi_priv qipriv ____cacheline_aligned;
  */
 static bool caam_congested __read_mostly;
 
+#ifdef CONFIG_DEBUG_FS
+/*
+ * This is a counter for the number of times the congestion group (where all
+ * the response queueus are) was congested. Incremented each time the congestion
+ * callback is called with congested == true,.
+ */
+static u64 times_congested;
+#endif
 /*
  * CPU from where the module initialised. This is required because
  * QMAN driver requires CGRs to be removed from same CPU from where
@@ -579,10 +587,15 @@ static void rsp_cgr_cb(struct qman_portal *qm, struct qman_cgr *cgr,
 {
 	caam_congested = congested;
 
-	if (congested)
-		pr_warn_ratelimited("CAAM rsp path congested\n");
-	else
-		pr_info_ratelimited("CAAM rsp path congestion state exit\n");
+	if (congested) {
+#ifdef CONFIG_DEBUG_FS
+		times_congested++;
+#endif
+		pr_debug_ratelimited("CAAM rsp path congested\n");
+
+	} else {
+		pr_debug_ratelimited("CAAM rsp path congestion state exit\n");
+	}
 }
 
 static int caam_qi_napi_schedule(struct qman_portal *p, struct caam_napi *np)
@@ -801,6 +814,11 @@ int caam_qi_init(struct platform_device *caam_pdev, struct device_node *np)
 	/* Response path cannot be congested */
 	caam_congested = false;
 
+#ifdef CONFIG_DEBUG_FS
+	/* The response path was congested 0 times */
+	times_congested = 0;
+#endif
+
 	/* kmem_cache wasn't yet allocated */
 	qi_cache = NULL;
 
@@ -852,7 +870,13 @@ int caam_qi_init(struct platform_device *caam_pdev, struct device_node *np)
 
 	/* Done with the CGRs; restore the cpus allowed mask */
 	set_cpus_allowed_ptr(current, &old_cpumask);
-
+#ifdef CONFIG_DEBUG_FS
+	ctrlpriv->qi_congested =
+			debugfs_create_file("qi_congested",
+					    S_IRUSR | S_IRGRP | S_IROTH,
+					    ctrlpriv->ctl, &times_congested,
+					    &caam_fops_u64_ro);
+#endif
 	dev_info(qidev, "Linux CAAM Queue I/F driver initialised\n");
 
 	return 0;
