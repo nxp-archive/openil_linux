@@ -1224,8 +1224,8 @@ static inline int qm_shutdown_fq(struct qm_portal **portal, int portal_count,
 
 	/* Need to store these since the MCR gets reused */
 	dest_wq = be16_to_cpu(mcr->queryfq.fqd.dest_wq);
-	channel = dest_wq & 0x7;
-	wq = dest_wq>>3;
+	wq = dest_wq & 0x7;
+	channel = dest_wq>>3;
 
 	switch (state) {
 	case QM_MCR_NP_STATE_TEN_SCHED:
@@ -1345,7 +1345,7 @@ static inline int qm_shutdown_fq(struct qm_portal **portal, int portal_count,
 				/* Process the dequeues, making sure to
 				   empty the ring completely */
 				while (dqrr) {
-					if (dqrr->fqid == fqid &&
+					if (be32_to_cpu(dqrr->fqid) == fqid &&
 					    dqrr->stat & QM_DQRR_STAT_FQ_EMPTY)
 						fq_empty = 1;
 					qm_dqrr_cdc_consume_1ptr(portal[0],
