@@ -31,6 +31,7 @@
 #include <linux/uaccess.h>
 
 #include <asm/io.h>
+#include <asm/fsl_pm.h>
 #include <asm/prom.h>
 #include <asm/pci-bridge.h>
 #include <asm/ppc-pci.h>
@@ -39,6 +40,7 @@
 #include <asm/ppc-opcode.h>
 #include <sysdev/fsl_soc.h>
 #include <sysdev/fsl_pci.h>
+#include <linux/fsl/svr.h>
 
 static int fsl_pcie_bus_fixup, is_mpc83xx_pci;
 
@@ -1175,6 +1177,17 @@ static int fsl_pci_pme_probe(struct pci_controller *hose)
 	return 0;
 }
 
+static int pcie_slot_flag;
+
+/* Workaround: p1022ds need reset slot when the system wakeup from deep sleep */
+static int reset_pcie_slot(void)
+{
+#ifdef CONFIG_P1022_DS
+	p1022ds_reset_pcie_slot();
+#endif
+	return 0;
+}
+
 static void send_pme_turnoff_message(struct pci_controller *hose)
 {
 	struct ccsr_pci __iomem *pci = hose->private_data;
@@ -1185,20 +1198,39 @@ static void send_pme_turnoff_message(struct pci_controller *hose)
 	setbits32(&pci->pex_pmcr, PEX_PMCR_PTOMR);
 
 	/* Wait trun off done */
-	for (i = 0; i < 150; i++) {
+	/* RC will get this detect quickly */
+	for (i = 0; i < 50; i++) {
 		dr = in_be32(&pci->pex_pme_mes_dr);
-		if (dr) {
+		if (dr & ENL23_DETECT_BIT) {
 			out_be32(&pci->pex_pme_mes_dr, dr);
 			break;
 		}
 
-		udelay(1000);
+		mdelay(1);
 	}
+
+	/*
+	 * "PCI Bus Power Management Interface Specification" define
+	 * Minimum System Software Guaranteed Delays
+	 *
+	 * D0, D1 or D2 --> D3, need delay 10ms.
+	 * But based on test results, it needs to delay 30ms when EP
+	 * plug in p1022 slot2. And it needs to delay 100ms when EP plug
+	 * in p1022 slot1. So need to get maximum delay.
+	 */
+	mdelay(100);
 }
 
 static void fsl_pci_syscore_do_suspend(struct pci_controller *hose)
 {
+	suspend_state_t pm_state;
+
+	pm_state = pm_suspend_state();
+
 	send_pme_turnoff_message(hose);
+
+	if (pm_state == PM_SUSPEND_MEM)
+		pcie_slot_flag = 0;
 }
 
 static int fsl_pci_syscore_suspend(void)
@@ -1211,26 +1243,74 @@ static int fsl_pci_syscore_suspend(void)
 	return 0;
 }
 
+#define PCIE_RESET_SLOT_WAITTIME	100000 /* wait 100 ms */
 static void fsl_pci_syscore_do_resume(struct pci_controller *hose)
 {
 	struct ccsr_pci __iomem *pci = hose->private_data;
+	struct pci_dev *dev;
+	u32 svr = mfspr(SPRN_SVR);
 	u32 dr;
+	suspend_state_t pm_state;
 	int i;
+	u16 pms;
 
 	/* Send Exit L2 State Message */
 	setbits32(&pci->pex_pmcr, PEX_PMCR_EXL2S);
 
 	/* Wait exit done */
-	for (i = 0; i < 150; i++) {
+	/* RC will get this detect quickly */
+	for (i = 0; i < 50; i++) {
 		dr = in_be32(&pci->pex_pme_mes_dr);
-		if (dr) {
+		if (dr & EXL23_DETECT_BIT) {
 			out_be32(&pci->pex_pme_mes_dr, dr);
 			break;
 		}
 
-		udelay(1000);
+		mdelay(1);
 	}
 
+	/*
+	 * "PCI Bus Power Management Interface Specification" define
+	 * Minimum System Software Guaranteed Delays
+	 *
+	 * D0, D1 or D2 --> D3, need delay 10ms.
+	 * But based on test results, it needs to delay 30ms when EP
+	 * plug in p1022 slot2. And it needs to delay 100ms when EP plug
+	 * in p1022 slot1. So need to get maximum delay.
+	 */
+	mdelay(100);
+
+	pm_state = pm_suspend_state();
+	if (pm_state != PM_SUSPEND_MEM)
+		goto setup_atmu;
+
+	/* After resume from deep-sleep, it needs to restore below registers */
+	/* Enable PTOD, ENL23D & EXL23D */
+	clrbits32(&pci->pex_pme_mes_disr,
+		  PME_DISR_EN_PTOD | PME_DISR_EN_ENL23D | PME_DISR_EN_EXL23D);
+
+	out_be32(&pci->pex_pme_mes_ier, 0);
+	setbits32(&pci->pex_pme_mes_ier,
+		  PME_DISR_EN_PTOD | PME_DISR_EN_ENL23D | PME_DISR_EN_EXL23D);
+
+	/* Get hose's pci_dev */
+	dev = list_first_entry(&hose->bus->devices, typeof(*dev), bus_list);
+
+	/* PME Enable */
+	pci_read_config_word(dev, dev->pm_cap + PCI_PM_CTRL, &pms);
+	pms |= PCI_PM_CTRL_PME_ENABLE;
+	pci_write_config_word(dev, dev->pm_cap + PCI_PM_CTRL, pms);
+
+	/* Only reset slot, can rework the EP device */
+	if (SVR_SOC_VER(svr) == SVR_P1022 && !pcie_slot_flag) {
+		reset_pcie_slot();
+		pcie_slot_flag = 1;
+	}
+
+	spin_event_timeout(!fsl_pcie_check_link(hose),
+			   PCIE_RESET_SLOT_WAITTIME, 0);
+
+setup_atmu:
 	setup_pci_atmu(hose);
 }
 
