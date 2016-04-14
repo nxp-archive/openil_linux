@@ -730,10 +730,11 @@ bool apply_pcd(struct bonding *bond, int new_xmit_policy)
 	uint8_t numOfSchemes;
 	u32 pcd_fqids_base;
 	uint8_t distNumOfQueues;
-	int err;
+	int err, mode;
 
-	if (bond->params.mode != BOND_MODE_8023AD) {
-		hw_lag_dbg("not 802.3ad mode, can't apply PCD\n");
+	mode = bond->params.mode;
+	if (mode != BOND_MODE_8023AD && mode != BOND_MODE_XOR) {
+		hw_lag_dbg("not 802.3ad or xor mode, can't apply PCD\n");
 		return false;
 	}
 	if (!bond->params.ohp) {
