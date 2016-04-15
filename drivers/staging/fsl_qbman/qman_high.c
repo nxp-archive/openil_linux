@@ -5202,6 +5202,7 @@ int qman_ceetm_ccg_release(struct qm_ceetm_ccg *ccg)
 	config_opts.cm_config.cscn_tupd = cpu_to_be16(PORTAL_IDX(p));
 	ret = qman_ceetm_configure_ccgr(&config_opts);
 	spin_unlock_irqrestore(&p->ccgr_lock, irqflags);
+	put_affine_portal();
 
 	list_del(&ccg->node);
 	kfree(ccg);
