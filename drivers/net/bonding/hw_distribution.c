@@ -91,11 +91,12 @@ ssize_t bonding_show_offline_port_xmit_statistics(struct device *d,
 						  struct device_attribute *attr,
 						  char *buf)
 {
-	int res = 0;
+	int res = 0, mode;
 	struct bonding *bond = to_bond(d);
 
-	if (bond->params.mode != BOND_MODE_8023AD) {
-		pr_err("%s: This command only support 802.3ad mode.\n",
+	mode = bond->params.mode;
+	if (mode != BOND_MODE_8023AD && mode != BOND_MODE_XOR) {
+		pr_err("%s: This command only support 802.3ad and xor mode.\n",
 		       bond->dev->name);
 		return -EPERM;
 	}
@@ -134,11 +135,12 @@ ssize_t bonding_show_offline_ports(struct device *d,
 				   struct device_attribute *attr,
 				   char *buf)
 {
-	int i, res = 0;
+	int i, res = 0, mode;
 	struct bonding *bond = to_bond(d);
 
-	if (bond->params.mode != BOND_MODE_8023AD) {
-		pr_err("%s: This command only support 802.3ad mode.\n",
+	mode = bond->params.mode;
+	if (mode != BOND_MODE_8023AD && mode != BOND_MODE_XOR) {
+		pr_err("%s: This command only support 802.3ad and xor mode.\n",
 		       bond->dev->name);
 		return -EPERM;
 	}
@@ -162,11 +164,12 @@ bonding_show_oh_needed_for_hw_distribution(struct device *d,
 					   struct device_attribute *attr,
 					   char *buf)
 {
-	int res = 0;
+	int res = 0, mode;
 	struct bonding *bond = to_bond(d);
 
-	if (bond->params.mode != BOND_MODE_8023AD) {
-		pr_err("%s: This command only support 802.3ad mode.\n",
+	mode = bond->params.mode;
+	if (mode != BOND_MODE_8023AD && mode != BOND_MODE_XOR) {
+		pr_err("%s: This command only support 802.3ad and xor mode.\n",
 		       bond->dev->name);
 		return -EPERM;
 	}
@@ -198,13 +201,14 @@ bonding_store_oh_needed_for_hw_distribution(struct device *d,
 					    size_t count)
 {
 	char command[OHFRIENDNAMSIZ + 1] = { 0, };
-	int ret = count, i, errno;
+	int ret = count, i, errno, mode;
 	struct bonding *bond = to_bond(d);
 	struct oh_port_priv *tmp = poh;
 	bool find = false;
 
-	if (bond->params.mode != BOND_MODE_8023AD) {
-		pr_err("%s: This command only support 802.3ad mode.\n",
+	mode = bond->params.mode;
+	if (mode != BOND_MODE_8023AD && mode != BOND_MODE_XOR) {
+		pr_err("%s: This command only support 802.3ad and xor mode.\n",
 		       bond->dev->name);
 		return -EPERM;
 	}
@@ -270,13 +274,14 @@ ssize_t bonding_show_oh_enable(struct device *d,
 			       struct device_attribute *attr,
 			       char *buf)
 {
-	int res = 0, ret;
+	int res = 0, ret, mode;
 	struct bonding *bond = to_bond(d);
 	uint16_t channel;
 	unsigned long fman_dcpid, oh_offset, cell_index;
 
-	if (bond->params.mode != BOND_MODE_8023AD) {
-		pr_err("%s: This command only support 802.3ad mode.\n",
+	mode = bond->params.mode;
+	if (mode != BOND_MODE_8023AD && mode != BOND_MODE_XOR) {
+		pr_err("%s: This command only support 802.3ad and xor mode.\n",
 		       bond->dev->name);
 		return -EPERM;
 	}
@@ -311,11 +316,12 @@ ssize_t bonding_store_oh_enable(struct device *d,
 				const char *buffer,
 				size_t count)
 {
-	int new_value, ret;
+	int new_value, ret, mode;
 	struct bonding *bond = to_bond(d);
 
-	if (bond->params.mode != BOND_MODE_8023AD) {
-		pr_err("%s: This command only support 802.3ad mode.\n",
+	mode = bond->params.mode;
+	if (mode != BOND_MODE_8023AD && mode != BOND_MODE_XOR) {
+		pr_err("%s: This command only support 802.3ad and xor mode.\n",
 		       bond->dev->name);
 		return -EPERM;
 	}
@@ -2290,14 +2296,16 @@ static int hw_lag_release_fq(struct device *dev, struct dpa_fq *fq)
  */
 int fill_oh_pcd_fqs_with_slave_info(struct bonding *bond, struct slave *slave)
 {
-	uint16_t tx_channel;
+	uint16_t tx_channel, mode;
 	struct dpa_fq *pcd_fq = NULL;
 	struct oh_port_priv *cur;
 	u32 fqid;
 	uint16_t wq_id = 3; /* the default value in DPA-Eth private driver */
 
-	if (bond->params.mode != BOND_MODE_8023AD) {
-		pr_err("error, only support 802.3ad when fill OH FQs.\n");
+	mode = bond->params.mode;
+	if (mode != BOND_MODE_8023AD && mode != BOND_MODE_XOR) {
+		pr_err("%s: This command only support 802.3ad and xor mode.\n",
+		       bond->dev->name);
 		return BOND_OH_ERROR;
 	}
 
