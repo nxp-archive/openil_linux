@@ -38,7 +38,7 @@
 
  @Cautions      None
 *//***************************************************************************/
-
+#include <linux/math64.h>
 #include "error_ext.h"
 #include "debug_ext.h"
 #include "string_ext.h"
@@ -470,11 +470,11 @@ t_Error FM_RTC_SetAlarm(t_Handle h_FmRtc, t_FmRtcAlarmParams *p_FmRtcAlarmParams
         RETURN_ERROR(MAJOR, E_INVALID_SELECTION,
                      ("Alarm time must be equal or larger than RTC period - %d nanoseconds",
                       p_Rtc->clockPeriodNanoSec));
-    if (p_FmRtcAlarmParams->alarmTime % (uint64_t)p_Rtc->clockPeriodNanoSec)
+    tmpAlarm = p_FmRtcAlarmParams->alarmTime;
+    if (do_div(tmpAlarm, p_Rtc->clockPeriodNanoSec))
         RETURN_ERROR(MAJOR, E_INVALID_SELECTION,
                      ("Alarm time must be a multiple of RTC period - %d nanoseconds",
                       p_Rtc->clockPeriodNanoSec));
-    tmpAlarm = p_FmRtcAlarmParams->alarmTime/(uint64_t)p_Rtc->clockPeriodNanoSec;
 
     if (p_FmRtcAlarmParams->f_AlarmCallback)
     {
@@ -508,11 +508,11 @@ t_Error FM_RTC_SetPeriodicPulse(t_Handle h_FmRtc, t_FmRtcPeriodicPulseParams *p_
         RETURN_ERROR(MAJOR, E_INVALID_SELECTION,
                      ("Periodic pulse must be equal or larger than RTC period - %d nanoseconds",
                       p_Rtc->clockPeriodNanoSec));
-    if (p_FmRtcPeriodicPulseParams->periodicPulsePeriod % (uint64_t)p_Rtc->clockPeriodNanoSec)
+    tmpFiper = p_FmRtcPeriodicPulseParams->periodicPulsePeriod;
+    if (do_div(tmpFiper, p_Rtc->clockPeriodNanoSec))
         RETURN_ERROR(MAJOR, E_INVALID_SELECTION,
                      ("Periodic pulse must be a multiple of RTC period - %d nanoseconds",
                       p_Rtc->clockPeriodNanoSec));
-    tmpFiper = p_FmRtcPeriodicPulseParams->periodicPulsePeriod/(uint64_t)p_Rtc->clockPeriodNanoSec;
     if (tmpFiper & 0xffffffff00000000LL)
         RETURN_ERROR(MAJOR, E_INVALID_SELECTION,
                      ("Periodic pulse/RTC Period must be smaller than 4294967296",
@@ -628,7 +628,7 @@ t_Error FM_RTC_SetCurrentTime(t_Handle h_FmRtc, uint64_t ts)
     SANITY_CHECK_RETURN_ERROR(p_Rtc, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(!p_Rtc->p_RtcDriverParam, E_INVALID_STATE);
 
-    ts = ts/p_Rtc->clockPeriodNanoSec;
+    do_div(ts, p_Rtc->clockPeriodNanoSec);
     fman_rtc_set_timer(p_Rtc->p_MemMap, (int64_t)ts);
 
     return E_OK;

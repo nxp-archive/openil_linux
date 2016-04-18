@@ -37,6 +37,7 @@
 
 #if defined(NCSW_LINUX) && defined(__KERNEL__)
 #include <linux/math.h>
+#include <linux/math64.h>
 
 #elif defined(__MWERKS__)
 #define LOW(x) ( sizeof(x)==8 ? *(1+(int32_t*)&x) : (*(int32_t*)&x))
