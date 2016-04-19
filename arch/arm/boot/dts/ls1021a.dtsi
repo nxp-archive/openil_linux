@@ -460,6 +460,7 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
+			rcpm-wakeup = <&rcpm 0x00000040 0x0>;
 		};
 
 		gpio1: gpio@2310000 {
@@ -562,6 +563,7 @@
 			interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&sysclk>;
 			clock-names = "ipg";
+			rcpm-wakeup = <&rcpm 0x0 0x40000000>;
 			status = "disabled";
 		};
 
@@ -725,6 +727,7 @@
 			interrupt-parent = <&gic>;
 			model = "eTSEC";
 			fsl,magic-packet;
+			rcpm-wakeup = <&rcpm 0x80000000 0x0>;
 			ranges;
 			dma-coherent;
 
