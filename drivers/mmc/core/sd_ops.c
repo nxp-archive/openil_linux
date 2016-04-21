@@ -162,6 +162,13 @@ int mmc_send_app_op_cond(struct mmc_host *host, u32 ocr, u32 *rocr)
 	cmd.flags = MMC_RSP_SPI_R1 | MMC_RSP_R3 | MMC_CMD_BCR;
 
 	for (i = 100; i; i--) {
+		/*
+		 * Some cards need delay before ACMD41 to avoid
+		 * failed power up. So move the delay to the front
+		 * of the for loop.
+		 */
+		mmc_delay(10);
+
 		err = mmc_wait_for_app_cmd(host, NULL, &cmd, MMC_CMD_RETRIES);
 		if (err)
 			break;
@@ -180,8 +187,6 @@ int mmc_send_app_op_cond(struct mmc_host *host, u32 ocr, u32 *rocr)
 		}
 
 		err = -ETIMEDOUT;
-
-		mmc_delay(10);
 	}
 
 	if (!i)
