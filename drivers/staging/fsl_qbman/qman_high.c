@@ -5202,6 +5202,7 @@ int qman_ceetm_ccg_release(struct qm_ceetm_ccg *ccg)
 	config_opts.cm_config.cscn_tupd = cpu_to_be16(PORTAL_IDX(p));
 	ret = qman_ceetm_configure_ccgr(&config_opts);
 	spin_unlock_irqrestore(&p->ccgr_lock, irqflags);
+	put_affine_portal();
 
 	list_del(&ccg->node);
 	kfree(ccg);
@@ -5432,7 +5433,7 @@ int qman_ceetm_cscn_dcp_get(struct qm_ceetm_ccg *ccg,
 	}
 
 	*vcgid = query_result.cm_query.cdv;
-	*cscn_enabled = (cpu_to_be16(query_result.cm_query.cscn_targ_dcp >>
+	*cscn_enabled = (be16_to_cpu(query_result.cm_query.cscn_targ_dcp >>
 				     dcp_idx)) & 0x1;
 	return 0;
 }
