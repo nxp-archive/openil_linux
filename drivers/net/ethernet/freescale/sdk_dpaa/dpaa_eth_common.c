@@ -1572,7 +1572,7 @@ dpa_fd_release(const struct net_device *net_dev, const struct qm_fd *fd)
 	dma_addr_t		addr;
 	void			*vaddr;
 
-	memset(&bmb, 0, sizeof(struct bm_buffer));
+	bmb.opaque = 0;
 	bm_buffer_set64(&bmb, fd->addr);
 
 	dpa_bp = dpa_bpid2pool(fd->bpid);
