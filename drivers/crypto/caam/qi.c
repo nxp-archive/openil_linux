@@ -686,7 +686,7 @@ static int alloc_rsp_fq_cpu(struct device *qidev, unsigned int cpu)
 
 	opts.fqd.dest.channel = qman_affine_channel(cpu);
 	opts.fqd.cgid = qipriv.rsp_cgr.cgrid;
-	opts.fqd.dest.wq = 2;
+	opts.fqd.dest.wq = 3;
 	opts.fqd.context_a.stashing.exclusive =
 					QM_STASHING_EXCL_CTX |
 					QM_STASHING_EXCL_DATA;
