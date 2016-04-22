@@ -18,7 +18,7 @@
 
 #define PRE_HDR_LEN		2	/* Length in u32 words */
 #define PREHDR_RSLS_SHIFT	31
-#ifndef CONFIG_FSL_DPAA_ETH
+#ifndef CONFIG_FSL_DPAA_ETH_MAX_BUF_COUNT
 /* If DPA_ETH is not available, then use a reasonably backlog per CPU */
 #define MAX_RSP_FQ_BACKLOG_PER_CPU	64
 #endif
@@ -727,7 +727,7 @@ static int alloc_cgrs(struct device *qidev)
 			QM_CGR_WE_MODE;
 	opts.cgr.cscn_en = QM_CGR_EN;
 	opts.cgr.mode = QMAN_CGR_MODE_FRAME;
-#ifdef CONFIG_FSL_DPAA_ETH
+#ifdef CONFIG_FSL_DPAA_ETH_MAX_BUF_COUNT
 	/*
 	 * This effectively sets the to-CPU threshold equal to half of the
 	 * number of buffers available to dpa_eth driver. It means that at most
