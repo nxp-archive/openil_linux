@@ -119,7 +119,7 @@ static u32 esdhc_readl_fixup(struct sdhci_host *host,
 		dlsl = value & ESDHC_DLSL_MASK;
 		ret = value &
 		      (~((ESDHC_CLSL_MASK << 1) | (ESDHC_DLSL_MASK >> 4)));
-		ret = value | ((clsl << 1) | (dlsl >> 4));
+		ret |= ((clsl << 1) | (dlsl >> 4));
 		return ret;
 	}
 	ret = value;
