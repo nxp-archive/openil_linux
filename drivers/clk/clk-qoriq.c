@@ -195,6 +195,14 @@ static const struct clockgen_muxinfo t1023_cmux = {
 	}
 };
 
+static const struct clockgen_muxinfo ls1021a_cmux = {
+	{
+		[0] = { CLKSEL_VALID, CGA_PLL1, PLL_DIV1 },
+		[1] = { CLKSEL_VALID, CGA_PLL1, PLL_DIV2 },
+		[2] = { CLKSEL_VALID, CGA_PLL1, PLL_DIV4 },
+	}
+};
+
 static const struct clockgen_muxinfo t1040_cmux = {
 	{
 		[0] = { CLKSEL_VALID, CGA_PLL1, PLL_DIV1 },
@@ -467,7 +475,7 @@ static const struct clockgen_chipinfo chipinfo[] = {
 	{
 		.compat = "fsl,ls1021a-clockgen",
 		.cmux_groups = {
-			&t1023_cmux
+			&ls1021a_cmux
 		},
 		.cmux_to_group = {
 			0, -1
