@@ -426,6 +426,11 @@ static int ls_pcie_host_pme_init(struct ls_pcie *pcie,
 
 	pp = &pcie->pp;
 
+	if (dw_pcie_link_up(&pcie->pp))
+		pcie->in_slot = true;
+	else
+		pcie->in_slot = false;
+
 	pcie->pme_irq = platform_get_irq_byname(pdev, "pme");
 	if (pcie->pme_irq < 0) {
 		dev_err(&pdev->dev,
@@ -461,11 +466,6 @@ static int ls_pcie_host_pme_init(struct ls_pcie *pcie,
 	val = ioread16(pcie->dbi + PCIE_PEX_RCR);
 	val |= PCIE_PEX_RCR_PMEIE;
 	iowrite16(val, pcie->dbi + PCIE_PEX_RCR);
-
-	if (dw_pcie_link_up(&pcie->pp))
-		pcie->in_slot = true;
-	else
-		pcie->in_slot = false;
 
 	return 0;
 }
@@ -590,11 +590,13 @@ static int ls_pcie_pm_do_resume(struct ls_pcie *pcie)
 	u32 state;
 	int i = 0;
 	u16 val;
-
-	ls_pcie_host_init(&pcie->pp);
+	struct pcie_port *pp = &pcie->pp;
 
 	if (!pcie->in_slot)
 		return 0;
+
+	dw_pcie_setup_rc(pp);
+	ls_pcie_host_init(pp);
 
 	/* Put RC in D0 */
 	val = ioread16(pcie->dbi + PCIE_PM_SCR);
