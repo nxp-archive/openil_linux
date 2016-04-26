@@ -8,6 +8,7 @@ void devm_ioremap_release(struct device *dev, void *res)
 {
 	iounmap(*(void __iomem **)res);
 }
+EXPORT_SYMBOL(devm_ioremap_release);
 
 static int devm_ioremap_match(struct device *dev, void *res, void *match_data)
 {
