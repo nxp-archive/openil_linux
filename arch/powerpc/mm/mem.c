@@ -499,6 +499,7 @@ static inline void hook_usdpaa_tlb1(struct vm_area_struct *vma,
 		flush_tlb_mm(vma->vm_mm);
 		settlbcam(tlb_idx, va, phys_addr, size, pte_val(*ptep),
 			  mfspr(SPRN_PID));
+		loadcam_entry(tlb_idx);
 	}
 }
 #else
