@@ -81,6 +81,8 @@
 #include "dpa_sys_ppc32.h"
 #elif defined CONFIG_PPC64
 #include "dpa_sys_ppc64.h"
+#elif defined CONFIG_ARM
+#include "dpa_sys_arm.h"
 #elif defined CONFIG_ARM64
 #include "dpa_sys_arm64.h"
 #endif

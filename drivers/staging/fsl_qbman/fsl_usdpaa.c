@@ -19,7 +19,7 @@
 #include <linux/mman.h>
 #include <linux/of_reserved_mem.h>
 
-#ifndef CONFIG_ARM64
+#if !(defined(CONFIG_ARM) || defined(CONFIG_ARM64))
 #include <mm/mmu_decl.h>
 #endif
 
@@ -750,7 +750,7 @@ static int check_mmap_portal(struct ctx *ctx, struct vm_area_struct *vma,
 					  match, pfn);
 		if (*match) {
 			vma->vm_page_prot =
-#ifdef CONFIG_ARM64
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
 				pgprot_cached_ns(vma->vm_page_prot);
 #else
 				pgprot_cached_noncoherent(vma->vm_page_prot);
@@ -1193,7 +1193,7 @@ map_match:
 	for (i = 0; i < map->frag_count; i++) {
 		DPA_ASSERT(current_frag->refs > 0);
 		--current_frag->refs;
-#ifndef CONFIG_ARM64
+#if !(defined(CONFIG_ARM) || defined(CONFIG_ARM64))
 		/*
 		 * Make sure we invalidate the TLB entry for
 		 * this fragment, otherwise a remap of a different

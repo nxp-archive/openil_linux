@@ -41,6 +41,7 @@
 #error "_PPC64 requires _FSL_QMAN_FQ_LOOKUP"
 #endif
 
+#define QBMAN_ANY_PORTAL_IDX 0xffffffff
 	/* ----------------- */
 	/* Congestion Groups */
 	/* ----------------- */

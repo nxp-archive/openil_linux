@@ -628,10 +628,15 @@ struct qman_portal *qman_create_portal(
 		pr_err("qman_portal - platform_device_alloc() failed\n");
 		goto fail_devalloc;
 	}
+#ifdef CONFIG_ARM
+	portal->pdev->dev.coherent_dma_mask = DMA_BIT_MASK(40);
+	portal->pdev->dev.dma_mask = &portal->pdev->dev.coherent_dma_mask;
+#else
 	if (dma_set_mask(&portal->pdev->dev, DMA_BIT_MASK(40))) {
 		pr_err("qman_portal - dma_set_mask() failed\n");
 		goto fail_devadd;
 	}
+#endif
 	portal->pdev->dev.pm_domain = &qman_portal_device_pm_domain;
 	portal->pdev->dev.platform_data = portal;
 	ret = platform_device_add(portal->pdev);

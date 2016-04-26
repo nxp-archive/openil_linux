@@ -1236,6 +1236,11 @@ source "arch/arm/common/Kconfig"
 
 menu "Bus support"
 
+config HAS_FSL_QBMAN
+	bool "Datapath Acceleration Queue and Buffer management"
+	help
+	  Datapath Acceleration Queue and Buffer management
+
 config ISA
 	bool
 	help
