@@ -1,7 +1,7 @@
 /*
  * B4860QDS Device Tree Source
  *
- * Copyright 2014 Freescale Semiconductor Inc.
+ * Copyright 2016 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -77,12 +77,21 @@
 		fsl,bpid = <12>;
 		fsl,bpool-thresholds = <0x100 0x300 0x0 0x0>;
 	};
+
 	bp16: buffer-pool@16 {
-		compatible = "fsl,b4860-bpool", "fsl,bpool";
-		fsl,bpid = <16>;
-		fsl,bpool-ethernet-cfg = <0 2048 0 1728 0 0>;
-		fsl,bpool-thresholds = <0x100 0x300 0x0 0x0>;
+			compatible = "fsl,b4860-bpool", "fsl,bpool";
+			fsl,bpid = <16>;
+			fsl,bpool-ethernet-cfg = <0 2048 0 1728 0 0>;
+			fsl,bpool-thresholds = <0x100 0x300 0x0 0x0>;
 	};
+	bp17: buffer-pool@17 {
+                        compatible = "fsl,b4860-bpool", "fsl,bpool";
+                        fsl,bpid = <17>;
+                        fsl,bpool-ethernet-cfg = <0 2048 0 1728 0 0>;
+                        fsl,bpool-thresholds = <0x100 0x300 0x0 0x0>;
+                        fsl,bpool-ethernet-seeds;
+       };
+
 
 	fsl,dpaa {
 		ethernet@4 {
@@ -91,19 +100,30 @@
 			fsl,qman-frame-queues-rx = <0x58 1 0x59 1>;
 			fsl,qman-frame-queues-tx = <0x78 1 0x79 1>;
 		};
-
-		/* ethernet@16 declared as MAC-less interface with no "fsl,fman-mac" property.
-		 * USDPAA will seed buffers to this buffer pool and initialize 8 TX Frame
-		 * queues. The ethernet driver will initialize 8 RX default Frame queues.
-		 * On receiving frame at this interface, the ethernet driver will do
-		 * kmap_atomic/kunmap_atomic for that frame. */
-		ethernet@16 {
-			compatible = "fsl,b4860-dpa-ethernet-macless", "fsl,dpa-ethernet-macless";
-			fsl,bman-buffer-pools = <&bp16>;
-			fsl,qman-frame-queues-rx = <4000 8>;
-			fsl,qman-frame-queues-tx = <4008 8>;
-			local-mac-address = [00 11 22 33 44 55];
+		/* ethernet@9 declared as shared MAC. USDPAA will seed buffers to
+		 * this buffer pool. The ethernet driver will initialize the RX default,
+		 * RX error, TX error, TX confirm and 8 TX Frame queues. On receiving frame
+		 * at this interface, the ethernet driver will do kmap_atomic/kunmap_atomic
+		 * for that frame. */
+		ethernet@9 {
+			compatible = "fsl,b4860-dpa-ethernet-shared", "fsl,dpa-ethernet-shared";
+			fsl,bman-buffer-pools = <&bp17>;
+			fsl,qman-frame-queues-rx = <0x5e 1 0x5f 1 0x2000 3>;
+			fsl,qman-frame-queues-tx = <0 1 0 1 0x3000 8>;
 		};
+
+	       /* ethernet@16 declared as MAC-less interface with no "fsl,fman-mac" property.
+                 * USDPAA will seed buffers to this buffer pool and initialize 8 TX Frame
+                 * queues. The ethernet driver will initialize 8 RX default Frame queues.
+                 * On receiving frame at this interface, the ethernet driver will do
+                 * kmap_atomic/kunmap_atomic for that frame. */
+               ethernet@16 {
+                        compatible = "fsl,b4860-dpa-ethernet-macless", "fsl,dpa-ethernet-macless";
+                        fsl,bman-buffer-pools = <&bp16>;
+                        fsl,qman-frame-queues-rx = <4000 8>;
+                        fsl,qman-frame-queues-tx = <4008 8>;
+                        local-mac-address = [00 11 22 33 44 55];
+                };
 		ethernet@17 {
 			compatible = "fsl,b4860-dpa-ethernet-macless", "fsl,dpa-ethernet-macless";
 			fsl,bman-buffer-pools = <&bp16>;
@@ -112,15 +132,22 @@
 			local-mac-address = [00 11 22 33 44 66];
 		};
 		ethernet@18 {
-                        compatible = "fsl,b4860-dpa-ethernet-macless", "fsl,dpa-ethernet-macless";
-                        fsl,bman-buffer-pools = <&bp16>;
-                        fsl,qman-frame-queues-rx = <6000 8>;
-                        fsl,qman-frame-queues-tx = <6008 8>;
-                        local-mac-address = [00 11 22 33 44 77];
-                };
+			compatible = "fsl,b4860-dpa-ethernet-macless", "fsl,dpa-ethernet-macless";
+			fsl,bman-buffer-pools = <&bp16>;
+			fsl,qman-frame-queues-rx = <6000 8>;
+			fsl,qman-frame-queues-tx = <6008 8>;
+			local-mac-address = [00 11 22 33 44 77];
+		};
+		ethernet@19 {
+			compatible = "fsl,b4860-dpa-ethernet-generic", "fsl,dpa-ethernet-generic";
+			fsl,qman-frame-queues-rx = <7000 2>;
+			fsl,qman-frame-queues-tx = <7008 1>;
+			fsl,oh-ports = <&oh2 &oh3>;
+			fsl,disable_buff_dealloc;
+			local-mac-address = [00 11 22 33 44 88];
+		};
 
-
-		dpa-fman0-oh@2 {
+		oh2: dpa-fman0-oh@2 {
 			compatible = "fsl,dpa-oh";
 			/* Define frame queues for the OH port*/
 			/* <OH Rx error, OH Rx default> */
@@ -128,7 +155,7 @@
 			fsl,bman-buffer-pools = <&bp16>;
 			fsl,fman-oh-port = <&fman0_oh2>;
 		};
-		dpa_fman0_oh3: dpa-fman0-oh@3 {
+		oh3: dpa_fman0_oh3: dpa-fman0-oh@3 {
 			compatible = "fsl,dpa-oh";
 			fsl,qman-frame-queues-oh = <0x68 1 0x69 1>;
 			fsl,bman-buffer-pools = <&bp9>;
@@ -136,15 +163,28 @@
 		};
 		dpa_fman0_oh4: dpa-fman0-oh@4 {
 			compatible = "fsl,dpa-oh";
-			fsl,qman-frame-queues-oh = <0x84 1 0x85 1>;
+			fsl,qman-frame-queues-oh = <0x70 1 0x71 1>;
 			fsl,bman-buffer-pools = <&bp9>;
 			fsl,fman-oh-port = <&fman0_oh4>;
 		};
-		dpa_fman0_oh5: dpa-fman0-oh@5 {
-			compatible = "fsl,dpa-oh";
-			fsl,qman-frame-queues-oh = <0x86 1 0x87 1>;
-			fsl,bman-buffer-pools = <&bp16>;
-			fsl,fman-oh-port = <&fman0_oh5>;
+                dpa_fman0_oh5: dpa-fman0-oh@5 {
+                        compatible = "fsl,dpa-oh";
+                        fsl,qman-frame-queues-oh = <0x72 1 0x73 1>;
+                        fsl,bman-buffer-pools = <&bp9>;
+                        fsl,fman-oh-port = <&fman0_oh5>;
+                };
+
+	};
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		usdpaa_mem: usdpaa_mem {
+			compatible = "fsl,usdpaa-mem";
+			alloc-ranges = <0 0 0x10000 0>;
+			size = <0 0x40000000>;
+			alignment = <0 0x40000000>;
 		};
 	};
 };
