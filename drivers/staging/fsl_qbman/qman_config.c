@@ -452,6 +452,11 @@ static int qman_pfdr(struct reserved_mem *rmem)
 }
 RESERVEDMEM_OF_DECLARE(qman_fbpr, "fsl,qman-pfdr", qman_pfdr);
 
+size_t get_qman_fqd_size()
+{
+	return fqd_sz;
+}
+
 /* Parse the <name> property to extract the memory location and size and
  * memblock_reserve() it. If it isn't supplied, memblock_alloc() the default
  * size. Also flush this memory range from data cache so that QMAN originated
