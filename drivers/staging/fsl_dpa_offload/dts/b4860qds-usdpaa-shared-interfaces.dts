@@ -143,7 +143,7 @@
 		 * for that frame. */
 		ethernet@9 {
 			compatible = "fsl,b4860-dpa-ethernet-shared", "fsl,dpa-ethernet-shared";
-			fsl,bman-buffer-pools = <&bp17>;
+			fsl,bman-buffer-pools = <&bp16>;
 			fsl,qman-frame-queues-rx = <0x5e 1 0x5f 1 0x2000 3>;
 			fsl,qman-frame-queues-tx = <0 1 0 1 0x3000 8>;
 		};
@@ -188,7 +188,7 @@
 			/* Define frame queues for the OH port*/
 			/* <OH Rx error, OH Rx default> */
 			fsl,qman-frame-queues-oh = <0x6e 1 0x6f 1>;
-			fsl,bman-buffer-pools = <&bp16>;
+			fsl,bman-buffer-pools = <&bp17>;
 			fsl,fman-oh-port = <&fman0_oh2>;
 		};
 		oh3: dpa_fman0_oh3: dpa-fman0-oh@3 {
