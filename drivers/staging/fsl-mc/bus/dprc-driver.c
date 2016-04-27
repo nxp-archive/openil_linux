@@ -1045,6 +1045,9 @@ static int dprc_remove(struct fsl_mc_device *mc_dev)
 	if (fsl_mc_interrupts_supported())
 		fsl_mc_cleanup_irq_pool(mc_bus);
 
+	fsl_destroy_mc_io(mc_dev->mc_io);
+	mc_dev->mc_io = NULL;
+
 	if (&mc_dev->dev == fsl_mc_bus_type.dev_root)
 		fsl_mc_bus_type.dev_root = NULL;
 
