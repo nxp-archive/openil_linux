@@ -1,4 +1,4 @@
-/* Copyright 2014 Freescale Semiconductor, Inc.
+/* Copyright 2016 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -29,13 +29,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef DPA_SYS_ARM64_H
-#define DPA_SYS_ARM64_H
+#ifndef DPA_SYS_ARM_H
+#define DPA_SYS_ARM_H
 
 #include <asm/cacheflush.h>
 #include <asm/barrier.h>
 
-/* Implementation of ARM 64 bit specific routines */
+/* Implementation of ARM specific routines */
 
 /* TODO: NB, we currently assume that hwsync() and lwsync() imply compiler
  * barriers and that dcb*() won't fall victim to compiler or execution
@@ -43,26 +43,22 @@
  * cacheline. */
 #define hwsync() { asm volatile("dmb st" : : : "memory"); }
 #define lwsync() { asm volatile("dmb st" : : : "memory"); }
-#define dcbf(p) { asm volatile("dc cvac, %0;" : : "r" (p) : "memory"); }
-#define dcbt_ro(p) { asm volatile("prfm pldl1keep, [%0, #64]" : : "r" (p)); }
-#define dcbt_rw(p) { asm volatile("prfm pldl1keep, [%0, #64]" : : "r" (p)); }
-#define dcbi(p) { asm volatile("dc ivac, %0" : : "r"(p) : "memory"); }
-#define dcbz(p) { asm volatile("dc zva, %0" : : "r" (p) : "memory"); }
+#define dcbf(p) { asm volatile("mcr p15, 0, %0, c7, c10, 1" : : "r" (p) : "memory"); }
+#define dcbt_ro(p) { asm volatile("pld [%0, #64];": : "r" (p)); }
+#define dcbt_rw(p) { asm volatile("pldw [%0, #64];": : "r" (p)); }
+#define dcbi(p) { asm volatile("mcr p15, 0, %0, c7, c6, 1" : : "r" (p) : "memory"); }
 
-#define dcbz_64(p) \
-	do { \
-		dcbz(p);	\
-	} while (0)
+#define dcbz_64(p) { memset(p, 0, sizeof(*p)); }
 
 #define dcbf_64(p) \
 	do { \
-		dcbf(p); \
+		dcbf((u32)p); \
 	} while (0)
 /* Commonly used combo */
 #define dcbit_ro(p) \
 	do { \
-		dcbi(p); \
-		dcbt_ro(p); \
+		dcbi((u32)p); \
+		dcbt_ro((u32)p); \
 	} while (0)
 
 static inline u64 mfatb(void)
@@ -92,11 +88,8 @@ static inline void clear_bits(unsigned long mask, volatile unsigned long *p)
 
 static inline void flush_dcache_range(unsigned long start, unsigned long stop)
 {
-	__flush_dcache_area((void *) start, stop - start);
+	__cpuc_flush_dcache_area((void *) start, stop - start);
 }
 
 #define hard_smp_processor_id() raw_smp_processor_id()
-
-
-
 #endif

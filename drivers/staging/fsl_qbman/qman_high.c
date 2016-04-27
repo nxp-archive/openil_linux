@@ -628,10 +628,15 @@ struct qman_portal *qman_create_portal(
 		pr_err("qman_portal - platform_device_alloc() failed\n");
 		goto fail_devalloc;
 	}
+#ifdef CONFIG_ARM
+	portal->pdev->dev.coherent_dma_mask = DMA_BIT_MASK(40);
+	portal->pdev->dev.dma_mask = &portal->pdev->dev.coherent_dma_mask;
+#else
 	if (dma_set_mask(&portal->pdev->dev, DMA_BIT_MASK(40))) {
 		pr_err("qman_portal - dma_set_mask() failed\n");
 		goto fail_devadd;
 	}
+#endif
 	portal->pdev->dev.pm_domain = &qman_portal_device_pm_domain;
 	portal->pdev->dev.platform_data = portal;
 	ret = platform_device_add(portal->pdev);
@@ -5202,6 +5207,7 @@ int qman_ceetm_ccg_release(struct qm_ceetm_ccg *ccg)
 	config_opts.cm_config.cscn_tupd = cpu_to_be16(PORTAL_IDX(p));
 	ret = qman_ceetm_configure_ccgr(&config_opts);
 	spin_unlock_irqrestore(&p->ccgr_lock, irqflags);
+	put_affine_portal();
 
 	list_del(&ccg->node);
 	kfree(ccg);
@@ -5432,7 +5438,7 @@ int qman_ceetm_cscn_dcp_get(struct qm_ceetm_ccg *ccg,
 	}
 
 	*vcgid = query_result.cm_query.cdv;
-	*cscn_enabled = (cpu_to_be16(query_result.cm_query.cscn_targ_dcp >>
+	*cscn_enabled = (be16_to_cpu(query_result.cm_query.cscn_targ_dcp >>
 				     dcp_idx)) & 0x1;
 	return 0;
 }
