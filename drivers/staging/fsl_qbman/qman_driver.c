@@ -58,11 +58,6 @@ struct qm_ceetm qman_ceetms[QMAN_CEETM_MAX];
 /* the qman ceetm instances on the given SoC */
 u8 num_ceetms;
 
-/* size of the fqd region in bytes */
-#ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
-static u32 fqd_size = (PAGE_SIZE << CONFIG_FSL_QMAN_FQD_SZ);
-#endif
-
 /* For these variables, and the portal-initialisation logic, the
  * comments in bman_driver.c apply here so won't be repeated. */
 static struct qman_portal *shared_portals[NR_CPUS];
@@ -784,7 +779,7 @@ __init int qman_init(void)
 	}
 #ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
 	/* Setup lookup table for FQ demux */
-	ret = qman_setup_fq_lookup_table(fqd_size/64);
+	ret = qman_setup_fq_lookup_table(get_qman_fqd_size()/64);
 	if (ret)
 		return ret;
 #endif
