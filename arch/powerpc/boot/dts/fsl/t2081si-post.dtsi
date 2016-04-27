@@ -547,9 +547,9 @@
 
 	iommu@20000 {
 		compatible = "fsl,pamu-v1.0", "fsl,pamu";
-		reg = <0x20000 0x3000>;
+		reg = <0x20000 0x4000>;
 		fsl,portid-mapping = <0x8000>;
-		ranges = <0 0x20000 0x3000>;
+		ranges = <0 0x20000 0x4000>;
 		#address-cells = <1>;
 		#size-cells = <1>;
 		interrupts = <
