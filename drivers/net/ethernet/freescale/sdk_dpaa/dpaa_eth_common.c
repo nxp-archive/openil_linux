@@ -902,7 +902,12 @@ struct dpa_fq *dpa_fq_alloc(struct device *dev,
 
 	for (i = 0; i < fq_count; i++) {
 		dpa_fq[i].fq_type = fq_type;
-		dpa_fq[i].fqid = fq_start ? fq_start + i : 0;
+		if (fq_type == FQ_TYPE_RX_PCD_HI_PRIO)
+			dpa_fq[i].fqid = fq_start ?
+					 DPAA_ETH_FQ_DELTA + fq_start + i : 0;
+		else
+			dpa_fq[i].fqid = fq_start ? fq_start + i : 0;
+
 		list_add_tail(&dpa_fq[i].list, list);
 	}
 
@@ -1000,11 +1005,21 @@ int dpa_fq_probe_mac(struct device *dev, struct list_head *list,
 				port_fqs->tx_defq = &dpa_fq[0];
 			break;
 		default:
-			/* all subsequent queues are either RX PCD or Tx */
-			if (!dpa_fq_alloc(dev, fqids[i].start,
-					  fqids[i].count, list, ptype == RX ?
-					   FQ_TYPE_RX_PCD : FQ_TYPE_TX))
-				goto fq_alloc_failed;
+			/* all subsequent queues are either RX* PCD or Tx */
+			if (ptype == RX) {
+				if (!dpa_fq_alloc(dev, fqids[i].start,
+						  fqids[i].count, list,
+						  FQ_TYPE_RX_PCD) ||
+				    !dpa_fq_alloc(dev, fqids[i].start,
+						  fqids[i].count, list,
+						  FQ_TYPE_RX_PCD_HI_PRIO))
+					goto fq_alloc_failed;
+			} else {
+				if (!dpa_fq_alloc(dev, fqids[i].start,
+						  fqids[i].count, list,
+						  FQ_TYPE_TX))
+					goto fq_alloc_failed;
+			}
 			break;
 		}
 	}
@@ -1168,7 +1183,7 @@ void dpa_fq_setup(struct dpa_priv_s *priv, const struct dpa_fq_cbs_t *fq_cbs,
 	struct dpa_fq *fq;
 	uint16_t portals[NR_CPUS];
 	int cpu, portal_cnt = 0, num_portals = 0;
-	uint32_t pcd_fqid;
+	uint32_t pcd_fqid, pcd_fqid_hi_prio;
 	const cpumask_t *affine_cpus = qman_affine_cpus();
 	int egress_cnt = 0, conf_cnt = 0;
 
@@ -1181,6 +1196,8 @@ void dpa_fq_setup(struct dpa_priv_s *priv, const struct dpa_fq_cbs_t *fq_cbs,
 
 	pcd_fqid = (priv->mac_dev) ?
 		DPAA_ETH_PCD_FQ_BASE(priv->mac_dev->res->start) : 0;
+	pcd_fqid_hi_prio = (priv->mac_dev) ?
+		DPAA_ETH_PCD_FQ_HI_PRIO_BASE(priv->mac_dev->res->start) : 0;
 
 	/* Initialize each FQ in the list */
 	list_for_each_entry(fq, &priv->dpa_fq_list, list) {
@@ -1199,6 +1216,15 @@ void dpa_fq_setup(struct dpa_priv_s *priv, const struct dpa_fq_cbs_t *fq_cbs,
 			dpa_setup_ingress(priv, fq, &fq_cbs->rx_defq);
 			if (!fq->fqid)
 				fq->fqid = pcd_fqid++;
+			fq->channel = portals[portal_cnt];
+			portal_cnt = (portal_cnt + 1) % num_portals;
+			break;
+		case FQ_TYPE_RX_PCD_HI_PRIO:
+			/* For MACless we can't have dynamic Hi Pri Rx queues */
+			BUG_ON(!priv->mac_dev && !fq->fqid);
+			dpa_setup_ingress(priv, fq, &fq_cbs->rx_defq);
+			if (!fq->fqid)
+				fq->fqid = pcd_fqid_hi_prio++;
 			fq->channel = portals[portal_cnt];
 			portal_cnt = (portal_cnt + 1) % num_portals;
 			break;
@@ -1353,7 +1379,8 @@ int dpa_fq_init(struct dpa_fq *dpa_fq, bool td_enable)
 		if (priv->use_ingress_cgr &&
 				(dpa_fq->fq_type == FQ_TYPE_RX_DEFAULT ||
 				 dpa_fq->fq_type == FQ_TYPE_RX_ERROR ||
-				 dpa_fq->fq_type == FQ_TYPE_RX_PCD)) {
+				 dpa_fq->fq_type == FQ_TYPE_RX_PCD ||
+				 dpa_fq->fq_type == FQ_TYPE_RX_PCD_HI_PRIO)) {
 			initfq.we_mask |= QM_INITFQ_WE_CGID;
 			initfq.fqd.fq_ctrl |= QM_FQCTRL_CGE;
 			initfq.fqd.cgid = (uint8_t)priv->ingress_cgr.cgrid;
