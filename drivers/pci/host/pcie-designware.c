@@ -494,6 +494,13 @@ void dw_pcie_setup_rc(struct pcie_port *pp)
 	u32 membase;
 	u32 memlimit;
 
+	dw_pcie_prog_outbound_atu(pp, PCIE_ATU_REGION_INDEX0,
+				  PCIE_ATU_TYPE_IO, pp->io_base,
+				  pp->io_bus_addr, pp->io_size);
+	dw_pcie_prog_outbound_atu(pp, PCIE_ATU_REGION_INDEX1,
+				  PCIE_ATU_TYPE_MEM, pp->mem_base,
+				  pp->mem_bus_addr, pp->mem_size);
+
 	/* set the number of lanes */
 	dw_pcie_readl_rc(pp, PCIE_PORT_LINK_CONTROL, &val);
 	val &= ~PORT_LINK_MODE_MASK;
