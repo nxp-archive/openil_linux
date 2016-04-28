@@ -395,6 +395,118 @@ _GLOBAL(set_context)
 #error Unsupported processor type !
 #endif
 
+/*
+ * Create a tlb entry with the same effective and physical address as
+ * the tlb entry used by the current running code. But set the TS to 1.
+ * Then switch to the address space 1. It will return with the r3 set to
+ * the ESEL of the new created tlb.
+ */
+_GLOBAL(switch_to_as1)
+	mflr	r5
+
+	/* Find a entry not used */
+	mfspr	r3,SPRN_TLB1CFG
+	andi.	r3,r3,0xfff
+	mfspr	r4,SPRN_PID
+	rlwinm	r4,r4,16,0x3fff0000	/* turn PID into MAS6[SPID] */
+	mtspr	SPRN_MAS6,r4
+1:	lis	r4,0x1000		/* Set MAS0(TLBSEL) = 1 */
+	addi	r3,r3,-1
+	rlwimi	r4,r3,16,4,15		/* Setup MAS0 = TLBSEL | ESEL(r3) */
+	mtspr	SPRN_MAS0,r4
+	tlbre
+	mfspr	r4,SPRN_MAS1
+	andis.	r4,r4,MAS1_VALID@h
+	bne	1b
+
+	/* Get the tlb entry used by the current running code */
+	bl	0f
+0:	mflr	r4
+	tlbsx	0,r4
+
+	mfspr	r4,SPRN_MAS1
+	ori	r4,r4,MAS1_TS		/* Set the TS = 1 */
+	mtspr	SPRN_MAS1,r4
+
+	mfspr	r4,SPRN_MAS0
+	rlwinm	r4,r4,0,~MAS0_ESEL_MASK
+	rlwimi	r4,r3,16,4,15		/* Setup MAS0 = TLBSEL | ESEL(r3) */
+	mtspr	SPRN_MAS0,r4
+	tlbwe
+	isync
+	sync
+
+	mfmsr	r4
+	ori	r4,r4,MSR_IS | MSR_DS
+	mtspr	SPRN_SRR0,r5
+	mtspr	SPRN_SRR1,r4
+	sync
+	rfi
+
+/*
+ * Restore to the address space 0 and also invalidate the tlb entry created
+ * by switch_to_as1.
+ * r3 - the tlb entry which should be invalidated
+ * r4 - __pa(PAGE_OFFSET in AS1) - __pa(PAGE_OFFSET in AS0)
+ * r5 - device tree virtual address. If r4 is 0, r5 is ignored.
+ * r6 - boot cpu
+*/
+_GLOBAL(restore_to_as0)
+	mflr	r0
+
+	bl	0f
+0:	mflr	r9
+	addi	r9,r9,1f - 0b
+
+	/*
+	 * We may map the PAGE_OFFSET in AS0 to a different physical address,
+	 * so we need calculate the right jump and device tree address based
+	 * on the offset passed by r4.
+	 */
+	add	r9,r9,r4
+	add	r5,r5,r4
+	add	r0,r0,r4
+
+2:	mfmsr	r7
+	li	r8,(MSR_IS | MSR_DS)
+	andc	r7,r7,r8
+
+	mtspr	SPRN_SRR0,r9
+	mtspr	SPRN_SRR1,r7
+	sync
+	rfi
+
+	/* Invalidate the temporary tlb entry for AS1 */
+1:	lis	r9,0x1000		/* Set MAS0(TLBSEL) = 1 */
+	rlwimi	r9,r3,16,4,15		/* Setup MAS0 = TLBSEL | ESEL(r3) */
+	mtspr	SPRN_MAS0,r9
+	tlbre
+	mfspr	r9,SPRN_MAS1
+	rlwinm	r9,r9,0,2,31		/* Clear MAS1 Valid and IPPROT */
+	mtspr	SPRN_MAS1,r9
+	tlbwe
+	isync
+
+	/* Rellocation support is PPC32 specific so guard it */
+#ifdef CONFIG_PPC64
+	mtlr	r0
+	blr
+#else
+	cmpwi	r4,0
+	cmpwi	cr1,r6,0
+	cror	eq,4*cr1+eq,eq
+	bne	3f			/* offset != 0 && is_boot_cpu */
+	mtlr	r0
+	blr
+
+	/*
+	 * The PAGE_OFFSET will map to a different physical address,
+	 * jump to _start to do another relocation again.
+	*/
+3:	mr	r3,r5
+	bl	_start
+#endif
+
 #if defined(CONFIG_PPC_FSL_BOOK3E)
 /*
  * extern void loadcam_entry(unsigned int index)
