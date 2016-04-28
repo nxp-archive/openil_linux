@@ -3811,6 +3811,7 @@ int qman_ceetm_lni_set_commit_rate(struct qm_ceetm_lni *lni,
 						      | (token_rate->fraction));
 	config_opts.shaper_config.crtbl = cpu_to_be16(token_limit);
 	config_opts.shaper_config.cpl = query_result.shaper_query.cpl;
+	config_opts.shaper_config.oal = query_result.shaper_query.oal;
 	config_opts.shaper_config.ertcr = query_result.shaper_query.ertcr;
 	config_opts.shaper_config.ertbl = query_result.shaper_query.ertbl;
 	config_opts.shaper_config.mps = query_result.shaper_query.mps;
@@ -3905,6 +3906,7 @@ int qman_ceetm_lni_set_excess_rate(struct qm_ceetm_lni *lni,
 		(token_rate->whole << 13) | (token_rate->fraction));
 	config_opts.shaper_config.ertbl = cpu_to_be16(token_limit);
 	config_opts.shaper_config.cpl = query_result.shaper_query.cpl;
+	config_opts.shaper_config.oal = query_result.shaper_query.oal;
 	config_opts.shaper_config.crtcr = query_result.shaper_query.crtcr;
 	config_opts.shaper_config.crtbl = query_result.shaper_query.crtbl;
 	config_opts.shaper_config.mps = query_result.shaper_query.mps;
