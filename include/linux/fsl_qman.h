@@ -3790,6 +3790,37 @@ int qman_ceetm_ccg_get_reject_statistics(struct qm_ceetm_ccg *ccg, u32 flags,
 					u64 *frame_count, u64 *byte_count);
 
 /**
+ * qman_ceetm_query_lfqmt - Query the logical frame queue mapping table
+ * @lfqid: Logical Frame Queue ID
+ * @lfqmt_query: Results of the query command
+ *
+ * Returns zero for success or -EIO if the query command returns error.
+ *
+ */
+int qman_ceetm_query_lfqmt(int lfqid,
+			   struct qm_mcr_ceetm_lfqmt_query *lfqmt_query);
+
+/**
+ * qman_ceetm_query_write_statistics - Query (and optionally write) statistics
+ * @cid: Target ID (CQID or CCGRID)
+ * @dcp_idx: CEETM portal ID
+ * @command_type: One of the following:
+ *   0 = Query dequeue statistics. CID carries the CQID to be queried.
+ *   1 = Query and clear dequeue statistics. CID carries the CQID to be queried
+ *   2 = Write dequeue statistics. CID carries the CQID to be written.
+ *   3 = Query reject statistics. CID carries the CCGRID to be queried.
+ *   4 = Query and clear reject statistics. CID carries the CCGRID to be queried
+ *   5 = Write reject statistics. CID carries the CCGRID to be written
+ * @frame_count: Frame count value to be written if this is a write command
+ * @byte_count: Bytes count value to be written if this is a write command
+ *
+ * Returns zero for success or -EIO if the query command returns error.
+ */
+int qman_ceetm_query_write_statistics(u16 cid, enum qm_dc_portal dcp_idx,
+				      u16 command_type, u64 frame_count,
+				      u64 byte_count);
+
+/**
  * qman_set_wpm - Set waterfall power management
  *
  * @wpm_enable: boolean, 1 = enable wpm, 0 = disable wpm.
