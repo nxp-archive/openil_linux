@@ -215,6 +215,12 @@ extern u16 qman_portal_max;
 int qman_init_ccsr(struct device_node *node);
 void qman_liodn_fixup(u16 channel);
 int qman_set_sdest(u16 channel, unsigned int cpu_idx);
+size_t get_qman_fqd_size(void);
+#else
+static inline size_t get_qman_fqd_size(void)
+{
+	return (PAGE_SIZE << CONFIG_FSL_QMAN_FQD_SZ);
+}
 #endif
 
 int qm_set_wpm(int wpm);
