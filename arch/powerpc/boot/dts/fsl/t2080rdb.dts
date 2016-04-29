@@ -116,10 +116,12 @@
 			};
 			xg_aq1202_phy3: ethernet-phy@0 {
 				compatible = "ethernet-phy-ieee802.3-c45";
+				interrupts = <1 1 0 0>;
 				reg = <0x0>;
 			};
 			xg_aq1202_phy4: ethernet-phy@1 {
 				compatible = "ethernet-phy-ieee802.3-c45";
+				interrupts = <2 1 0 0>;
 				reg = <0x1>;
 			};
 		};
