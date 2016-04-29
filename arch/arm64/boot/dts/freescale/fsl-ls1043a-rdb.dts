@@ -209,6 +209,7 @@
 	mdio@fd000 {
 		aqr105_phy: ethernet-phy@c {
 			compatible = "ethernet-phy-ieee802.3-c45";
+			interrupts = <0 132 4>;
 			reg = <0x1>;
 		};
 	};
