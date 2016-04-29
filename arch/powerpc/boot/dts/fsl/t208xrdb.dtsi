@@ -141,7 +141,7 @@
 			rtc@68 {
 				compatible = "dallas,ds1339";
 				reg = <0x68>;
-				interrupts = <0x1 0x1 0 0>;
+				interrupts = <0x4 0x2 0 0>;
 			};
 
 			eeprom@50 {
