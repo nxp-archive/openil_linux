@@ -15,6 +15,7 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/slab.h>
+#include <linux/ipipe.h>
 
 #include "irqchip.h"
 
@@ -73,6 +74,10 @@ static struct irq_chip crossbar_chip = {
 				  IRQCHIP_SKIP_SET_WAKE,
 #ifdef CONFIG_SMP
 	.irq_set_affinity	= irq_chip_set_affinity_parent,
+#endif
+#ifdef CONFIG_IPIPE
+	.irq_hold		= irq_chip_hold_parent,
+	.irq_release		= irq_chip_release_parent,
 #endif
 };
 
