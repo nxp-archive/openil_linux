@@ -218,7 +218,7 @@ struct pcs_device {
 #ifdef CONFIG_IPIPE
 	ipipe_spinlock_t lock;
 #else /* !IPIPE */
-	raw_spinlock_t lock
+	raw_spinlock_t lock;
 #endif /* !IPIPE */
 	struct mutex mutex;
 	unsigned width;
