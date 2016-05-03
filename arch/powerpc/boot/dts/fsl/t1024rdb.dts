@@ -210,10 +210,12 @@
 			xmdio0: mdio@fd000 {
 				xg_aqr105_phy3: ethernet-phy@1 {
 					compatible = "ethernet-phy-ieee802.3-c45";
+					interrupts = <0 1 0 0>;
 					reg = <0x1>;
 				};
 				sg_2500_aqr105_phy4: ethernet-phy@2 {
 					compatible = "ethernet-phy-ieee802.3-c45";
+					interrupts = <0 1 0 0>;
 					reg = <0x2>;
 				};
 			};
