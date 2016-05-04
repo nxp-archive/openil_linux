@@ -132,11 +132,13 @@ struct dpa_buffer_layout_s {
 #define FMAN_PCD_TESTS_MAX_NUM_RANGES	20
 #endif
 
+#define DPAA_ETH_FQ_DELTA	0x10000
+
 #define DPAA_ETH_PCD_FQ_BASE(device_addr) \
 	(((device_addr) & 0x1fffff) >> 6)
 
 #define DPAA_ETH_PCD_FQ_HI_PRIO_BASE(device_addr) \
-	(0x10000 + DPAA_ETH_PCD_FQ_BASE(device_addr))
+	(DPAA_ETH_FQ_DELTA + DPAA_ETH_PCD_FQ_BASE(device_addr))
 
 /* Largest value that the FQD's OAL field can hold.
  * This is DPAA-1.x specific.

@@ -902,7 +902,12 @@ struct dpa_fq *dpa_fq_alloc(struct device *dev,
 
 	for (i = 0; i < fq_count; i++) {
 		dpa_fq[i].fq_type = fq_type;
-		dpa_fq[i].fqid = fq_start ? fq_start + i : 0;
+		if (fq_type == FQ_TYPE_RX_PCD_HI_PRIO)
+			dpa_fq[i].fqid = fq_start ?
+					 DPAA_ETH_FQ_DELTA + fq_start + i : 0;
+		else
+			dpa_fq[i].fqid = fq_start ? fq_start + i : 0;
+
 		list_add_tail(&dpa_fq[i].list, list);
 	}
 
@@ -1011,8 +1016,9 @@ int dpa_fq_probe_mac(struct device *dev, struct list_head *list,
 					goto fq_alloc_failed;
 			} else {
 				if (!dpa_fq_alloc(dev, fqids[i].start,
-					  fqids[i].count, list, FQ_TYPE_TX))
-				goto fq_alloc_failed;
+						  fqids[i].count, list,
+						  FQ_TYPE_TX))
+					goto fq_alloc_failed;
 			}
 			break;
 		}
@@ -1190,7 +1196,6 @@ void dpa_fq_setup(struct dpa_priv_s *priv, const struct dpa_fq_cbs_t *fq_cbs,
 
 	pcd_fqid = (priv->mac_dev) ?
 		DPAA_ETH_PCD_FQ_BASE(priv->mac_dev->res->start) : 0;
-
 	pcd_fqid_hi_prio = (priv->mac_dev) ?
 		DPAA_ETH_PCD_FQ_HI_PRIO_BASE(priv->mac_dev->res->start) : 0;
 
