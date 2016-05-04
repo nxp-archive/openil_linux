@@ -812,6 +812,37 @@ static uint16_t MemacGetMaxFrameLength(t_Handle h_Memac)
     return fman_memac_get_max_frame_len(p_Memac->p_MemMap);
 }
 
+static t_Error MemacInitInternalPhy(t_Handle h_Memac)
+{
+    t_Memac *p_Memac = (t_Memac *)h_Memac;
+    uint8_t i, phyAddr;
+
+    if (ENET_INTERFACE_FROM_MODE(p_Memac->enetMode) == e_ENET_IF_SGMII)
+    {
+        /* Configure internal SGMII PHY */
+        if (p_Memac->enetMode & ENET_IF_SGMII_BASEX)
+            SetupSgmiiInternalPhyBaseX(p_Memac, PHY_MDIO_ADDR);
+        else
+            SetupSgmiiInternalPhy(p_Memac, PHY_MDIO_ADDR);
+    }
+    else if (ENET_INTERFACE_FROM_MODE(p_Memac->enetMode) == e_ENET_IF_QSGMII)
+    {
+        /* Configure 4 internal SGMII PHYs */
+        for (i = 0; i < 4; i++)
+        {
+            /* QSGMII PHY address occupies 3 upper bits of 5-bit
+               phyAddress; the lower 2 bits are used to extend
+               register address space and access each one of 4
+               ports inside QSGMII. */
+            phyAddr = (uint8_t)((PHY_MDIO_ADDR << 2) | i);
+            if (p_Memac->enetMode & ENET_IF_SGMII_BASEX)
+                SetupSgmiiInternalPhyBaseX(p_Memac, phyAddr);
+            else
+                SetupSgmiiInternalPhy(p_Memac, phyAddr);
+        }
+    }
+    return E_OK;
+}
 
 /*****************************************************************************/
 /*                      mEMAC Init & Free API                                   */
@@ -825,7 +856,6 @@ static t_Error MemacInit(t_Handle h_Memac)
     struct memac_cfg        *p_MemacDriverParam;
     enum enet_interface     enet_interface;
     enum enet_speed         enet_speed;
-    uint8_t                 i, phyAddr;
     t_EnetAddr              ethAddr;
     e_FmMacType             portType;
     t_Error                 err;
@@ -887,30 +917,7 @@ static t_Error MemacInit(t_Handle h_Memac)
     }
 #endif /* FM_RX_FIFO_CORRUPT_ERRATA_10GMAC_A006320 */
 
-    if (ENET_INTERFACE_FROM_MODE(p_Memac->enetMode) == e_ENET_IF_SGMII)
-    {
-        /* Configure internal SGMII PHY */
-        if (p_Memac->enetMode & ENET_IF_SGMII_BASEX)
-            SetupSgmiiInternalPhyBaseX(p_Memac, PHY_MDIO_ADDR);
-        else
-            SetupSgmiiInternalPhy(p_Memac, PHY_MDIO_ADDR);
-    }
-    else if (ENET_INTERFACE_FROM_MODE(p_Memac->enetMode) == e_ENET_IF_QSGMII)
-    {
-        /* Configure 4 internal SGMII PHYs */
-        for (i = 0; i < 4; i++)
-        {
-            /* QSGMII PHY address occupies 3 upper bits of 5-bit
-               phyAddress; the lower 2 bits are used to extend
-               register address space and access each one of 4
-               ports inside QSGMII. */
-            phyAddr = (uint8_t)((PHY_MDIO_ADDR << 2) | i);
-            if (p_Memac->enetMode & ENET_IF_SGMII_BASEX)
-                SetupSgmiiInternalPhyBaseX(p_Memac, phyAddr);
-            else
-                SetupSgmiiInternalPhy(p_Memac, phyAddr);
-        }
-    }
+    MemacInitInternalPhy(h_Memac);
 
     /* Max Frame Length */
     err = FmSetMacMaxFrame(p_Memac->fmMacControllerDriver.h_Fm,
@@ -1008,6 +1015,7 @@ static void InitFmMacControllerDriver(t_FmMacControllerDriver *p_FmMacController
 
     p_FmMacControllerDriver->f_FM_MAC_Enable                    = MemacEnable;
     p_FmMacControllerDriver->f_FM_MAC_Disable                   = MemacDisable;
+    p_FmMacControllerDriver->f_FM_MAC_Resume                    = MemacInitInternalPhy;
 
     p_FmMacControllerDriver->f_FM_MAC_SetTxAutoPauseFrames      = MemacSetTxAutoPauseFrames;
     p_FmMacControllerDriver->f_FM_MAC_SetTxPauseFrames          = MemacSetTxPauseFrames;

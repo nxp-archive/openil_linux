@@ -91,6 +91,7 @@ typedef struct {
 
     t_Error (*f_FM_MAC_Enable)  (t_Handle h_FmMac,  e_CommMode mode);
     t_Error (*f_FM_MAC_Disable) (t_Handle h_FmMac, e_CommMode mode);
+    t_Error (*f_FM_MAC_Resume)  (t_Handle h_FmMac);
     t_Error (*f_FM_MAC_Enable1588TimeStamp) (t_Handle h_FmMac);
     t_Error (*f_FM_MAC_Disable1588TimeStamp) (t_Handle h_FmMac);
     t_Error (*f_FM_MAC_Reset)   (t_Handle h_FmMac, bool wait);
