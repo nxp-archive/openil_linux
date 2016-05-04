@@ -1907,7 +1907,7 @@ __init int fsl_usdpaa_init_early(void)
 		return 0;
 	}
 	if (arg_phys_size && phys_size != arg_phys_size) {
-		pr_err("'usdpaa_mem argument size (0x%x) does not match device tree size (0x%x)\n",
+		pr_err("'usdpaa_mem argument size (0x%llx) does not match device tree size (0x%llx)\n",
 		       arg_phys_size, phys_size);
 		phys_size = 0;
 		return 0;
