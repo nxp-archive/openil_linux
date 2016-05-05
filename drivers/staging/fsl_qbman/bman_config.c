@@ -449,7 +449,7 @@ int bman_init_ccsr(struct device_node *node)
 		return -EINVAL;
 	/* FBPR memory */
 	bm_set_memory(bm, fbpr_a, 0, fbpr_sz);
-	pr_info("bman-fbpr addr 0x%llx size 0x%zx\n", fbpr_a, fbpr_sz);
+	pr_info("bman-fbpr addr %pad size 0x%zx\n", &fbpr_a, fbpr_sz);
 
 	ret = __bind_irq();
 	if (ret)
