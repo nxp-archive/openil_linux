@@ -43,6 +43,7 @@
 #include "sprint_ext.h"
 #include "debug_ext.h"
 #include "fm_muram_ext.h"
+#include <linux/math64.h>
 
 #include "fm_common.h"
 #include "fm_ipc.h"
@@ -5087,9 +5088,9 @@ t_Error FM_CtrlMonGetCounters(t_Handle h_Fm, uint8_t fmCtrlIndex, t_FmCtrlMon *p
     effValue = (uint64_t)
             ((uint64_t)GET_UINT32(p_MonRegs->tpc2h) << 32 | GET_UINT32(p_MonRegs->tpc2l));
 
-    p_Mon->percentCnt[0] = (uint8_t)((clkCnt - utilValue) * 100 / clkCnt);
+    p_Mon->percentCnt[0] = (uint8_t)div64_u64((clkCnt - utilValue) * 100, clkCnt);
     if (clkCnt != utilValue)
-        p_Mon->percentCnt[1] = (uint8_t)(((clkCnt - utilValue) - effValue) * 100 / (clkCnt - utilValue));
+        p_Mon->percentCnt[1] = (uint8_t)div64_u64(((clkCnt - utilValue) - effValue) * 100, clkCnt - utilValue);
     else
         p_Mon->percentCnt[1] = 0;
 

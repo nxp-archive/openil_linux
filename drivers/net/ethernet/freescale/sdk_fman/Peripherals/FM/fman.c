@@ -31,7 +31,7 @@
  */
 
 
-
+#include <linux/math64.h>
 #include "fsl_fman.h"
 #include "dpaa_integration_ext.h"
 
@@ -186,10 +186,9 @@ void fman_enable_time_stamp(struct fman_fpm_regs *fpm_rg,
 	 * we do not div back, since we write this value as a fraction
 	 * see spec */
 
-	frac = (((uint64_t)ts_freq << 16) - ((uint64_t)intgr << 16) * fm_clk_freq)
-		/ fm_clk_freq;
+	frac = ((uint64_t)ts_freq << 16) - ((uint64_t)intgr << 16) * fm_clk_freq;
 	/* we check remainder of the division in order to round up if not int */
-	if (((ts_freq << 16) - (intgr << 16)*fm_clk_freq) % fm_clk_freq)
+	if (do_div(frac, fm_clk_freq))
 		frac++;
 
 	tmp = (intgr << FPM_TS_INT_SHIFT) | (uint16_t)frac;
