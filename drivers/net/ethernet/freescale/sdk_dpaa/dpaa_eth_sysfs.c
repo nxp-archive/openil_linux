@@ -102,6 +102,9 @@ static ssize_t dpaa_eth_show_fqids(struct device *dev,
 		case FQ_TYPE_TX:
 			str = "Tx";
 			break;
+		case FQ_TYPE_RX_PCD_HI_PRIO:
+			str ="Rx PCD High Priority";
+			break;
 		default:
 			str = "Unknown";
 		}

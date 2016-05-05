@@ -132,8 +132,13 @@ struct dpa_buffer_layout_s {
 #define FMAN_PCD_TESTS_MAX_NUM_RANGES	20
 #endif
 
+#define DPAA_ETH_FQ_DELTA	0x10000
+
 #define DPAA_ETH_PCD_FQ_BASE(device_addr) \
 	(((device_addr) & 0x1fffff) >> 6)
+
+#define DPAA_ETH_PCD_FQ_HI_PRIO_BASE(device_addr) \
+	(DPAA_ETH_FQ_DELTA + DPAA_ETH_PCD_FQ_BASE(device_addr))
 
 /* Largest value that the FQD's OAL field can hold.
  * This is DPAA-1.x specific.
@@ -227,6 +232,7 @@ enum dpa_fq_type {
 	FQ_TYPE_TX_CONFIRM,     /* Tx default Conf FQ (actually an Rx FQ) */
 	FQ_TYPE_TX_CONF_MQ,     /* Tx conf FQs (one for each Tx FQ) */
 	FQ_TYPE_TX_ERROR,       /* Tx Error FQs (these are actually Rx FQs) */
+	FQ_TYPE_RX_PCD_HI_PRIO, /* User-defined high-priority PCDs */
 };
 
 struct dpa_fq {
@@ -618,12 +624,15 @@ static inline void _dpa_assign_wq(struct dpa_fq *fq)
 		break;
 	case FQ_TYPE_RX_DEFAULT:
 	case FQ_TYPE_TX:
-	case FQ_TYPE_RX_PCD:
 		fq->wq = 3;
 		break;
 	case FQ_TYPE_RX_ERROR:
 	case FQ_TYPE_TX_ERROR:
+	case FQ_TYPE_RX_PCD_HI_PRIO:
 		fq->wq = 2;
+		break;
+	case FQ_TYPE_RX_PCD:
+		fq->wq = 5;
 		break;
 	default:
 		WARN(1, "Invalid FQ type %d for FQID %d!\n",

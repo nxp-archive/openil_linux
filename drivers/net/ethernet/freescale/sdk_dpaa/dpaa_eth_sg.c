@@ -62,7 +62,7 @@ static void dpa_bp_recycle_frag(struct dpa_bp *dpa_bp, unsigned long vaddr,
 	struct bm_buffer bmb;
 	dma_addr_t addr;
 
-	memset(&bmb, 0, sizeof(struct bm_buffer));
+	bmb.opaque = 0;
 
 	addr = dma_map_single(dpa_bp->dev, (void *)vaddr, dpa_bp->size,
 			      DMA_BIDIRECTIONAL);
