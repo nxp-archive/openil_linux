@@ -175,6 +175,12 @@ static int dpaa_resume(struct device *dev)
 		priv = netdev_priv(net_dev);
 		mac_dev = priv->mac_dev;
 
+		err = fm_mac_resume(mac_dev->get_mac_handle(mac_dev));
+		if (err) {
+			netdev_err(net_dev, "fm_mac_resume = %d\n", err);
+			goto resume_failed;
+		}
+
 		err = fm_port_resume(mac_dev->port_dev[TX]);
 		if (err) {
 			netdev_err(net_dev, "fm_port_resume(TX) = %d\n", err);

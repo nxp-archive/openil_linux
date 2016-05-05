@@ -299,6 +299,18 @@ t_Error FM_MAC_Disable (t_Handle h_FmMac, e_CommMode mode)
     RETURN_ERROR(MINOR, E_NOT_SUPPORTED, NO_MSG);
 }
 
+t_Error FM_MAC_Resume (t_Handle h_FmMac)
+{
+    t_FmMacControllerDriver *p_FmMacControllerDriver = (t_FmMacControllerDriver *)h_FmMac;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmMacControllerDriver, E_INVALID_HANDLE);
+
+    if (p_FmMacControllerDriver->f_FM_MAC_Resume)
+        return p_FmMacControllerDriver->f_FM_MAC_Resume(h_FmMac);
+
+    return E_OK;
+}
+
 /* ......................................................................... */
 
 t_Error FM_MAC_Enable1588TimeStamp (t_Handle h_FmMac)
