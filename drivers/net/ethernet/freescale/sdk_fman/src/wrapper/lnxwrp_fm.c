@@ -1733,6 +1733,20 @@ int fm_mac_disable(struct fm_mac_dev *fm_mac_dev)
 }
 EXPORT_SYMBOL(fm_mac_disable);
 
+int fm_mac_resume(struct fm_mac_dev *fm_mac_dev)
+{
+        int      _errno;
+        t_Error  err;
+
+        err = FM_MAC_Resume(fm_mac_dev);
+        _errno = -GET_ERROR_TYPE(err);
+        if (unlikely(_errno < 0))
+                pr_err("FM_MAC_Resume() = 0x%08x\n", err);
+
+        return _errno;
+}
+EXPORT_SYMBOL(fm_mac_resume);
+
 int fm_mac_set_promiscuous(struct fm_mac_dev *fm_mac_dev,
 		bool enable)
 {

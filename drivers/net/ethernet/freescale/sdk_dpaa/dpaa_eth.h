@@ -679,7 +679,7 @@ static inline void _dpa_bp_free_pf(void *addr)
  * than 4K or that exceed 4K alignements.
  */
 
-#ifdef ARM64
+#ifdef CONFIG_ARM64
 #define DPAA_LS1043A_DMA_4K_ISSUE	1
 #endif
 

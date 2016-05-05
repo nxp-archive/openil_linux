@@ -897,6 +897,7 @@ static void InitFmMacControllerDriver(t_FmMacControllerDriver *p_FmMacController
 
     p_FmMacControllerDriver->f_FM_MAC_Enable                    = TgecEnable;
     p_FmMacControllerDriver->f_FM_MAC_Disable                   = TgecDisable;
+    p_FmMacControllerDriver->f_FM_MAC_Resume                    = NULL;
 
     p_FmMacControllerDriver->f_FM_MAC_SetTxAutoPauseFrames      = TgecTxMacPause;
     p_FmMacControllerDriver->f_FM_MAC_SetTxPauseFrames          = TgecSetTxPauseFrames;
