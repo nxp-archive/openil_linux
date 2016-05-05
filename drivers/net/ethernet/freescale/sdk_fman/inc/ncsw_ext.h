@@ -142,7 +142,7 @@ do                                      \
 } while (0)
 
 /* Ceiling division - not the fastest way, but safer in terms of overflow */
-#define DIV_CEIL(x,y)   (((x)/(y)) + ((((((x)/(y)))*(y)) == (x)) ? 0 : 1))
+#define DIV_CEIL(x,y) (div64_u64((x),(y)) + (((div64_u64((x),(y))*(y)) == (x)) ? 0 : 1))
 
 /* Round up a number to be a multiple of a second number */
 #define ROUND_UP(x,y)   ((((x) + (y) - 1) / (y)) * (y))

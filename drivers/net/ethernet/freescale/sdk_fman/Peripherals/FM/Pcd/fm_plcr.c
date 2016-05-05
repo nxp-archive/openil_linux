@@ -36,6 +36,7 @@
 
  @Description   FM PCD POLICER...
 *//***************************************************************************/
+#include <linux/math64.h>
 #include "std_ext.h"
 #include "error_ext.h"
 #include "string_ext.h"
@@ -205,13 +206,13 @@ static void GetInfoRateReg(e_FmPcdPlcrRateMode  rateMode,
         div = 1000000000;   /* nano */
         div *= 10;          /* 10 nano */
     }
-    *p_Integer = (tmp<<fppShift)/div;
+    *p_Integer = div64_u64(tmp<<fppShift, div);
 
     /* for calculating the fraction, we will recalculate cir and deduct the integer.
      * For precision, we will multiply by 2^16. we do not divid back, since we write
      * this value as fraction - see spec.
      */
-    *p_Fraction = (((tmp<<fppShift)<<16) - ((*p_Integer<<16)*div))/div;
+    *p_Fraction = div64_u64(((tmp<<fppShift)<<16) - ((*p_Integer<<16)*div), div);
 }
 
 /* .......... */

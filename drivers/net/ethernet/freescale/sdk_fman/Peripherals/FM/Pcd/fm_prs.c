@@ -36,6 +36,7 @@
 
  @Description   FM PCD ...
 *//***************************************************************************/
+#include <linux/math64.h>
 #include "std_ext.h"
 #include "error_ext.h"
 #include "string_ext.h"

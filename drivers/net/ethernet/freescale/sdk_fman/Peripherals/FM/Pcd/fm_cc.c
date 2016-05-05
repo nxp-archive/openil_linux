@@ -36,6 +36,7 @@
 
  @Description   FM Coarse Classifier implementation
  *//***************************************************************************/
+#include <linux/math64.h>
 #include "std_ext.h"
 #include "error_ext.h"
 #include "string_ext.h"
