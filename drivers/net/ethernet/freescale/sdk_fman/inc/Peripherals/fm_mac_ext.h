@@ -467,6 +467,19 @@ t_Error FM_MAC_Enable(t_Handle h_FmMac,  e_CommMode mode);
 t_Error FM_MAC_Disable(t_Handle h_FmMac, e_CommMode mode);
 
 /**************************************************************************//**
+ @Function      FM_MAC_Resume
+
+ @Description   Re-init the MAC after suspend
+
+ @Param[in]     h_FmMac    A handle to a FM MAC Module.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_MAC_Init().
+*//***************************************************************************/
+t_Error FM_MAC_Resume(t_Handle h_FmMac);
+
+/**************************************************************************//**
  @Function      FM_MAC_Enable1588TimeStamp
 
  @Description   Enables the TSU operation.

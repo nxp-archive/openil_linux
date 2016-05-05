@@ -765,6 +765,8 @@ int fm_mac_enable(struct fm_mac_dev *fm_mac_dev);
 
 int fm_mac_disable(struct fm_mac_dev *fm_mac_dev);
 
+int fm_mac_resume(struct fm_mac_dev *fm_mac_dev);
+
 int fm_mac_set_promiscuous(struct fm_mac_dev *fm_mac_dev,
 		bool enable);
 
