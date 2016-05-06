@@ -67,6 +67,9 @@
 
 #define DPA_BUFF_RELEASE_MAX 8 /* maximum number of buffers released at once */
 
+#define DPA_RX_PCD_HI_PRIO_FQ_INIT_FAIL(dpa_fq, _errno) \
+	(((dpa_fq)->fq_type == FQ_TYPE_RX_PCD_HI_PRIO) && \
+	  (_errno == -EIO))
 /* return codes for the dpaa-eth hooks */
 enum dpaa_eth_hook_result {
 	/* fd/skb was retained by the hook.
