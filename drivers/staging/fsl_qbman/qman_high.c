@@ -3799,7 +3799,7 @@ int qman_ceetm_lni_set_commit_rate(struct qm_ceetm_lni *lni,
 	lni->cr_token_bucket_limit = token_limit;
 	if (!lni->shaper_enable)
 		return 0;
-	query_opts.cid = CEETM_COMMAND_LNI_SHAPER | lni->idx;
+	query_opts.cid = cpu_to_be16(CEETM_COMMAND_LNI_SHAPER | lni->idx);
 	query_opts.dcpid = lni->dcp_idx;
 	ret = qman_ceetm_query_mapping_shaper_tcfc(&query_opts,
 						   &query_result);
@@ -3808,7 +3808,7 @@ int qman_ceetm_lni_set_commit_rate(struct qm_ceetm_lni *lni,
 		return -EINVAL;
 	}
 
-	config_opts.cid = CEETM_COMMAND_LNI_SHAPER | lni->idx;
+	config_opts.cid = cpu_to_be16(CEETM_COMMAND_LNI_SHAPER | lni->idx);
 	config_opts.dcpid = lni->dcp_idx;
 	config_opts.shaper_config.crtcr = cpu_to_be24((token_rate->whole << 13)
 						      | (token_rate->fraction));
