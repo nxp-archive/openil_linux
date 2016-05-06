@@ -194,6 +194,7 @@ int dpaa_eth_cgr_init(struct dpa_priv_s *priv);
 void dpa_fq_setup(struct dpa_priv_s *priv, const struct dpa_fq_cbs_t *fq_cbs,
 		struct fm_port *tx_port);
 int dpa_fq_init(struct dpa_fq *dpa_fq, bool td_enable);
+int dpa_fqs_init(struct device *dev, struct list_head *list, bool td_enable);
 int __cold __attribute__((nonnull))
 dpa_fq_free(struct device *dev, struct list_head *list);
 void dpaa_eth_init_ports(struct mac_device *mac_dev,

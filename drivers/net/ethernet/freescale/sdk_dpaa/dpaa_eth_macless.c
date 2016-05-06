@@ -306,7 +306,6 @@ static int dpaa_eth_macless_probe(struct platform_device *_of_dev)
 	struct device *dev;
 	struct device_node *dpa_node;
 	struct dpa_bp *dpa_bp;
-	struct dpa_fq *dpa_fq, *tmp;
 	size_t count;
 	struct net_device *net_dev = NULL;
 	struct dpa_priv_s *priv = NULL;
@@ -408,19 +407,17 @@ static int dpaa_eth_macless_probe(struct platform_device *_of_dev)
 	dpa_fq_setup(priv, &shared_fq_cbs, NULL);
 
 	/* Add the FQs to the interface, and make them active */
-	list_for_each_entry_safe(dpa_fq, tmp, &priv->dpa_fq_list, list) {
-		/* For MAC-less devices we only get here for RX frame queues
-		 * initialization, which are the TX queues of the other
-		 * partition.
-		 * It is safe to rely on one partition to set the FQ taildrop
-		 * threshold for the TX queues of the other partition
-		 * because the ERN notifications will be received by the
-		 * partition doing qman_enqueue.
-		 */
-		err = dpa_fq_init(dpa_fq, true);
-		if (err < 0)
-			goto fq_alloc_failed;
-	}
+	/* For MAC-less devices we only get here for RX frame queues
+	 * initialization, which are the TX queues of the other
+	 * partition.
+	 * It is safe to rely on one partition to set the FQ taildrop
+	 * threshold for the TX queues of the other partition
+	 * because the ERN notifications will be received by the
+	 * partition doing qman_enqueue.
+	 */
+	err = dpa_fqs_init(dev,  &priv->dpa_fq_list, true);
+	if (err < 0)
+		goto fq_alloc_failed;
 
 	priv->tx_headroom = DPA_DEFAULT_TX_HEADROOM;
 

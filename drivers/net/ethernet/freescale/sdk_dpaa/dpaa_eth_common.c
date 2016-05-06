@@ -1474,6 +1474,23 @@ dpa_fq_free(struct device *dev, struct list_head *list)
 }
 EXPORT_SYMBOL(dpa_fq_free);
 
+int dpa_fqs_init(struct device *dev, struct list_head *list, bool td_enable)
+{
+	int  _errno, __errno;
+	struct dpa_fq	*dpa_fq, *tmp;
+
+	_errno = 0;
+	list_for_each_entry_safe(dpa_fq, tmp, list, list) {
+		__errno = dpa_fq_init(dpa_fq, td_enable);
+		if (unlikely(__errno < 0) && _errno >= 0) {
+			_errno = __errno;
+			break;
+		}
+	}
+
+	return _errno;
+}
+EXPORT_SYMBOL(dpa_fqs_init);
 static void
 dpaa_eth_init_tx_port(struct fm_port *port, struct dpa_fq *errq,
 		struct dpa_fq *defq, struct dpa_buffer_layout_s *buf_layout)
