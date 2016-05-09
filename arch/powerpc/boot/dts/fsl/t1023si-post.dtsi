@@ -593,7 +593,7 @@ sata@220000 {
 	fman0: fman@400000 {
 		/* tx - 10g - 0 */
 		port@a8000 {
-			fsl,qman-channel-id = <0x802>;
+			fsl,qman-channel-id = <0x800>;
 		};
 		/* tx - 1g - 1 */
 		port@a9000 {
