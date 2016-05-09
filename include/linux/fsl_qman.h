@@ -1433,8 +1433,13 @@ struct qm_mcr_querywq {
 	union {
 		u16 channel_wq; /* ignores wq (3 lsbits) */
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u16 id:13; /* qm_channel */
 			u16 __reserved:3;
+#else
+			u16 __reserved:3;
+			u16 id:13; /* qm_channel */
+#endif
 		} __packed channel;
 	};
 	u8 __reserved[28];

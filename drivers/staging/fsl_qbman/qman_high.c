@@ -2043,14 +2043,19 @@ int qman_query_wq(u8 query_dedicated, struct qm_mcr_querywq *wq)
 	myverb = (query_dedicated) ? QM_MCR_VERB_QUERYWQ_DEDICATED :
 				 QM_MCR_VERB_QUERYWQ;
 	mcc = qm_mc_start(&p->p);
-	mcc->querywq.channel.id = wq->channel.id;
+	mcc->querywq.channel.id = cpu_to_be16(wq->channel.id);
 	qm_mc_commit(&p->p, myverb);
 	while (!(mcr = qm_mc_result(&p->p)))
 		cpu_relax();
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == myverb);
 	res = mcr->result;
-	if (res == QM_MCR_RESULT_OK)
-		memcpy_fromio(wq, &mcr->querywq, sizeof(*wq));
+	if (res == QM_MCR_RESULT_OK) {
+		int i, array_len;
+		wq->channel.id = be16_to_cpu(mcr->querywq.channel.id);
+		array_len = ARRAY_SIZE(mcr->querywq.wq_len);
+		for (i = 0; i < array_len; i++)
+			wq->wq_len[i] = be32_to_cpu(mcr->querywq.wq_len[i]);
+	}
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
 	if (res != QM_MCR_RESULT_OK) {
