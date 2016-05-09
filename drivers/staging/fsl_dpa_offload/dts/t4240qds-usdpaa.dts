@@ -93,6 +93,12 @@
 	};
 
 	fsl,dpaa {
+		ethernet@4 {
+			compatible = "fsl,t4240-dpa-ethernet-init", "fsl,dpa-ethernet-init";
+			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
+			fsl,qman-frame-queues-rx = <0x58 1 0x59 1>;
+			fsl,qman-frame-queues-tx = <0x78 1 0x79 1>;
+		};
 		ethernet@6 {
 			compatible = "fsl,t4240-dpa-ethernet-init", "fsl,dpa-ethernet-init";
 			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
