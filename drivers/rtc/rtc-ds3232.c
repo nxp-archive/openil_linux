@@ -296,14 +296,10 @@ static void ds3232_update_alarm(struct i2c_client *client)
 	if (ret < 0)
 		goto unlock;
 
-	buf[0] = bcd2bin(buf[0]) < 0 || (ds3232->rtc->irq_data & RTC_UF) ?
-								0x80 : buf[0];
-	buf[1] = bcd2bin(buf[1]) < 0 || (ds3232->rtc->irq_data & RTC_UF) ?
-								0x80 : buf[1];
-	buf[2] = bcd2bin(buf[2]) < 0 || (ds3232->rtc->irq_data & RTC_UF) ?
-								0x80 : buf[2];
-	buf[3] = bcd2bin(buf[3]) < 0 || (ds3232->rtc->irq_data & RTC_UF) ?
-								0x80 : buf[3];
+	buf[0] = (ds3232->rtc->irq_data & RTC_UF) ? 0x80 : buf[0];
+	buf[1] = (ds3232->rtc->irq_data & RTC_UF) ? 0x80 : buf[1];
+	buf[2] = (ds3232->rtc->irq_data & RTC_UF) ? 0x80 : buf[2];
+	buf[3] = (ds3232->rtc->irq_data & RTC_UF) ? 0x80 : buf[3];
 
 	ret = i2c_smbus_write_i2c_block_data(client, DS3232_REG_ALARM1, 4, buf);
 	if (ret < 0)
