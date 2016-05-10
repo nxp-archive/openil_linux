@@ -153,7 +153,7 @@ struct test_data_s {
 	struct list_head request_list;
 } __aligned(32);
 
-struct test_data_s *test_data;
+static struct test_data_s *test_data;
 
 static u64 start_time, end_time;
 
