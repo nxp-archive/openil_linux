@@ -194,8 +194,12 @@ static unsigned long map_mem_in_cams_addr(phys_addr_t phys, unsigned long virt,
 	if (dryrun)
 		return amount_mapped;
 
-	loadcam_multi(0, i, max_cam_idx);
+	/* CAM loading below must happen in AS1 */
+	WARN_ON(!(mfmsr() & (MSR_IS | MSR_DS)));
+
 	tlbcam_index = i;
+	for (i = 0; i < tlbcam_index; i++)
+		loadcam_entry(i);
 
 #ifdef CONFIG_PPC64
 	get_paca()->tcd.esel_next = i;
@@ -210,8 +214,20 @@ unsigned long map_mem_in_cams(unsigned long ram, int max_cam_idx, bool dryrun)
 {
 	unsigned long virt = PAGE_OFFSET;
 	phys_addr_t phys = memstart_addr;
+	unsigned long amount_mapped;
+	int n = -1;
 
-	return map_mem_in_cams_addr(phys, virt, ram, max_cam_idx, dryrun);
+	/*
+	 * We might already be running in AS1. If so, avoid creating a
+	 * duplicate AS1 entry
+	 */
+	if (!(mfmsr() & (MSR_IS | MSR_DS)))
+		n = switch_to_as1();
+	amount_mapped = map_mem_in_cams_addr(phys, virt, ram, max_cam_idx, dryrun);
+	if (n >= 0)
+		restore_to_as0(n, 0, 0, 1);
+
+	return amount_mapped;
 }
 
 #ifdef CONFIG_PPC32
@@ -241,9 +257,7 @@ void __init adjust_total_lowmem(void)
 	/* adjust lowmem size to __max_low_memory */
 	ram = min((phys_addr_t)__max_low_memory, (phys_addr_t)total_lowmem);
 
-	i = switch_to_as1();
 	__max_low_memory = map_mem_in_cams(ram, CONFIG_LOWMEM_CAM_NUM, false);
-	restore_to_as0(i, 0, 0, 1);
 
 	pr_info("Memory CAM mapping: ");
 	for (i = 0; i < tlbcam_index - 1; i++)
