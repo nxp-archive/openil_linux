@@ -682,7 +682,6 @@ dpaa_eth_shared_probe(struct platform_device *_of_dev)
 	struct device *dev;
 	struct device_node *dpa_node;
 	struct dpa_bp *dpa_bp;
-	struct dpa_fq *dpa_fq, *tmp;
 	size_t count;
 	struct net_device *net_dev = NULL;
 	struct dpa_priv_s *priv = NULL;
@@ -797,11 +796,9 @@ dpaa_eth_shared_probe(struct platform_device *_of_dev)
 	}
 
 	/* Add the FQs to the interface, and make them active */
-	list_for_each_entry_safe(dpa_fq, tmp, &priv->dpa_fq_list, list) {
-		err = dpa_fq_init(dpa_fq, false);
-		if (err < 0)
-			goto fq_alloc_failed;
-	}
+	err = dpa_fqs_init(dev,  &priv->dpa_fq_list, false);
+	if (err < 0)
+		goto fq_alloc_failed;
 
 	priv->buf_layout = buf_layout;
 	priv->tx_headroom =

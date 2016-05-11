@@ -1410,9 +1410,13 @@ int dpa_fq_init(struct dpa_fq *dpa_fq, bool td_enable)
 
 		_errno = qman_init_fq(fq, QMAN_INITFQ_FLAG_SCHED, &initfq);
 		if (_errno < 0) {
-			dev_err(dev, "qman_init_fq(%u) = %d\n",
+			if (DPA_RX_PCD_HI_PRIO_FQ_INIT_FAIL(dpa_fq, _errno)) {
+				dpa_fq->init = 0;
+			} else {
+				dev_err(dev, "qman_init_fq(%u) = %d\n",
 					qman_fq_fqid(fq), _errno);
-			qman_destroy_fq(fq, 0);
+				qman_destroy_fq(fq, 0);
+			}
 			return _errno;
 		}
 	}
@@ -1474,6 +1478,36 @@ dpa_fq_free(struct device *dev, struct list_head *list)
 }
 EXPORT_SYMBOL(dpa_fq_free);
 
+int dpa_fqs_init(struct device *dev, struct list_head *list, bool td_enable)
+{
+	int  _errno, __errno;
+	struct dpa_fq	*dpa_fq, *tmp;
+	static bool print_msg __read_mostly;
+
+	_errno = 0;
+	print_msg = true;
+	list_for_each_entry_safe(dpa_fq, tmp, list, list) {
+		__errno = dpa_fq_init(dpa_fq, td_enable);
+		if (unlikely(__errno < 0) && _errno >= 0) {
+			if (DPA_RX_PCD_HI_PRIO_FQ_INIT_FAIL(dpa_fq, __errno)) {
+				if (print_msg) {
+					dev_warn(dev,
+						 "Skip RX PCD High Priority FQs initialization\n");
+					print_msg = false;
+				}
+				if (_dpa_fq_free(dev, (struct qman_fq *)dpa_fq))
+					dev_warn(dev,
+						 "Error freeing frame queues\n");
+			} else {
+				_errno = __errno;
+				break;
+			}
+		}
+	}
+
+	return _errno;
+}
+EXPORT_SYMBOL(dpa_fqs_init);
 static void
 dpaa_eth_init_tx_port(struct fm_port *port, struct dpa_fq *errq,
 		struct dpa_fq *defq, struct dpa_buffer_layout_s *buf_layout)
