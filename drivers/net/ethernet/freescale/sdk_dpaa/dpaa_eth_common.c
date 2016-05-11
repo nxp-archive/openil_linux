@@ -1495,7 +1495,9 @@ int dpa_fqs_init(struct device *dev, struct list_head *list, bool td_enable)
 						 "Skip RX PCD High Priority FQs initialization\n");
 					print_msg = false;
 				}
-				_dpa_fq_free(dev, (struct qman_fq *)dpa_fq);
+				if (_dpa_fq_free(dev, (struct qman_fq *)dpa_fq))
+					dev_warn(dev,
+						 "Error freeing frame queues\n");
 			} else {
 				_errno = __errno;
 				break;
