@@ -134,6 +134,7 @@
 			     <1 11 0x1>, /* Virtual PPI */
 			     <1 10 0x1>; /* Hypervisor PPI */
 		arm,reread-timer;
+		fsl,erratum-a008585;
 	};
 
 	pmu {
