@@ -422,6 +422,19 @@ static inline void hw_cq_query_to_cpu(struct qm_mcr_ceetm_cq_query *cq_query)
 	cq_query->frm_cnt = be24_to_cpu(cq_query->frm_cnt);
 }
 
+static inline void hw_ccgr_query_to_cpu(struct qm_mcr_ceetm_ccgr_query *ccgr_q)
+{
+	int i;
+
+	ccgr_q->cm_query.cscn_targ_dcp =
+		be16_to_cpu(ccgr_q->cm_query.cscn_targ_dcp);
+	ccgr_q->cm_query.i_cnt = be40_to_cpu(ccgr_q->cm_query.i_cnt);
+	ccgr_q->cm_query.a_cnt = be40_to_cpu(ccgr_q->cm_query.a_cnt);
+	for (i = 0; i < ARRAY_SIZE(ccgr_q->cm_query.cscn_targ_swp); i++)
+		ccgr_q->cm_query.cscn_targ_swp[i] =
+			be32_to_cpu(ccgr_q->cm_query.cscn_targ_swp[i]);
+}
+
 /* In the case that slow- and fast-path handling are both done by qman_poll()
  * (ie. because there is no interrupt handling), we ought to balance how often
  * we do the fast-path poll versus the slow-path poll. We'll use two decrementer
@@ -3383,22 +3396,25 @@ int qman_ceetm_query_ccgr(struct qm_mcc_ceetm_ccgr_query *ccgr_query,
 	PORTAL_IRQ_LOCK(p, irqflags);
 
 	mcc = qm_mc_start(&p->p);
-	mcc->ccgr_query = *ccgr_query;
+	mcc->ccgr_query.ccgrid = cpu_to_be16(ccgr_query->ccgrid);
+	mcc->ccgr_query.dcpid = ccgr_query->dcpid;
 	qm_mc_commit(&p->p, QM_CEETM_VERB_CCGR_QUERY);
 
 	while (!(mcr = qm_mc_result(&p->p)))
 		cpu_relax();
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_CEETM_VERB_CCGR_QUERY);
+	res = mcr->result;
+	if (res == QM_MCR_RESULT_OK) {
+		*response = mcr->ccgr_query;
+		hw_ccgr_query_to_cpu(response);
+	}
 
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
-
-	res = mcr->result;
 	if (res != QM_MCR_RESULT_OK) {
 		pr_err("CEETM: QUERY CCGR failed\n");
 		return -EIO;
 	}
-	*response = mcr->ccgr_query;
 	return 0;
 }
 EXPORT_SYMBOL(qman_ceetm_query_ccgr);
