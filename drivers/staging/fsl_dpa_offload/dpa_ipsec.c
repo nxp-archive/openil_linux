@@ -2143,7 +2143,7 @@ static int update_pre_sec_inbound_table(struct dpa_ipsec_sa *sa,
 			offset += IP_PROTO_FIELD_LEN;
 		}
 
-		*(uint32_t*)(key + offset) = cpu_to_be32(sa->spi);
+		*(uint32_t *)(key + offset) = cpu_to_be32(sa->spi);
 		offset += sizeof(sa->spi);
 
 		/* determine padding length based on the table params */

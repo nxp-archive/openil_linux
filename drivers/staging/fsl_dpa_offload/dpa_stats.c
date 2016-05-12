@@ -1204,7 +1204,7 @@ static t_Handle get_fman_mac_handle(struct device_node *parent_dev_node,
 		}
 
 		cell_index = of_get_property(dev_node, "cell-index", &lenp);
-		if (*cell_index != port_id) {
+		if (be32_to_cpu(*cell_index) != port_id) {
 			tmp_node = dev_node;
 			continue;
 		}
@@ -1241,7 +1241,7 @@ static struct device_node *get_fman_dev_node(int fman_id)
 	while ((dev_node = of_find_compatible_node(tmp_node, NULL, "fsl,fman"))
 			!= NULL) {
 		cell_index = of_get_property(dev_node, "cell-index", &lenp);
-		if (*cell_index == fman_id)
+		if (be32_to_cpu(*cell_index) == fman_id)
 			break;
 
 		tmp_node = dev_node;
