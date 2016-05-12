@@ -1,6 +1,6 @@
 menuconfig FSL_SDK_DPAA_ETH
 	tristate "DPAA Ethernet"
-	depends on (FSL_SOC || ARM64) && FSL_BMAN && FSL_QMAN && FSL_SDK_FMAN
+	depends on (FSL_SOC || ARM64 || ARM) && FSL_BMAN && FSL_QMAN && FSL_SDK_FMAN
 	select PHYLIB
 	---help---
 	  Data Path Acceleration Architecture Ethernet driver,
