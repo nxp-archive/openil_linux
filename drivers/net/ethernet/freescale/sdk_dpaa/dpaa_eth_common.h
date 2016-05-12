@@ -67,6 +67,9 @@
 
 #define DPA_BUFF_RELEASE_MAX 8 /* maximum number of buffers released at once */
 
+#define DPA_RX_PCD_HI_PRIO_FQ_INIT_FAIL(dpa_fq, _errno) \
+	(((dpa_fq)->fq_type == FQ_TYPE_RX_PCD_HI_PRIO) && \
+	  (_errno == -EIO))
 /* return codes for the dpaa-eth hooks */
 enum dpaa_eth_hook_result {
 	/* fd/skb was retained by the hook.
@@ -194,6 +197,7 @@ int dpaa_eth_cgr_init(struct dpa_priv_s *priv);
 void dpa_fq_setup(struct dpa_priv_s *priv, const struct dpa_fq_cbs_t *fq_cbs,
 		struct fm_port *tx_port);
 int dpa_fq_init(struct dpa_fq *dpa_fq, bool td_enable);
+int dpa_fqs_init(struct device *dev, struct list_head *list, bool td_enable);
 int __cold __attribute__((nonnull))
 dpa_fq_free(struct device *dev, struct list_head *list);
 void dpaa_eth_init_ports(struct mac_device *mac_dev,
