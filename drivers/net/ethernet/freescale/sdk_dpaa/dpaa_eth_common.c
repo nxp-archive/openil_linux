@@ -754,16 +754,9 @@ dpa_bp_alloc(struct dpa_bp *dpa_bp)
 		goto pdev_register_failed;
 	}
 
-	err = dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(40));
+	err = dma_coerce_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(40));
 	if (err)
 		goto pdev_mask_failed;
-	if (!pdev->dev.dma_mask)
-		pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
-	else {
-		err = dma_set_mask(&pdev->dev, DMA_BIT_MASK(40));
-		if (err)
-			goto pdev_mask_failed;
-	}
 
 #ifdef CONFIG_FMAN_ARM
 	/* force coherency */
