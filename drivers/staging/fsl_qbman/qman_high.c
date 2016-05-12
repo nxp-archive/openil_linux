@@ -405,6 +405,23 @@ static inline void hw_fd_to_cpu(struct qm_fd *fd)
 	fd->opaque = be32_to_cpu(fd->opaque);
 }
 
+static inline void hw_cq_query_to_cpu(struct qm_mcr_ceetm_cq_query *cq_query)
+{
+	cq_query->ccgid = be16_to_cpu(cq_query->ccgid);
+	cq_query->state = be16_to_cpu(cq_query->state);
+	cq_query->pfdr_hptr = be24_to_cpu(cq_query->pfdr_hptr);
+	cq_query->pfdr_tptr = be24_to_cpu(cq_query->pfdr_tptr);
+	cq_query->od1_xsfdr = be16_to_cpu(cq_query->od1_xsfdr);
+	cq_query->od2_xsfdr = be16_to_cpu(cq_query->od2_xsfdr);
+	cq_query->od3_xsfdr = be16_to_cpu(cq_query->od3_xsfdr);
+	cq_query->od4_xsfdr = be16_to_cpu(cq_query->od4_xsfdr);
+	cq_query->od5_xsfdr = be16_to_cpu(cq_query->od5_xsfdr);
+	cq_query->od6_xsfdr = be16_to_cpu(cq_query->od6_xsfdr);
+	cq_query->ra1_xsfdr = be16_to_cpu(cq_query->ra1_xsfdr);
+	cq_query->ra2_xsfdr = be16_to_cpu(cq_query->ra2_xsfdr);
+	cq_query->frm_cnt = be24_to_cpu(cq_query->frm_cnt);
+}
+
 /* In the case that slow- and fast-path handling are both done by qman_poll()
  * (ie. because there is no interrupt handling), we ought to balance how often
  * we do the fast-path poll versus the slow-path poll. We'll use two decrementer
@@ -3110,13 +3127,17 @@ int qman_ceetm_query_cq(unsigned int cqid, unsigned int dcpid,
 	PORTAL_IRQ_LOCK(p, irqflags);
 
 	mcc = qm_mc_start(&p->p);
-	mcc->cq_query.cqid = cqid;
+	mcc->cq_query.cqid = cpu_to_be16(cqid);
 	mcc->cq_query.dcpid = dcpid;
 	qm_mc_commit(&p->p, QM_CEETM_VERB_CQ_QUERY);
 	while (!(mcr = qm_mc_result(&p->p)))
 		cpu_relax();
-	res = mcr->result;
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_CEETM_VERB_CQ_QUERY);
+	res = mcr->result;
+	if (res == QM_MCR_RESULT_OK) {
+		*cq_query = mcr->cq_query;
+		hw_cq_query_to_cpu(cq_query);
+	}
 
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
@@ -3126,7 +3147,6 @@ int qman_ceetm_query_cq(unsigned int cqid, unsigned int dcpid,
 		return -EIO;
 	}
 
-	*cq_query = mcr->cq_query;
 	return 0;
 }
 EXPORT_SYMBOL(qman_ceetm_query_cq);
