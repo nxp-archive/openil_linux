@@ -41,5 +41,6 @@ const char *moduleStrings[] =
     "FM-MAC",                   /* MODULE_FM_MAC */
     "FM-Port",                  /* MODULE_FM_PORT */
     "MM",                       /* MODULE_MM */
-    "FM-SP"                     /* MODULE_FM_SP */
+    "FM-SP",                    /* MODULE_FM_SP */
+    "FM-MACSEC"                 /* MODULE_FM_MACSEC */
 };
