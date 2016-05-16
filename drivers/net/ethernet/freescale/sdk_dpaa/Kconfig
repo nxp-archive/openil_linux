@@ -72,7 +72,8 @@ config FSL_DPAA_ETH_JUMBO_FRAME
 	  is set to 9600 bytes.
 	  Using this option in combination with small frames increases
 	  significantly the driver's memory footprint and may even deplete
-	  the system memory.
+	  the system memory. Also, the skb truesize is altered and messages
+	  from the stack that warn against this are bypassed.
 	  This option is not available on LS1043.
 
 config FSL_DPAA_TS

@@ -4128,7 +4128,13 @@ bool skb_try_coalesce(struct sk_buff *to, struct sk_buff *from,
 		delta = from->truesize - SKB_TRUESIZE(skb_end_offset(from));
 	}
 
+#ifndef CONFIG_FSL_DPAA_ETH_JUMBO_FRAME
+	/* When using jumbo frames, we set the skb truesize to a smaller value
+	 * than the actual buffer size. The stack wants to signal this offense
+	 * but we bypass it. See contig_fd_to_skb for details.
+	 */
 	WARN_ON_ONCE(delta < len);
+#endif
 
 	memcpy(skb_shinfo(to)->frags + skb_shinfo(to)->nr_frags,
 	       skb_shinfo(from)->frags,

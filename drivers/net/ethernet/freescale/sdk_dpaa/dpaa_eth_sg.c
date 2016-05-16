@@ -394,6 +394,9 @@ static struct sk_buff *__hot contig_fd_to_skb(const struct dpa_priv_s *priv,
 	 * Use the frame length for the skb truesize instead of the buffer
 	 * size, as this is the size of the data that actually gets copied to
 	 * userspace.
+	 * The stack may increase the payload. In this case, it will want to
+	 * warn us that the frame length is larger than the truesize. We
+	 * bypass the warning.
 	 */
 	skb->truesize = SKB_TRUESIZE(dpa_fd_length(fd));
 #endif
