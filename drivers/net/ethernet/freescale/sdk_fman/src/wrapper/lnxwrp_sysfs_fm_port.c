@@ -246,13 +246,16 @@ static ssize_t show_fm_port_regs(struct device *dev,
 	unsigned long flags;
 	unsigned n = 0;
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
-	t_LnxWrpFmPortDev *p_LnxWrpFmPortDev =
-		(t_LnxWrpFmPortDev *) dev_get_drvdata(dev);
+	t_LnxWrpFmPortDev *p_LnxWrpFmPortDev;
 #endif
 	if (attr == NULL || buf == NULL || dev == NULL)
 		return -EINVAL;
 
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
+	p_LnxWrpFmPortDev =
+		(t_LnxWrpFmPortDev *) dev_get_drvdata(dev);
+
+
 	local_irq_save(flags);
 
 	if (!p_LnxWrpFmPortDev->h_Dev) {
@@ -612,13 +615,15 @@ static ssize_t show_fm_port_dsar_mem(struct device *dev,
 	unsigned long flags;
 	unsigned n = 0;
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
-	t_LnxWrpFmPortDev *p_LnxWrpFmPortDev =
-		(t_LnxWrpFmPortDev *) dev_get_drvdata(dev);
+	t_LnxWrpFmPortDev *p_LnxWrpFmPortDev;
 #endif
 	if (attr == NULL || buf == NULL || dev == NULL)
 		return -EINVAL;
 
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
+	p_LnxWrpFmPortDev =
+		(t_LnxWrpFmPortDev *) dev_get_drvdata(dev);
+
 	local_irq_save(flags);
 
 	if (!p_LnxWrpFmPortDev->h_Dev) {
@@ -650,13 +655,15 @@ static ssize_t show_fm_port_dsar_regs(struct device *dev,
 	unsigned long flags;
 	unsigned n = 0;
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
-	t_LnxWrpFmPortDev *p_LnxWrpFmPortDev =
-		(t_LnxWrpFmPortDev *) dev_get_drvdata(dev);
+	t_LnxWrpFmPortDev *p_LnxWrpFmPortDev;
 #endif
 	if (attr == NULL || buf == NULL || dev == NULL)
 		return -EINVAL;
 
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
+	p_LnxWrpFmPortDev =
+		(t_LnxWrpFmPortDev *) dev_get_drvdata(dev);
+
 	local_irq_save(flags);
 
 	if (!p_LnxWrpFmPortDev->h_Dev) {
@@ -689,14 +696,16 @@ static ssize_t show_fm_port_ipv4_options(struct device *dev,
 	unsigned long flags;
 	unsigned n = 0;
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
-	t_LnxWrpFmPortDev *p_LnxWrpFmPortDev =
-			(t_LnxWrpFmPortDev *) dev_get_drvdata(dev);
+	t_LnxWrpFmPortDev *p_LnxWrpFmPortDev;
 #endif
 
 	if (attr == NULL || buf == NULL || dev == NULL)
 		return -EINVAL;
 
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
+	p_LnxWrpFmPortDev =
+		(t_LnxWrpFmPortDev *) dev_get_drvdata(dev);
+
 	local_irq_save(flags);
 
 	if (!p_LnxWrpFmPortDev->h_Dev) {
@@ -735,14 +744,16 @@ static ssize_t show_fm_port_bmi_regs(struct device *dev,
 	unsigned long flags;
 	unsigned n = 0;
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
-	t_LnxWrpFmPortDev *p_LnxWrpFmPortDev =
-			(t_LnxWrpFmPortDev *) dev_get_drvdata(dev);
+	t_LnxWrpFmPortDev *p_LnxWrpFmPortDev;
 #endif
 
 	if (attr == NULL || buf == NULL || dev == NULL)
 		return -EINVAL;
 
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
+	p_LnxWrpFmPortDev =
+		(t_LnxWrpFmPortDev *) dev_get_drvdata(dev);
+
 	local_irq_save(flags);
 
 	if (!p_LnxWrpFmPortDev->h_Dev) {
@@ -774,14 +785,16 @@ static ssize_t show_fm_port_qmi_regs(struct device *dev,
 	unsigned long flags;
 	unsigned n = 0;
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
-	t_LnxWrpFmPortDev *p_LnxWrpFmPortDev =
-	    (t_LnxWrpFmPortDev *) dev_get_drvdata(dev);
+	t_LnxWrpFmPortDev *p_LnxWrpFmPortDev;
 #endif
 
 	if (attr == NULL || buf == NULL || dev == NULL)
 		return -EINVAL;
 
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
+	p_LnxWrpFmPortDev =
+		(t_LnxWrpFmPortDev *) dev_get_drvdata(dev);
+
 	local_irq_save(flags);
 
 	if (!p_LnxWrpFmPortDev->h_Dev) {

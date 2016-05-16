@@ -499,11 +499,35 @@ static const struct qe_firmware *FindFmanMicrocode(void)
 #define SVR_T4_DEVICE_ID     0x82400000
 #define SVR_DEVICE_ID_MASK   0xFFF00000
 
+#define OF_DEV_ID_NUM 2 /* one used, another one zeroed */
+
+/* searches for a subnode with the given name/compatible  */
+static bool HasFmPcdOfNode(struct device_node *fm_node,
+                           struct of_device_id *ids,
+                           const char *name,
+                           const char *compatible)
+{
+    struct device_node *dev_node;
+    bool ret = false;
+
+    memset(ids, 0, OF_DEV_ID_NUM*sizeof(struct of_device_id));
+    if (WARN_ON(strlen(name) >= sizeof(ids[0].name)))
+        return false;
+    strcpy(ids[0].name, name);
+    if (WARN_ON(strlen(compatible) >= sizeof(ids[0].compatible)))
+        return false;
+    strcpy(ids[0].compatible, compatible);
+    for_each_child_of_node(fm_node, dev_node)
+        if (of_match_node(ids, dev_node) != NULL)
+            ret = true;
+    return ret;
+}
+
 static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
 {
     t_LnxWrpFmDev       *p_LnxWrpFmDev;
     struct device_node  *fm_node, *dev_node;
-    struct of_device_id name;
+    struct of_device_id ids[OF_DEV_ID_NUM];
     struct resource     res;
     struct clk *clk;
     u32 clk_rate;
@@ -580,15 +604,15 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
 
     p_LnxWrpFmDev->fmDevSettings.param.fmClkFreq = DIV_ROUND_UP(clk_rate, 1000000); /* In MHz, rounded */
     /* Get the MURAM base address and size */
-    memset(&name, 0, sizeof(struct of_device_id));
-    if (WARN_ON(strlen("muram") >= sizeof(name.name)))
+    memset(ids, 0, sizeof(ids));
+    if (WARN_ON(strlen("muram") >= sizeof(ids[0].name)))
         return NULL;
-    strcpy(name.name, "muram");
-    if (WARN_ON(strlen("fsl,fman-muram") >= sizeof(name.compatible)))
+    strcpy(ids[0].name, "muram");
+    if (WARN_ON(strlen("fsl,fman-muram") >= sizeof(ids[0].compatible)))
         return NULL;
-    strcpy(name.compatible, "fsl,fman-muram");
+    strcpy(ids[0].compatible, "fsl,fman-muram");
     for_each_child_of_node(fm_node, dev_node) {
-        if (likely(of_match_node(&name, dev_node) != NULL)) {
+        if (likely(of_match_node(ids, dev_node) != NULL)) {
             _errno = of_address_to_resource(dev_node, 0, &res);
             if (unlikely(_errno < 0)) {
                 REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("of_address_to_resource() = %d", _errno));
@@ -612,15 +636,15 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
     }
 
     /* Get the RTC base address and size */
-    memset(&name, 0, sizeof(struct of_device_id));
-    if (WARN_ON(strlen("rtc") >= sizeof(name.name)))
+    memset(ids, 0, sizeof(ids));
+    if (WARN_ON(strlen("rtc") >= sizeof(ids[0].name)))
         return NULL;
-    strcpy(name.name, "rtc");
-    if (WARN_ON(strlen("fsl,fman-rtc") >= sizeof(name.compatible)))
+    strcpy(ids[0].name, "rtc");
+    if (WARN_ON(strlen("fsl,fman-rtc") >= sizeof(ids[0].compatible)))
         return NULL;
-    strcpy(name.compatible, "fsl,fman-rtc");
+    strcpy(ids[0].compatible, "fsl,fman-rtc");
     for_each_child_of_node(fm_node, dev_node) {
-        if (likely(of_match_node(&name, dev_node) != NULL)) {
+        if (likely(of_match_node(ids, dev_node) != NULL)) {
             _errno = of_address_to_resource(dev_node, 0, &res);
             if (unlikely(_errno < 0)) {
                 REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("of_address_to_resource() = %d", _errno));
@@ -650,49 +674,10 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
 #endif
 
     /* Get all PCD nodes */
-    memset(&name, 0, sizeof(struct of_device_id));
-    if (WARN_ON(strlen("parser") >= sizeof(name.name)))
-        return NULL;
-    strcpy(name.name, "parser");
-    if (WARN_ON(strlen("fsl,fman-parser") >= sizeof(name.compatible)))
-        return NULL;
-    strcpy(name.compatible, "fsl,fman-parser");
-    for_each_child_of_node(fm_node, dev_node)
-        if (likely(of_match_node(&name, dev_node) != NULL))
-            p_LnxWrpFmDev->prsActive = TRUE;
-
-    memset(&name, 0, sizeof(struct of_device_id));
-    if (WARN_ON(strlen("keygen") >= sizeof(name.name)))
-        return NULL;
-    strcpy(name.name, "keygen");
-    if (WARN_ON(strlen("fsl,fman-keygen") >= sizeof(name.compatible)))
-        return NULL;
-    strcpy(name.compatible, "fsl,fman-keygen");
-    for_each_child_of_node(fm_node, dev_node)
-        if (likely(of_match_node(&name, dev_node) != NULL))
-            p_LnxWrpFmDev->kgActive = TRUE;
-
-    memset(&name, 0, sizeof(struct of_device_id));
-    if (WARN_ON(strlen("cc") >= sizeof(name.name)))
-        return NULL;
-    strcpy(name.name, "cc");
-    if (WARN_ON(strlen("fsl,fman-cc") >= sizeof(name.compatible)))
-        return NULL;
-    strcpy(name.compatible, "fsl,fman-cc");
-    for_each_child_of_node(fm_node, dev_node)
-        if (likely(of_match_node(&name, dev_node) != NULL))
-            p_LnxWrpFmDev->ccActive = TRUE;
-
-    memset(&name, 0, sizeof(struct of_device_id));
-    if (WARN_ON(strlen("policer") >= sizeof(name.name)))
-        return NULL;
-    strcpy(name.name, "policer");
-    if (WARN_ON(strlen("fsl,fman-policer") >= sizeof(name.compatible)))
-        return NULL;
-    strcpy(name.compatible, "fsl,fman-policer");
-    for_each_child_of_node(fm_node, dev_node)
-        if (likely(of_match_node(&name, dev_node) != NULL))
-            p_LnxWrpFmDev->plcrActive = TRUE;
+    p_LnxWrpFmDev->prsActive = HasFmPcdOfNode(fm_node, ids, "parser", "fsl,fman-parser");
+    p_LnxWrpFmDev->kgActive = HasFmPcdOfNode(fm_node, ids, "keygen", "fsl,fman-keygen");
+    p_LnxWrpFmDev->ccActive = HasFmPcdOfNode(fm_node, ids, "cc", "fsl,fman-cc");
+    p_LnxWrpFmDev->plcrActive = HasFmPcdOfNode(fm_node, ids, "policer", "fsl,fman-policer");
 
     if (p_LnxWrpFmDev->prsActive || p_LnxWrpFmDev->kgActive ||
         p_LnxWrpFmDev->ccActive || p_LnxWrpFmDev->plcrActive)
