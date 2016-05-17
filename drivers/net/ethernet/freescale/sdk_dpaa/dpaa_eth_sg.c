@@ -829,7 +829,7 @@ int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 #ifdef DPAA_LS1043A_DMA_4K_ISSUE
 	j = 0;
 	if (unlikely(HAS_DMA_ISSUE(skb->data, sg_len))) {
-		boundary = (void *)BOUNDARY_4K(skb->data, sg_len);
+		boundary = BOUNDARY_4K(skb->data, sg_len);
 		qm_sg_entry_set_len(&sgt[j], (u64)boundary - (u64)addr);
 
 		j++;
@@ -867,7 +867,7 @@ int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 		qm_sg_entry_set64(&sgt[j], addr);
 
 		if (unlikely(HAS_DMA_ISSUE(frag, frag->size))) {
-			boundary = (void *)BOUNDARY_4K(frag, frag->size);
+			boundary = BOUNDARY_4K(frag, frag->size);
 			qm_sg_entry_set_len(&sgt[j], (u64)boundary - (u64)frag);
 
 			j++;
