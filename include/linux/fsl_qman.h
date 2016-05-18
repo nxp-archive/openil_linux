@@ -733,11 +733,19 @@ struct qm_cgr_wr_parm {
 	union {
 		u32 word;
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u32 MA:8;
 			u32 Mn:5;
 			u32 SA:7; /* must be between 64-127 */
 			u32 Sn:6;
 			u32 Pn:6;
+#else
+			u32 Pn:6;
+			u32 Sn:6;
+			u32 SA:7; /* must be between 64-127 */
+			u32 Mn:5;
+			u32 MA:8;
+#endif
 		} __packed;
 	};
 } __packed;
