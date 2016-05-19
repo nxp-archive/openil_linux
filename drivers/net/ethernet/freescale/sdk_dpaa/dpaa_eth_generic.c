@@ -1019,16 +1019,18 @@ static struct list_head *dpa_generic_fq_probe(struct platform_device *_of_dev,
 	lenp = 0;
 	fqids_off = of_get_property(onic_node,
 			"fsl,qman-frame-queues-rx", &lenp);
-	num_ranges = lenp / sizeof(*fqids);
-	fqids = __fq_alloc(dev, num_ranges, fqids_off);
-	for (i = 0; i < num_ranges; i++) {
-		if (!dpa_fq_alloc(dev, fqids[i].start, fqids[i].count, list,
-				  FQ_TYPE_RX_PCD)) {
-			dev_err(dev, "_dpa_fq_alloc() failed\n");
-			return ERR_PTR(-ENOMEM);
+	if (fqids_off) {
+		num_ranges = lenp / sizeof(*fqids);
+		fqids = __fq_alloc(dev, num_ranges, fqids_off);
+		for (i = 0; i < num_ranges; i++) {
+			if (!dpa_fq_alloc(dev, fqids[i].start, fqids[i].count, list,
+				  	  FQ_TYPE_RX_PCD)) {
+				dev_err(dev, "_dpa_fq_alloc() failed\n");
+				return ERR_PTR(-ENOMEM);
+			}
 		}
+		kfree(fqids);
 	}
-	kfree(fqids);
 
 	list_for_each_entry_safe(fq, tmp, list, list) {
 		if (fq->fq_type == FQ_TYPE_TX)
