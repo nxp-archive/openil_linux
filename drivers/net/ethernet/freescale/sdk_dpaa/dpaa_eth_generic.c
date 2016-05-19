@@ -991,6 +991,7 @@ static struct list_head *dpa_generic_fq_probe(struct platform_device *_of_dev,
 			  FQ_TYPE_RX_ERROR) ||
 			!dpa_fq_alloc(dev, fqids[1].start, fqids[1].count,
 				      list, FQ_TYPE_RX_DEFAULT)) {
+		kfree(fqids);
 		dev_err(dev, "Cannot allocate space for default frame queues\n");
 		return ERR_PTR(-ENOMEM);
 	}
@@ -1010,6 +1011,7 @@ static struct list_head *dpa_generic_fq_probe(struct platform_device *_of_dev,
 		if (!dpa_fq_alloc(dev, fqids[i].start, fqids[i].count, list,
 				  FQ_TYPE_TX)) {
 			dev_err(dev, "_dpa_fq_alloc() failed\n");
+			kfree(fqids);
 			return ERR_PTR(-ENOMEM);
 		}
 	}
@@ -1026,6 +1028,7 @@ static struct list_head *dpa_generic_fq_probe(struct platform_device *_of_dev,
 			if (!dpa_fq_alloc(dev, fqids[i].start, fqids[i].count, list,
 				  	  FQ_TYPE_RX_PCD)) {
 				dev_err(dev, "_dpa_fq_alloc() failed\n");
+				kfree(fqids);
 				return ERR_PTR(-ENOMEM);
 			}
 		}
