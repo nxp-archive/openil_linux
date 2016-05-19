@@ -1596,7 +1596,7 @@ static int dpa_generic_eth_probe(struct platform_device *_of_dev)
 	if (!of_device_is_available(dpa_node))
 		return -ENODEV;
 
-	err = dpa_generic_port_probe(_of_dev, &tx_port, &rx_port);
+	err = dpa_generic_port_probe(_of_dev, &rx_port, &tx_port);
 	if (err < 0)
 		return err;
 
