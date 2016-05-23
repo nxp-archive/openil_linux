@@ -355,8 +355,14 @@ static int __cold mac_probe(struct platform_device *_of_dev)
 
 	/* Get the rest of the PHY information */
 	mac_dev->phy_node = of_parse_phandle(mac_node, "phy-handle", 0);
-	if (!mac_dev->phy_node && of_phy_is_fixed_link(mac_node)) {
+	if (!mac_dev->phy_node) {
 		struct phy_device *phy;
+
+		if (!of_phy_is_fixed_link(mac_node)) {
+			dev_err(dev, "Wrong PHY information of mac node %s\n",
+				mac_node->full_name);
+			goto _return_dev_set_drvdata;
+		}
 
 		_errno = of_phy_register_fixed_link(mac_node);
 		if (_errno)
