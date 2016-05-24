@@ -873,7 +873,7 @@ static void UnbindPortToClsPlanGrp(t_FmPcd *p_FmPcd, uint8_t hardwarePortId)
 }
 
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
-static uint32_t ReadClsPlanBlockActionReg(uint8_t grpId)
+static uint32_t __attribute__((unused)) ReadClsPlanBlockActionReg(uint8_t grpId)
 {
     return (uint32_t)(FM_KG_KGAR_GO |
                       FM_KG_KGAR_READ |
