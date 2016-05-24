@@ -297,6 +297,7 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 				if (netif_msg_tx_err(priv) && net_ratelimit())
 					netdev_err(net_dev,
 						"Memory allocation failed\n");
+				dev_kfree_skb_any(skb);
 				return -ENOMEM;
 			}
 
