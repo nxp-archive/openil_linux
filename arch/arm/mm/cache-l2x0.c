@@ -59,6 +59,7 @@ static int __init l2x0_setup_wa(char *str)
 early_param("l2x0_write_allocate", l2x0_setup_wa);
 #else
 #define CACHE_RANGE_ATOMIC_MAX	4096UL
+static int l2x0_wa = 1;
 #endif
 
 static void __iomem *l2x0_base;
