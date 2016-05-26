@@ -1068,7 +1068,6 @@ mr_loop:
 		} else {
 			/* Its a software ERN */
 #ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
-			pr_info("ROY\n");
 			fq = get_fq_table_entry(be32_to_cpu(msg->ern.tag));
 #else
 			fq = (void *)(uintptr_t)be32_to_cpu(msg->ern.tag);
