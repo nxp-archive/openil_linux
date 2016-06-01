@@ -1021,7 +1021,8 @@ static int sdhci_esdhc_probe(struct platform_device *pdev)
 	    of_device_is_compatible(np, "fsl,ls1021a-esdhc") ||
 	    of_device_is_compatible(np, "fsl,ls2080a-esdhc") ||
 	    of_device_is_compatible(np, "fsl,ls2085a-esdhc") ||
-	    of_device_is_compatible(np, "fsl,ls1043a-esdhc"))
+	    of_device_is_compatible(np, "fsl,ls1043a-esdhc") ||
+	    of_device_is_compatible(np, "fsl,ls1046a-esdhc"))
 		host->quirks &= ~SDHCI_QUIRK_BROKEN_CARD_DETECTION;
 
 	if (of_device_is_compatible(np, "fsl,ls1021a-esdhc"))
