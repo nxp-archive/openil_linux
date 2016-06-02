@@ -992,7 +992,7 @@
 		};
 
 		msi1: msi-controller1@1571000 {
-			compatible = "fsl,1s1043a-msi";
+			compatible = "fsl,ls1043a-msi";
 			reg = <0x0 0x1571000 0x0 0x4>,
 			      <0x0 0x1571004 0x0 0x4>;
 			reg-names = "msiir", "msir";
@@ -1001,7 +1001,7 @@
 		};
 
 		msi2: msi-controller2@1572000 {
-			compatible = "fsl,1s1043a-msi";
+			compatible = "fsl,ls1043a-msi";
 			reg = <0x0 0x1572000 0x0 0x4>,
 			      <0x0 0x1572004 0x0 0x4>;
 			reg-names = "msiir", "msir";
@@ -1010,7 +1010,7 @@
 		};
 
 		msi3: msi-controller3@1573000 {
-			compatible = "fsl,1s1043a-msi";
+			compatible = "fsl,ls1043a-msi";
 			reg = <0x0 0x1573000 0x0 0x4>,
 			      <0x0 0x1573004 0x0 0x4>;
 			reg-names = "msiir", "msir";
