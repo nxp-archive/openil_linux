@@ -710,9 +710,23 @@ struct qman_portal *qman_create_portal(
 	}
 	isdr ^= (QM_PIRQ_DQRI | QM_PIRQ_MRI);
 	qm_isr_disable_write(__p, isdr);
-	while (qm_dqrr_current(__p) != NULL)
+	if (qm_dqrr_current(__p) != NULL) {
+		pr_err("Qman DQRR unclean\n");
 		qm_dqrr_cdc_consume_n(__p, 0xffff);
-	drain_mr_fqrni(__p);
+	}
+	if (qm_mr_current(__p) != NULL) {
+		/* special handling, drain just in case it's a few FQRNIs */
+		if (drain_mr_fqrni(__p)) {
+			const struct qm_mr_entry *e = qm_mr_current(__p);
+			/*
+			 * Message ring cannot be empty no need to check
+			 * qm_mr_current returned successfully
+			 */
+			pr_err("Qman MR unclean, MR VERB 0x%x, rc 0x%x\n, addr 0x%x",
+				e->verb, e->ern.rc, e->ern.fd.addr_lo);
+			goto fail_dqrr_mr_empty;
+		}
+	}
 	/* Success */
 	portal->config = config;
 	qm_isr_disable_write(__p, 0);
@@ -720,6 +734,7 @@ struct qman_portal *qman_create_portal(
 	/* Write a sane SDQCR */
 	qm_dqrr_sdqcr_set(__p, portal->sdqcr);
 	return portal;
+fail_dqrr_mr_empty:
 fail_eqcr_empty:
 fail_affinity:
 	free_irq(config->public_cfg.irq, portal);
