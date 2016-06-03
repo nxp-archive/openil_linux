@@ -3805,6 +3805,10 @@ int qman_ceetm_lni_enable_shaper(struct qm_ceetm_lni *lni, int coupled,
 {
 	struct qm_mcc_ceetm_mapping_shaper_tcfc_config config_opts;
 
+	if (lni->shaper_enable) {
+		pr_err("The shaper has already been enabled\n");
+		return -EINVAL;
+	}
 	lni->shaper_enable = 1;
 	lni->shaper_couple = coupled;
 	lni->oal = oal;
