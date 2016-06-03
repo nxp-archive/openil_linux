@@ -2916,6 +2916,10 @@ int qman_create_cgr_to_dcp(struct qman_cgr *cgr, u32 flags, u16 dcp_portal,
 	struct qm_mcr_querycgr cgr_state;
 	int ret;
 
+	if ((qman_ip_rev & 0xFF00) < QMAN_REV30) {
+		pr_warn("This QMan version doesn't support to send CSCN to DCP portal\n");
+		return -EINVAL;
+	}
 	/* We have to check that the provided CGRID is within the limits of the
 	 * data-structures, for obvious reasons. However we'll let h/w take
 	 * care of determining whether it's within the limits of what exists on
