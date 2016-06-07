@@ -79,6 +79,7 @@ struct qb_attr_code code_generic_rslt = QB_CODE(0, 8, 8);
 struct qb_attr_code code_sdqcr_dct = QB_CODE(0, 24, 2);
 struct qb_attr_code code_sdqcr_fc = QB_CODE(0, 29, 1);
 struct qb_attr_code code_sdqcr_tok = QB_CODE(0, 16, 8);
+static struct qb_attr_code code_eq_dca_idx;
 #define CODE_SDQCR_DQSRC(n) QB_CODE(0, n, 1)
 enum qbman_sdqcr_dct {
 	qbman_sdqcr_dct_null = 0,
@@ -137,10 +138,15 @@ struct qbman_swp *qbman_swp_init(const struct qbman_swp_desc *d)
 #ifdef WORKAROUND_DQRR_RESET_BUG
 	p->dqrr.reset_bug = 1;
 #endif
-	if ((p->desc->qman_version & 0xFFFF0000) < QMAN_REV_4100)
+	if ((p->desc->qman_version & 0xFFFF0000) < QMAN_REV_4100) {
 		p->dqrr.dqrr_size = 4;
-	else
+		/* Set size of DQRR to 4, encoded in 2 bits */
+		code_eq_dca_idx = (struct qb_attr_code)QB_CODE(0, 8, 2);
+	} else {
 		p->dqrr.dqrr_size = 8;
+		/* Set size of DQRR to 8, encoded in 3 bits */
+		code_eq_dca_idx = (struct qb_attr_code)QB_CODE(0, 8, 3);
+	}
 	ret = qbman_swp_sys_init(&p->sys, d, p->dqrr.dqrr_size);
 	if (ret) {
 		kfree(p);
@@ -282,8 +288,8 @@ static struct qb_attr_code code_eq_cmd = QB_CODE(0, 0, 2);
 static struct qb_attr_code code_eq_eqdi = QB_CODE(0, 3, 1);
 static struct qb_attr_code code_eq_dca_en = QB_CODE(0, 15, 1);
 static struct qb_attr_code code_eq_dca_pk = QB_CODE(0, 14, 1);
-static struct qb_attr_code code_eq_dca_idx = QB_CODE(0, 8, 2);
 static struct qb_attr_code code_eq_orp_en = QB_CODE(0, 2, 1);
+/* Can't set code_eq_dca_idx width. Need qman version. Read at runtime */
 static struct qb_attr_code code_eq_orp_is_nesn = QB_CODE(0, 31, 1);
 static struct qb_attr_code code_eq_orp_nlis = QB_CODE(0, 30, 1);
 static struct qb_attr_code code_eq_orp_seqnum = QB_CODE(0, 16, 14);
