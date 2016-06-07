@@ -820,12 +820,13 @@ static int __init __l2c_init(const struct l2c_init_data *data,
 				l2x0_wa = 0;
 				pr_alert("L2C: I-pipe: l2x0_write_allocate= not specified, defaults to 0 (disabled).\n");
 			}
-			aux_mask &= ~L220_AUX_CTRL_FWA_MASK;
-			aux_val &= ~L220_AUX_CTRL_FWA_MASK;
-			aux_val |= (!l2x0_wa) << L220_AUX_CTRL_FWA_SHIFT;
+			if (!l2x0_wa) {
+				aux_mask &= ~L220_AUX_CTRL_FWA_MASK;
+				aux_val &= ~L220_AUX_CTRL_FWA_MASK;
+				aux_val |= 1 << L220_AUX_CTRL_FWA_SHIFT;
+			} else
+				pr_alert("L2C: I-pipe: write-allocate enabled, induces high latencies.\n");
 		}
-		if (l2x0_wa)
-			pr_alert("L2C: I-pipe: write-allocate enabled, induces high latencies.\n");
 	}
 
 	old_aux = aux = readl_relaxed(l2x0_base + L2X0_AUX_CTRL);
