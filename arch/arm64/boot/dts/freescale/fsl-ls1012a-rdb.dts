@@ -48,6 +48,10 @@
 / {
 	model = "LS1012A RDB Board";
 	compatible = "fsl,ls1012a-rdb", "fsl,ls1012a";
+
+	aliases {
+		crypto = &crypto;
+	};
 };
 
 &duart0 {

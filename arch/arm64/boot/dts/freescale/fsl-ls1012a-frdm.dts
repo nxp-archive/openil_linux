@@ -49,6 +49,10 @@
 	model = "LS1012A Freedom Board";
 	compatible = "fsl,ls1012a-frdm", "fsl,ls1012a";
 
+	aliases {
+		crypto = &crypto;
+	};
+
 	sys_mclk: clock-mclk {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
