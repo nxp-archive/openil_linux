@@ -2260,6 +2260,7 @@ static int __init caam_qi_algapi_init(void)
 	}
 
 	pdev = of_find_device_by_node(dev_node);
+	of_node_put(dev_node);
 	if (!pdev)
 		return -ENODEV;
 
@@ -2271,7 +2272,6 @@ static int __init caam_qi_algapi_init(void)
 	*/
 	if (!priv)
 		return -ENODEV;
-	of_node_put(dev_node);
 
 	INIT_LIST_HEAD(&alg_list);
 
