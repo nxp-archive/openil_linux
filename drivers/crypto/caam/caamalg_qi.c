@@ -2270,7 +2270,7 @@ static int __init caam_qi_algapi_init(void)
 	* If priv is NULL, it's probably because the caam driver wasn't
 	* properly initialized (e.g. RNG4 init failed). Thus, bail out here.
 	*/
-	if (!priv)
+	if (!priv || !priv->qi_present)
 		return -ENODEV;
 
 	INIT_LIST_HEAD(&alg_list);
