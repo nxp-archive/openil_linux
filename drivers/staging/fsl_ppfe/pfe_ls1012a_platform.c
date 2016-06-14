@@ -140,8 +140,6 @@ static int pfe_platform_probe(struct platform_device *pdev)
 	const u32 *prop;
 	struct device_node  *np;
 
-	printk(KERN_INFO "%s %s %s\n", __func__,__DATE__,__TIME__);
-
 	np = pdev->dev.of_node;
 
 	if (!np) {
