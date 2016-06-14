@@ -825,6 +825,19 @@ static inline struct sk_buff *alloc_skb_fclone(unsigned int size,
 	return __alloc_skb(size, priority, SKB_ALLOC_FCLONE, NUMA_NO_NODE);
 }
 
+#if defined(CONFIG_FSL_PPFE)
+extern struct sk_buff *__alloc_skb_header(unsigned int size, void *data,
+		gfp_t gfp_mask,
+		int fclone,
+		int node);
+static inline struct sk_buff *alloc_skb_header(unsigned int size,
+		u8 *data,
+		gfp_t priority)
+{
+	return __alloc_skb_header(size, data, priority, 0, -1);
+}
+#endif
+
 struct sk_buff *__alloc_skb_head(gfp_t priority, int node);
 static inline struct sk_buff *alloc_skb_head(gfp_t priority)
 {

@@ -1,0 +1,3 @@
+config FSL_PPFE
+	bool "Freescale PPFE Driver"
+	default y
