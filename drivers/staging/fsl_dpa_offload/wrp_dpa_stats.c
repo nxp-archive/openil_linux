@@ -1739,6 +1739,7 @@ static long wrp_dpa_stats_do_ioctl(struct file *filp,
 	default:
 		log_err("Unsupported ioctl 0x%08x, type 0x%02x, nr 0x%02x\n",
 			cmd, _IOC_TYPE(cmd), _IOC_NR(cmd));
+		ret = -EINVAL;
 		break;
 	}
 	return ret;
