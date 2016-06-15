@@ -23,7 +23,7 @@ modules clean:
 
 EXTRA_CFLAGS +=  -I$(src)/include  -I$(src) -DCOMCERTO_2000 -DCONFIG_PLATFORM_LS1012A -DGEMAC_MTIP -DCONFIG_UTIL_DISABLED
 
-EXTRA_LDFLAGS += -T$(src)/control_link.lds
+EXTRA_LDFLAGS += -T$(srctree)/$(src)/control_link.lds
 
 obj-m += pfe.o
 
