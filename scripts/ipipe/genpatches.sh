@@ -91,6 +91,7 @@ BEGIN {
     driver_arch["irqchip/irq-dw-apb-ictl.c"]="arm"
     driver_arch["irqchip/irq-gic-v3.c"]="arm"
     driver_arch["irqchip/irq-sunxi-nmi.c"]="arm"
+    driver_arch["irqchip/irq-crossbar.c"]="arm"
     driver_arch["mfd/twl4030-irq.c"]="arm"
     driver_arch["mfd/twl6030-irq.c"]="arm"
     driver_arch["dma/edma.c"]="arm"
