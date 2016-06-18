@@ -263,7 +263,16 @@ static ftrace_func_t ftrace_ops_get_list_func(struct ftrace_ops *ops)
 
 static void update_ftrace_function(void)
 {
+	struct ftrace_ops *ops;
 	ftrace_func_t func;
+
+	for (ops = ftrace_ops_list;
+	     ops != &ftrace_list_end; ops = ops->next)
+		if (ops->flags & FTRACE_OPS_FL_IPIPE_EXCLUSIVE) {
+			set_function_trace_op = ops;
+			func = ops->func;
+			goto set_pointers;
+		}
 
 	/*
 	 * Prepare the ftrace_ops that the arch callback will use.
@@ -292,6 +301,7 @@ static void update_ftrace_function(void)
 
 	update_function_graph_func();
 
+  set_pointers:
 	/* If there's no change, then do nothing more here */
 	if (ftrace_trace_function == func)
 		return;
