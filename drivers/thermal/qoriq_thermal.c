@@ -137,6 +137,8 @@ static int qoriq_of_get_sensor_id(struct platform_device *pdev)
 		data->sensor_id = 2;
 	else if (of_device_is_compatible(np, "fsl,ls1021a-tmu"))
 		data->sensor_id = 0;
+	else if (of_device_is_compatible(np, "fsl,ls1012a-tmu"))
+		data->sensor_id = 0;
 	else if (of_device_is_compatible(np, "fsl,ls1043a-tmu"))
 		data->sensor_id = 3;
 	else if (of_device_is_compatible(np, "fsl,ls2080a-tmu"))
