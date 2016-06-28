@@ -43,33 +43,33 @@ static void rsa_unmap(struct device *dev,
 	case RSA_PUB:
 		{
 			struct rsa_pub_req_s *pub_req = &req->req_u.rsa_pub_req;
-			struct rsa_pub_desc_s *rsa_pub_desc =
-			    (struct rsa_pub_desc_s *)edesc->hw_desc;
+			struct rsa_pub_edesc_s *pub_edesc =
+					&edesc->dma_u.rsa_pub_edesc;
 
-			dma_unmap_single(dev, rsa_pub_desc->n_dma,
-					 pub_req->n_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, rsa_pub_desc->e_dma,
-					 pub_req->e_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, rsa_pub_desc->g_dma,
-					 pub_req->g_len, DMA_FROM_DEVICE);
-			dma_unmap_single(dev, rsa_pub_desc->f_dma,
-					 pub_req->f_len, DMA_TO_DEVICE);
+			dma_unmap_single(dev, pub_edesc->n_dma, pub_req->n_len,
+					 DMA_TO_DEVICE);
+			dma_unmap_single(dev, pub_edesc->e_dma, pub_req->e_len,
+					 DMA_TO_DEVICE);
+			dma_unmap_single(dev, pub_edesc->g_dma, pub_req->g_len,
+					 DMA_FROM_DEVICE);
+			dma_unmap_single(dev, pub_edesc->f_dma, pub_req->f_len,
+					 DMA_TO_DEVICE);
 			break;
 		}
 	case RSA_PRIV_FORM1:
 		{
 			struct rsa_priv_frm1_req_s *priv_req =
 			    &req->req_u.rsa_priv_f1;
-			struct rsa_priv_frm1_desc_s *rsa_priv_desc =
-			    (struct rsa_priv_frm1_desc_s *)edesc->hw_desc;
+			struct rsa_priv_frm1_edesc_s *priv_edesc =
+					&edesc->dma_u.rsa_priv_f1_edesc;
 
-			dma_unmap_single(dev, rsa_priv_desc->n_dma,
+			dma_unmap_single(dev, priv_edesc->n_dma,
 					 priv_req->n_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, rsa_priv_desc->d_dma,
+			dma_unmap_single(dev, priv_edesc->d_dma,
 					 priv_req->d_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, rsa_priv_desc->f_dma,
+			dma_unmap_single(dev, priv_edesc->f_dma,
 					 priv_req->f_len, DMA_FROM_DEVICE);
-			dma_unmap_single(dev, rsa_priv_desc->g_dma,
+			dma_unmap_single(dev, priv_edesc->g_dma,
 					 priv_req->g_len, DMA_TO_DEVICE);
 			break;
 		}
@@ -77,27 +77,23 @@ static void rsa_unmap(struct device *dev,
 		{
 			struct rsa_priv_frm2_req_s *priv_req =
 			    &req->req_u.rsa_priv_f2;
-			struct rsa_priv_frm2_desc_s *rsa_priv_desc =
-			    (struct rsa_priv_frm2_desc_s *)edesc->hw_desc;
+			struct rsa_priv_frm2_edesc_s *priv_edesc =
+					&edesc->dma_u.rsa_priv_f2_edesc;
 
-			dma_unmap_single(dev, rsa_priv_desc->p_dma,
+			dma_unmap_single(dev, priv_edesc->p_dma,
 					 priv_req->p_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, rsa_priv_desc->q_dma,
+			dma_unmap_single(dev, priv_edesc->q_dma,
 					 priv_req->q_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, rsa_priv_desc->d_dma,
+			dma_unmap_single(dev, priv_edesc->d_dma,
 					 priv_req->d_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, rsa_priv_desc->g_dma,
+			dma_unmap_single(dev, priv_edesc->g_dma,
 					 priv_req->g_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, rsa_priv_desc->f_dma,
+			dma_unmap_single(dev, priv_edesc->f_dma,
 					 priv_req->f_len, DMA_FROM_DEVICE);
-			dma_unmap_single(dev,
-					 edesc->dma_u.rsa_priv_f2_edesc.
-					 tmp1_dma, priv_req->p_len,
-					 DMA_BIDIRECTIONAL);
-			dma_unmap_single(dev,
-					 edesc->dma_u.rsa_priv_f2_edesc.
-					 tmp2_dma, priv_req->q_len,
-					 DMA_BIDIRECTIONAL);
+			dma_unmap_single(dev, priv_edesc->tmp1_dma,
+					 priv_req->p_len, DMA_BIDIRECTIONAL);
+			dma_unmap_single(dev, priv_edesc->tmp2_dma,
+					 priv_req->q_len, DMA_BIDIRECTIONAL);
 			kfree(edesc->dma_u.rsa_priv_f2_edesc.tmp1);
 			kfree(edesc->dma_u.rsa_priv_f2_edesc.tmp2);
 			break;
@@ -106,31 +102,27 @@ static void rsa_unmap(struct device *dev,
 		{
 			struct rsa_priv_frm3_req_s *priv_req =
 			    &req->req_u.rsa_priv_f3;
-			struct rsa_priv_frm3_desc_s *rsa_priv_desc =
-			    (struct rsa_priv_frm3_desc_s *)edesc->hw_desc;
+			struct rsa_priv_frm3_edesc_s *priv_edesc =
+					&edesc->dma_u.rsa_priv_f3_edesc;
 
-			dma_unmap_single(dev, rsa_priv_desc->p_dma,
+			dma_unmap_single(dev, priv_edesc->p_dma,
 					 priv_req->p_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, rsa_priv_desc->q_dma,
+			dma_unmap_single(dev, priv_edesc->q_dma,
 					 priv_req->q_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, rsa_priv_desc->dq_dma,
+			dma_unmap_single(dev, priv_edesc->dq_dma,
 					 priv_req->dq_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, rsa_priv_desc->dp_dma,
+			dma_unmap_single(dev, priv_edesc->dp_dma,
 					 priv_req->dp_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, rsa_priv_desc->c_dma,
+			dma_unmap_single(dev, priv_edesc->c_dma,
 					 priv_req->c_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, rsa_priv_desc->g_dma,
+			dma_unmap_single(dev, priv_edesc->g_dma,
 					 priv_req->g_len, DMA_TO_DEVICE);
-			dma_unmap_single(dev, rsa_priv_desc->f_dma,
+			dma_unmap_single(dev, priv_edesc->f_dma,
 					 priv_req->f_len, DMA_FROM_DEVICE);
-			dma_unmap_single(dev,
-					 edesc->dma_u.rsa_priv_f3_edesc.
-					 tmp1_dma, priv_req->p_len,
-					 DMA_BIDIRECTIONAL);
-			dma_unmap_single(dev,
-					 edesc->dma_u.rsa_priv_f3_edesc.
-					 tmp2_dma, priv_req->q_len,
-					 DMA_BIDIRECTIONAL);
+			dma_unmap_single(dev, priv_edesc->tmp1_dma,
+					 priv_req->p_len, DMA_BIDIRECTIONAL);
+			dma_unmap_single(dev, priv_edesc->tmp2_dma,
+					 priv_req->q_len, DMA_BIDIRECTIONAL);
 			kfree(edesc->dma_u.rsa_priv_f3_edesc.tmp1);
 			kfree(edesc->dma_u.rsa_priv_f3_edesc.tmp2);
 			break;
@@ -162,18 +154,17 @@ static void dh_unmap(struct device *dev,
 		      struct dh_edesc_s *edesc, struct pkc_request *req)
 {
 	struct dh_key_req_s *dh_req = &req->req_u.dh_req;
-	struct dh_key_desc_s *dh_desc =
-	    (struct dh_key_desc_s *)edesc->hw_desc;
-	dma_unmap_single(dev, dh_desc->q_dma,
+
+	dma_unmap_single(dev, edesc->q_dma,
 			 dh_req->q_len, DMA_TO_DEVICE);
-	dma_unmap_single(dev, dh_desc->w_dma,
+	dma_unmap_single(dev, edesc->w_dma,
 			 dh_req->pub_key_len, DMA_TO_DEVICE);
-	dma_unmap_single(dev, dh_desc->s_dma,
+	dma_unmap_single(dev, edesc->s_dma,
 			 dh_req->s_len, DMA_TO_DEVICE);
-	dma_unmap_single(dev, dh_desc->z_dma,
+	dma_unmap_single(dev, edesc->z_dma,
 			 dh_req->z_len, DMA_FROM_DEVICE);
 	if (edesc->req_type == ECDH_COMPUTE_KEY)
-		dma_unmap_single(dev, dh_desc->ab_dma,
+		dma_unmap_single(dev, edesc->ab_dma,
 				 dh_req->ab_len, DMA_TO_DEVICE);
 }
 
@@ -185,21 +176,20 @@ static void dsa_unmap(struct device *dev,
 	case ECDSA_SIGN:
 	{
 		struct dsa_sign_req_s *dsa_req = &req->req_u.dsa_sign;
-		struct dsa_sign_desc_s *dsa_desc =
-		    (struct dsa_sign_desc_s *)edesc->hw_desc;
-		dma_unmap_single(dev, dsa_desc->q_dma,
+
+		dma_unmap_single(dev, edesc->q_dma,
 				 dsa_req->q_len, DMA_TO_DEVICE);
-		dma_unmap_single(dev, dsa_desc->r_dma,
+		dma_unmap_single(dev, edesc->r_dma,
 				 dsa_req->r_len, DMA_TO_DEVICE);
-		dma_unmap_single(dev, dsa_desc->g_dma,
+		dma_unmap_single(dev, edesc->g_dma,
 				 dsa_req->g_len, DMA_TO_DEVICE);
-		dma_unmap_single(dev, dsa_desc->s_dma,
+		dma_unmap_single(dev, edesc->s_dma,
 				 dsa_req->priv_key_len, DMA_TO_DEVICE);
-		dma_unmap_single(dev, dsa_desc->f_dma,
+		dma_unmap_single(dev, edesc->f_dma,
 				 dsa_req->m_len, DMA_TO_DEVICE);
-		dma_unmap_single(dev, dsa_desc->c_dma,
+		dma_unmap_single(dev, edesc->c_dma,
 				 dsa_req->d_len, DMA_FROM_DEVICE);
-		dma_unmap_single(dev, dsa_desc->d_dma,
+		dma_unmap_single(dev, edesc->d_dma,
 				 dsa_req->d_len, DMA_FROM_DEVICE);
 		if (req->type == ECDSA_SIGN)
 			dma_unmap_single(dev, edesc->ab_dma,
@@ -210,30 +200,29 @@ static void dsa_unmap(struct device *dev,
 	case ECDSA_VERIFY:
 	{
 		struct dsa_verify_req_s *dsa_req = &req->req_u.dsa_verify;
-		struct dsa_verify_desc_s *dsa_desc =
-		    (struct dsa_verify_desc_s *)edesc->hw_desc;
-		dma_unmap_single(dev, dsa_desc->q_dma,
+
+		dma_unmap_single(dev, edesc->q_dma,
 				 dsa_req->q_len, DMA_TO_DEVICE);
-		dma_unmap_single(dev, dsa_desc->r_dma,
+		dma_unmap_single(dev, edesc->r_dma,
 				 dsa_req->r_len, DMA_TO_DEVICE);
-		dma_unmap_single(dev, dsa_desc->g_dma,
+		dma_unmap_single(dev, edesc->g_dma,
 				 dsa_req->g_len, DMA_TO_DEVICE);
-		dma_unmap_single(dev, dsa_desc->w_dma,
+		dma_unmap_single(dev, edesc->key_dma,
 				 dsa_req->pub_key_len, DMA_TO_DEVICE);
-		dma_unmap_single(dev, dsa_desc->f_dma,
+		dma_unmap_single(dev, edesc->f_dma,
 				 dsa_req->m_len, DMA_TO_DEVICE);
-		dma_unmap_single(dev, dsa_desc->c_dma,
+		dma_unmap_single(dev, edesc->c_dma,
 				 dsa_req->d_len, DMA_TO_DEVICE);
-		dma_unmap_single(dev, dsa_desc->d_dma,
+		dma_unmap_single(dev, edesc->d_dma,
 				 dsa_req->d_len, DMA_TO_DEVICE);
 		if (req->type == ECDSA_VERIFY) {
-			dma_unmap_single(dev, dsa_desc->tmp_dma,
+			dma_unmap_single(dev, edesc->tmp_dma,
 					 2*edesc->l_len, DMA_BIDIRECTIONAL);
 			dma_unmap_single(dev, edesc->ab_dma,
 					 dsa_req->ab_len, DMA_TO_DEVICE);
 		} else {
-			dma_unmap_single(dev, dsa_desc->tmp_dma,
-				 edesc->l_len, DMA_BIDIRECTIONAL);
+			dma_unmap_single(dev, edesc->tmp_dma,
+					 edesc->l_len, DMA_BIDIRECTIONAL);
 		}
 		kfree(edesc->tmp);
 	}
@@ -242,17 +231,16 @@ static void dsa_unmap(struct device *dev,
 	case ECC_KEYGEN:
 	{
 		struct keygen_req_s *key_req = &req->req_u.keygen;
-		struct dlc_keygen_desc_s *key_desc =
-		    (struct dlc_keygen_desc_s *)edesc->hw_desc;
-		dma_unmap_single(dev, key_desc->q_dma,
+
+		dma_unmap_single(dev, edesc->q_dma,
 				 key_req->q_len, DMA_TO_DEVICE);
-		dma_unmap_single(dev, key_desc->r_dma,
+		dma_unmap_single(dev, edesc->r_dma,
 				 key_req->r_len, DMA_TO_DEVICE);
-		dma_unmap_single(dev, key_desc->g_dma,
+		dma_unmap_single(dev, edesc->g_dma,
 				 key_req->g_len, DMA_TO_DEVICE);
-		dma_unmap_single(dev, key_desc->s_dma,
+		dma_unmap_single(dev, edesc->s_dma,
 				 key_req->priv_key_len, DMA_FROM_DEVICE);
-		dma_unmap_single(dev, key_desc->w_dma,
+		dma_unmap_single(dev, edesc->key_dma,
 				 key_req->pub_key_len, DMA_FROM_DEVICE);
 		if (req->type == ECC_KEYGEN)
 			dma_unmap_single(dev, edesc->ab_dma,
