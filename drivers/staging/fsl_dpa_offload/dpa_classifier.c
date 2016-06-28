@@ -4641,8 +4641,9 @@ static int nat_hm_update_params(struct dpa_cls_hm *pnat_hm)
 						HDR_MANIP_IPV4_SRC;
 					hm_node->params.u.hdr.
 						fieldUpdateParams.u.ipv4.
-						src = pnat_hm->nat_params.nat.
-						sip.addr.ipv4.word;
+						src =
+					be32_to_cpu(pnat_hm->nat_params.nat.
+						sip.addr.ipv4.word);
 				}
 
 				if (pnat_hm->nat_params.flags &
@@ -4653,8 +4654,9 @@ static int nat_hm_update_params(struct dpa_cls_hm *pnat_hm)
 						HDR_MANIP_IPV4_DST;
 					hm_node->params.u.hdr.
 						fieldUpdateParams.u.ipv4.
-						dst = pnat_hm->nat_params.nat.
-						dip.addr.ipv4.word;
+						dst =
+					be32_to_cpu(pnat_hm->nat_params.nat.
+						dip.addr.ipv4.word);
 				}
 			} else { /* We're dealing with IPv6 */
 				hm_node->params.u.hdr.fieldUpdateParams.type =
@@ -6311,8 +6313,8 @@ static int update_hm_update_params(struct dpa_cls_hm *pupdate_hm)
 					HDR_MANIP_IPV4_SRC;
 				hm_node->params.u.hdr.fieldUpdateParams.u.ipv4.
 					src =
-					pupdate_hm->update_params.update.l3.
-					ipsa.addr.ipv4.word;
+					be32_to_cpu(pupdate_hm->update_params.
+					update.l3.ipsa.addr.ipv4.word);
 			}
 
 			if (pupdate_hm->update_params.update.l3.field_flags &
@@ -6322,8 +6324,8 @@ static int update_hm_update_params(struct dpa_cls_hm *pupdate_hm)
 					HDR_MANIP_IPV4_DST;
 				hm_node->params.u.hdr.fieldUpdateParams.u.ipv4.
 					dst =
-					pupdate_hm->update_params.update.l3.
-					ipda.addr.ipv4.word;
+					be32_to_cpu(pupdate_hm->update_params.
+					update.l3.ipda.addr.ipv4.word);
 			}
 
 			if (pupdate_hm->update_params.update.l3.field_flags &
