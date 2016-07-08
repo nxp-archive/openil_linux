@@ -202,7 +202,7 @@ __ipipe_trace_end(int cpu, struct ipipe_trace_path *tp, int pos)
 	if (length > per_cpu(trace_path, cpu)[per_cpu(max_path, cpu)].length) {
 		/* we need protection here against other cpus trying
 		   to start a proc dump */
-		spin_lock(&global_path_lock);
+		raw_spin_lock(&global_path_lock);
 
 		/* active path holds new worst case */
 		tp->length = length;
@@ -211,7 +211,7 @@ __ipipe_trace_end(int cpu, struct ipipe_trace_path *tp, int pos)
 		/* find next unused trace path */
 		active = __ipipe_get_free_trace_path(active, cpu);
 
-		spin_unlock(&global_path_lock);
+		raw_spin_unlock(&global_path_lock);
 
 		tp = &per_cpu(trace_path, cpu)[active];
 
@@ -234,7 +234,7 @@ __ipipe_trace_freeze(int cpu, struct ipipe_trace_path *tp, int pos)
 
 	/* we need protection here against other cpus trying
 	 * to set their frozen path or to start a proc dump */
-	spin_lock(&global_path_lock);
+	raw_spin_lock(&global_path_lock);
 
 	per_cpu(frozen_path, cpu) = active;
 
@@ -248,7 +248,7 @@ __ipipe_trace_freeze(int cpu, struct ipipe_trace_path *tp, int pos)
 			tp->end = -1;
 	}
 
-	spin_unlock(&global_path_lock);
+	raw_spin_unlock(&global_path_lock);
 
 	tp = &per_cpu(trace_path, cpu)[active];
 
@@ -403,7 +403,7 @@ static unsigned long __ipipe_global_path_lock(void)
 	int cpu;
 	struct ipipe_trace_path *tp;
 
-	spin_lock_irqsave(&global_path_lock, flags);
+	raw_spin_lock_irqsave(&global_path_lock, flags);
 
 	cpu = ipipe_processor_id();
  restart:

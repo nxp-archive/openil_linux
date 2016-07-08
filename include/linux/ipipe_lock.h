@@ -26,21 +26,86 @@ typedef struct {
 	arch_spinlock_t arch_lock;
 } __ipipe_spinlock_t;
 
+#define ipipe_spinlock(lock)	((__ipipe_spinlock_t *)(lock))
 #define ipipe_spinlock_p(lock)							\
 	__builtin_types_compatible_p(typeof(lock), __ipipe_spinlock_t *) ||	\
 	__builtin_types_compatible_p(typeof(lock), __ipipe_spinlock_t [])
 
+#define std_spinlock_raw(lock)	((raw_spinlock_t *)(lock))
 #define std_spinlock_raw_p(lock)					\
 	__builtin_types_compatible_p(typeof(lock), raw_spinlock_t *) ||	\
 	__builtin_types_compatible_p(typeof(lock), raw_spinlock_t [])
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+
+#define PICK_SPINLOCK_IRQSAVE(lock, flags)				\
+	do {								\
+		if (ipipe_spinlock_p(lock))				\
+			(flags) = __ipipe_spin_lock_irqsave(ipipe_spinlock(lock)); \
+		else if (std_spinlock_raw_p(lock))				\
+			__real_raw_spin_lock_irqsave(std_spinlock_raw(lock), flags); \
+		else __bad_lock_type();					\
+	} while (0)
+
+#define PICK_SPINTRYLOCK_IRQSAVE(lock, flags)				\
+	({								\
+		int __ret__;						\
+		if (ipipe_spinlock_p(lock))				\
+			__ret__ = __ipipe_spin_trylock_irqsave(ipipe_spinlock(lock), &(flags)); \
+		else if (std_spinlock_raw_p(lock))				\
+			__ret__ = __real_raw_spin_trylock_irqsave(std_spinlock_raw(lock), flags); \
+		else __bad_lock_type();					\
+		__ret__;						\
+	 })
+
+#define PICK_SPINTRYLOCK_IRQ(lock)					\
+	({								\
+		int __ret__;						\
+		if (ipipe_spinlock_p(lock))				\
+			__ret__ = __ipipe_spin_trylock_irq(ipipe_spinlock(lock)); \
+		else if (std_spinlock_raw_p(lock))				\
+			__ret__ = __real_raw_spin_trylock_irq(std_spinlock_raw(lock)); \
+		else __bad_lock_type();					\
+		__ret__;						\
+	 })
+
+#define PICK_SPINUNLOCK_IRQRESTORE(lock, flags)				\
+	do {								\
+		if (ipipe_spinlock_p(lock))				\
+			__ipipe_spin_unlock_irqrestore(ipipe_spinlock(lock), flags); \
+		else if (std_spinlock_raw_p(lock)) {			\
+			__ipipe_spin_unlock_debug(flags);		\
+			__real_raw_spin_unlock_irqrestore(std_spinlock_raw(lock), flags); \
+		} else __bad_lock_type();				\
+	} while (0)
+
+#define PICK_SPINOP(op, lock)						\
+	({								\
+		if (ipipe_spinlock_p(lock))				\
+			arch_spin##op(&ipipe_spinlock(lock)->arch_lock); \
+		else if (std_spinlock_raw_p(lock))			\
+			__real_raw_spin##op(std_spinlock_raw(lock));	\
+		else __bad_lock_type();					\
+		(void)0;						\
+	})
+
+#define PICK_SPINOP_RET(op, lock, type)					\
+	({								\
+		type __ret__;						\
+		if (ipipe_spinlock_p(lock))				\
+			__ret__ = arch_spin##op(&ipipe_spinlock(lock)->arch_lock); \
+		else if (std_spinlock_raw_p(lock))			\
+			__ret__ = __real_raw_spin##op(std_spinlock_raw(lock)); \
+		else { __ret__ = -1; __bad_lock_type(); }		\
+		__ret__;						\
+	})
+
+#else /* !CONFIG_PREEMPT_RT_FULL */
+
+#define std_spinlock(lock)	((spinlock_t *)(lock))
 #define std_spinlock_p(lock)						\
 	__builtin_types_compatible_p(typeof(lock), spinlock_t *) ||	\
 	__builtin_types_compatible_p(typeof(lock), spinlock_t [])
-
-#define ipipe_spinlock(lock)	((__ipipe_spinlock_t *)(lock))
-#define std_spinlock_raw(lock)	((raw_spinlock_t *)(lock))
-#define std_spinlock(lock)	((spinlock_t *)(lock))
 
 #define PICK_SPINLOCK_IRQSAVE(lock, flags)				\
 	do {								\
@@ -116,6 +181,8 @@ typedef struct {
 		else { __ret__ = -1; __bad_lock_type(); }		\
 		__ret__;						\
 	})
+
+#endif /* !CONFIG_PREEMPT_RT_FULL */
 
 #define arch_spin_lock_init(lock)					\
 	do {								\
