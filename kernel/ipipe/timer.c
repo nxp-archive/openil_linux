@@ -124,7 +124,7 @@ void ipipe_timer_register(struct ipipe_timer *timer)
 	if (timer->cpumask == NULL)
 		timer->cpumask = cpumask_of(smp_processor_id());
 
-	spin_lock_irqsave(&lock, flags);
+	raw_spin_lock_irqsave(&lock, flags);
 
 	list_for_each_entry(t, &timers, link) {
 		if (t->rating <= timer->rating) {
@@ -134,7 +134,7 @@ void ipipe_timer_register(struct ipipe_timer *timer)
 	}
 	list_add_tail(&timer->link, &timers);
   done:
-	spin_unlock_irqrestore(&lock, flags);
+	raw_spin_unlock_irqrestore(&lock, flags);
 }
 
 static void ipipe_timer_request_sync(void)
@@ -239,7 +239,7 @@ int ipipe_select_timers(const struct cpumask *mask)
 	} else
 		hrclock_freq = __ipipe_hrclock_freq;
 
-	spin_lock_irqsave(&lock, flags);
+	raw_spin_lock_irqsave(&lock, flags);
 
 	/* First, choose timers for the CPUs handled by ipipe */
 	for_each_cpu(cpu, mask) {
@@ -279,7 +279,7 @@ found:
 		}
 	}
 
-	spin_unlock_irqrestore(&lock, flags);
+	raw_spin_unlock_irqrestore(&lock, flags);
 
 	flags = ipipe_critical_enter(ipipe_timer_request_sync);
 	ipipe_timer_request_sync();
@@ -288,7 +288,7 @@ found:
 	return 0;
 
 err_remove_all:
-	spin_unlock_irqrestore(&lock, flags);
+	raw_spin_unlock_irqrestore(&lock, flags);
 
 	for_each_cpu(cpu, mask) {
 		per_cpu(ipipe_percpu.hrtimer_irq, cpu) = -1;

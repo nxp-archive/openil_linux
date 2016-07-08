@@ -1847,7 +1847,7 @@ void __ipipe_flush_printk (unsigned virq, void *cookie)
 	goto start;
 
 	do {
-		spin_unlock_irqrestore(&__ipipe_printk_lock, flags);
+		raw_spin_unlock_irqrestore(&__ipipe_printk_lock, flags);
  start:
 		lmax = __ipipe_printk_fill;
 		while (out < lmax) {
@@ -1856,13 +1856,13 @@ void __ipipe_flush_printk (unsigned virq, void *cookie)
 			p += len;
 			out += len;
 		}
-		spin_lock_irqsave(&__ipipe_printk_lock, flags);
+		raw_spin_lock_irqsave(&__ipipe_printk_lock, flags);
 	}
 	while (__ipipe_printk_fill != lmax);
 
 	__ipipe_printk_fill = 0;
 
-	spin_unlock_irqrestore(&__ipipe_printk_lock, flags);
+	raw_spin_unlock_irqrestore(&__ipipe_printk_lock, flags);
 }
 
 /**
@@ -1916,7 +1916,7 @@ asmlinkage __visible int printk(const char *fmt, ...)
 		goto out;
 	}
 
-	spin_lock_irqsave(&__ipipe_printk_lock, flags);
+	raw_spin_lock_irqsave(&__ipipe_printk_lock, flags);
 
 	oldcount = __ipipe_printk_fill;
 	fbytes = __LOG_BUF_LEN - oldcount;
@@ -1927,7 +1927,7 @@ asmlinkage __visible int printk(const char *fmt, ...)
 	} else
 		r = 0;
 
-	spin_unlock_irqrestore(&__ipipe_printk_lock, flags);
+	raw_spin_unlock_irqrestore(&__ipipe_printk_lock, flags);
 
 	if (oldcount == 0)
 		ipipe_raise_irq(__ipipe_printk_virq);

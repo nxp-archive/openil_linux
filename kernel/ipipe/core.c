@@ -822,7 +822,7 @@ unsigned int ipipe_alloc_virq(void)
 	unsigned long flags, irq = 0;
 	int ipos;
 
-	spin_lock_irqsave(&__ipipe_lock, flags);
+	raw_spin_lock_irqsave(&__ipipe_lock, flags);
 
 	if (__ipipe_virtual_irq_map != ~0) {
 		ipos = ffz(__ipipe_virtual_irq_map);
@@ -830,7 +830,7 @@ unsigned int ipipe_alloc_virq(void)
 		irq = ipos + IPIPE_VIRQ_BASE;
 	}
 
-	spin_unlock_irqrestore(&__ipipe_lock, flags);
+	raw_spin_unlock_irqrestore(&__ipipe_lock, flags);
 
 	return irq;
 }
@@ -860,7 +860,7 @@ int ipipe_request_irq(struct ipipe_domain *ipd,
 	    (irq >= IPIPE_NR_XIRQS && !ipipe_virtual_irq_p(irq)))
 		return -EINVAL;
 
-	spin_lock_irqsave(&__ipipe_lock, flags);
+	raw_spin_lock_irqsave(&__ipipe_lock, flags);
 
 	if (ipd->irqs[irq].handler) {
 		ret = -EBUSY;
@@ -878,7 +878,7 @@ int ipipe_request_irq(struct ipipe_domain *ipd,
 	if (irq < IPIPE_NR_ROOT_IRQS)
 		__ipipe_enable_irqdesc(ipd, irq);
 out:
-	spin_unlock_irqrestore(&__ipipe_lock, flags);
+	raw_spin_unlock_irqrestore(&__ipipe_lock, flags);
 
 	return ret;
 }
@@ -893,7 +893,7 @@ void ipipe_free_irq(struct ipipe_domain *ipd,
 	ipipe_root_only();
 #endif /* CONFIG_IPIPE_LEGACY */
 
-	spin_lock_irqsave(&__ipipe_lock, flags);
+	raw_spin_lock_irqsave(&__ipipe_lock, flags);
 
 	if (ipd->irqs[irq].handler == NULL)
 		goto out;
@@ -906,7 +906,7 @@ void ipipe_free_irq(struct ipipe_domain *ipd,
 	if (irq < IPIPE_NR_ROOT_IRQS)
 		__ipipe_disable_irqdesc(ipd, irq);
 out:
-	spin_unlock_irqrestore(&__ipipe_lock, flags);
+	raw_spin_unlock_irqrestore(&__ipipe_lock, flags);
 }
 EXPORT_SYMBOL_GPL(ipipe_free_irq);
 
@@ -1549,7 +1549,7 @@ void __ipipe_do_critical_sync(unsigned int irq, void *cookie)
 	 * another CPU. Enter a spinning wait until he releases the
 	 * global lock.
 	 */
-	spin_lock(&__ipipe_cpu_barrier);
+	raw_spin_lock(&__ipipe_cpu_barrier);
 
 	/* Got it. Now get out. */
 
@@ -1559,7 +1559,7 @@ void __ipipe_do_critical_sync(unsigned int irq, void *cookie)
 
 	cpumask_set_cpu(cpu, &__ipipe_cpu_pass_map);
 
-	spin_unlock(&__ipipe_cpu_barrier);
+	raw_spin_unlock(&__ipipe_cpu_barrier);
 
 	cpumask_clear_cpu(cpu, &__ipipe_cpu_sync_map);
 }
@@ -1592,7 +1592,7 @@ unsigned long ipipe_critical_enter(void (*syncfn)(void))
 		}
 restart:
 		online = *cpu_online_mask;
-		spin_lock(&__ipipe_cpu_barrier);
+		raw_spin_lock(&__ipipe_cpu_barrier);
 
 		__ipipe_cpu_sync = syncfn;
 
@@ -1618,7 +1618,7 @@ restart:
 			 */
 			__ipipe_cpu_sync = NULL;
 
-			spin_unlock(&__ipipe_cpu_barrier);
+			raw_spin_unlock(&__ipipe_cpu_barrier);
 			/*
 			 * Ensure all CPUs consumed the IPI to avoid
 			 * running __ipipe_cpu_sync prematurely. This
@@ -1648,7 +1648,7 @@ void ipipe_critical_exit(unsigned long flags)
 
 #ifdef CONFIG_SMP
 	if (atomic_dec_and_test(&__ipipe_critical_count)) {
-		spin_unlock(&__ipipe_cpu_barrier);
+		raw_spin_unlock(&__ipipe_cpu_barrier);
 		while (!cpumask_empty(&__ipipe_cpu_sync_map))
 			cpu_relax();
 		cpumask_clear_cpu(ipipe_processor_id(), &__ipipe_cpu_lock_map);
