@@ -3850,11 +3850,14 @@ int qman_ceetm_lni_disable_shaper(struct qm_ceetm_lni *lni)
 		return -EINVAL;
 	}
 
-	config_opts.cid = CEETM_COMMAND_LNI_SHAPER | lni->idx;
+	config_opts.cid = cpu_to_be16(CEETM_COMMAND_LNI_SHAPER | lni->idx);
 	config_opts.dcpid = lni->dcp_idx;
-	config_opts.shaper_config.cpl = (lni->shaper_couple << 7) | lni->oal;
-	config_opts.shaper_config.crtbl = lni->cr_token_bucket_limit;
-	config_opts.shaper_config.ertbl = lni->er_token_bucket_limit;
+	config_opts.shaper_config.cpl = lni->shaper_couple;
+	config_opts.shaper_config.oal = lni->oal;
+	config_opts.shaper_config.crtbl =
+					cpu_to_be16(lni->cr_token_bucket_limit);
+	config_opts.shaper_config.ertbl =
+					cpu_to_be16(lni->er_token_bucket_limit);
 	/* Set CR/ER rate with all 1's to configure an infinite rate, thus
 	 * disable the shaping.
 	 */
