@@ -5567,14 +5567,13 @@ int qman_ceetm_querycongestion(struct __qm_mcr_querycongestion *ccg_state,
 		if (res == QM_MCR_RESULT_OK) {
 			for (j = 0; j < 8; j++)
 				mcr->ccgr_query.congestion_state.state.
-				__state[j] =
-					be32_to_cpu(mcr->ccgr_query.
+				__state[j] = be32_to_cpu(mcr->ccgr_query.
 					congestion_state.state.__state[j]);
-
 			*(ccg_state + i) =
 				mcr->ccgr_query.congestion_state.state;
 		} else {
 			pr_err("QUERY CEETM CONGESTION STATE failed\n");
+			PORTAL_IRQ_UNLOCK(p, irqflags);
 			return -EIO;
 		}
 	}
