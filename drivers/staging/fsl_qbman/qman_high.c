@@ -1259,8 +1259,15 @@ int qman_p_irqsource_add(struct qman_portal *p, u32 bits __maybe_unused)
 	else
 #endif
 	{
+		bits = bits & QM_PIRQ_VISIBLE;
 		PORTAL_IRQ_LOCK(p, irqflags);
-		set_bits(bits & QM_PIRQ_VISIBLE, &p->irq_sources);
+
+		/* Clear any previously remaining interrupt conditions in
+		 * QCSP_ISR. This prevents raising a false interrupt when
+		 * interrupt conditions are enabled in QCSP_IER.
+		 */
+		qm_isr_status_clear(&p->p, bits);
+		set_bits(bits, &p->irq_sources);
 		qm_isr_enable_write(&p->p, p->irq_sources);
 		PORTAL_IRQ_UNLOCK(p, irqflags);
 	}
