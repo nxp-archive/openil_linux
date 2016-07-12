@@ -924,6 +924,7 @@ static inline void fq_state_change(struct qman_portal *p, struct qman_fq *fq,
 static u32 __poll_portal_slow(struct qman_portal *p, u32 is)
 {
 	const struct qm_mr_entry *msg;
+	struct qm_mr_entry swapped_msg;
 
 	if (is & QM_PIRQ_CSCI) {
 		struct qman_cgrs rr, c;
@@ -1040,6 +1041,8 @@ mr_loop:
 		msg = qm_mr_current(&p->p);
 		if (!msg)
 			goto mr_done;
+		swapped_msg = *msg;
+		hw_fd_to_cpu(&swapped_msg.ern.fd);
 		verb = msg->verb & QM_MR_VERB_TYPE_MASK;
 		/* The message is a software ERN iff the 0x20 bit is set */
 		if (verb & 0x20) {
@@ -1052,9 +1055,9 @@ mr_loop:
 				/* Lookup in the retirement table */
 				fq = table_find_fq(p, be32_to_cpu(msg->fq.fqid));
 				BUG_ON(!fq);
-				fq_state_change(p, fq, msg, verb);
+				fq_state_change(p, fq, &swapped_msg, verb);
 				if (fq->cb.fqs)
-					fq->cb.fqs(p, fq, msg);
+					fq->cb.fqs(p, fq, &swapped_msg);
 				break;
 			case QM_MR_VERB_FQPN:
 				/* Parked */
@@ -1067,7 +1070,7 @@ mr_loop:
 #endif
 				fq_state_change(p, fq, msg, verb);
 				if (fq->cb.fqs)
-					fq->cb.fqs(p, fq, msg);
+					fq->cb.fqs(p, fq, &swapped_msg);
 				break;
 			case QM_MR_VERB_DC_ERN:
 				/* DCP ERN */
@@ -1093,7 +1096,7 @@ mr_loop:
 #else
 			fq = (void *)(uintptr_t)be32_to_cpu(msg->ern.tag);
 #endif
-			fq->cb.ern(p, fq, msg);
+			fq->cb.ern(p, fq, &swapped_msg);
 		}
 		num++;
 		qm_mr_next(&p->p);
