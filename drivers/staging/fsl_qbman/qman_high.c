@@ -2040,7 +2040,7 @@ int qman_query_fq(struct qman_fq *fq, struct qm_fqd *fqd)
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_MCR_VERB_QUERYFQ);
 	res = mcr->result;
 	if (res == QM_MCR_RESULT_OK)
-		memcpy_fromio(fqd, &mcr->queryfq.fqd, sizeof(*fqd));
+		*fqd = mcr->queryfq.fqd;
 	hw_fqd_to_cpu(fqd);
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
@@ -2067,7 +2067,7 @@ int qman_query_fq_np(struct qman_fq *fq, struct qm_mcr_queryfq_np *np)
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_MCR_VERB_QUERYFQ_NP);
 	res = mcr->result;
 	if (res == QM_MCR_RESULT_OK) {
-		memcpy_fromio(np, &mcr->queryfq_np, sizeof(*np));
+		*np = mcr->queryfq_np;
 		np->fqd_link = be24_to_cpu(np->fqd_link);
 		np->odp_seq = be16_to_cpu(np->odp_seq);
 		np->orp_nesn = be16_to_cpu(np->orp_nesn);
@@ -2085,10 +2085,7 @@ int qman_query_fq_np(struct qman_fq *fq, struct qm_mcr_queryfq_np *np)
 		np->od1_sfdr = be16_to_cpu(np->od1_sfdr);
 		np->od2_sfdr = be16_to_cpu(np->od2_sfdr);
 		np->od3_sfdr = be16_to_cpu(np->od3_sfdr);
-
-
 	}
-
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
 	if (res == QM_MCR_RESULT_ERR_FQID)
@@ -2154,7 +2151,7 @@ int qman_testwrite_cgr(struct qman_cgr *cgr, u64 i_bcnt,
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_MCC_VERB_CGRTESTWRITE);
 	res = mcr->result;
 	if (res == QM_MCR_RESULT_OK)
-		memcpy_fromio(result,  &mcr->cgrtestwrite, sizeof(*result));
+		*result = mcr->cgrtestwrite;
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
 	if (res != QM_MCR_RESULT_OK) {
@@ -2183,7 +2180,7 @@ int qman_query_cgr(struct qman_cgr *cgr, struct qm_mcr_querycgr *cgrd)
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_MCC_VERB_QUERYCGR);
 	res = mcr->result;
 	if (res == QM_MCR_RESULT_OK)
-		memcpy_fromio(cgrd, &mcr->querycgr, sizeof(*cgrd));
+		*cgrd = mcr->querycgr;
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
 	if (res != QM_MCR_RESULT_OK) {
@@ -4263,18 +4260,21 @@ int qman_ceetm_channel_enable_shaper(struct qm_ceetm_channel *channel,
 	}
 
 	config_opts.cid = cpu_to_be16(CEETM_COMMAND_CHANNEL_SHAPER |
-							channel->idx);
+						channel->idx);
 	config_opts.shaper_config.cpl = coupled;
-	config_opts.shaper_config.crtcr = cpu_to_be24((channel->cr_token_rate.
-					whole << 13) |
-					channel->cr_token_rate.fraction);
-	config_opts.shaper_config.ertcr = cpu_to_be24((channel->er_token_rate.
-					whole << 13) |
-					channel->er_token_rate.fraction);
+	config_opts.shaper_config.crtcr =
+				cpu_to_be24((channel->cr_token_rate.whole
+				<< 13) |
+				channel->cr_token_rate.fraction);
+	config_opts.shaper_config.ertcr =
+				cpu_to_be24(channel->er_token_rate.whole
+				<< 13 |
+				channel->er_token_rate.fraction);
 	config_opts.shaper_config.crtbl =
 				cpu_to_be16(channel->cr_token_bucket_limit);
 	config_opts.shaper_config.ertbl =
 				cpu_to_be16(channel->er_token_bucket_limit);
+
 	return qman_ceetm_configure_mapping_shaper_tcfc(&config_opts);
 }
 EXPORT_SYMBOL(qman_ceetm_channel_enable_shaper);
@@ -5081,7 +5081,7 @@ int qman_ceetm_get_queue_weight_in_ratio(struct qm_ceetm_cq *cq, u32 *ratio)
 		return -EINVAL;
 	}
 
-	*ratio = (n * (u32)100) / d;
+	*ratio = (n * 100) / d;
 	return 0;
 }
 EXPORT_SYMBOL(qman_ceetm_get_queue_weight_in_ratio);
@@ -5202,10 +5202,11 @@ int qman_ceetm_lfq_set_context(struct qm_ceetm_lfq *lfq, u64 context_a,
 	struct qm_mcc_ceetm_dct_config dct_config;
 	lfq->context_a = context_a;
 	lfq->context_b = context_b;
-	dct_config.dctidx = cpu_to_be16(lfq->dctidx);
+	dct_config.dctidx = cpu_to_be16((u16)lfq->dctidx);
 	dct_config.dcpid = lfq->parent->dcp_idx;
 	dct_config.context_b = cpu_to_be32(context_b);
 	dct_config.context_a = cpu_to_be64(context_a);
+
 	return qman_ceetm_configure_dct(&dct_config);
 }
 EXPORT_SYMBOL(qman_ceetm_lfq_set_context);
@@ -5243,6 +5244,7 @@ int qman_ceetm_create_fq(struct qm_ceetm_lfq *lfq, struct qman_fq *fq)
 }
 EXPORT_SYMBOL(qman_ceetm_create_fq);
 
+#define MAX_CCG_IDX 0x000F
 int qman_ceetm_ccg_claim(struct qm_ceetm_ccg **ccg,
 				struct qm_ceetm_channel *channel,
 				unsigned int idx,
@@ -5253,7 +5255,7 @@ int qman_ceetm_ccg_claim(struct qm_ceetm_ccg **ccg,
 {
 	struct qm_ceetm_ccg *p;
 
-	if (idx > 15) {
+	if (idx > MAX_CCG_IDX) {
 		pr_err("The given ccg index is out of range\n");
 		return -EINVAL;
 	}
