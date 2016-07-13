@@ -157,17 +157,13 @@ static void ipipe_timer_request_sync(void)
 	timer->request(timer, steal);
 }
 
-/* Set up a timer as per-cpu timer for ipipe */
-static void install_pcpu_timer(unsigned cpu, unsigned hrclock_freq,
-			      struct ipipe_timer *t) {
-	unsigned hrtimer_freq;
+static void config_pcpu_timer(struct ipipe_timer *t, unsigned hrclock_freq)
+{
 	unsigned long long tmp;
+	unsigned hrtimer_freq;
 
-	if (__ipipe_hrtimer_freq == 0)
+	if (__ipipe_hrtimer_freq != t->freq)
 		__ipipe_hrtimer_freq = t->freq;
-
-	per_cpu(ipipe_percpu.hrtimer_irq, cpu) = t->irq;
-	per_cpu(percpu_timer, cpu) = t;
 
 	hrtimer_freq = t->freq;
 	if (__ipipe_hrclock_freq > UINT_MAX)
@@ -179,6 +175,15 @@ static void install_pcpu_timer(unsigned cpu, unsigned hrclock_freq,
 		+ hrclock_freq - 1;
 	do_div(tmp, hrclock_freq);
 	t->c2t_frac = tmp;
+}
+
+/* Set up a timer as per-cpu timer for ipipe */
+static void install_pcpu_timer(unsigned cpu, unsigned hrclock_freq,
+			      struct ipipe_timer *t)
+{
+	per_cpu(ipipe_percpu.hrtimer_irq, cpu) = t->irq;
+	per_cpu(percpu_timer, cpu) = t;
+	config_pcpu_timer(t, hrclock_freq);
 }
 
 static void select_root_only_timer(unsigned cpu, unsigned hrclock_khz,
@@ -495,3 +500,21 @@ void ipipe_update_hostrt(struct timekeeper *tk)
 }
 
 #endif /* CONFIG_IPIPE_HAVE_HOSTRT */
+
+int clockevents_program_event(struct clock_event_device *dev, ktime_t expires,
+			      bool force);
+
+void __ipipe_timer_refresh_freq(unsigned int hrclock_freq)
+{
+	struct ipipe_timer *t = __ipipe_raw_cpu_read(percpu_timer);
+	unsigned long flags;
+
+	if (t && t->refresh_freq) {
+		t->freq = t->refresh_freq();
+		flags = hard_local_irq_save();
+		config_pcpu_timer(t, hrclock_freq);
+		hard_local_irq_restore(flags);
+		clockevents_program_event(t->host_timer,
+					  t->host_timer->next_event, false);
+	}
+}

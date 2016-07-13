@@ -108,6 +108,7 @@ struct ipipe_trap_data {
 #define IPIPE_KEVT_EXIT		4
 #define IPIPE_KEVT_CLEANUP	5
 #define IPIPE_KEVT_HOSTRT	6
+#define IPIPE_KEVT_CLOCKFREQ	7
 
 struct ipipe_vm_notifier {
 	void (*handler)(struct ipipe_vm_notifier *nfy);
@@ -236,6 +237,9 @@ do {									\
 #define __ipipe_report_cleanup(mm)					\
 	__ipipe_notify_kevent(IPIPE_KEVT_CLEANUP, mm)
 
+#define __ipipe_report_clockfreq_update(freq)				\
+	__ipipe_notify_kevent(IPIPE_KEVT_CLOCKFREQ, &(freq))
+
 void __ipipe_notify_vm_preemption(void);
 
 void __ipipe_call_mayday(struct pt_regs *regs);
@@ -255,7 +259,8 @@ void __ipipe_call_mayday(struct pt_regs *regs);
 #define IPIPE_EVENT_EXIT	(IPIPE_FIRST_EVENT + 4)
 #define IPIPE_EVENT_CLEANUP	(IPIPE_FIRST_EVENT + 5)
 #define IPIPE_EVENT_HOSTRT	(IPIPE_FIRST_EVENT + 6)
-#define IPIPE_EVENT_SYSCALL	(IPIPE_FIRST_EVENT + 7)
+#define IPIPE_EVENT_CLOCKFREQ	(IPIPE_FIRST_EVENT + 7)
+#define IPIPE_EVENT_SYSCALL	(IPIPE_FIRST_EVENT + 8)
 #define IPIPE_LAST_EVENT	IPIPE_EVENT_SYSCALL
 #define IPIPE_NR_EVENTS		(IPIPE_LAST_EVENT + 1)
 

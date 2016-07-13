@@ -77,6 +77,7 @@ struct ipipe_timer {
 			      struct clock_event_device *cdev);
 	int (*real_set_next_event)(unsigned long evt,
 				   struct clock_event_device *cdev);
+	unsigned int (*refresh_freq)(void);
 };
 
 #define __ipipe_hrtimer_irq __ipipe_raw_cpu_read(ipipe_percpu.hrtimer_irq)
@@ -128,6 +129,8 @@ void ipipe_timer_set(unsigned long delay);
 const char *ipipe_timer_name(void);
 
 unsigned ipipe_timer_ns2ticks(struct ipipe_timer *timer, unsigned ns);
+
+void __ipipe_timer_refresh_freq(unsigned int hrclock_freq);
 
 #else /* !CONFIG_IPIPE */
 
