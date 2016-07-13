@@ -4,7 +4,7 @@
 #include <linux/timer.h>
 #include <linux/clocksource.h>
 #include <linux/ipipe_tickdev.h>
-
+#include <linux/cpufreq.h>
 #include <linux/ipipe.h>
 
 #include <asm/cacheflush.h>
@@ -49,7 +49,7 @@ static void __ipipe_tsc_update_fn(unsigned long cookie)
 	add_timer(&ipipe_tsc_update_timer);
 }
 
-void __init __ipipe_tsc_register(struct __ipipe_tscinfo *info)
+void __ipipe_tsc_register(struct __ipipe_tscinfo *info)
 {
 	struct ipipe_tsc_value_t *vector_tsc_value;
 	unsigned long long wrap_ms;
@@ -212,3 +212,46 @@ void update_vsyscall_tz(void)
 {
 }
 #endif
+
+#ifdef CONFIG_CPU_FREQ
+
+static void update_timer_freq(void *data)
+{
+	unsigned int hrclock_freq = *(unsigned int *)data;
+
+	__ipipe_timer_refresh_freq(hrclock_freq);
+}
+
+static int cpufreq_transition_handler(struct notifier_block *nb,
+				      unsigned long state, void *data)
+{
+	struct cpufreq_freqs *freqs = data;
+	unsigned int freq;
+
+	if (state == CPUFREQ_POSTCHANGE && tsc_info.refresh_freq) {
+		freq = tsc_info.refresh_freq();
+		if (freqs->cpu == 0) {
+			tsc_info.freq = freq;
+			__ipipe_tsc_register(&tsc_info);
+			__ipipe_report_clockfreq_update(freq);
+		}
+		smp_call_function_single(freqs->cpu, update_timer_freq,
+					 &freq, 1);
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block cpufreq_nb = {
+	.notifier_call = cpufreq_transition_handler,
+};
+
+static __init int register_cpufreq_notifier(void)
+{
+	cpufreq_register_notifier(&cpufreq_nb,
+				  CPUFREQ_TRANSITION_NOTIFIER);
+	return 0;
+}
+core_initcall(register_cpufreq_notifier);
+
+#endif /* CONFIG_CPUFREQ */

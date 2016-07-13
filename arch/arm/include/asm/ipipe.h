@@ -79,6 +79,7 @@ struct __ipipe_tscinfo {
 			unsigned long long *tsc; /* 64 bits tsc value. */
 		} dec;
 	} u;
+	unsigned int (*refresh_freq)(void);
 };
 
 struct ipipe_arch_sysinfo {
