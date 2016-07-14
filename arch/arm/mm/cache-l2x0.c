@@ -815,6 +815,11 @@ static int __init __l2c_init(const struct l2c_init_data *data,
 	if (IS_ENABLED(CONFIG_IPIPE)) {
 		switch (cache_id & L2X0_CACHE_ID_PART_MASK) {
 		case L2X0_CACHE_ID_PART_L310:
+			if ((cache_id & L2X0_CACHE_ID_RTL_MASK)
+			    >= L310_CACHE_ID_RTL_R3P2) {
+				l2x0_wa = 1;
+				pr_alert("L2C: I-pipe: revision >= L310-r3p2 detected, forcing WA.\n");
+			}
 		case L2X0_CACHE_ID_PART_L220:
 			if (l2x0_wa < 0) {
 				l2x0_wa = 0;
