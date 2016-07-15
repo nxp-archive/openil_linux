@@ -226,6 +226,13 @@ core_initcall(twd_cpufreq_init);
 
 #endif
 
+#ifdef CONFIG_IPIPE
+static unsigned int twd_refresh_freq(void)
+{
+	return clk_get_rate(twd_clk);
+}
+#endif
+
 static void twd_calibrate_rate(void)
 {
 	unsigned long count;
@@ -349,6 +356,7 @@ static void twd_timer_setup(void)
 	clk->ipipe_timer->irq = clk->irq;
 	clk->ipipe_timer->ack = twd_ack;
 	clk->ipipe_timer->min_delay_ticks = 0xf;
+	clk->ipipe_timer->refresh_freq = twd_refresh_freq;
 #endif
 
 	clk->cpumask = cpumask_of(cpu);

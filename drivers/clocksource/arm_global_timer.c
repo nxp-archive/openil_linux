@@ -50,6 +50,7 @@
  */
 static void __iomem *gt_base;
 static unsigned long gt_pbase;
+static struct clk *gt_clk;
 static unsigned long gt_clk_rate;
 static int gt_ppi;
 static struct clock_event_device __percpu *gt_evt;
@@ -210,6 +211,17 @@ static u64 notrace gt_sched_clock_read(void)
 }
 #endif
 
+#ifdef CONFIG_IPIPE
+
+static unsigned int refresh_gt_freq(void)
+{
+	gt_clk_rate = clk_get_rate(gt_clk);
+
+	return gt_clk_rate;
+}
+
+#endif
+
 static void __init gt_clocksource_init(void)
 {
 #ifdef CONFIG_IPIPE
@@ -223,6 +235,7 @@ static void __init gt_clocksource_init(void)
 				.mask = 0xffffffff,
 			}
 		},
+		.refresh_freq = refresh_gt_freq,
 	};
 #endif
 
@@ -263,7 +276,6 @@ static void __init global_timer_of_register(struct device_node *np)
 {
 	int err = 0, usable_timer = 1;
 	struct resource res;
-	struct clk *gt_clk;
 
 	/*
 	 * In A9 r2p0 the comparators for each processor with the global timer
