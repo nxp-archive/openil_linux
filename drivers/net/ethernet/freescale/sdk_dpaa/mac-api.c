@@ -440,9 +440,9 @@ static int dtsec_init_phy(struct net_device *net_dev,
 {
 	struct phy_device	*phy_dev;
 
-	if (!mac_dev->phy_node)
-		phy_dev = phy_connect(net_dev, mac_dev->fixed_bus_id,
-				      &adjust_link, mac_dev->phy_if);
+	if (of_phy_is_fixed_link(mac_dev->phy_node))
+		phy_dev = of_phy_attach(net_dev, mac_dev->phy_node,
+					0, mac_dev->phy_if);
 	else
 		phy_dev = of_phy_connect(net_dev, mac_dev->phy_node,
 					 &adjust_link, 0, mac_dev->phy_if);
@@ -472,9 +472,9 @@ static int xgmac_init_phy(struct net_device *net_dev,
 {
 	struct phy_device *phy_dev;
 
-	if (!mac_dev->phy_node)
-		phy_dev = phy_attach(net_dev, mac_dev->fixed_bus_id,
-				     mac_dev->phy_if);
+	if (of_phy_is_fixed_link(mac_dev->phy_node))
+		phy_dev = of_phy_attach(net_dev, mac_dev->phy_node,
+					0, mac_dev->phy_if);
 	else
 		phy_dev = of_phy_connect(net_dev, mac_dev->phy_node,
 					 &adjust_link_void, 0, mac_dev->phy_if);
@@ -503,23 +503,17 @@ static int memac_init_phy(struct net_device *net_dev,
 {
 	struct phy_device       *phy_dev;
 
-	if ((macdev2enetinterface(mac_dev) == e_ENET_MODE_XGMII_10000) ||
-	    (macdev2enetinterface(mac_dev) == e_ENET_MODE_SGMII_2500)){
-		if (!mac_dev->phy_node) {
-			mac_dev->phy_dev = NULL;
-			return 0;
-		} else
-			phy_dev = of_phy_connect(net_dev, mac_dev->phy_node,
-						 &adjust_link_void, 0,
-						 mac_dev->phy_if);
+	if (of_phy_is_fixed_link(mac_dev->phy_node)) {
+		phy_dev = of_phy_attach(net_dev, mac_dev->phy_node,
+					0, mac_dev->phy_if);
+	} else if ((macdev2enetinterface(mac_dev) == e_ENET_MODE_XGMII_10000) ||
+		   (macdev2enetinterface(mac_dev) == e_ENET_MODE_SGMII_2500)) {
+		phy_dev = of_phy_connect(net_dev, mac_dev->phy_node,
+					 &adjust_link_void, 0,
+					 mac_dev->phy_if);
 	} else {
-		if (!mac_dev->phy_node)
-			phy_dev = phy_connect(net_dev, mac_dev->fixed_bus_id,
-					      &adjust_link, mac_dev->phy_if);
-		else
-			phy_dev = of_phy_connect(net_dev, mac_dev->phy_node,
-						 &adjust_link, 0,
-						 mac_dev->phy_if);
+		phy_dev = of_phy_connect(net_dev, mac_dev->phy_node,
+					 &adjust_link, 0, mac_dev->phy_if);
 	}
 
 	if (unlikely(phy_dev == NULL) || IS_ERR(phy_dev)) {
