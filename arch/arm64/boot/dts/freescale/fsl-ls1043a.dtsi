@@ -197,6 +197,7 @@
 				compatible = "fsl,sec-v5.4-job-ring",
 					     "fsl,sec-v5.0-job-ring",
 					     "fsl,sec-v4.0-job-ring";
+				reg	   = <0x30000 0x10000>;
 				interrupts = <0 73 0x4>;
 			};
 
