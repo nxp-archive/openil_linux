@@ -36,7 +36,7 @@
 		};
 		ramdisk@1 {
 			description = "LS1043 Ramdisk";
-                        data = /incbin/("./fsl-image-core-ls1043ardb.ext2.gz");
+                        data = /incbin/("./fsl-image-core-ls1046ardb.ext2.gz");
 			type = "ramdisk";
 			arch = "arm64";
 			os = "linux";
