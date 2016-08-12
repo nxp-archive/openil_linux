@@ -341,6 +341,11 @@ static void qman_get_ip_revision(struct device_node *dn)
 			ip_rev = QMAN_REV32;
 			qman_portal_max = 10;
 			ip_cfg = QMAN_REV_CFG_3; // TODO: Verify for ls1043
+		} else if (of_device_is_compatible(dn,
+						"fsl,qman-portal-3.2.1")) {
+			ip_rev = QMAN_REV32;
+			qman_portal_max = 10;
+			ip_cfg = QMAN_REV_CFG_3;
 		} else {
 			pr_warn("unknown QMan version in portal node,"
 				"default to rev1.1\n");
