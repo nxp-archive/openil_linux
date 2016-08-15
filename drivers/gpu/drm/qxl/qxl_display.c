@@ -367,10 +367,15 @@ static int qxl_crtc_cursor_set2(struct drm_crtc *crtc,
 
 	qxl_bo_kunmap(user_bo);
 
+	qcrtc->cur_x += qcrtc->hot_spot_x - hot_x;
+	qcrtc->cur_y += qcrtc->hot_spot_y - hot_y;
+	qcrtc->hot_spot_x = hot_x;
+	qcrtc->hot_spot_y = hot_y;
+
 	cmd = (struct qxl_cursor_cmd *)qxl_release_map(qdev, release);
 	cmd->type = QXL_CURSOR_SET;
-	cmd->u.set.position.x = qcrtc->cur_x;
-	cmd->u.set.position.y = qcrtc->cur_y;
+	cmd->u.set.position.x = qcrtc->cur_x + qcrtc->hot_spot_x;
+	cmd->u.set.position.y = qcrtc->cur_y + qcrtc->hot_spot_y;
 
 	cmd->u.set.shape = qxl_bo_physical_address(qdev, cursor_bo, 0);
 
@@ -433,8 +438,8 @@ static int qxl_crtc_cursor_move(struct drm_crtc *crtc,
 
 	cmd = (struct qxl_cursor_cmd *)qxl_release_map(qdev, release);
 	cmd->type = QXL_CURSOR_MOVE;
-	cmd->u.position.x = qcrtc->cur_x;
-	cmd->u.position.y = qcrtc->cur_y;
+	cmd->u.position.x = qcrtc->cur_x + qcrtc->hot_spot_x;
+	cmd->u.position.y = qcrtc->cur_y + qcrtc->hot_spot_y;
 	qxl_release_unmap(qdev, release, &cmd->release_info);
 
 	qxl_push_cursor_ring_release(qdev, release, QXL_CMD_CURSOR, false);
@@ -618,7 +623,7 @@ static int qxl_crtc_mode_set(struct drm_crtc *crtc,
 		  adjusted_mode->hdisplay,
 		  adjusted_mode->vdisplay);
 
-	if (qcrtc->index == 0)
+	if (bo->is_primary == false)
 		recreate_primary = true;
 
 	if (bo->surf.stride * bo->surf.height > qdev->vram_size) {
@@ -886,13 +891,15 @@ static enum drm_connector_status qxl_conn_detect(
 		drm_connector_to_qxl_output(connector);
 	struct drm_device *ddev = connector->dev;
 	struct qxl_device *qdev = ddev->dev_private;
-	int connected;
+	bool connected = false;
 
 	/* The first monitor is always connected */
-	connected = (output->index == 0) ||
-		    (qdev->client_monitors_config &&
-		     qdev->client_monitors_config->count > output->index &&
-		     qxl_head_enabled(&qdev->client_monitors_config->heads[output->index]));
+	if (!qdev->client_monitors_config) {
+		if (output->index == 0)
+			connected = true;
+	} else
+		connected = qdev->client_monitors_config->count > output->index &&
+		     qxl_head_enabled(&qdev->client_monitors_config->heads[output->index]);
 
 	DRM_DEBUG("#%d connected: %d\n", output->index, connected);
 	if (!connected)
