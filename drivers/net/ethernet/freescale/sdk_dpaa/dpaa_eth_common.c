@@ -1641,13 +1641,13 @@ dpa_fd_release(const struct net_device *net_dev, const struct qm_fd *fd)
 	void			*vaddr;
 
 	bmb.opaque = 0;
-	bm_buffer_set64(&bmb, fd->addr);
+	bm_buffer_set64(&bmb, qm_fd_addr(fd));
 
 	dpa_bp = dpa_bpid2pool(fd->bpid);
 	DPA_BUG_ON(!dpa_bp);
 
 	if (fd->format == qm_fd_sg) {
-		vaddr = phys_to_virt(fd->addr);
+		vaddr = phys_to_virt(qm_fd_addr(fd));
 		sgt = vaddr + dpa_fd_offset(fd);
 
 		dma_unmap_single(dpa_bp->dev, qm_fd_addr(fd), dpa_bp->size,

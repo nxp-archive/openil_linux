@@ -742,8 +742,7 @@ int __hot skb_to_contig_fd(struct dpa_priv_s *priv,
 			netdev_err(net_dev, "dma_map_single() failed\n");
 		return -EINVAL;
 	}
-	fd->addr = addr;
-
+	qm_fd_addr_set64(fd, addr);
 
 	return 0;
 }
@@ -939,9 +938,9 @@ int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 		goto sgt_map_failed;
 	}
 
+	qm_fd_addr_set64(fd, addr);
 	fd->bpid = 0xff;
 	fd->cmd |= FM_FD_CMD_FCO;
-	fd->addr = addr;
 
 	return 0;
 
