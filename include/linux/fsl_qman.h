@@ -159,19 +159,23 @@ struct qm_fd {
 			u8 addr_hi;	/* high 8-bits of 40-bit address */
 			u32 addr_lo;	/* low 32-bits of 40-bit address */
 #else
-			u8 liodn_offset:6;
-			u8 dd:2;	/* dynamic debug */
-			u8 bpid:8;	/* Buffer Pool ID */
+			u32 addr_lo;    /* low 32-bits of 40-bit address */
+			u8 addr_hi;     /* high 8-bits of 40-bit address */
 			u8 __reserved:4;
 			u8 eliodn_offset:4;
-			u8 addr_hi;	/* high 8-bits of 40-bit address */
-			u32 addr_lo;	/* low 32-bits of 40-bit address */
+			u8 bpid:8;      /* Buffer Pool ID */
+			u8 liodn_offset:6;
+			u8 dd:2;        /* dynamic debug */
 #endif
 		};
 		struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			u64 __notaddress:24;
-			/* More efficient address accessor */
 			u64 addr:40;
+#else
+			u64 addr:40;
+			u64 __notaddress:24;
+#endif
 		};
 		u64 opaque_addr;
 	};
@@ -324,13 +328,9 @@ union qm_sg_efl {
 	};
 	u32 efl;
 };
-static inline u64 qm_sg_entry_get64(const struct qm_sg_entry *sg)
-{
-	return be64_to_cpu(sg->opaque);
-}
 static inline dma_addr_t qm_sg_addr(const struct qm_sg_entry *sg)
 {
-	return (dma_addr_t)be64_to_cpu(sg->opaque);
+	return (dma_addr_t)be64_to_cpu(sg->opaque) & 0xffffffffffULL;
 }
 static inline u8 qm_sg_entry_get_ext(const struct qm_sg_entry *sg)
 {

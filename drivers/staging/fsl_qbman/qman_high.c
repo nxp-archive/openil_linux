@@ -393,14 +393,14 @@ static inline u64 be48_to_cpu(u64 in)
 }
 static inline void cpu_to_hw_fd(struct qm_fd *fd)
 {
-	fd->addr = cpu_to_be40(fd->addr);
+	fd->opaque_addr = cpu_to_be64(fd->opaque_addr);
 	fd->status = cpu_to_be32(fd->status);
 	fd->opaque = cpu_to_be32(fd->opaque);
 }
 
 static inline void hw_fd_to_cpu(struct qm_fd *fd)
 {
-	fd->addr = be40_to_cpu(fd->addr);
+	fd->opaque_addr = be64_to_cpu(fd->opaque_addr);
 	fd->status = be32_to_cpu(fd->status);
 	fd->opaque = be32_to_cpu(fd->opaque);
 }
