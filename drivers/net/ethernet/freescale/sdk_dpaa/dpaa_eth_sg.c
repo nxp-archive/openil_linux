@@ -672,6 +672,7 @@ int __hot skb_to_contig_fd(struct dpa_priv_s *priv,
 	int err;
 	enum dma_data_direction dma_dir;
 	unsigned char *buffer_start;
+	int dma_map_size;
 
 #ifndef CONFIG_FSL_DPAA_TS
 	/* Check recycling conditions; only if timestamp support is not
@@ -694,6 +695,7 @@ int __hot skb_to_contig_fd(struct dpa_priv_s *priv,
 		DPA_BUG_ON(skb->data - buffer_start > DPA_MAX_FD_OFFSET);
 		fd->offset = (uint16_t)(skb->data - buffer_start);
 		dma_dir = DMA_BIDIRECTIONAL;
+		dma_map_size = dpa_bp->size;
 
 		DPA_WRITE_SKB_PTR(skb, skbh, buffer_start, -1);
 		*offset = skb_headroom(skb) - fd->offset;
@@ -708,6 +710,7 @@ int __hot skb_to_contig_fd(struct dpa_priv_s *priv,
 		buffer_start = skb->data - priv->tx_headroom;
 		fd->offset = priv->tx_headroom;
 		dma_dir = DMA_TO_DEVICE;
+		dma_map_size = skb_tail_pointer(skb) - buffer_start;
 
 		/* The buffer will be Tx-confirmed, but the TxConf cb must
 		 * necessarily look at our Tx private data to retrieve the
@@ -735,8 +738,7 @@ int __hot skb_to_contig_fd(struct dpa_priv_s *priv,
 	fd->cmd |= FM_FD_CMD_FCO;
 
 	/* Map the entire buffer size that may be seen by FMan, but no more */
-	addr = dma_map_single(dpa_bp->dev, skbh,
-			skb_tail_pointer(skb) - buffer_start, dma_dir);
+	addr = dma_map_single(dpa_bp->dev, skbh, dma_map_size, dma_dir);
 	if (unlikely(dma_mapping_error(dpa_bp->dev, addr))) {
 		if (netif_msg_tx_err(priv) && net_ratelimit())
 			netdev_err(net_dev, "dma_map_single() failed\n");
