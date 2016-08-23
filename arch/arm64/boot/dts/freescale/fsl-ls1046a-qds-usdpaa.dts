@@ -59,8 +59,8 @@
 		ethernet@5 {
 			compatible = "fsl,dpa-ethernet-init";
 			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
-			fsl,qman-frame-queues-rx = <0x60 1 0x61 1>;
-			fsl,qman-frame-queues-tx = <0x80 1 0x81 1>;
+			fsl,qman-frame-queues-rx = <0x5a 1 0x5b 1>;
+			fsl,qman-frame-queues-tx = <0x7a 1 0x7b 1>;
 		};
 
 		ethernet@8 {
@@ -81,7 +81,7 @@
 			compatible = "fsl,dpa-oh";
 			/* Define frame queues for the OH port*/
 			/* <OH Rx error, OH Rx default> */
-			fsl,qman-frame-queues-oh = <0x5a 1 0x5b 1>;
+			fsl,qman-frame-queues-oh = <0x60 1 0x61 1>;
 			fsl,fman-oh-port = <&fman0_oh2>;
 		};
 	};
