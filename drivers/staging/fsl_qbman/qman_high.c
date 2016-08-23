@@ -1135,6 +1135,7 @@ static inline unsigned int __poll_portal_fast(struct qman_portal *p,
 	unsigned int limit = 0;
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 	struct qm_dqrr_entry *shadow;
+	const struct qm_dqrr_entry *orig_dq;
 #endif
 loop:
 	qm_dqrr_pvb_update(&p->p);
@@ -1148,6 +1149,7 @@ loop:
 	   copied and the index stored within the copy */
 	shadow = &p->shadow_dqrr[DQRR_PTR2IDX(dq)];
 	*shadow = *dq;
+	orig_dq = dq;
 	dq = shadow;
 	shadow->fqid = be32_to_cpu(shadow->fqid);
 	shadow->contextB = be32_to_cpu(shadow->contextB);
@@ -1194,9 +1196,15 @@ loop:
 	 * check for HELDACTIVE to cover both. */
 	DPA_ASSERT((dq->stat & QM_DQRR_STAT_FQ_HELDACTIVE) ||
 		(res != qman_cb_dqrr_park));
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	if (res != qman_cb_dqrr_defer)
+		qm_dqrr_cdc_consume_1ptr(&p->p, orig_dq,
+					 (res == qman_cb_dqrr_park));
+#else
 	/* Defer just means "skip it, I'll consume it myself later on" */
 	if (res != qman_cb_dqrr_defer)
 		qm_dqrr_cdc_consume_1ptr(&p->p, dq, (res == qman_cb_dqrr_park));
+#endif
 	/* Move forward */
 	qm_dqrr_next(&p->p);
 	/* Entry processed and consumed, increment our counter. The callback can
