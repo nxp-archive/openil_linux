@@ -432,12 +432,21 @@ static inline struct qm_eqcr_entry *qm_eqcr_pend_and_next(
 	return eqcr->cursor;
 }
 
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define EQCR_COMMIT_CHECKS(eqcr) \
+do { \
+	DPA_ASSERT(eqcr->busy); \
+	DPA_ASSERT(eqcr->cursor->orp == (eqcr->cursor->orp & 0xffffff00)); \
+	DPA_ASSERT(eqcr->cursor->fqid == (eqcr->cursor->fqid & 0xffffff00)); \
+} while (0)
+#else
 #define EQCR_COMMIT_CHECKS(eqcr) \
 do { \
 	DPA_ASSERT(eqcr->busy); \
 	DPA_ASSERT(eqcr->cursor->orp == (eqcr->cursor->orp & 0x00ffffff)); \
 	DPA_ASSERT(eqcr->cursor->fqid == (eqcr->cursor->fqid & 0x00ffffff)); \
 } while (0)
+#endif
 
 static inline void qm_eqcr_pci_commit(struct qm_portal *portal, u8 myverb)
 {
