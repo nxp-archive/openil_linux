@@ -5004,12 +5004,13 @@ static int dpaa2_dpseci_poll(struct napi_struct *napi, int budget)
 			break;
 	} while (1);
 
-	if (cleaned < budget)
+	if (cleaned < budget) {
 		napi_complete_done(napi, cleaned);
 		err = dpaa2_io_service_rearm(NULL, &ppriv->nctx);
 		if (unlikely(err))
 			dev_err(priv->dev, "Notification rearm failed: %d\n",
 				err);
+	}
 
 	return cleaned;
 }
