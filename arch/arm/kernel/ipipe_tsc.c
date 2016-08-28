@@ -49,7 +49,7 @@ static void __ipipe_tsc_update_fn(unsigned long cookie)
 	add_timer(&ipipe_tsc_update_timer);
 }
 
-void __ipipe_tsc_register(struct __ipipe_tscinfo *info)
+void __init __ipipe_tsc_register(struct __ipipe_tscinfo *info)
 {
 	struct ipipe_tsc_value_t *vector_tsc_value;
 	unsigned long long wrap_ms;
@@ -215,14 +215,14 @@ void update_vsyscall_tz(void)
 
 #ifdef CONFIG_CPU_FREQ
 
-static void update_timer_freq(void *data)
+static __init void update_timer_freq(void *data)
 {
 	unsigned int hrclock_freq = *(unsigned int *)data;
 
 	__ipipe_timer_refresh_freq(hrclock_freq);
 }
 
-static int cpufreq_transition_handler(struct notifier_block *nb,
+static __init int cpufreq_transition_handler(struct notifier_block *nb,
 				      unsigned long state, void *data)
 {
 	struct cpufreq_freqs *freqs = data;
@@ -242,7 +242,7 @@ static int cpufreq_transition_handler(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block cpufreq_nb = {
+static struct notifier_block __initdata cpufreq_nb = {
 	.notifier_call = cpufreq_transition_handler,
 };
 
@@ -253,5 +253,13 @@ static __init int register_cpufreq_notifier(void)
 	return 0;
 }
 core_initcall(register_cpufreq_notifier);
+
+static __init int unregister_cpufreq_notifier(void)
+{
+	cpufreq_unregister_notifier(&cpufreq_nb,
+				  CPUFREQ_TRANSITION_NOTIFIER);
+	return 0;
+}
+late_initcall(unregister_cpufreq_notifier);
 
 #endif /* CONFIG_CPUFREQ */
