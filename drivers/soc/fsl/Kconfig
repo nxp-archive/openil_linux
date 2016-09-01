@@ -1,5 +1,9 @@
+#
+# Freescale SOC drivers
+#
 config FSL_GUTS
-	bool
+       bool "Freescale QorIQ GUTS driver"
+       select SOC_BUS
 
 if ARM || ARM64
 source "drivers/soc/fsl/Kconfig.arm"
