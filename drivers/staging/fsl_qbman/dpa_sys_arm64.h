@@ -44,8 +44,8 @@
 #define hwsync() { asm volatile("dmb st" : : : "memory"); }
 #define lwsync() { asm volatile("dmb st" : : : "memory"); }
 #define dcbf(p) { asm volatile("dc cvac, %0;" : : "r" (p) : "memory"); }
-#define dcbt_ro(p) { asm volatile("prfm pldl1keep, [%0, #64]" : : "r" (p)); }
-#define dcbt_rw(p) { asm volatile("prfm pldl1keep, [%0, #64]" : : "r" (p)); }
+#define dcbt_ro(p) { asm volatile("prfm pldl1keep, [%0, #0]" : : "r" (p)); }
+#define dcbt_rw(p) { asm volatile("prfm pldl1keep, [%0, #0]" : : "r" (p)); }
 #define dcbi(p) { asm volatile("dc ivac, %0" : : "r"(p) : "memory"); }
 #define dcbz(p) { asm volatile("dc zva, %0" : : "r" (p) : "memory"); }
 
