@@ -206,7 +206,7 @@ struct caam_ctx {
 static void append_key_aead(u32 *desc, struct caam_ctx *ctx,
 			    int keys_fit_inline, bool is_rfc3686)
 {
-	u32 *nonce;
+	u8 *nonce;
 	unsigned int enckeylen = ctx->enckeylen;
 
 	/*
@@ -233,10 +233,10 @@ static void append_key_aead(u32 *desc, struct caam_ctx *ctx,
 
 	/* Load Counter into CONTEXT1 reg */
 	if (is_rfc3686) {
-		nonce = (u32 *)((void *)ctx->key + ctx->split_key_pad_len +
-			       enckeylen);
-		append_load_imm_u32(desc, *nonce, LDST_CLASS_IND_CCB |
-				    LDST_SRCDST_BYTE_OUTFIFO | LDST_IMM);
+		nonce = (u8 *)ctx->key + ctx->split_key_pad_len + enckeylen;
+		append_load_as_imm(desc, nonce, CTR_RFC3686_NONCE_SIZE,
+				   LDST_CLASS_IND_CCB |
+				   LDST_SRCDST_BYTE_OUTFIFO | LDST_IMM);
 		append_move(desc,
 			    MOVE_SRC_OUTFIFO |
 			    MOVE_DEST_CLASS1CTX |
@@ -528,11 +528,10 @@ static int aead_set_sh_desc(struct crypto_aead *aead)
 
 	/* Load Counter into CONTEXT1 reg */
 	if (is_rfc3686)
-		append_load_imm_u32(desc, be32_to_cpu(1), LDST_IMM |
-				    LDST_CLASS_1_CCB |
-				    LDST_SRCDST_BYTE_CONTEXT |
-				    ((ctx1_iv_off + CTR_RFC3686_IV_SIZE) <<
-				     LDST_OFFSET_SHIFT));
+		append_load_imm_be32(desc, 1, LDST_IMM | LDST_CLASS_1_CCB |
+				     LDST_SRCDST_BYTE_CONTEXT |
+				     ((ctx1_iv_off + CTR_RFC3686_IV_SIZE) <<
+				      LDST_OFFSET_SHIFT));
 
 	/* Class 1 operation */
 	append_operation(desc, ctx->class1_alg_type |
@@ -596,11 +595,10 @@ static int aead_set_sh_desc(struct crypto_aead *aead)
 
 	/* Load Counter into CONTEXT1 reg */
 	if (is_rfc3686)
-		append_load_imm_u32(desc, be32_to_cpu(1), LDST_IMM |
-				    LDST_CLASS_1_CCB |
-				    LDST_SRCDST_BYTE_CONTEXT |
-				    ((ctx1_iv_off + CTR_RFC3686_IV_SIZE) <<
-				     LDST_OFFSET_SHIFT));
+		append_load_imm_be32(desc, 1, LDST_IMM | LDST_CLASS_1_CCB |
+				     LDST_SRCDST_BYTE_CONTEXT |
+				     ((ctx1_iv_off + CTR_RFC3686_IV_SIZE) <<
+				      LDST_OFFSET_SHIFT));
 
 	/* Choose operation */
 	if (ctr_mode)
@@ -690,11 +688,10 @@ static int aead_set_sh_desc(struct crypto_aead *aead)
 
 	/* Load Counter into CONTEXT1 reg */
 	if (is_rfc3686)
-		append_load_imm_u32(desc, be32_to_cpu(1), LDST_IMM |
-				    LDST_CLASS_1_CCB |
-				    LDST_SRCDST_BYTE_CONTEXT |
-				    ((ctx1_iv_off + CTR_RFC3686_IV_SIZE) <<
-				     LDST_OFFSET_SHIFT));
+		append_load_imm_be32(desc, 1, LDST_IMM | LDST_CLASS_1_CCB |
+				     LDST_SRCDST_BYTE_CONTEXT |
+				     ((ctx1_iv_off + CTR_RFC3686_IV_SIZE) <<
+				      LDST_OFFSET_SHIFT));
 
 	/* Class 1 operation */
 	append_operation(desc, ctx->class1_alg_type |
@@ -2462,7 +2459,7 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 	int ret = 0;
 	u32 *key_jump_cmd;
 	u32 *desc;
-	u32 *nonce;
+	u8 *nonce;
 	u32 geniv;
 	u32 ctx1_iv_off = 0;
 	const bool ctr_mode = ((ctx->class1_alg_type & OP_ALG_AAI_MASK) ==
@@ -2515,9 +2512,10 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 
 	/* Load nonce into CONTEXT1 reg */
 	if (is_rfc3686) {
-		nonce = (u32 *)(key + keylen);
-		append_load_imm_u32(desc, *nonce, LDST_CLASS_IND_CCB |
-				    LDST_SRCDST_BYTE_OUTFIFO | LDST_IMM);
+		nonce = (u8 *)key + keylen;
+		append_load_as_imm(desc, nonce, CTR_RFC3686_NONCE_SIZE,
+				  LDST_CLASS_IND_CCB |
+				  LDST_SRCDST_BYTE_OUTFIFO | LDST_IMM);
 		append_move(desc, MOVE_WAITCOMP |
 			    MOVE_SRC_OUTFIFO |
 			    MOVE_DEST_CLASS1CTX |
@@ -2533,11 +2531,10 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 
 	/* Load counter into CONTEXT1 reg */
 	if (is_rfc3686)
-		append_load_imm_u32(desc, be32_to_cpu(1), LDST_IMM |
-				    LDST_CLASS_1_CCB |
-				    LDST_SRCDST_BYTE_CONTEXT |
-				    ((ctx1_iv_off + CTR_RFC3686_IV_SIZE) <<
-				     LDST_OFFSET_SHIFT));
+		append_load_imm_be32(desc, 1, LDST_IMM | LDST_CLASS_1_CCB |
+				     LDST_SRCDST_BYTE_CONTEXT |
+				     ((ctx1_iv_off + CTR_RFC3686_IV_SIZE) <<
+				      LDST_OFFSET_SHIFT));
 
 	/* Load operation */
 	append_operation(desc, ctx->class1_alg_type |
@@ -2574,9 +2571,10 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 
 	/* Load nonce into CONTEXT1 reg */
 	if (is_rfc3686) {
-		nonce = (u32 *)(key + keylen);
-		append_load_imm_u32(desc, *nonce, LDST_CLASS_IND_CCB |
-				    LDST_SRCDST_BYTE_OUTFIFO | LDST_IMM);
+		nonce = (u8 *)key + keylen;
+		append_load_as_imm(desc, nonce, CTR_RFC3686_NONCE_SIZE,
+				  LDST_CLASS_IND_CCB |
+				  LDST_SRCDST_BYTE_OUTFIFO | LDST_IMM);
 		append_move(desc, MOVE_WAITCOMP |
 			    MOVE_SRC_OUTFIFO |
 			    MOVE_DEST_CLASS1CTX |
@@ -2592,11 +2590,10 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 
 	/* Load counter into CONTEXT1 reg */
 	if (is_rfc3686)
-		append_load_imm_u32(desc, be32_to_cpu(1), LDST_IMM |
-				    LDST_CLASS_1_CCB |
-				    LDST_SRCDST_BYTE_CONTEXT |
-				    ((ctx1_iv_off + CTR_RFC3686_IV_SIZE) <<
-				     LDST_OFFSET_SHIFT));
+		append_load_imm_be32(desc, 1, LDST_IMM | LDST_CLASS_1_CCB |
+				     LDST_SRCDST_BYTE_CONTEXT |
+				     ((ctx1_iv_off + CTR_RFC3686_IV_SIZE) <<
+				      LDST_OFFSET_SHIFT));
 
 	/* Choose operation */
 	if (ctr_mode)
@@ -2637,9 +2634,10 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 
 	/* Load Nonce into CONTEXT1 reg */
 	if (is_rfc3686) {
-		nonce = (u32 *)(key + keylen);
-		append_load_imm_u32(desc, *nonce, LDST_CLASS_IND_CCB |
-				    LDST_SRCDST_BYTE_OUTFIFO | LDST_IMM);
+		nonce = (u8 *)key + keylen;
+		append_load_as_imm(desc, nonce, CTR_RFC3686_NONCE_SIZE,
+				  LDST_CLASS_IND_CCB |
+				  LDST_SRCDST_BYTE_OUTFIFO | LDST_IMM);
 		append_move(desc, MOVE_WAITCOMP |
 			    MOVE_SRC_OUTFIFO |
 			    MOVE_DEST_CLASS1CTX |
