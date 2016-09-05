@@ -82,7 +82,7 @@ obj-$(CONFIG_HAVE_IMX_ANATOP) += anatop.o
 obj-$(CONFIG_HAVE_IMX_GPC) += gpc.o
 obj-$(CONFIG_HAVE_IMX_MMDC) += mmdc.o
 obj-$(CONFIG_HAVE_IMX_SRC) += src.o
-ifneq ($(CONFIG_SOC_IMX6)$(CONFIG_SOC_LS1021A),)
+ifneq ($(CONFIG_SOC_IMX6)$(CONFIG_SOC_LS1021A)$(CONFIG_ARCH_LAYERSCAPE_AARCH32),)
 AFLAGS_headsmp.o :=-Wa,-march=armv7-a
 obj-$(CONFIG_SMP) += headsmp.o platsmp.o
 obj-$(CONFIG_HOTPLUG_CPU) += hotplug.o
@@ -108,5 +108,7 @@ obj-$(CONFIG_SOC_IMX53) += mach-imx53.o
 obj-$(CONFIG_SOC_VF610) += clk-vf610.o mach-vf610.o
 
 obj-$(CONFIG_SOC_LS1021A) += mach-ls1021a.o
+
+obj-$(CONFIG_ARCH_LAYERSCAPE_AARCH32) += mach-layerscape.o
 
 obj-y += devices/
