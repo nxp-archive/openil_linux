@@ -52,7 +52,11 @@
  * NL=0 - the BMI releases all the internal buffers
  */
 #define CEETM_CONTEXT_A		0x1a00000080000000
-
+/* The ratio between the superior and inferior congestion state thresholds. The
+ * lower threshold is set to 7/8 of the superior one (as the default for WQ
+ * scheduling).
+ */
+#define CEETM_CCGR_RATIO	0.875
 /* For functional purposes, there are num_tx_queues pfifo qdiscs through which
  * frames reach the driver. Their handles start from 1:21. Handles 1:1 to 1:20
  * are reserved for the maximum 32 CEETM channels (majors and minors are in

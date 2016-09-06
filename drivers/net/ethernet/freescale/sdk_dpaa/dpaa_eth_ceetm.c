@@ -154,7 +154,7 @@ static int ceetm_alloc_fq(struct ceetm_fq **fq, struct net_device *dev,
 /* Configure a ceetm Class Congestion Group */
 static int ceetm_config_ccg(struct qm_ceetm_ccg **ccg,
 			    struct qm_ceetm_channel *channel, unsigned int id,
-			    struct ceetm_fq *fq, u32 if_support)
+			    struct ceetm_fq *fq, struct dpa_priv_s *dpa_priv)
 {
 	int err;
 	u32 cs_th;
@@ -165,25 +165,33 @@ static int ceetm_config_ccg(struct qm_ceetm_ccg **ccg,
 	if (err)
 		return err;
 
-	/* Configure the count mode (frames/bytes), enable
-	 * notifications, enable tail-drop, and configure the tail-drop
-	 * mode and threshold */
-	ccg_mask = QM_CCGR_WE_MODE | QM_CCGR_WE_CSCN_EN |
+	/* Configure the count mode (frames/bytes), enable congestion state
+	 * notifications, configure the congestion entry and exit thresholds,
+	 * enable tail-drop, configure the tail-drop mode, and set the
+	 * overhead accounting limit
+	 */
+	ccg_mask = QM_CCGR_WE_MODE |
+		   QM_CCGR_WE_CSCN_EN |
+		   QM_CCGR_WE_CS_THRES_IN | QM_CCGR_WE_CS_THRES_OUT |
 		   QM_CCGR_WE_TD_EN | QM_CCGR_WE_TD_MODE |
-		   QM_CCGR_WE_TD_THRES;
+		   QM_CCGR_WE_OAL;
 
 	ccg_params.mode = 0; /* count bytes */
 	ccg_params.cscn_en = 1; /* generate notifications */
 	ccg_params.td_en = 1; /* enable tail-drop */
-	ccg_params.td_mode = 1; /* tail-drop on threshold */
+	ccg_params.td_mode = 0; /* tail-drop on congestion state */
+	ccg_params.oal = (signed char)(min(sizeof(struct sk_buff) +
+			  dpa_priv->tx_headroom, (size_t)FSL_QMAN_MAX_OAL));
 
-	/* Configure the tail-drop threshold according to the link
-	 * speed */
-	if (if_support & SUPPORTED_10000baseT_Full)
+	/* Set the congestion state thresholds according to the link speed */
+	if (dpa_priv->mac_dev->if_support & SUPPORTED_10000baseT_Full)
 		cs_th = CONFIG_FSL_DPAA_CS_THRESHOLD_10G;
 	else
 		cs_th = CONFIG_FSL_DPAA_CS_THRESHOLD_1G;
-	qm_cgr_cs_thres_set64(&ccg_params.td_thres, cs_th, 1);
+
+	qm_cgr_cs_thres_set64(&ccg_params.cs_thres_in, cs_th, 1);
+	qm_cgr_cs_thres_set64(&ccg_params.cs_thres_out,
+			      cs_th * CEETM_CCGR_RATIO, 1);
 
 	err = qman_ceetm_ccg_set(*ccg, ccg_mask, &ccg_params);
 	if (err)
@@ -238,7 +246,7 @@ static int ceetm_config_prio_cls(struct ceetm_class *cls,
 
 	/* Claim and configure the CCG */
 	err = ceetm_config_ccg(&cls->prio.ccg, channel, id, cls->prio.fq,
-			       dpa_priv->mac_dev->if_support);
+			       dpa_priv);
 	if (err)
 		return err;
 
@@ -280,7 +288,7 @@ static int ceetm_config_wbfs_cls(struct ceetm_class *cls,
 
 	/* Claim and configure the CCG */
 	err = ceetm_config_ccg(&cls->wbfs.ccg, channel, id, cls->wbfs.fq,
-			       dpa_priv->mac_dev->if_support);
+			       dpa_priv);
 	if (err)
 		return err;
 
