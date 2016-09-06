@@ -302,8 +302,9 @@ static int ceetm_config_wbfs_cls(struct ceetm_class *cls,
 	if (err)
 		return err;
 
-	/* Configure the CQ weight: real number mutiplied by 100 to get rid
-	 * of the fraction  */
+	/* Configure the CQ weight: real number multiplied by 100 to get rid
+	 * of the fraction
+	 */
 	err = qman_ceetm_set_queue_weight_in_ratio(cls->wbfs.cq,
 						   cls->wbfs.weight * 100);
 	if (err)
@@ -571,7 +572,7 @@ static int ceetm_init_root(struct Qdisc *sch, struct ceetm_qdisc *priv,
 	struct netdev_queue *dev_queue;
 	struct Qdisc *qdisc;
 	enum qm_dc_portal dcp_id;
-	unsigned int i, sp_id;
+	unsigned int i, sp_id, parent_id;
 	int err;
 	u64 bps;
 	struct qm_ceetm_sp *sp;
@@ -607,9 +608,11 @@ static int ceetm_init_root(struct Qdisc *sch, struct ceetm_qdisc *priv,
 
 	for (i = 0; i < dev->num_tx_queues; i++) {
 		dev_queue = netdev_get_tx_queue(dev, i);
+		parent_id = TC_H_MAKE(TC_H_MAJ(sch->handle),
+				      TC_H_MIN(i + PFIFO_MIN_OFFSET));
+
 		qdisc = qdisc_create_dflt(dev_queue, &pfifo_qdisc_ops,
-					  TC_H_MAKE(TC_H_MAJ(sch->handle),
-					  TC_H_MIN(i + PFIFO_MIN_OFFSET)));
+					  parent_id);
 		if (!qdisc) {
 			err = -ENOMEM;
 			goto err_init_root;
@@ -646,7 +649,8 @@ static int ceetm_init_root(struct Qdisc *sch, struct ceetm_qdisc *priv,
 	priv->root.sp = sp;
 
 	/* Claim the LNI - will use the same id as the SP id since SPs 0-7
-	 * are connected to the TX FMan ports */
+	 * are connected to the TX FMan ports
+	 */
 	err = qman_ceetm_lni_claim(&lni, dcp_id, sp_id);
 	if (err) {
 		pr_err(KBUILD_BASENAME " : %s : failed to claim the LNI\n",
@@ -935,7 +939,7 @@ static int ceetm_init_wbfs(struct Qdisc *sch, struct ceetm_qdisc *priv,
 
 	if (priv->shaped) {
 		err = qman_ceetm_channel_set_group_cr_eligibility(channel,
-								group_b,
+								  group_b,
 								priv->wbfs.cr);
 		if (err) {
 			pr_err(KBUILD_BASENAME " : %s : failed to set group CR eligibility\n",
@@ -944,7 +948,7 @@ static int ceetm_init_wbfs(struct Qdisc *sch, struct ceetm_qdisc *priv,
 		}
 
 		err = qman_ceetm_channel_set_group_er_eligibility(channel,
-								group_b,
+								  group_b,
 								priv->wbfs.er);
 		if (err) {
 			pr_err(KBUILD_BASENAME " : %s : failed to set group ER eligibility\n",
@@ -1674,8 +1678,9 @@ static int ceetm_cls_delete(struct Qdisc *sch, unsigned long arg)
 	cl->refcnt--;
 
 	/* The refcnt should be at least 1 since we have incremented it in
-	   get(). Will decrement again in put() where we will call destroy()
-	   to actually free the memory if it reaches 0. */
+	 * get(). Will decrement again in put() where we will call destroy()
+	 * to actually free the memory if it reaches 0.
+	 */
 	WARN_ON(cl->refcnt == 0);
 
 	sch_tree_unlock(sch);
@@ -1884,12 +1889,14 @@ static struct ceetm_class *ceetm_classify(struct sk_buff *skb,
 	case CEETM_PRIO:
 		if (cl->prio.child) {
 			/* If filters lead to a wbfs class, return it.
-			 * Otherwise, return the prio class */
+			 * Otherwise, return the prio class
+			 */
 			wbfs_cl = ceetm_classify(skb, cl->prio.child, qerr,
 						 act_drop);
 			/* A NULL result might indicate either an erroneous
 			 * filter, or no filters at all. We will assume the
-			 * latter */
+			 * latter
+			 */
 			return wbfs_cl ? : cl;
 		}
 	}
@@ -1933,14 +1940,15 @@ int __hot ceetm_tx(struct sk_buff *skb, struct net_device *net_dev)
 	conf_fq = priv_dpa->conf_fqs[queue_mapping];
 
 	/* Choose the proper tx fq and update the basic stats (bytes and
-	 * packets sent by the class) */
+	 * packets sent by the class)
+	 */
 	switch (cl->type) {
 	case CEETM_PRIO:
-		egress_fq = &(cl->prio.fq->fq);
+		egress_fq = &cl->prio.fq->fq;
 		cstats = this_cpu_ptr(cl->prio.cstats);
 		break;
 	case CEETM_WBFS:
-		egress_fq = &(cl->wbfs.fq->fq);
+		egress_fq = &cl->wbfs.fq->fq;
 		cstats = this_cpu_ptr(cl->wbfs.cstats);
 		break;
 	default:
@@ -1966,7 +1974,7 @@ static int __init ceetm_register(void)
 	if (unlikely(_errno))
 		pr_err(KBUILD_MODNAME
 		       ": %s:%hu:%s(): register_qdisc() = %d\n",
-		       KBUILD_BASENAME".c", __LINE__, __func__, _errno);
+		       KBUILD_BASENAME ".c", __LINE__, __func__, _errno);
 
 	return _errno;
 }
@@ -1974,7 +1982,7 @@ static int __init ceetm_register(void)
 static void __exit ceetm_unregister(void)
 {
 	pr_debug(KBUILD_MODNAME ": %s:%s() ->\n",
-		 KBUILD_BASENAME".c", __func__);
+		 KBUILD_BASENAME ".c", __func__);
 
 	unregister_qdisc(&ceetm_qdisc_ops);
 }
