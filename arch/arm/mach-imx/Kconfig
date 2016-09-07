@@ -631,6 +631,7 @@ endif
 config ARCH_LAYERSCAPE_AARCH32
 	bool "Freescale Layerscape SoC AArch32 ES support"
 	select ARCH_AARCH32_ES_SUPPORT
+	select ARM_AMBA
 	select ARM_GIC
 	select ARM_ARCH_TIMER
 	select ARCH_DMA_ADDR_T_64BIT if ARM_LPAE
