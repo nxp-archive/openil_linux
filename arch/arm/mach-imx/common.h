@@ -157,5 +157,5 @@ static inline void imx_init_l2cache(void) {}
 
 extern struct smp_operations imx_smp_ops;
 extern struct smp_operations ls1021a_smp_ops;
-
+extern const struct smp_operations layerscape_smp_ops;
 #endif

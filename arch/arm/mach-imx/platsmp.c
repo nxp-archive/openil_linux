@@ -14,6 +14,7 @@
 #include <linux/of_address.h>
 #include <linux/of.h>
 #include <linux/smp.h>
+#include <linux/types.h>
 
 #include <asm/cacheflush.h>
 #include <asm/page.h>
@@ -25,6 +26,8 @@
 
 u32 g_diag_reg;
 static void __iomem *scu_base;
+
+static u64 cpu_release_addr[NR_CPUS];
 
 static struct map_desc scu_io_desc __initdata = {
 	/* .virtual and .pfn are run-time assigned */
@@ -126,4 +129,50 @@ static void __init ls1021a_smp_prepare_cpus(unsigned int max_cpus)
 struct smp_operations  ls1021a_smp_ops __initdata = {
 	.smp_prepare_cpus	= ls1021a_smp_prepare_cpus,
 	.smp_boot_secondary	= ls1021a_boot_secondary,
+};
+
+static int layerscape_smp_boot_secondary(unsigned int cpu,
+					 struct task_struct *idle)
+{
+	u32 secondary_startup_phys;
+	__le32 __iomem *release_addr;
+
+	secondary_startup_phys = virt_to_phys(secondary_startup);
+
+	release_addr = ioremap_cache((u32)cpu_release_addr[cpu],
+				     sizeof(u64));
+	if (!release_addr)
+		return -ENOMEM;
+
+	writel_relaxed(secondary_startup_phys, release_addr);
+	writel_relaxed(0, release_addr + 1);
+	__cpuc_flush_dcache_area((__force void *)release_addr,
+				 sizeof(u64));
+
+	sev();
+
+	iounmap(release_addr);
+
+	return 0;
+}
+
+static void layerscape_smp_init_cpus(void)
+{
+	struct device_node *dnt = NULL;
+	unsigned int cpu = 0;
+
+	while ((dnt = of_find_node_by_type(dnt, "cpu"))) {
+		if (of_property_read_u64(dnt, "cpu-release-addr",
+		    &cpu_release_addr[cpu])) {
+			pr_err("CPU %d: missing or invalid cpu-release-addr property\n",
+			cpu);
+		}
+
+		cpu++;
+	}
+}
+
+const struct smp_operations layerscape_smp_ops __initconst = {
+	.smp_init_cpus		= layerscape_smp_init_cpus,
+	.smp_boot_secondary	= layerscape_smp_boot_secondary,
 };

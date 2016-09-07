@@ -19,5 +19,6 @@ static const char * const layerscape_dt_compat[] __initconst = {
 };
 
 DT_MACHINE_START(LAYERSCAPE_AARCH32, "Freescale LAYERSCAPE")
+	.smp		= smp_ops(layerscape_smp_ops),
 	.dt_compat	= layerscape_dt_compat,
 MACHINE_END
