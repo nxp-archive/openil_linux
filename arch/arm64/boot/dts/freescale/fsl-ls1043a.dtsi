@@ -141,10 +141,10 @@
 		compatible = "arm,gic-400";
 		#interrupt-cells = <3>;
 		interrupt-controller;
-		reg = <0x0 0x1401000 0 0x1000>, /* GICD */
-		      <0x0 0x1402000 0 0x2000>, /* GICC */
-		      <0x0 0x1404000 0 0x2000>, /* GICH */
-		      <0x0 0x1406000 0 0x2000>; /* GICV */
+		reg = <0x0 0x1410000 0 0x10000>, /* GICD */
+		      <0x0 0x1420000 0 0x20000>, /* GICC */
+		      <0x0 0x1440000 0 0x20000>, /* GICH */
+		      <0x0 0x1460000 0 0x20000>; /* GICV */
 		interrupts = <1 9 0xf08>;
 	};
 
