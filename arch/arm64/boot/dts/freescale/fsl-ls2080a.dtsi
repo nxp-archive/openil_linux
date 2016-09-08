@@ -413,6 +413,7 @@
 		#address-cells = <3>;
 		#size-cells = <2>;
 		device_type = "pci";
+		dma-coherent;
 		num-lanes = <4>;
 		bus-range = <0x0 0xff>;
 		ranges = <0x81000000 0x0 0x00000000 0x10 0x00010000 0x0 0x00010000   /* downstream I/O */
@@ -437,6 +438,7 @@
 		#address-cells = <3>;
 		#size-cells = <2>;
 		device_type = "pci";
+		dma-coherent;
 		num-lanes = <4>;
 		bus-range = <0x0 0xff>;
 		ranges = <0x81000000 0x0 0x00000000 0x12 0x00010000 0x0 0x00010000   /* downstream I/O */
@@ -461,6 +463,7 @@
 		#address-cells = <3>;
 		#size-cells = <2>;
 		device_type = "pci";
+		dma-coherent;
 		num-lanes = <8>;
 		bus-range = <0x0 0xff>;
 		ranges = <0x81000000 0x0 0x00000000 0x14 0x00010000 0x0 0x00010000   /* downstream I/O */
@@ -485,6 +488,7 @@
 		#address-cells = <3>;
 		#size-cells = <2>;
 		device_type = "pci";
+		dma-coherent;
 		num-lanes = <4>;
 		bus-range = <0x0 0xff>;
 		ranges = <0x81000000 0x0 0x00000000 0x16 0x00010000 0x0 0x00010000   /* downstream I/O */
