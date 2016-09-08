@@ -2175,6 +2175,7 @@ static void FillAdOfTypeResult(t_Handle h_Ad,
     uint32_t tmp = 0, tmpNia = 0;
     uint16_t profileId;
     t_Handle p_AdNewPtr = NULL;
+    t_Error err = E_OK;
 
     /* There are 3 cases handled in this routine of building a "result" type AD.
      * Case 1: No Manip. The action descriptor is built within the match table.
@@ -2287,12 +2288,15 @@ static void FillAdOfTypeResult(t_Handle h_Ad,
                     if (p_CcNextEngineParams->params.plcrParams.sharedProfile)
                     {
                         tmpNia |= NIA_PLCR_ABSOLUTE;
-                        FmPcdPlcrGetAbsoluteIdByProfileParams(
+                        err = FmPcdPlcrGetAbsoluteIdByProfileParams(
                                 (t_Handle)p_FmPcd,
                                 e_FM_PCD_PLCR_SHARED,
                                 NULL,
                                 p_CcNextEngineParams->params.plcrParams.newRelativeProfileId,
                                 &profileId);
+			if (err != E_OK)
+				RETURN_ERROR(MAJOR, err, NO_MSG);
+
                     }
                     else
                         profileId =

@@ -312,7 +312,8 @@ static t_FmPcdLock * DequeueLockFromFreeLst(t_FmPcd *p_FmPcd)
         p_Lock = FM_PCD_LOCK_OBJ(p_FmPcd->freeLocksLst.p_Next);
         LIST_DelAndInit(&p_Lock->node);
     }
-    XX_UnlockIntrSpinlock(p_FmPcd->h_Spinlock, intFlags);
+    if (p_FmPcd->h_Spinlock)
+    	XX_UnlockIntrSpinlock(p_FmPcd->h_Spinlock, intFlags);
 
     return p_Lock;
 }

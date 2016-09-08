@@ -563,6 +563,7 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
     p_LnxWrpFmDev->irq = of_irq_to_resource(fm_node, 0, NULL);
     if (unlikely(p_LnxWrpFmDev->irq == /*NO_IRQ*/0)) {
         REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("of_irq_to_resource() = %d", NO_IRQ));
+        DestroyFmDev(p_LnxWrpFmDev);
         return NULL;
     }
 
@@ -571,6 +572,7 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
 
     if (unlikely(p_LnxWrpFmDev->err_irq == /*NO_IRQ*/0)) {
         REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("of_irq_to_resource() = %d", NO_IRQ));
+        DestroyFmDev(p_LnxWrpFmDev);
         return NULL;
     }
 
@@ -578,6 +580,7 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
     _errno = of_address_to_resource(fm_node, 0, &res);
     if (unlikely(_errno < 0)) {
         REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("of_address_to_resource() = %d", _errno));
+        DestroyFmDev(p_LnxWrpFmDev);
         return NULL;
     }
 
@@ -591,7 +594,8 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
         dev_err(&of_dev->dev, "%s: Failed to get FM clock structure\n",
                 __func__);
         of_node_put(fm_node);
-	return NULL;
+        DestroyFmDev(p_LnxWrpFmDev);
+        return NULL;
     }
 
     clk_rate = clk_get_rate(clk);
@@ -599,6 +603,7 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
         dev_err(&of_dev->dev, "%s: Failed to determine FM clock rate\n",
                 __func__);
         of_node_put(fm_node);
+        DestroyFmDev(p_LnxWrpFmDev);
         return NULL;
     }
 
@@ -616,6 +621,7 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
             _errno = of_address_to_resource(dev_node, 0, &res);
             if (unlikely(_errno < 0)) {
                 REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("of_address_to_resource() = %d", _errno));
+                DestroyFmDev(p_LnxWrpFmDev);
                 return NULL;
             }
 
@@ -648,6 +654,7 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
             _errno = of_address_to_resource(dev_node, 0, &res);
             if (unlikely(_errno < 0)) {
                 REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("of_address_to_resource() = %d", _errno));
+                DestroyFmDev(p_LnxWrpFmDev);
                 return NULL;
             }
 
@@ -664,6 +671,7 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
             _errno = of_address_to_resource(dev_node, 0, &res);
             if (unlikely(_errno < 0)) {
                 REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("of_address_to_resource() = %d", _errno));
+                DestroyFmDev(p_LnxWrpFmDev);
                 return NULL;
             }
             p_LnxWrpFmDev->fmVspBaseAddr = 0;
