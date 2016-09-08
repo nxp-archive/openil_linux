@@ -756,9 +756,11 @@ void phy_start(struct phy_device *phydev)
 		break;
 	case PHY_HALTED:
 		/* make sure interrupts are re-enabled for the PHY */
-		err = phy_enable_interrupts(phydev);
-		if (err < 0)
-			break;
+		if (phydev->irq != PHY_POLL) {
+			err = phy_enable_interrupts(phydev);
+			if (err < 0)
+				break;
+		}
 
 		phydev->state = PHY_RESUMING;
 		do_resume = true;
@@ -832,6 +834,9 @@ void phy_state_machine(struct work_struct *work)
 			needs_aneg = true;
 		break;
 	case PHY_NOLINK:
+		if (phy_interrupt_is_valid(phydev))
+			break;
+
 		err = phy_read_status(phydev);
 		if (err)
 			break;
