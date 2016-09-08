@@ -59,7 +59,7 @@
 #define IPIPE_TFLG_CURRDOM_SHIFT    10	 /* bits 10..11: current domain */
 #define IPIPE_TFLG_CURRDOM_MASK	    0x0C00
 #define IPIPE_TFLG_DOMSTATE_SHIFT   12	 /* bits 12..15: domain stalled? */
-#define IPIPE_TFLG_DOMSTATE_BITS    3
+#define IPIPE_TFLG_DOMSTATE_BITS    1
 
 #define IPIPE_TFLG_DOMAIN_STALLED(point, n) \
 	(point->flags & (1 << (n + IPIPE_TFLG_DOMSTATE_SHIFT)))
