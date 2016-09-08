@@ -406,10 +406,10 @@
 		compatible = "fsl,ls2080a-pcie", "fsl,ls2085a-pcie",
 			     "snps,dw-pcie";
 		reg = <0x00 0x03400000 0x0 0x00100000   /* controller registers */
-		       0x10 0x00000000 0x0 0x00001000>; /* configuration space */
+		       0x10 0x00000000 0x0 0x00002000>; /* configuration space */
 		reg-names = "regs", "config";
-		interrupts = <0 108 0x4>; /* Level high type */
-		interrupt-names = "intr";
+		interrupts = <0 108 0x4>; /* aer interrupt */
+		interrupt-names = "aer";
 		#address-cells = <3>;
 		#size-cells = <2>;
 		device_type = "pci";
@@ -430,10 +430,10 @@
 		compatible = "fsl,ls2080a-pcie", "fsl,ls2085a-pcie",
 			     "snps,dw-pcie";
 		reg = <0x00 0x03500000 0x0 0x00100000   /* controller registers */
-		       0x12 0x00000000 0x0 0x00001000>; /* configuration space */
+		       0x12 0x00000000 0x0 0x00002000>; /* configuration space */
 		reg-names = "regs", "config";
-		interrupts = <0 113 0x4>; /* Level high type */
-		interrupt-names = "intr";
+		interrupts = <0 113 0x4>; /* aer interrupt */
+		interrupt-names = "aer";
 		#address-cells = <3>;
 		#size-cells = <2>;
 		device_type = "pci";
@@ -454,10 +454,10 @@
 		compatible = "fsl,ls2080a-pcie", "fsl,ls2085a-pcie",
 			     "snps,dw-pcie";
 		reg = <0x00 0x03600000 0x0 0x00100000   /* controller registers */
-		       0x14 0x00000000 0x0 0x00001000>; /* configuration space */
+		       0x14 0x00000000 0x0 0x00002000>; /* configuration space */
 		reg-names = "regs", "config";
-		interrupts = <0 118 0x4>; /* Level high type */
-		interrupt-names = "intr";
+		interrupts = <0 118 0x4>; /* aer interrupt */
+		interrupt-names = "aer";
 		#address-cells = <3>;
 		#size-cells = <2>;
 		device_type = "pci";
@@ -478,10 +478,10 @@
 		compatible = "fsl,ls2080a-pcie", "fsl,ls2085a-pcie",
 			     "snps,dw-pcie";
 		reg = <0x00 0x03700000 0x0 0x00100000   /* controller registers */
-		       0x16 0x00000000 0x0 0x00001000>; /* configuration space */
+		       0x16 0x00000000 0x0 0x00002000>; /* configuration space */
 		reg-names = "regs", "config";
-		interrupts = <0 123 0x4>; /* Level high type */
-		interrupt-names = "intr";
+		interrupts = <0 123 0x4>; /* aer interrupt */
+		interrupt-names = "aer";
 		#address-cells = <3>;
 		#size-cells = <2>;
 		device_type = "pci";
