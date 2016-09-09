@@ -193,7 +193,6 @@ config LS2080A_ERRATA_ERR009971
 config ARCH_LAYERSCAPE
 	bool "Freescale Layerscape SoC family"
 	select PCI_LAYERSCAPE if PCI
-	select LS1_MSI if PCI_MSI
 	select LS2080A_ERRATA_ERR009971
 	help
 	  This enables support for Freescale Layerscape SoC family
