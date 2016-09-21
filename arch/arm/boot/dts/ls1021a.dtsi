@@ -175,7 +175,7 @@
 			      <0x0 0x20220520 0x0 0x4>;
 			reg-names = "ahci", "sata-ecc";
 			interrupts = <GIC_SPI 101 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clockgen 4 1>;
+			clocks = <&platform_clk 1>;
 			status = "disabled";
 		};
 
