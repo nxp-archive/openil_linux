@@ -199,8 +199,6 @@ struct ioc_dpa_cls_mcast_remove_params {
 
 struct dpa_cls_compat_tbl_params {
 	compat_uptr_t			cc_node;
-	compat_uptr_t			distribution;
-	compat_uptr_t                   classification;
 	enum dpa_cls_tbl_type		type;
 	enum dpa_cls_tbl_entry_mgmt	entry_mgmt;
 	union {
@@ -222,6 +220,7 @@ struct dpa_cls_compat_tbl_enq_action_desc {
 	compat_uptr_t	policer_params;
 	int		hmd;
 	uint8_t		new_rel_vsp_id;
+	compat_uptr_t	distribution;
 };
 
 struct dpa_cls_compat_tbl_action {
@@ -494,8 +493,6 @@ struct dpa_cls_compat_mcast_group_params {
 	compat_uptr_t	fm_pcd;
 	struct	dpa_cls_compat_tbl_enq_action_desc first_member_params;
 	unsigned int prefilled_members;
-	compat_uptr_t distribution;
-	compat_uptr_t classification;
 };
 
 struct dpa_cls_compat_mcast_group_resources {

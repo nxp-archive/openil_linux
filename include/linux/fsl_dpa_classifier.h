@@ -166,20 +166,6 @@ struct dpa_cls_tbl_params {
 	 */
 	void					*cc_node;
 
-	/*
-	 * Handle to a FMan distribution to send frames to instead of
-	 * enqueuing frames. If this handle is provided (not NULL) the enqueue
-	 * action will only select the frame queue, but it will NOT actually
-	 * enqueue the frame to the selected frame queue. Instead it will send
-	 * the frame to the indicated distribution for further processing.
-	 */
-	void					*distribution;
-
-	/*
-	 * Handle to a FMan classification to send frames after distribution
-	 */
-	void                                    *classification;
-
 	/* The type of the DPA Classifier table */
 	enum dpa_cls_tbl_type			type;
 
@@ -256,6 +242,15 @@ struct dpa_cls_tbl_enq_action_desc {
 	 * profiles defined. Otherwise it is not used.
 	 */
 	uint8_t					new_rel_vsp_id;
+
+	/*
+	 * Handle to a FMan distribution to send frames to instead of
+	 * enqueuing frames. If this handle is provided (not NULL) the enqueue
+	 * action will only select the frame queue, but it will NOT actually
+	 * enqueue the frame to the selected frame queue. Instead it will send
+	 * the frame to the indicated distribution for further processing.
+	 */
+	void					*distribution;
 };
 
 /* Action parameters to route to a new classifier table */
@@ -1549,18 +1544,6 @@ struct dpa_cls_mcast_group_params {
 	 * Number of members that already exist in the imported group
 	 */
 	unsigned int prefilled_members;
-
-	/*
-	 * External distribution handle. When provided, replicated frames
-	 * are not enqueued to members' frame queues. They are sent to this
-	 * distribution.
-	 */
-	void		*distribution;
-
-	/*
-	 * Handle to a FMan classification to send frames after distribution
-	 */
-	void		*classification;
 };
 
 /* Multicast group external resource */

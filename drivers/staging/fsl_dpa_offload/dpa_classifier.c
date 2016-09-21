@@ -48,7 +48,6 @@
 /* FMD includes */
 #include "error_ext.h"
 #include "fm_pcd_ext.h"
-#include "fm_cc.h"
 #include "crc64.h"
 
 
@@ -459,8 +458,7 @@ int dpa_classif_table_modify_miss_action(int			td,
 
 	/* Fill the [miss_engine_params] structure w/ data */
 	errno = action_to_next_engine_params(miss_action, &miss_engine_params,
-					&hmd, ptable->params.distribution,
-					ptable->params.classification);
+					&hmd);
 	if (errno < 0) {
 		/* Lock back the old HM chain. */
 		dpa_classif_hm_lock_chain(old_hmd);
@@ -671,11 +669,7 @@ int dpa_classif_table_modify_entry_by_key(int			td,
 				ret = action_to_next_engine_params(
 					mod_params->action,
 					&key_params.ccNextEngineParams,
-					NULL,
-					(t_Handle)ptable->params.
-							distribution,
-					(t_Handle)ptable->params.
-							classification);
+					NULL);
 				if (ret < 0) {
 					RELEASE_OBJECT(ptable);
 					log_err("Failed verification of new "
@@ -743,11 +737,7 @@ int dpa_classif_table_modify_entry_by_key(int			td,
 				ret = action_to_next_engine_params(
 						mod_params->action,
 						&key_params.ccNextEngineParams,
-						NULL,
-						(t_Handle)ptable->params.
-						distribution,
-						(t_Handle)ptable->params.
-						classification);
+						NULL);
 				if (ret < 0) {
 					RELEASE_OBJECT(ptable);
 					log_err("Failed verification of new action params while modifying entry by KEY in table td=%d.\n",
@@ -973,9 +963,7 @@ static int hash_table_modify_entry(
 			errno = action_to_next_engine_params(
 				local_action,
 				&key_params.ccNextEngineParams,
-				&hmd,
-				(t_Handle)ptable->params.distribution,
-				(t_Handle)ptable->params.classification);
+				&hmd);
 			if (errno < 0)
 				return errno;
 		} else {
@@ -996,9 +984,7 @@ static int hash_table_modify_entry(
 		errno = action_to_next_engine_params(
 				action,
 				&key_params.ccNextEngineParams,
-				&hmd,
-				(t_Handle)ptable->params.distribution,
-				(t_Handle)ptable->params.classification);
+				&hmd);
 		if (errno < 0)
 			return errno;
 	}
@@ -1179,9 +1165,7 @@ static int table_modify_entry_by_ref(struct dpa_cls_table	*ptable,
 		dpa_classif_hm_release_chain(ptable->entry[entry_id].hmd);
 		errno = action_to_next_engine_params(mod_params->action,
 				&next_engine_params,
-				&ptable->entry[entry_id].hmd,
-				(t_Handle)ptable->params.distribution,
-				(t_Handle)ptable->params.classification);
+				&ptable->entry[entry_id].hmd);
 		if (errno < 0)
 			return errno;
 
@@ -1302,11 +1286,7 @@ static int table_modify_entry_by_ref(struct dpa_cls_table	*ptable,
 					errno = action_to_next_engine_params(
 						mod_params->action,
 						&key_params.ccNextEngineParams,
-						&ptable->entry[entry_id].hmd,
-						(t_Handle)ptable->
-						params.distribution,
-						(t_Handle)ptable->
-						params.classification);
+						&ptable->entry[entry_id].hmd);
 					if (errno < 0)
 						return errno;
 					err =
@@ -2657,9 +2637,7 @@ static int table_insert_entry_exact_match(struct dpa_cls_table	*cls_table,
 
 	errno = action_to_next_engine_params(action,
 				&key_params.ccNextEngineParams,
-				&hmd,
-				(t_Handle)cls_table->params.distribution,
-				(t_Handle)cls_table->params.classification);
+				&hmd);
 	if (errno < 0)
 		return errno;
 
@@ -2874,11 +2852,7 @@ static int table_insert_entry_hash(struct dpa_cls_table		*cls_table,
 	if (cls_table->params.prefilled_entries) {
 		errno = action_to_next_engine_params(action,
 					&key_params.ccNextEngineParams,
-					NULL,
-					(t_Handle)cls_table->params.
-						distribution,
-					(t_Handle)cls_table->params.
-						classification);
+					NULL);
 		if (errno < 0)
 			return errno;
 
@@ -2902,9 +2876,7 @@ static int table_insert_entry_hash(struct dpa_cls_table		*cls_table,
 
 	errno = action_to_next_engine_params(action,
 				&key_params.ccNextEngineParams,
-				&hmd,
-				(t_Handle)cls_table->params.distribution,
-				(t_Handle)cls_table->params.classification);
+				&hmd);
 	if (errno < 0)
 		return errno;
 
@@ -3027,9 +2999,7 @@ static int table_insert_entry_hash(struct dpa_cls_table		*cls_table,
 
 static int action_to_next_engine_params(const struct dpa_cls_tbl_action *action,
 				t_FmPcdCcNextEngineParams *next_engine_params,
-				int *hmd,
-				t_Handle distribution,
-				t_Handle classification)
+				int *hmd)
 {
 	struct dpa_cls_table *next_table;
 #if (DPAA_VERSION >= 11)
@@ -3054,44 +3024,11 @@ static int action_to_next_engine_params(const struct dpa_cls_tbl_action *action,
 			e_FM_PCD_DROP_FRAME;
 		break;
 	case DPA_CLS_TBL_ACTION_ENQ:
-		if (distribution && classification) {
-			t_FmPcdKgSchemeParams *scheme_params =
-				kzalloc(sizeof(t_FmPcdKgSchemeParams),
-					GFP_KERNEL);
-			if (!scheme_params) {
-				log_err("Failed to alocate direct scheme "
-					"params.\n");
-				return -ENOMEM;
-			}
-			memset(scheme_params, 0, sizeof(*scheme_params));
-			scheme_params->modify = true;
-			scheme_params->alwaysDirect = true;
-#if (DPAA_VERSION >= 11)
-			scheme_params->bypassFqidGeneration = true;
-#else
-			scheme_params->bypassFqidGeneration = false;
-#endif
-			scheme_params->id.h_Scheme = distribution;
-			scheme_params->nextEngine = e_FM_PCD_CC;
-			scheme_params->kgNextEngineParams.cc.h_CcTree =
-					classification;
-			scheme_params->kgNextEngineParams.cc.grpId = 0;
-			scheme_params->keyExtractAndHashParams.
-					hashDistributionNumOfFqids = 1;
-
-			distribution = FM_PCD_KgSchemeSet(
-				((t_FmPcdCcTree *)classification)->h_FmPcd,
-				scheme_params);
-			kfree(scheme_params);
-			if (!distribution) {
-				log_err("Failed to set direct scheme.\n");
-				return -EINVAL;
-			}
-
+		if (action->enq_params.distribution) {
 			/* Redirect frames to KeyGen direct scheme */
 			next_engine_params->nextEngine = e_FM_PCD_KG;
 			next_engine_params->params.kgParams.h_DirectScheme =
-				distribution;
+				action->enq_params.distribution;
 			next_engine_params->params.kgParams.newFqid =
 				action->enq_params.new_fqid;
 			if (action->enq_params.override_fqid)
@@ -7886,52 +7823,16 @@ int dpa_classif_mcast_create_group(
 		replic_grp_params->numOfEntries = pgroup->num_members + 1;
 		next_engine_params = &replic_grp_params->nextEngineParams[0];
 
-		if (group_params->distribution &&
-		    group_params->classification) {
-			t_Handle classification, distribution;
-			t_FmPcdKgSchemeParams *scheme_params =
-					  kzalloc(sizeof(t_FmPcdKgSchemeParams),
-							GFP_KERNEL);
-			if (!scheme_params) {
-				log_err("Failed to alocate direct scheme "
-					"params.\n");
-				err = -ENOMEM;
-				goto dpa_classif_mcast_create_group_error;
-			}
-
-			classification = group_params->classification;
-			distribution = group_params->distribution;
-
-			memset(scheme_params, 0, sizeof(*scheme_params));
-			scheme_params->modify = true;
-			scheme_params->alwaysDirect = true;
-			scheme_params->bypassFqidGeneration = true;
-			scheme_params->id.h_Scheme = distribution;
-			scheme_params->nextEngine = e_FM_PCD_CC;
-			scheme_params->kgNextEngineParams.cc.h_CcTree =
-								 classification;
-			scheme_params->kgNextEngineParams.cc.grpId = 0;
-			scheme_params->keyExtractAndHashParams.
-					hashDistributionNumOfFqids = 1;
-
-			distribution = FM_PCD_KgSchemeSet(
-				((t_FmPcdCcTree *)classification)->h_FmPcd,
-				scheme_params);
-			kfree(scheme_params);
-			if (!distribution) {
-				log_err("Failed to set direct scheme.\n");
-				err = -EINVAL;
-				goto dpa_classif_mcast_create_group_error;
-			}
-
+		if (member_params->distribution) {
 			/* Redirect frames to KeyGen direct scheme */
 			next_engine_params->nextEngine = e_FM_PCD_KG;
 			next_engine_params->params.kgParams.h_DirectScheme =
-								   distribution;
+						member_params->distribution;
 			next_engine_params->params.kgParams.newFqid =
 						member_params->new_fqid;
-			next_engine_params->params.kgParams.overrideFqid =
-						member_params->override_fqid;
+			if (member_params->override_fqid)
+				next_engine_params->params.kgParams.
+							overrideFqid = TRUE;
 		} else {
 			if (member_params->policer_params) {
 				next_engine_params->nextEngine = e_FM_PCD_PLCR;
@@ -8106,51 +8007,16 @@ int dpa_classif_mcast_add_member(int grpd,
 	replic_grp_params->maxNumOfEntries = max_members;
 	replic_grp_params->numOfEntries = pgroup->num_members;
 	next_engine_params = &replic_grp_params->nextEngineParams[0];
-	if (pgroup->group_params.distribution &&
-	    pgroup->group_params.classification) {
-		t_Handle classification, distribution;
-		t_FmPcdKgSchemeParams *scheme_params =
-					  kzalloc(sizeof(t_FmPcdKgSchemeParams),
-							GFP_KERNEL);
-		if (!scheme_params) {
-			log_err("Failed to alocate direct scheme params.\n");
-			err = -ENOMEM;
-			goto dpa_classif_mcast_add_member_error;
-
-		}
-
-		classification = pgroup->group_params.classification;
-		distribution = pgroup->group_params.distribution;
-
-		memset(scheme_params, 0, sizeof(*scheme_params));
-		scheme_params->modify = true;
-		scheme_params->alwaysDirect = true;
-		scheme_params->bypassFqidGeneration = true;
-		scheme_params->id.h_Scheme = distribution;
-		scheme_params->nextEngine = e_FM_PCD_CC;
-		scheme_params->kgNextEngineParams.cc.h_CcTree = classification;
-		scheme_params->kgNextEngineParams.cc.grpId = 0;
-		scheme_params->keyExtractAndHashParams.
-				hashDistributionNumOfFqids = 1;
-
-		distribution = FM_PCD_KgSchemeSet(
-			((t_FmPcdCcTree *)classification)->h_FmPcd,
-			scheme_params);
-		kfree(scheme_params);
-		if (!distribution) {
-			log_err("Failed to set direct scheme.\n");
-			err = -EINVAL;
-			goto dpa_classif_mcast_add_member_error;
-		}
-
+	if (member_params->distribution) {
 		/* Redirect frames to KeyGen direct scheme */
 		next_engine_params->nextEngine = e_FM_PCD_KG;
 		next_engine_params->params.kgParams.h_DirectScheme =
-								   distribution;
+						member_params->distribution;
 		next_engine_params->params.kgParams.newFqid =
 					member_params->new_fqid;
-		next_engine_params->params.kgParams.overrideFqid =
-					member_params->override_fqid;
+		if (member_params->override_fqid)
+			next_engine_params->params.kgParams.
+							overrideFqid = TRUE;
 	} else {
 		if (member_params->policer_params) {
 			next_engine_params->nextEngine = e_FM_PCD_PLCR;

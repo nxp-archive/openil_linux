@@ -452,8 +452,7 @@ static int table_insert_entry_hash(struct dpa_cls_table		*cls_table,
  * low level driver (FMD).
  */
 static int	action_to_next_engine_params(const struct dpa_cls_tbl_action
-	*action, t_FmPcdCcNextEngineParams *next_engine_params, int *hmd,
-	t_Handle distribution, t_Handle classification);
+	*action, t_FmPcdCcNextEngineParams *next_engine_params, int *hmd);
 
 /*
  * Translates next engine parameters (from FMD) into action parameters for use
