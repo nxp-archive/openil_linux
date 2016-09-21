@@ -327,7 +327,7 @@ struct dpa_cls_compat_hm_insert_params {
 	enum dpa_cls_hm_insert_type type;
 	union {
 		struct dpa_cls_hm_eth_ins_params eth;
-		struct dpa_cls_hm_pppoe_ins_params pppoe;
+		struct pppoe_header pppoe_header;
 		uint16_t ppp_pid;
 		struct dpa_cls_compat_hm_custom_ins_params custom;
 	};

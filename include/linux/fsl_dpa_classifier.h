@@ -781,10 +781,21 @@ struct dpa_cls_hm_fwd_params {
 
 /* Types of the remove header manipulation operations */
 enum dpa_cls_hm_remove_type {
-	DPA_CLS_HM_REMOVE_ETHERNET,	/* removes ETH and all QTags */
-	DPA_CLS_HM_REMOVE_PPPoE,	/* removes ETH, all QTags and PPPoE */
+	/* Removes ETH and all QTags */
+	DPA_CLS_HM_REMOVE_ETHERNET,
+
+	/*
+	 * Removes PPPoE and the following PPP header. Ethertype is
+	 * automatically updated according to the original data packet's
+	 * PPP type field.
+	 */
+	DPA_CLS_HM_REMOVE_PPPoE,
+
 	DPA_CLS_HM_REMOVE_PPP,
-	DPA_CLS_HM_REMOVE_CUSTOM,	/* General remove */
+
+	/* General remove */
+	DPA_CLS_HM_REMOVE_CUSTOM,
+
 	DPA_CLS_HM_REMOVE_LAST_ENTRY
 };
 
@@ -851,10 +862,22 @@ struct dpa_cls_hm_remove_params {
 
 /* Types of insert header manipulation operations */
 enum dpa_cls_hm_insert_type {
-	DPA_CLS_HM_INSERT_ETHERNET,	/* Insert Ethernet + QTags */
-	DPA_CLS_HM_INSERT_PPPoE,	/* Insert PPPoE, ETH and QTags */
+	/* Insert Ethernet + QTags */
+	DPA_CLS_HM_INSERT_ETHERNET,
+
+	/*
+	 * Inserts PPPoE and PPP header. Ethertype is automatically updated
+	 * to 0x8864 (PPPoE session packet). PPP content type is automatically
+	 * detected and set by the u-code based on the original data packet's
+	 * payload.
+	 */
+	DPA_CLS_HM_INSERT_PPPoE,
+
 	DPA_CLS_HM_INSERT_PPP,
-	DPA_CLS_HM_INSERT_CUSTOM,	/* General insert */
+
+	/* General insert at an exact offset (in frame) */
+	DPA_CLS_HM_INSERT_CUSTOM,
+
 	DPA_CLS_HM_INSERT_LAST_ENTRY
 };
 
@@ -923,18 +946,6 @@ struct dpa_cls_hm_eth_ins_params {
 	struct vlan_header			qtag[DPA_CLS_HM_MAX_VLANs];
 };
 
-/* PPPoE header insert params */
-struct dpa_cls_hm_pppoe_ins_params {
-	/*
-	 * Parameters of the Ethernet header to insert together with PPPoE
-	 * header
-	 */
-	struct dpa_cls_hm_eth_ins_params	eth;
-
-	/* PPPoE header to insert */
-	struct pppoe_header			pppoe_header;
-};
-
 /* Ethernet header insert params */
 struct dpa_cls_hm_insert_params {
 	/* Specifies the type of insert header manipulation */
@@ -947,8 +958,8 @@ struct dpa_cls_hm_insert_params {
 		 */
 		struct dpa_cls_hm_eth_ins_params	eth;
 
-		/* PPPoE header insert parameters if type is "insert PPPoE" */
-		struct dpa_cls_hm_pppoe_ins_params	pppoe;
+		/* PPPoE header to insert if type is "insert PPPoE" */
+		struct pppoe_header			pppoe_header;
 
 		/*
 		 * PPP PID value to use in the PPP header if type is "insert

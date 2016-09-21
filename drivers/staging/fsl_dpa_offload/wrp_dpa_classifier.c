@@ -2698,8 +2698,9 @@ int dpa_cls_hm_insert_params_compatcpy(
 			sizeof(struct dpa_cls_hm_eth_ins_params));
 		break;
 	case DPA_CLS_HM_INSERT_PPPoE:
-		memcpy(&kparam->ins_params.pppoe, &uparam->ins_params.pppoe,
-			sizeof(struct dpa_cls_hm_pppoe_ins_params));
+		memcpy(&kparam->ins_params.pppoe_header,
+			&uparam->ins_params.pppoe_header,
+			sizeof(struct pppoe_header));
 		break;
 	case DPA_CLS_HM_INSERT_PPP:
 		kparam->ins_params.ppp_pid = uparam->ins_params.ppp_pid;

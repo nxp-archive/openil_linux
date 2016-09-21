@@ -59,6 +59,8 @@
 #define ETHERTYPE_OFFSET					12
 #define ETHERTYPE_SIZE						2 /* bytes */
 
+#define ETYPE_PPPoE_SESSION					0x8864
+
 #define CRC8_WCDMA_POLY						0x9b
 
 #ifdef DPA_CLASSIFIER_DEBUG
@@ -3535,15 +3537,6 @@ static int remove_hm_check_params(const struct dpa_cls_hm_remove_params
 {
 	BUG_ON(!remove_params);
 
-	switch (remove_params->type) {
-	case DPA_CLS_HM_REMOVE_PPPoE:
-		log_err("Unsupported HM: remove PPPoE.\n");
-		return -ENOSYS;
-		break;
-	default:
-		break;
-	}
-
 	return 0;
 }
 
@@ -3553,10 +3546,6 @@ static int insert_hm_check_params(const struct dpa_cls_hm_insert_params
 	BUG_ON(!insert_params);
 
 	switch (insert_params->type) {
-	case DPA_CLS_HM_INSERT_PPPoE:
-		log_err("Unsupported HM: insert PPPoE.\n");
-		return -ENOSYS;
-		break;
 	case DPA_CLS_HM_INSERT_ETHERNET:
 		if (insert_params->eth.num_tags >
 			DPA_CLS_HM_MAX_VLANs) {
@@ -4243,30 +4232,36 @@ int remove_hm_chain(struct list_head *chain_head, struct list_head *item)
 
 	list_del(item);
 
-	remove_hm_node(pcurrent);
+	release_hm_node_params(pcurrent);
+
+	/* Remove the node */
+	kfree(pcurrent);
 
 	index--;
 
 	return err;
 }
 
-static void remove_hm_node(struct dpa_cls_hm_node *node)
+static void release_hm_node_params(struct dpa_cls_hm_node *node)
 {
 	/* Check and remove all allocated buffers from the HM params: */
-	switch (node->params.type) {
-	case e_FM_PCD_MANIP_HDR:
-		if ((node->params.u.hdr.insrt) &&
-				(node->params.u.hdr.insrtParams.type ==
-				e_FM_PCD_MANIP_INSRT_GENERIC))
-			kfree(node->params.u.hdr.insrtParams.u.generic.p_Data);
-
-		break;
-	default:
-		break;
+	if ((node->params.type == e_FM_PCD_MANIP_HDR) &&
+						(node->params.u.hdr.insrt)) {
+		switch (node->params.u.hdr.insrtParams.type) {
+		case e_FM_PCD_MANIP_INSRT_GENERIC:
+			kfree(node->params.u.hdr.insrtParams.u.generic.
+				p_Data);
+			node->params.u.hdr.insrtParams.u.generic.p_Data =
+				NULL;
+			break;
+		case e_FM_PCD_MANIP_INSRT_BY_HDR:
+			kfree(node->params.u.hdr.insrtParams.u.byHdr.u.
+				specificL2Params.p_Data);
+			node->params.u.hdr.insrtParams.u.byHdr.u.
+				specificL2Params.p_Data = NULL;
+			break;
+		}
 	}
-
-	/* Remove the node */
-	kfree(node);
 }
 
 static int create_new_hm_op(int *hmd, int next_hmd)
@@ -5500,6 +5495,14 @@ static int remove_hm_update_params(struct dpa_cls_hm *premove_hm)
 		hm_node->params.u.hdr.rmvParams.u.byHdr.u.specificL2 =
 					e_FM_PCD_MANIP_HDR_RMV_ETHERNET;
 		break;
+	case DPA_CLS_HM_REMOVE_PPPoE:
+		hm_node->params.u.hdr.rmvParams.type =
+					e_FM_PCD_MANIP_RMV_BY_HDR;
+		hm_node->params.u.hdr.rmvParams.u.byHdr.type =
+					e_FM_PCD_MANIP_RMV_BY_HDR_SPECIFIC_L2;
+		hm_node->params.u.hdr.rmvParams.u.byHdr.u.specificL2 =
+					e_FM_PCD_MANIP_HDR_RMV_PPPOE;
+		break;
 	case DPA_CLS_HM_REMOVE_PPP:
 		hm_node->params.u.hdr.rmvParams.type =
 						e_FM_PCD_MANIP_RMV_GENERIC;
@@ -5789,83 +5792,116 @@ static int insert_hm_update_params(struct dpa_cls_hm *pinsert_hm)
 
 	hm_node = pinsert_hm->hm_node[0];
 
-	hm_node->params.type			= e_FM_PCD_MANIP_HDR;
-	hm_node->params.u.hdr.insrt		= TRUE;
-	hm_node->params.u.hdr.insrtParams.type	= e_FM_PCD_MANIP_INSRT_GENERIC;
+	/* Release resources used by old parameters (if any): */
+	release_hm_node_params(hm_node);
+
+	hm_node->params.type		= e_FM_PCD_MANIP_HDR;
+	hm_node->params.u.hdr.insrt	= TRUE;
 
 	hm_node->params.u.hdr.dontParseAfterManip &=
 			(pinsert_hm->insert_params.reparse) ? FALSE : TRUE;
 
-	switch (pinsert_hm->insert_params.type) {
-	case DPA_CLS_HM_INSERT_ETHERNET:
-		size = (uint8_t) (sizeof(struct ethhdr) +
-			(pinsert_hm->insert_params.eth.num_tags *
-			sizeof(struct vlan_header)));
+	if (pinsert_hm->insert_params.type == DPA_CLS_HM_INSERT_PPPoE) {
+		uint16_t *ether_type;
+
+		size = (uint8_t) (sizeof(struct pppoe_header) +
+			ETHERTYPE_SIZE + PPP_HEADER_SIZE);
 		pdata = kzalloc(size, GFP_KERNEL);
 		if (!pdata) {
 			log_err("Not enough memory for insert HM.\n");
 			return -ENOMEM;
 		}
+		hm_node->params.u.hdr.insrtParams.type =
+				e_FM_PCD_MANIP_INSRT_BY_HDR;
+		hm_node->params.u.hdr.insrtParams.u.byHdr.type =
+				e_FM_PCD_MANIP_INSRT_BY_HDR_SPECIFIC_L2;
+		hm_node->params.u.hdr.insrtParams.u.byHdr.u.specificL2Params.
+				specificL2 = e_FM_PCD_MANIP_HDR_INSRT_PPPOE;
+		hm_node->params.u.hdr.insrtParams.u.byHdr.u.specificL2Params.
+				update = FALSE;
+		hm_node->params.u.hdr.insrtParams.u.byHdr.u.specificL2Params.
+				size = size;
+		hm_node->params.u.hdr.insrtParams.u.byHdr.u.specificL2Params.
+				p_Data = pdata;
 
-		if (pinsert_hm->insert_params.eth.num_tags) {
-			/* Copy Ethernet header data except the EtherType */
-			memcpy(pdata,
-				&pinsert_hm->insert_params.eth.eth_header,
-				sizeof(struct ethhdr) - ETHERTYPE_SIZE);
-			offset += (uint8_t)(sizeof(struct ethhdr) -
+		ether_type = (uint16_t *)pdata;
+		*ether_type = htons(ETYPE_PPPoE_SESSION);
+		/* Copy the PPPoE header data */
+		memcpy(&pdata[ETHERTYPE_SIZE],
+			&pinsert_hm->insert_params.pppoe_header,
+			sizeof(struct pppoe_header));
+	} else {
+		hm_node->params.u.hdr.insrtParams.type =
+				e_FM_PCD_MANIP_INSRT_GENERIC;
+
+		switch (pinsert_hm->insert_params.type) {
+		case DPA_CLS_HM_INSERT_ETHERNET:
+			size = (uint8_t) (sizeof(struct ethhdr) +
+				(pinsert_hm->insert_params.eth.num_tags *
+				sizeof(struct vlan_header)));
+			pdata = kzalloc(size, GFP_KERNEL);
+			if (!pdata) {
+				log_err("Not enough memory for insert HM.\n");
+				return -ENOMEM;
+			}
+
+			if (pinsert_hm->insert_params.eth.num_tags) {
+				/* Copy Ethernet header data except the EtherType */
+				memcpy(pdata,
+					&pinsert_hm->insert_params.eth.eth_header,
+					sizeof(struct ethhdr) - ETHERTYPE_SIZE);
+				offset += (uint8_t)(sizeof(struct ethhdr) -
 								ETHERTYPE_SIZE);
-			/* Copy the VLAN tags */
-			memcpy(&pdata[offset],
-				&pinsert_hm->insert_params.eth.qtag,
-				pinsert_hm->insert_params.eth.num_tags *
-				sizeof(struct vlan_header));
-			offset += (uint8_t) (pinsert_hm->insert_params.eth.
-				num_tags * sizeof(struct vlan_header));
-			/* Copy the EtherType */
-			memcpy(&pdata[offset],
-		&pinsert_hm->insert_params.eth.eth_header.h_proto,
-				ETHERTYPE_SIZE);
-			offset = 0;
-		} else
-			/* Copy the entire Ethernet header */
-			memcpy(pdata,
-				&pinsert_hm->insert_params.eth.eth_header,
-				sizeof(struct ethhdr));
-		break;
-	case DPA_CLS_HM_INSERT_PPP:
-		size	= PPP_HEADER_SIZE;
-		pdata	= kzalloc(size, GFP_KERNEL);
-		if (!pdata) {
-			log_err("Not enough memory for insert HM.\n");
-			return -ENOMEM;
-		}
+				/* Copy the VLAN tags */
+				memcpy(&pdata[offset],
+					&pinsert_hm->insert_params.eth.qtag,
+					pinsert_hm->insert_params.eth.num_tags *
+					sizeof(struct vlan_header));
+				offset += (uint8_t) (pinsert_hm->insert_params.eth.
+					num_tags * sizeof(struct vlan_header));
+				/* Copy the EtherType */
+				memcpy(&pdata[offset],
+			&pinsert_hm->insert_params.eth.eth_header.h_proto,
+					ETHERTYPE_SIZE);
+				offset = 0;
+			} else
+				/* Copy the entire Ethernet header */
+				memcpy(pdata,
+					&pinsert_hm->insert_params.eth.eth_header,
+					sizeof(struct ethhdr));
+			break;
+		case DPA_CLS_HM_INSERT_PPP:
+			size	= PPP_HEADER_SIZE;
+			pdata	= kzalloc(size, GFP_KERNEL);
+			if (!pdata) {
+				log_err("Not enough memory for insert HM.\n");
+				return -ENOMEM;
+			}
 
-		/* Copy the PPP PID */
-		memcpy(pdata, &pinsert_hm->insert_params.ppp_pid,
-			PPP_HEADER_SIZE);
-		break;
-	case DPA_CLS_HM_INSERT_CUSTOM:
-		size	= pinsert_hm->insert_params.custom.size;
-		pdata	= kzalloc(size, GFP_KERNEL);
-		if (!pdata) {
-			log_err("Not enough memory for insert HM.\n");
-			return -ENOMEM;
+			/* Copy the PPP PID */
+			memcpy(pdata, &pinsert_hm->insert_params.ppp_pid,
+				PPP_HEADER_SIZE);
+			break;
+		case DPA_CLS_HM_INSERT_CUSTOM:
+			size	= pinsert_hm->insert_params.custom.size;
+			pdata	= kzalloc(size, GFP_KERNEL);
+			if (!pdata) {
+				log_err("Not enough memory for insert HM.\n");
+				return -ENOMEM;
+			}
+			memcpy(pdata, pinsert_hm->insert_params.custom.data, size);
+			offset	= pinsert_hm->insert_params.custom.offset;
+			break;
+		default:
+			/* Should never get here */
+			BUG_ON(1);
+			break;
 		}
-		memcpy(pdata, pinsert_hm->insert_params.custom.data, size);
-		offset	= pinsert_hm->insert_params.custom.offset;
-		break;
-	default:
-		/* Should never get here */
-		BUG_ON(1);
-		break;
+		hm_node->params.u.hdr.insrtParams.u.generic.offset	= offset;
+		hm_node->params.u.hdr.insrtParams.u.generic.size	= size;
+		hm_node->params.u.hdr.insrtParams.u.generic.p_Data	= pdata;
+		hm_node->params.u.hdr.insrtParams.u.generic.replace	= FALSE;
 	}
-
-	kfree(hm_node->params.u.hdr.insrtParams.u.generic.p_Data);
-
-	hm_node->params.u.hdr.insrtParams.u.generic.offset	= offset;
-	hm_node->params.u.hdr.insrtParams.u.generic.size	= size;
-	hm_node->params.u.hdr.insrtParams.u.generic.p_Data	= pdata;
-	hm_node->params.u.hdr.insrtParams.u.generic.replace	= FALSE;
 
 	dpa_cls_hm_dbg(("DEBUG: dpa_hm %s (%d) <--\n", __func__,
 		__LINE__));

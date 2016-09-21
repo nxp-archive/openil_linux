@@ -522,8 +522,11 @@ static int init_hm_chain(void *fm_pcd, struct list_head *chain_head,
 static int remove_hm_chain(struct list_head	*chain_head,
 			struct list_head	*item);
 
-/* Removes a low level (FMD) header manipulation node */
-static void remove_hm_node(struct dpa_cls_hm_node *node);
+/*
+ * Releases the resources used by a low level (FMD) header manipulation node
+ * parameters.
+ */
+static void release_hm_node_params(struct dpa_cls_hm_node *node);
 
 /*
  * Creates a new classifier header manipulation object and links it to an
