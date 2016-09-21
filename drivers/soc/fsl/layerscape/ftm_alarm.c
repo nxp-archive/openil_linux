@@ -78,7 +78,9 @@ static inline void ftm_counter_disable(void __iomem *base)
 
 static inline void ftm_irq_acknowledge(void __iomem *base)
 {
-	while (FTM_SC_TOF & ftm_readl(base + FTM_SC))
+	unsigned long timeout = jiffies + msecs_to_jiffies(100);
+
+	while ((FTM_SC_TOF & ftm_readl(base + FTM_SC)) && time_before(jiffies, timeout))
 		ftm_writel(ftm_readl(base + FTM_SC) & (~FTM_SC_TOF), base + FTM_SC);
 }
 
