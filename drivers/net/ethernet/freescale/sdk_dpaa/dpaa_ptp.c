@@ -259,6 +259,9 @@ static int __init __cold dpa_ptp_load(void)
 	int dpa_phc_index;
 	int err;
 
+	if (!(ptp_priv.of_dev && ptp_priv.mac_dev))
+		return -ENODEV;
+
 	ptp_dev = &ptp_priv.of_dev->dev;
 	mac_dev = ptp_priv.mac_dev;
 
