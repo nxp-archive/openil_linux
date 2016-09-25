@@ -126,13 +126,12 @@ struct qman_portal {
 	/* power management data */
 	u32 save_isdr;
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-	/* Keep a shadow copy of the DQRR on LE systems
-	   as the SW needs to do byteswaps of read only
-	   memory.  Must be aligned to the size of the
-	   ring to ensure easy index calcualtions based
-	   on address */
-	struct qm_dqrr_entry shadow_dqrr[QM_DQRR_SIZE]
-	            __attribute__((aligned(512)));
+	/* Keep a shadow copy of the DQRR on LE systems as the SW needs to
+	 * do byte swaps of DQRR read only memory.  First entry must be aligned
+	 * to 2 ** 10 to ensure DQRR index calculations based shadow copy
+	 * address (6 bits for address shift + 4 bits for the DQRR size).
+	 */
+	struct qm_dqrr_entry shadow_dqrr[QM_DQRR_SIZE] __aligned(1024);
 #endif
 };
 
