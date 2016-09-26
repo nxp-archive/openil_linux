@@ -262,7 +262,9 @@ static inline struct bm_rcr_entry *bm_rcr_start(struct bm_portal *portal)
 #ifdef CONFIG_FSL_DPA_CHECKING
 	rcr->busy = 1;
 #endif
+#if defined(CONFIG_PPC32) || defined(CONFIG_PPC64)
 	dcbz_64(rcr->cursor);
+#endif
 	return rcr->cursor;
 }
 
@@ -287,7 +289,9 @@ static inline struct bm_rcr_entry *bm_rcr_pend_and_next(
 	dcbf_64(rcr->cursor);
 	RCR_INC(rcr);
 	rcr->available--;
+#if defined(CONFIG_PPC32) || defined(CONFIG_PPC64)
 	dcbz_64(rcr->cursor);
+#endif
 	return rcr->cursor;
 }
 
@@ -436,7 +440,9 @@ static inline struct bm_mc_command *bm_mc_start(struct bm_portal *portal)
 #ifdef CONFIG_FSL_DPA_CHECKING
 	mc->state = mc_user;
 #endif
+#if defined(CONFIG_PPC32) || defined(CONFIG_PPC64)
 	dcbz_64(mc->cr);
+#endif
 	return mc->cr;
 }
 

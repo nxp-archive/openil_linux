@@ -381,7 +381,9 @@ static inline struct qm_eqcr_entry *qm_eqcr_start_no_stash(struct qm_portal
 #ifdef CONFIG_FSL_DPA_CHECKING
 	eqcr->busy = 1;
 #endif
+#if defined(CONFIG_PPC32) || defined(CONFIG_PPC64)
 	dcbz_64(eqcr->cursor);
+#endif
 	return eqcr->cursor;
 }
 
@@ -403,7 +405,9 @@ static inline struct qm_eqcr_entry *qm_eqcr_start_stash(struct qm_portal
 #ifdef CONFIG_FSL_DPA_CHECKING
 	eqcr->busy = 1;
 #endif
+#if defined(CONFIG_PPC32) || defined(CONFIG_PPC64)
 	dcbz_64(eqcr->cursor);
+#endif
 	return eqcr->cursor;
 }
 
@@ -428,7 +432,9 @@ static inline struct qm_eqcr_entry *qm_eqcr_pend_and_next(
 	dcbf(eqcr->cursor);
 	EQCR_INC(eqcr);
 	eqcr->available--;
+#if defined(CONFIG_PPC32) || defined(CONFIG_PPC64)
 	dcbz_64(eqcr->cursor);
+#endif
 	return eqcr->cursor;
 }
 
@@ -1116,7 +1122,9 @@ static inline struct qm_mc_command *qm_mc_start(struct qm_portal *portal)
 #ifdef CONFIG_FSL_DPA_CHECKING
 	mc->state = qman_mc_user;
 #endif
+#if defined(CONFIG_PPC32) || defined(CONFIG_PPC64)
 	dcbz_64(mc->cr);
+#endif
 	return mc->cr;
 }
 
