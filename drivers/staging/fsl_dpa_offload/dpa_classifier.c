@@ -2720,6 +2720,8 @@ static int table_insert_entry_exact_match(struct dpa_cls_table	*cls_table,
 			"Entry ref=%d, Cc node handle=0x%p, entry index=%d.\n",
 			k, cls_table->int_cc_node[0].cc_node,
 			cls_table->entry[k].entry_index);
+		/* Release header manip chain in case the user provided one. */
+		dpa_classif_hm_release_chain(hmd);
 		return -EBUSY;
 	}
 
@@ -2897,6 +2899,8 @@ static int table_insert_entry_hash(struct dpa_cls_table		*cls_table,
 		log_err("Hash set #%llu is full (%d entries). Unable to add "
 			"this entry.\n", hash_set_index,
 			cls_table->int_cc_node[hash_set_index].table_size);
+		/* Release header manip chain in case the user provided one. */
+		dpa_classif_hm_release_chain(hmd);
 		return -ENOSPC;
 	}
 
@@ -2947,6 +2951,8 @@ static int table_insert_entry_hash(struct dpa_cls_table		*cls_table,
 			"entry index=%d.\n", j, hash_set_index,
 			cls_table->int_cc_node[hash_set_index].cc_node,
 			cls_table->entry[j].entry_index);
+		/* Release header manip chain in case the user provided one. */
+		dpa_classif_hm_release_chain(hmd);
 		return -EBUSY;
 	}
 
