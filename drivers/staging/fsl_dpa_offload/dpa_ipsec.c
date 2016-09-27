@@ -1719,10 +1719,14 @@ static int destroy_recycle_manip(struct dpa_ipsec_sa *sa,
 	hm = dpa_classif_get_static_hm_handle(hmd);
 	BUG_ON(!hm);
 
-	if (sa->dpa_ipsec->config.max_sa_manip_ops > 0) {
+	if (sa->dpa_ipsec->config.max_sa_manip_ops > 0)
 		/* return to pool */
 		put_free_ipsec_manip_node(sa->dpa_ipsec, hm);
-		goto remove_hm;
+
+	err = dpa_classif_free_hm(hmd);
+	if (err < 0) {
+		log_err("%s: Failed to remove header manip!\n", __func__);
+		return err;
 	}
 
 	if (entry->hmd_special_op) {
@@ -1736,14 +1740,6 @@ static int destroy_recycle_manip(struct dpa_ipsec_sa *sa,
 				__func__, sa->id);
 			return -EBUSY;
 		}
-	}
-
-	/* Removed from classifier but not from memory. HM is still usable */
-remove_hm:
-	err = dpa_classif_free_hm(hmd);
-	if (err < 0) {
-		log_err("%s: Failed to remove header manip!\n", __func__);
-		return err;
 	}
 
 	return 0;
