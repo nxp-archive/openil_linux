@@ -112,11 +112,11 @@ static irqreturn_t rman_uio_irq_handler(int irq, struct uio_info *dev_info)
 	struct rman_dev *rmdev = dev_info->priv;
 	u32 status;
 
-	status = in_be32(rmdev->global_regs + MMEDR);
+	status = ioread32be(rmdev->global_regs + MMEDR);
 
 	if (status) {
 		/* disable interrupt */
-		out_be32(rmdev->global_regs + MMIER, 0);
+		iowrite32be(0, rmdev->global_regs + MMIER);
 		return IRQ_HANDLED;
 	} else
 		return IRQ_NONE;
