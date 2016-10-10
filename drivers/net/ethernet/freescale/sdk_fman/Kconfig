@@ -2,7 +2,7 @@ menu "Frame Manager support"
 
 menuconfig FSL_SDK_FMAN
 	bool "Freescale Frame Manager (datapath) support - SDK driver"
-	depends on (FSL_SOC || ARM64) && FSL_BMAN && FSL_QMAN
+	depends on (FSL_SOC || ARM64 || ARM) && FSL_BMAN && FSL_QMAN
 	default y
 	---help---
 		If unsure, say Y.
@@ -23,7 +23,7 @@ choice
 
 config FMAN_ARM
 	bool "LS1043"
-	depends on ARM64
+	depends on ARM64 || ARM
 	---help---
 	  Choose "LS1043" for the ARM platforms:
 	  LS1043

@@ -350,7 +350,7 @@ void LnxWrpPCDIOCTLTypeChecking(void)
     ASSERT_COND(sizeof(ioc_fm_pcd_from_field_t) == sizeof(t_FmPcdFromField));
     ASSERT_COND(sizeof(ioc_fm_pcd_distinction_unit_t) == sizeof(t_FmPcdDistinctionUnit));
 
-#if defined(CONFIG_FMAN_ARM)
+#if defined(CONFIG_ARM64)
     /* different alignment */
     ASSERT_COND(sizeof(ioc_fm_pcd_net_env_params_t) == sizeof(t_FmPcdNetEnvParams) + sizeof(void *) + 4);
 #else
