@@ -686,6 +686,15 @@ typedef struct t_FmDmaThresholds {
                                                                  until this value is reached (Hystheresis) */
 } t_FmDmaThresholds;
 
+/**************************************************************************//**
+ @Function      t_FmResetOnInitOverrideCallback
+
+ @Description   FMan specific reset on init user callback routine,
+                will be used to override the standard FMan reset on init procedure
+
+ @Param[in]     h_Fm  - FMan handler
+*//***************************************************************************/
+typedef void (t_FmResetOnInitOverrideCallback)(t_Handle h_Fm);
 
 /**************************************************************************//**
  @Function      FM_ConfigResetOnInit
@@ -703,6 +712,23 @@ typedef struct t_FmDmaThresholds {
                 (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigResetOnInit(t_Handle h_Fm, bool enable);
+
+/**************************************************************************//**
+ @Function      FM_ConfigResetOnInitOverrideCallback
+
+ @Description   Define a special reset of FM before initialization.
+                Change the default configuration [DEFAULT_resetOnInitOverrideCallback].
+
+ @Param[in]     h_Fm                	A handle to an FM Module.
+ @Param[in]     f_ResetOnInitOverride   FM specific reset on init user callback routine.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
+*//***************************************************************************/
+t_Error FM_ConfigResetOnInitOverrideCallback(t_Handle h_Fm, t_FmResetOnInitOverrideCallback *f_ResetOnInitOverride);
 
 /**************************************************************************//**
  @Function      FM_ConfigTotalFifoSize

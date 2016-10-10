@@ -1886,6 +1886,19 @@ uint8_t FmGetId(t_Handle h_Fm)
     return p_Fm->p_FmStateStruct->fmId;
 }
 
+t_Error FmReset(t_Handle h_Fm)
+{
+	t_Fm *p_Fm = (t_Fm*)h_Fm;
+
+    SANITY_CHECK_RETURN_ERROR(p_Fm, E_INVALID_HANDLE);
+
+    WRITE_UINT32(p_Fm->p_FmFpmRegs->fm_rstc, FPM_RSTC_FM_RESET);
+    CORE_MemoryBarrier();
+    XX_UDelay(100);
+
+    return E_OK;
+}
+
 t_Error FmSetNumOfRiscsPerPort(t_Handle     h_Fm,
                                uint8_t      hardwarePortId,
                                uint8_t      numOfFmanCtrls,
@@ -3395,6 +3408,7 @@ t_Handle FM_Config(t_FmParams *p_FmParam)
     p_Fm->p_FmStateStruct->extraFifoPoolSize    = 0;
     p_Fm->p_FmStateStruct->exceptions           = DEFAULT_exceptions;
     p_Fm->resetOnInit                          = DEFAULT_resetOnInit;
+    p_Fm->f_ResetOnInitOverride                = DEFAULT_resetOnInitOverrideCallback;
     p_Fm->fwVerify                             = DEFAULT_VerifyUcode;
     p_Fm->firmware.size                        = p_FmParam->firmware.size;
     if (p_Fm->firmware.size)
@@ -3533,25 +3547,18 @@ t_Error FM_Init(t_Handle h_Fm)
         if ((err = FwNotResetErratumBugzilla6173WA(p_Fm)) != E_OK)
             RETURN_ERROR(MAJOR, err, NO_MSG);
 #else  /* not FM_UCODE_NOT_RESET_ERRATA_BUGZILLA6173 */
-#ifndef CONFIG_FMAN_ARM
-        {
-            u32 svr = mfspr(SPRN_SVR);
 
-            if (((SVR_SOC_VER(svr) == SVR_T4240 && SVR_REV(svr) > 0x10)) ||
-                ((SVR_SOC_VER(svr) == SVR_T4160 && SVR_REV(svr) > 0x10)) ||
-                ((SVR_SOC_VER(svr) == SVR_T4080 && SVR_REV(svr) > 0x10)) ||
-                (SVR_SOC_VER(svr) == SVR_T1024) ||
-                (SVR_SOC_VER(svr) == SVR_T1023) ||
-                (SVR_SOC_VER(svr) == SVR_T2080) ||
-                (SVR_SOC_VER(svr) == SVR_T2081)) {
-                DBG(WARNING, ("Hack: No FM reset!\n"));
-            } else {
-                WRITE_UINT32(p_Fm->p_FmFpmRegs->fm_rstc, FPM_RSTC_FM_RESET);
-                CORE_MemoryBarrier();
-                XX_UDelay(100);
-            }
+        if (p_Fm->f_ResetOnInitOverride)
+        {
+        	/* Perform user specific FMan reset */
+        	p_Fm->f_ResetOnInitOverride(h_Fm);
         }
-#endif
+        else
+        {
+        	/* Perform FMan reset */
+        	FmReset(h_Fm);
+        }
+
         if (fman_is_qmi_halt_not_busy_state(p_Fm->p_FmQmiRegs))
         {
             fman_resume(p_Fm->p_FmFpmRegs);
@@ -3810,6 +3817,19 @@ t_Error FM_ConfigResetOnInit(t_Handle h_Fm, bool enable)
     SANITY_CHECK_RETURN_ERROR((p_Fm->guestId == NCSW_MASTER_ID), E_NOT_SUPPORTED);
 
     p_Fm->resetOnInit = enable;
+
+    return E_OK;
+}
+
+t_Error FM_ConfigResetOnInitOverrideCallback(t_Handle h_Fm, t_FmResetOnInitOverrideCallback *f_ResetOnInitOverride)
+{
+    t_Fm *p_Fm = (t_Fm*)h_Fm;
+
+    SANITY_CHECK_RETURN_ERROR(p_Fm, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(p_Fm->p_FmDriverParam, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR((p_Fm->guestId == NCSW_MASTER_ID), E_NOT_SUPPORTED);
+
+    p_Fm->f_ResetOnInitOverride = f_ResetOnInitOverride;
 
     return E_OK;
 }
