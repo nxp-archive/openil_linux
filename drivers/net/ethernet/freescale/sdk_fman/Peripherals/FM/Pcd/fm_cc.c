@@ -7136,6 +7136,13 @@ t_Handle FM_PCD_HashTableSet(t_Handle h_FmPcd, t_FmPcdHashTableParams *p_Param)
         return NULL;
     }
 
+    /*Fix: QorIQ SDK / QSDK-2131*/
+    if (p_Param->ccNextEngineParamsForMiss.nextEngine == e_FM_PCD_INVALID)
+    {
+        REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("Next PCD Engine for on-miss entry is invalid. On-miss entry is always required. You can use e_FM_PCD_DONE."));
+        return NULL;
+    }
+
 #if (DPAA_VERSION >= 11)
     if (p_Param->statisticsMode == e_FM_PCD_CC_STATS_MODE_RMON)
     {
