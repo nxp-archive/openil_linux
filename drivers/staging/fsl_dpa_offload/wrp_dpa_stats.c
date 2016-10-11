@@ -1451,6 +1451,20 @@ static int do_ioctl_stats_get_counters(void *args)
 			ret = -EINVAL;
 		}
 
+		/*
+		 * The user space driver expects some updates in the counters
+		 * Ids array. It expects to see there, for the user space
+		 * counters, the exact offsets where it needs to fill in the
+		 * statistics data. This is why, just un case there are
+		 * more user space counters to process, the hopefully updated
+		 * counters Ids array will to be copied back to user space.
+		 */
+		if (copy_to_user(cnts_ids, prm.req_params.cnts_ids,
+				prm.req_params.cnts_ids_len * sizeof(int))) {
+			log_err("Cannot copy to user the user space counters offsets\n");
+			ret = -EINVAL;
+		}
+
 		/* Request was sent, release the array of counter ids */
 		kfree(prm.req_params.cnts_ids);
 	}
