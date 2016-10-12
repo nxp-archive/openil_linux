@@ -1070,6 +1070,17 @@ uint16_t FmGetMacClockFreq(t_Handle h_Fm);
 uint8_t FmGetId(t_Handle h_Fm);
 
 /**************************************************************************//**
+ @Function      FmReset
+
+ @Description   Used to reset the FM
+
+ @Param[in]     h_Fm            A handle to an FM Module.
+
+ @Return        E_OK on success; Error code otherwise.
+*//***************************************************************************/
+t_Error FmReset(t_Handle h_Fm);
+
+/**************************************************************************//**
  @Function      FmGetSetPortParams
 
  @Description   Used by FM-PORT driver to pass and receive parameters between

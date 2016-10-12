@@ -296,6 +296,7 @@ switch (exception){                                         \
 #define DEFAULT_catastrophicErr             e_FM_CATASTROPHIC_ERR_STALL_PORT
 #define DEFAULT_dmaErr                      e_FM_DMA_ERR_CATASTROPHIC
 #define DEFAULT_resetOnInit                 FALSE
+#define DEFAULT_resetOnInitOverrideCallback NULL
 #define DEFAULT_haltOnExternalActivation    FALSE   /* do not change! if changed, must be disabled for rev1 ! */
 #define DEFAULT_haltOnUnrecoverableEccError FALSE   /* do not change! if changed, must be disabled for rev1 ! */
 #define DEFAULT_externalEccRamsEnable       FALSE
@@ -639,6 +640,7 @@ typedef struct t_Fm
     t_FmFirmwareParams          firmware;
     bool                        fwVerify;
     bool                        resetOnInit;
+    t_FmResetOnInitOverrideCallback     *f_ResetOnInitOverride;
     uint32_t                    userSetExceptions;
 } t_Fm;
 

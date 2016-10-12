@@ -63,6 +63,7 @@
 #ifndef CONFIG_FMAN_ARM
 #include <sysdev/fsl_soc.h>
 #include <linux/fsl/guts.h>
+#include <linux/fsl/svr.h>
 #endif
 #include <linux/stat.h>	   /* For file access mask */
 #include <linux/skbuff.h>
@@ -947,6 +948,60 @@ static unsigned int get_rcwsr(int regnum)
 
 	return ioread32be(&guts_regs->rcwsr[regnum]);
 }
+
+#define FMAN1_ALL_MACS_MASK	0xFCC00000
+#define FMAN2_ALL_MACS_MASK	0x000FCC00
+
+/**
+ * @Function      	ResetOnInitErrata_A007273
+ *
+ * @Description		Workaround for Errata A-007273
+ * 					This workaround is required to avoid a FMan hang during reset on initialization.
+ * 					Enable all MACs in guts.devdisr2 register,
+ * 					then perform a regular FMan reset and then restore MACs to their original state.
+ *
+ * @Param[in]     h_Fm - FM module descriptor
+ *
+ * @Return        None.
+ */
+void ResetOnInitErrata_A007273(t_Handle h_Fm)
+{
+	struct ccsr_guts __iomem *guts_regs = NULL;
+	struct device_node *guts_node;
+	u32 devdisr2, enableMacs;
+
+	/* Get guts registers */
+	guts_node = of_find_matching_node(NULL, guts_device_ids);
+	if (!guts_node) {
+		pr_err("could not find GUTS node\n");
+		return;
+	}
+	guts_regs = of_iomap(guts_node, 0);
+	of_node_put(guts_node);
+	if (!guts_regs) {
+		pr_err("ioremap of GUTS node failed\n");
+		return;
+	}
+
+	/* Read current state */
+	devdisr2 = ioread32be(&guts_regs->devdisr2);
+
+	if (FmGetId(h_Fm) == 0)
+		enableMacs = devdisr2 & ~FMAN1_ALL_MACS_MASK;
+	else
+		enableMacs = devdisr2 & ~FMAN2_ALL_MACS_MASK;
+
+	/* Enable all MACs */
+	iowrite32be(enableMacs, &guts_regs->devdisr2);
+
+	/* Perform standard FMan reset */
+	FmReset(h_Fm);
+
+	/* Restore devdisr2 value */
+	iowrite32be(devdisr2, &guts_regs->devdisr2);
+
+	iounmap(guts_regs);
+}
 #endif
 
 static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
@@ -1024,6 +1079,22 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
 
     if (FM_ConfigResetOnInit(p_LnxWrpFmDev->h_Dev, TRUE) != E_OK)
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM"));
+
+#ifndef CONFIG_FMAN_ARM
+    u32 svr = mfspr(SPRN_SVR);
+
+    if (((SVR_SOC_VER(svr) == SVR_T4240 && SVR_REV(svr) > 0x10)) ||
+        ((SVR_SOC_VER(svr) == SVR_T4160 && SVR_REV(svr) > 0x10)) ||
+        ((SVR_SOC_VER(svr) == SVR_T4080 && SVR_REV(svr) > 0x10)) ||
+        (SVR_SOC_VER(svr) == SVR_T1024) ||
+        (SVR_SOC_VER(svr) == SVR_T1023) ||
+        (SVR_SOC_VER(svr) == SVR_T2080) ||
+        (SVR_SOC_VER(svr) == SVR_T2081))
+    {
+        if (FM_ConfigResetOnInitOverrideCallback(p_LnxWrpFmDev->h_Dev, ResetOnInitErrata_A007273) != E_OK)
+            RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM"));
+    }
+#endif
 
 #ifdef CONFIG_FMAN_P1023
     if (FM_ConfigDmaAidOverride(p_LnxWrpFmDev->h_Dev, TRUE) != E_OK)
