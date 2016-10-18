@@ -70,6 +70,7 @@
 #define SPI_SR			0x2c
 #define SPI_SR_EOQF		0x10000000
 #define SPI_SR_TCFQF		0x80000000
+#define SPI_SR_CLEAR		0xdaad0000
 
 #define SPI_RSER		0x30
 #define SPI_RSER_EOQFE		0x10000000
@@ -524,7 +525,6 @@ static irqreturn_t dspi_interrupt(int irq, void *dev_id)
 	regmap_read(dspi->regmap, SPI_SR, &spi_sr);
 	regmap_write(dspi->regmap, SPI_SR, spi_sr);
 
-
 	if (spi_sr & (SPI_SR_EOQF | SPI_SR_TCFQF)) {
 		tx_word = is_double_byte_mode(dspi);
 
@@ -642,6 +642,11 @@ static const struct regmap_config dspi_regmap_config = {
 #endif
 };
 
+static void dspi_init(struct fsl_dspi *dspi)
+{
+	regmap_write(dspi->regmap, SPI_SR, SPI_SR_CLEAR);
+}
+
 static int dspi_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
@@ -707,6 +712,7 @@ static int dspi_probe(struct platform_device *pdev)
 		return PTR_ERR(dspi->regmap);
 	}
 
+	dspi_init(dspi);
 	dspi->irq = platform_get_irq(pdev, 0);
 	if (dspi->irq < 0) {
 		dev_err(&pdev->dev, "can't get platform irq\n");
