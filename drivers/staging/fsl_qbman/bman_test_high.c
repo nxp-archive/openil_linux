@@ -129,6 +129,7 @@ void bman_test_high(void)
 		.cb_ctx = POOL_OPAQUE,
 	};
 	int i, loops = LOOPS;
+	struct bm_buffer tmp_buf;
 
 	bufs_init();
 
@@ -166,7 +167,6 @@ do_loop:
 		i -= num;
 	}
 
-	struct bm_buffer tmp_buf;
 	i = bman_acquire(pool, &tmp_buf, 1, 0);
 	BUG_ON(i > 0);
 

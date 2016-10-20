@@ -292,6 +292,15 @@ config PGTABLE_LEVELS
 	default 3 if ARM_LPAE
 	default 2
 
+config ARCH_AARCH32_ES_SUPPORT
+	def_bool n
+	help
+	 The ARMv8 architecture supports 64-bit execution state, AArch64
+	 and 32-bit execution state, AArch32, that is compatible with
+	 previous versions of the ARM architecture.
+
+	 Enable AArch32 execution state support for ARMv8 architecture.
+
 source "init/Kconfig"
 
 source "kernel/Kconfig.freezer"

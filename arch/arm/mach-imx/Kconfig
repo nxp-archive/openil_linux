@@ -628,6 +628,21 @@ config SOC_LS1021A
 
 endif
 
+config ARCH_LAYERSCAPE_AARCH32
+	bool "Freescale Layerscape SoC AArch32 ES support"
+	select ARCH_AARCH32_ES_SUPPORT
+	select ARM_AMBA
+	select ARM_GIC
+	select ARM_ARCH_TIMER
+	select ARCH_DMA_ADDR_T_64BIT if ARM_LPAE
+	select PCI_LAYERSCAPE if PCI
+	select PCI_DOMAINS if PCI
+	select LS1_MSI if PCI_MSI
+
+	help
+	  This enables support for Freescale Layerscape SoC family in
+	  in AArch32 execution state.
+
 source "arch/arm/mach-imx/devices/Kconfig"
 
 endif
