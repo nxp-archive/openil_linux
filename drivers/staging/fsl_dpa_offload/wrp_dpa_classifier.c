@@ -2408,6 +2408,12 @@ int dpa_cls_tbl_action_params_compatcpy(
 			}
 		} else
 			kparam->enq_params.policer_params = NULL;
+		if (compat_ptr(uparam->enq_params.distribution))
+			kparam->enq_params.distribution = compat_get_id2ptr(
+					uparam->enq_params.distribution,
+					FM_MAP_TYPE_PCD_NODE);
+		else
+			kparam->enq_params.distribution = NULL;
 		break;
 	case DPA_CLS_TBL_ACTION_NEXT_TABLE:
 		kparam->next_table_params.next_td =
@@ -2452,6 +2458,10 @@ int dpa_cls_tbl_action_params_rcompatcpy(
 			}
 		} else
 			uparam->enq_params.policer_params = 0;
+		if (kparam->enq_params.distribution)
+			uparam->enq_params.distribution = compat_get_ptr2id(
+					kparam->enq_params.distribution,
+					FM_MAP_TYPE_PCD_NODE);
 		break;
 	case DPA_CLS_TBL_ACTION_NEXT_TABLE:
 		uparam->next_table_params.next_td =
@@ -2473,18 +2483,9 @@ int dpa_cls_tbl_params_compatcpy(
 		struct ioc_dpa_cls_tbl_params			*kparam,
 		const struct compat_ioc_dpa_cls_tbl_params	*uparam)
 {
-	kparam->table_params.cc_node = compat_get_id2ptr(
+	kparam->table_params.cc_node	= compat_get_id2ptr(
 					uparam->table_params.cc_node,
 					FM_MAP_TYPE_PCD_NODE);
-	if (compat_ptr(uparam->table_params.distribution))
-		kparam->table_params.distribution = compat_get_id2ptr(
-					uparam->table_params.distribution,
-					FM_MAP_TYPE_PCD_NODE);
-	if (compat_ptr(uparam->table_params.classification))
-		kparam->table_params.classification = compat_get_id2ptr(
-					uparam->table_params.classification,
-					FM_MAP_TYPE_PCD_NODE);
-
 	kparam->table_params.type	= uparam->table_params.type;
 	kparam->table_params.entry_mgmt	= uparam->table_params.entry_mgmt;
 	kparam->table_params.prefilled_entries =
@@ -2517,18 +2518,9 @@ int dpa_cls_tbl_params_rcompatcpy(
 		struct compat_ioc_dpa_cls_tbl_params	*uparam,
 		const struct ioc_dpa_cls_tbl_params	*kparam)
 {
-	uparam->table_params.cc_node = compat_get_ptr2id(
+	uparam->table_params.cc_node	= compat_get_ptr2id(
 					kparam->table_params.cc_node,
 					FM_MAP_TYPE_PCD_NODE);
-	if (kparam->table_params.distribution)
-		uparam->table_params.distribution = compat_get_ptr2id(
-					kparam->table_params.distribution,
-					FM_MAP_TYPE_PCD_NODE);
-	if (kparam->table_params.classification)
-		uparam->table_params.classification = compat_get_ptr2id(
-					kparam->table_params.classification,
-					FM_MAP_TYPE_PCD_NODE);
-
 	uparam->table_params.type	= kparam->table_params.type;
 	uparam->table_params.entry_mgmt	= kparam->table_params.entry_mgmt;
 	uparam->table_params.prefilled_entries =
@@ -2706,8 +2698,9 @@ int dpa_cls_hm_insert_params_compatcpy(
 			sizeof(struct dpa_cls_hm_eth_ins_params));
 		break;
 	case DPA_CLS_HM_INSERT_PPPoE:
-		memcpy(&kparam->ins_params.pppoe, &uparam->ins_params.pppoe,
-			sizeof(struct dpa_cls_hm_pppoe_ins_params));
+		memcpy(&kparam->ins_params.pppoe_header,
+			&uparam->ins_params.pppoe_header,
+			sizeof(struct pppoe_header));
 		break;
 	case DPA_CLS_HM_INSERT_PPP:
 		kparam->ins_params.ppp_pid = uparam->ins_params.ppp_pid;
@@ -3010,6 +3003,14 @@ int dpa_cls_mcast_group_params_compatcpy(
 	} else
 		kparam->mcast_grp_params.first_member_params.policer_params =
 									NULL;
+	if (compat_ptr(uparam->mcast_grp_params.first_member_params.distribution))
+		kparam->mcast_grp_params.first_member_params.distribution =
+			compat_get_id2ptr(uparam->mcast_grp_params.
+				first_member_params.distribution,
+				FM_MAP_TYPE_PCD_NODE);
+	else
+		kparam->mcast_grp_params.first_member_params.distribution =
+									NULL;
 
 	kparam->mcast_grp_params.first_member_params.hmd =
 			uparam->mcast_grp_params.first_member_params.hmd;
@@ -3022,20 +3023,6 @@ int dpa_cls_mcast_group_params_compatcpy(
 					FM_MAP_TYPE_PCD_NODE);
 	else
 		kparam->res.group_node = NULL;
-
-	if (compat_ptr(uparam->mcast_grp_params.distribution))
-		kparam->mcast_grp_params.distribution = compat_get_id2ptr(
-					uparam->mcast_grp_params.distribution,
-					FM_MAP_TYPE_PCD_NODE);
-	else
-		kparam->mcast_grp_params.distribution = NULL;
-
-	if (compat_ptr(uparam->mcast_grp_params.classification))
-		kparam->mcast_grp_params.classification = compat_get_id2ptr(
-					uparam->mcast_grp_params.classification,
-					FM_MAP_TYPE_PCD_NODE);
-	else
-		kparam->mcast_grp_params.classification = NULL;
 
 	return 0;
 }
@@ -3060,6 +3047,12 @@ int dpa_cls_mcast_member_params_compatcpy(
 		}
 	} else
 		kparam->member_params.policer_params = NULL;
+	if (compat_ptr(uparam->member_params.distribution))
+		kparam->member_params.distribution = compat_get_id2ptr(
+				uparam->member_params.distribution,
+				FM_MAP_TYPE_PCD_NODE);
+	else
+		kparam->member_params.distribution = NULL;
 
 	return 0;
 }

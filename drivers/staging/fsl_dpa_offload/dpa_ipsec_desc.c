@@ -71,7 +71,7 @@ int get_sec_info(struct dpa_ipsec *dpa_ipsec)
 	if (sec_node) {
 		sec_era = of_get_property(sec_node, "fsl,sec-era", &prop_size);
 		if (sec_era && prop_size == sizeof(*sec_era) && *sec_era > 0)
-			dpa_ipsec->sec_era = *sec_era;
+			dpa_ipsec->sec_era = be32_to_cpu(*sec_era);
 		of_node_put(sec_node);
 	}
 
@@ -317,24 +317,12 @@ static inline void save_stats_in_external_mem(struct dpa_ipsec_sa *sa)
 	append_jump(desc, JUMP_COND_CALM | (1 << JUMP_OFFSET_SHIFT));
 }
 
-/* insert a cmd in the desc at a given index and optionally update desc len */
-static void insert_sec_cmd(uint32_t *desc, uint32_t index, uint32_t cmd,
-			  bool update_len)
-{
-	uint32_t *desc_cmd;
-
-	desc_cmd = desc + index;
-	*desc_cmd = cmd;
-
-	if (update_len)
-		(*desc)++;
-}
-
 /* insert cmds for SEQ_IN/OUT_PTR copy with specified offset (shr_desc_len) */
 static void insert_ptr_copy_cmds(uint32_t *desc, uint32_t index,
 				 uint32_t shr_desc_len, bool update_desc_len)
 {
-	uint32_t cmd, off, len;
+	uint32_t move_cmd, off, len;
+	uint32_t *tmp;
 
 	/*
 	 * insert the commands at the specified index
@@ -343,6 +331,7 @@ static void insert_ptr_copy_cmds(uint32_t *desc, uint32_t index,
 	if (!index)
 		index = desc_len(desc);
 
+	tmp = desc + index;
 	/*
 	 * move out ptr (from job desc) to math reg 1 & 2, except the last byte;
 	 * assuming all buffers are 256 bits aligned, setting the last address
@@ -351,8 +340,11 @@ static void insert_ptr_copy_cmds(uint32_t *desc, uint32_t index,
 	off = CAAM_PTR_SZ;
 	off = (shr_desc_len * CAAM_CMD_SZ + off) << MOVE_OFFSET_SHIFT;
 	len = CAAM_CMD_SZ + JOB_DESC_HDR_LEN + ALIGNED_PTR_ADDRESS_SZ;
-	cmd = CMD_MOVE | MOVE_SRC_DESCBUF | MOVE_DEST_MATH1 | off | len;
-	insert_sec_cmd(desc, index, cmd, update_desc_len);
+	move_cmd = CMD_MOVE | MOVE_SRC_DESCBUF | MOVE_DEST_MATH1 | off | len;
+	if (update_desc_len)
+		append_cmd(desc, move_cmd);
+	else
+		tmp = write_cmd(tmp, move_cmd);
 
 	/*
 	 * move in ptr (from job desc) to math reg 0, except the last byte;
@@ -362,8 +354,11 @@ static void insert_ptr_copy_cmds(uint32_t *desc, uint32_t index,
 	off = JOB_DESC_HDR_LEN + 3 * CAAM_CMD_SZ + 2 * CAAM_PTR_SZ;
 	off = (shr_desc_len * CAAM_CMD_SZ + off) << MOVE_OFFSET_SHIFT;
 	len = ALIGNED_PTR_ADDRESS_SZ;
-	cmd = CMD_MOVE | MOVE_SRC_DESCBUF | MOVE_DEST_MATH0 | off | len;
-	insert_sec_cmd(desc, ++index, cmd, update_desc_len);
+	move_cmd = CMD_MOVE | MOVE_SRC_DESCBUF | MOVE_DEST_MATH0 | off | len;
+	if (update_desc_len)
+		append_cmd(desc, move_cmd);
+	else
+		tmp = write_cmd(tmp, move_cmd);
 }
 
 /* build the command set for copying the frame meta data */
@@ -504,7 +499,8 @@ int build_shared_descriptor(struct dpa_ipsec_sa *sa,
 	if (sa->sa_dir == DPA_IPSEC_OUTBOUND) {
 		/* Compute optional header size, rounded up to descriptor
 		 * word size */
-		opthdrsz = (sa->sec_desc->pdb_en.ip_hdr_len + 3) & ~3;
+		opthdrsz = (caam16_to_cpu(sa->sec_desc->pdb_en.ip_hdr_len) +
+				3) & ~3;
 		pdb_len += sizeof(struct ipsec_encap_pdb) + opthdrsz;
 		init_sh_desc_pdb(desc, HDR_SAVECTX | HDR_SHARE_SERIAL, pdb_len);
 	} else {
@@ -1357,7 +1353,7 @@ int build_extended_decap_shared_descriptor(struct dpa_ipsec_sa *sa,
 
 	/* data = outer IP header - should be read from DPOVRD register
 	 * MATH 2 = outer IP header length */
-	data = 20;
+	data = cpu_to_caam32(20);
 	opt = LDST_CLASS_DECO | LDST_SRCDST_WORD_DECO_MATH2;
 	len = sizeof(data) << LDST_LEN_SHIFT;
 	append_load_as_imm(desc, &data, len, opt);
@@ -1456,13 +1452,17 @@ build_extended_shared_desc:
 done_shared_desc:
 	sec_desc = sa->sec_desc;
 	/* setup preheader */
-	sec_desc->preheader.hi.field.idlen = desc_len((u32 *) sec_desc->desc);
-	sec_desc->preheader.lo.field.pool_id = sa->sa_bpid;
-	sec_desc->preheader.lo.field.pool_buffer_size = sa->sa_bufsize;
-	sec_desc->preheader.lo.field.offset =
-		(sa->sa_dir == DPA_IPSEC_INBOUND) ?
-			sa->dpa_ipsec->config.post_sec_in_params.data_off :
-			sa->dpa_ipsec->config.post_sec_out_params.data_off;
+	PREHEADER_PREP_IDLEN(sec_desc->preheader, desc_len(sec_desc->desc));
+	PREHEADER_PREP_BPID(sec_desc->preheader, sa->sa_bpid);
+	PREHEADER_PREP_BSIZE(sec_desc->preheader, sa->sa_bufsize);
+	if (sa->sa_dir == DPA_IPSEC_INBOUND)
+		PREHEADER_PREP_OFFSET(sec_desc->preheader,
+			sa->dpa_ipsec->config.post_sec_in_params.data_off);
+	else
+		PREHEADER_PREP_OFFSET(sec_desc->preheader,
+			sa->dpa_ipsec->config.post_sec_out_params.data_off);
+
+	sec_desc->preheader = cpu_to_caam64(sec_desc->preheader);
 
 	dma_unmap_single(jrdev, auth_key_dma,
 			 sa->auth_data.split_key_pad_len, DMA_TO_DEVICE);
@@ -1519,7 +1519,7 @@ int build_rjob_desc_ars_update(struct dpa_ipsec_sa *sa, enum dpa_ipsec_arw arw,
 	BUG_ON(!sa);
 	BUG_ON(!sa->sec_desc);
 	desc = (uint32_t *)sa->sec_desc->desc;
-	options = (uint8_t)(*(desc + 1) & 0x000000FF);
+	options = (uint8_t)(be32_to_cpu(*(desc + 1)) & 0x000000FF);
 	c_arw = options >> 6;
 	if (c_arw == arw) {
 		log_err("SA %d has already set this ARS %d\n", sa->id, arw);

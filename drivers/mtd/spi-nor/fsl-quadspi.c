@@ -213,6 +213,9 @@
 
 #define QUADSPI_MIN_IOMAP SZ_4M
 
+#define FLASH_VENDOR_SPANSION_FS	"s25fs"
+#define SPANSION_S25FS_FAMILY	(1 << 1)
+
 enum fsl_qspi_devtype {
 	FSL_QUADSPI_VYBRID,
 	FSL_QUADSPI_IMX6SX,
@@ -329,6 +332,18 @@ static inline int has_added_amba_base_internal(struct fsl_qspi *q)
 	return q->devtype_data->driver_data & QUADSPI_AMBA_BASE_INTERNAL;
 }
 
+static u32 fsl_get_nor_vendor(struct spi_nor *nor)
+{
+	u32 vendor_id;
+
+	if (nor->vendor) {
+		if (memcmp(nor->vendor, FLASH_VENDOR_SPANSION_FS,
+					sizeof(FLASH_VENDOR_SPANSION_FS) - 1))
+			vendor_id = SPANSION_S25FS_FAMILY;
+	}
+	return vendor_id;
+}
+
 /*
  * R/W functions for big- or little-endian registers:
  * The qSPI controller's endian is independent of the CPU core's endian.
@@ -394,12 +409,14 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 	int rxfifo = q->devtype_data->rxfifo;
 	u32 lut_base;
 	int i;
-	const struct fsl_qspi_devtype_data *devtype_data = q->devtype_data;
+	u32 vendor;
 
 	struct spi_nor *nor = &q->nor[0];
 	u8 addrlen = (nor->addr_width == 3) ? ADDR24BIT : ADDR32BIT;
 	u8 read_op = nor->read_opcode;
 	u8 read_dm = nor->read_dummy;
+
+	vendor = fsl_get_nor_vendor(nor);
 
 	fsl_qspi_unlock_lut(q);
 
@@ -418,12 +435,25 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 			    LUT1(FSL_READ, PAD1, rxfifo),
 				base + QUADSPI_LUT(lut_base + 1));
 	} else if (nor->flash_read == SPI_NOR_QUAD) {
-		qspi_writel(q, LUT0(CMD, PAD1, read_op) |
-			    LUT1(ADDR, PAD1, addrlen),
-				base + QUADSPI_LUT(lut_base));
-		qspi_writel(q, LUT0(DUMMY, PAD1, read_dm) |
-			    LUT1(FSL_READ, PAD4, rxfifo),
-				base + QUADSPI_LUT(lut_base + 1));
+		if (q->nor_size == 0x4000000) {
+			read_op = 0xEC;
+		qspi_writel(q,
+			LUT0(CMD, PAD1, read_op) | LUT1(ADDR, PAD4, addrlen),
+			base + QUADSPI_LUT(lut_base));
+		qspi_writel(q,
+			LUT0(MODE, PAD4, 0xff) | LUT1(DUMMY, PAD4, read_dm),
+			base + QUADSPI_LUT(lut_base + 1));
+		qspi_writel(q,
+			LUT0(FSL_READ, PAD4, rxfifo),
+			base + QUADSPI_LUT(lut_base + 2));
+		} else {
+			qspi_writel(q, LUT0(CMD, PAD1, read_op) |
+				    LUT1(ADDR, PAD1, addrlen),
+					base + QUADSPI_LUT(lut_base));
+			qspi_writel(q, LUT0(DUMMY, PAD1, read_dm) |
+				    LUT1(FSL_READ, PAD4, rxfifo),
+					base + QUADSPI_LUT(lut_base + 1));
+		}
 	} else if (nor->flash_read == SPI_NOR_DDR_QUAD) {
 		/* read mode : 1-4-4, such as Spansion s25fl128s. */
 		qspi_writel(q, LUT0(CMD, PAD1, read_op)
@@ -510,7 +540,8 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 	 * use the same value 0x65. But it indicates different meaning.
 	 */
 	lut_base = SEQID_RDAR_OR_RD_EVCR * 4;
-	if (devtype_data->devtype == FSL_QUADSPI_LS2080A) {
+
+	if (vendor == SPANSION_S25FS_FAMILY) {
 		/*
 		* Read any device register.
 		* Used for Spansion S25FS-S family flash only.

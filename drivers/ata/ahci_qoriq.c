@@ -51,6 +51,7 @@
 enum ahci_qoriq_type {
 	AHCI_LS1021A,
 	AHCI_LS1043A,
+	AHCI_LS1046A,
 	AHCI_LS2080A,
 };
 
@@ -63,6 +64,7 @@ struct ahci_qoriq_priv {
 static const struct of_device_id ahci_qoriq_of_match[] = {
 	{ .compatible = "fsl,ls1021a-ahci", .data = (void *)AHCI_LS1021A},
 	{ .compatible = "fsl,ls1043a-ahci", .data = (void *)AHCI_LS1043A},
+	{ .compatible = "fsl,ls1046a-ahci", .data = (void *)AHCI_LS1046A},
 	{ .compatible = "fsl,ls2080a-ahci", .data = (void *)AHCI_LS2080A},
 	{},
 };
@@ -171,6 +173,12 @@ static int ahci_qoriq_phy_init(struct ahci_host_priv *hpriv)
 		writel(AHCI_PORT_TRANS_CFG, reg_base + PORT_TRANS);
 		break;
 
+	case AHCI_LS1046A:
+		writel(0x80000000, qpriv->ecc_addr);
+		writel(AHCI_PORT_PHY_1_CFG, reg_base + PORT_PHY1);
+		writel(AHCI_PORT_TRANS_CFG, reg_base + PORT_TRANS);
+		break;
+
 	case AHCI_LS2080A:
 		writel(AHCI_PORT_PHY_1_CFG, reg_base + PORT_PHY1);
 		writel(AHCI_PORT_TRANS_CFG, reg_base + PORT_TRANS);
@@ -204,7 +212,8 @@ static int ahci_qoriq_probe(struct platform_device *pdev)
 
 	qoriq_priv->type = (enum ahci_qoriq_type)of_id->data;
 
-	if (qoriq_priv->type == AHCI_LS1021A) {
+	if (qoriq_priv->type == AHCI_LS1021A ||
+			qoriq_priv->type == AHCI_LS1046A) {
 		res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 				"sata-ecc");
 		qoriq_priv->ecc_addr = devm_ioremap_resource(dev, res);

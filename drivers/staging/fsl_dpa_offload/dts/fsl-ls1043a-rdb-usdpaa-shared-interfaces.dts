@@ -44,28 +44,28 @@
 
 		ethernet@0 {
 			compatible = "fsl,dpa-ethernet-init";
-			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
+			fsl,bman-buffer-pools = <&bp16>;
 			fsl,qman-frame-queues-rx = <0x50 1 0x51 1>;
 			fsl,qman-frame-queues-tx = <0x70 1 0x71 1>;
 		};
 
 		ethernet@1 {
 			compatible = "fsl,dpa-ethernet-init";
-			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
+			fsl,bman-buffer-pools = <&bp16>;
 			fsl,qman-frame-queues-rx = <0x52 1 0x53 1>;
 			fsl,qman-frame-queues-tx = <0x72 1 0x73 1>;
 		};
 
 		ethernet@2 {
 			compatible = "fsl,dpa-ethernet-init";
-			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
+			fsl,bman-buffer-pools = <&bp16>;
 			fsl,qman-frame-queues-rx = <0x54 1 0x55 1>;
 			fsl,qman-frame-queues-tx = <0x74 1 0x75 1>;
 		};
 
 		ethernet@3 {
 			compatible = "fsl,dpa-ethernet-init";
-			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
+			fsl,bman-buffer-pools = <&bp16>;
 			fsl,qman-frame-queues-rx = <0x56 1 0x57 1>;
 			fsl,qman-frame-queues-tx = <0x76 1 0x77 1>;
 		};
@@ -108,8 +108,8 @@
 		ethernet@12 {
 			compatible = "fsl,p4080-dpa-ethernet-macless", "fsl,dpa-ethernet-macless";
 			fsl,bman-buffer-pools = <&bp16>;
-			fsl,qman-frame-queues-rx = <7000 8>;
-			fsl,qman-frame-queues-tx = <7008 8>;
+			fsl,qman-frame-queues-rx = <6000 8>;
+			fsl,qman-frame-queues-tx = <6008 8>;
 			local-mac-address = [00 11 22 33 44 77];
 		};
 
@@ -118,6 +118,7 @@
 			/* Define frame queues for the OH port*/
 			/* <OH Rx error, OH Rx default> */
 			fsl,qman-frame-queues-oh = <0x5a 1 0x5b 1>;
+			fsl,bman-buffer-pools = <&bp16>;
 			fsl,fman-oh-port = <&fman0_oh2>;
 		};
 		oh3: dpa_fman0_oh3: dpa-fman0-oh@3 {
@@ -128,7 +129,7 @@
 		};
 		dpa_fman0_oh4: dpa-fman0-oh@4 {
 			compatible = "fsl,dpa-oh";
-			fsl,qman-frame-queues-oh = <0x70 1 0x71 1>;
+			fsl,qman-frame-queues-oh = <0x5e 1 0x5f 1>;
 			fsl,bman-buffer-pools = <&bp9>;
 			fsl,fman-oh-port = <&fman0_oh4>;
 		};

@@ -48,7 +48,6 @@
 /* FMD includes */
 #include "error_ext.h"
 #include "fm_pcd_ext.h"
-#include "fm_cc.h"
 #include "crc64.h"
 
 
@@ -59,6 +58,8 @@
 #define PPP_HEADER_SIZE						2 /* bytes */
 #define ETHERTYPE_OFFSET					12
 #define ETHERTYPE_SIZE						2 /* bytes */
+
+#define ETYPE_PPPoE_SESSION					0x8864
 
 #define CRC8_WCDMA_POLY						0x9b
 
@@ -459,8 +460,7 @@ int dpa_classif_table_modify_miss_action(int			td,
 
 	/* Fill the [miss_engine_params] structure w/ data */
 	errno = action_to_next_engine_params(miss_action, &miss_engine_params,
-					&hmd, ptable->params.distribution,
-					ptable->params.classification);
+					&hmd);
 	if (errno < 0) {
 		/* Lock back the old HM chain. */
 		dpa_classif_hm_lock_chain(old_hmd);
@@ -671,11 +671,7 @@ int dpa_classif_table_modify_entry_by_key(int			td,
 				ret = action_to_next_engine_params(
 					mod_params->action,
 					&key_params.ccNextEngineParams,
-					NULL,
-					(t_Handle)ptable->params.
-							distribution,
-					(t_Handle)ptable->params.
-							classification);
+					NULL);
 				if (ret < 0) {
 					RELEASE_OBJECT(ptable);
 					log_err("Failed verification of new "
@@ -743,11 +739,7 @@ int dpa_classif_table_modify_entry_by_key(int			td,
 				ret = action_to_next_engine_params(
 						mod_params->action,
 						&key_params.ccNextEngineParams,
-						NULL,
-						(t_Handle)ptable->params.
-						distribution,
-						(t_Handle)ptable->params.
-						classification);
+						NULL);
 				if (ret < 0) {
 					RELEASE_OBJECT(ptable);
 					log_err("Failed verification of new action params while modifying entry by KEY in table td=%d.\n",
@@ -973,9 +965,7 @@ static int hash_table_modify_entry(
 			errno = action_to_next_engine_params(
 				local_action,
 				&key_params.ccNextEngineParams,
-				&hmd,
-				(t_Handle)ptable->params.distribution,
-				(t_Handle)ptable->params.classification);
+				&hmd);
 			if (errno < 0)
 				return errno;
 		} else {
@@ -996,9 +986,7 @@ static int hash_table_modify_entry(
 		errno = action_to_next_engine_params(
 				action,
 				&key_params.ccNextEngineParams,
-				&hmd,
-				(t_Handle)ptable->params.distribution,
-				(t_Handle)ptable->params.classification);
+				&hmd);
 		if (errno < 0)
 			return errno;
 	}
@@ -1179,9 +1167,7 @@ static int table_modify_entry_by_ref(struct dpa_cls_table	*ptable,
 		dpa_classif_hm_release_chain(ptable->entry[entry_id].hmd);
 		errno = action_to_next_engine_params(mod_params->action,
 				&next_engine_params,
-				&ptable->entry[entry_id].hmd,
-				(t_Handle)ptable->params.distribution,
-				(t_Handle)ptable->params.classification);
+				&ptable->entry[entry_id].hmd);
 		if (errno < 0)
 			return errno;
 
@@ -1302,11 +1288,7 @@ static int table_modify_entry_by_ref(struct dpa_cls_table	*ptable,
 					errno = action_to_next_engine_params(
 						mod_params->action,
 						&key_params.ccNextEngineParams,
-						&ptable->entry[entry_id].hmd,
-						(t_Handle)ptable->
-						params.distribution,
-						(t_Handle)ptable->
-						params.classification);
+						&ptable->entry[entry_id].hmd);
 					if (errno < 0)
 						return errno;
 					err =
@@ -2657,9 +2639,7 @@ static int table_insert_entry_exact_match(struct dpa_cls_table	*cls_table,
 
 	errno = action_to_next_engine_params(action,
 				&key_params.ccNextEngineParams,
-				&hmd,
-				(t_Handle)cls_table->params.distribution,
-				(t_Handle)cls_table->params.classification);
+				&hmd);
 	if (errno < 0)
 		return errno;
 
@@ -2740,6 +2720,8 @@ static int table_insert_entry_exact_match(struct dpa_cls_table	*cls_table,
 			"Entry ref=%d, Cc node handle=0x%p, entry index=%d.\n",
 			k, cls_table->int_cc_node[0].cc_node,
 			cls_table->entry[k].entry_index);
+		/* Release header manip chain in case the user provided one. */
+		dpa_classif_hm_release_chain(hmd);
 		return -EBUSY;
 	}
 
@@ -2874,11 +2856,7 @@ static int table_insert_entry_hash(struct dpa_cls_table		*cls_table,
 	if (cls_table->params.prefilled_entries) {
 		errno = action_to_next_engine_params(action,
 					&key_params.ccNextEngineParams,
-					NULL,
-					(t_Handle)cls_table->params.
-						distribution,
-					(t_Handle)cls_table->params.
-						classification);
+					NULL);
 		if (errno < 0)
 			return errno;
 
@@ -2902,9 +2880,7 @@ static int table_insert_entry_hash(struct dpa_cls_table		*cls_table,
 
 	errno = action_to_next_engine_params(action,
 				&key_params.ccNextEngineParams,
-				&hmd,
-				(t_Handle)cls_table->params.distribution,
-				(t_Handle)cls_table->params.classification);
+				&hmd);
 	if (errno < 0)
 		return errno;
 
@@ -2923,6 +2899,8 @@ static int table_insert_entry_hash(struct dpa_cls_table		*cls_table,
 		log_err("Hash set #%llu is full (%d entries). Unable to add "
 			"this entry.\n", hash_set_index,
 			cls_table->int_cc_node[hash_set_index].table_size);
+		/* Release header manip chain in case the user provided one. */
+		dpa_classif_hm_release_chain(hmd);
 		return -ENOSPC;
 	}
 
@@ -2973,6 +2951,8 @@ static int table_insert_entry_hash(struct dpa_cls_table		*cls_table,
 			"entry index=%d.\n", j, hash_set_index,
 			cls_table->int_cc_node[hash_set_index].cc_node,
 			cls_table->entry[j].entry_index);
+		/* Release header manip chain in case the user provided one. */
+		dpa_classif_hm_release_chain(hmd);
 		return -EBUSY;
 	}
 
@@ -3027,9 +3007,7 @@ static int table_insert_entry_hash(struct dpa_cls_table		*cls_table,
 
 static int action_to_next_engine_params(const struct dpa_cls_tbl_action *action,
 				t_FmPcdCcNextEngineParams *next_engine_params,
-				int *hmd,
-				t_Handle distribution,
-				t_Handle classification)
+				int *hmd)
 {
 	struct dpa_cls_table *next_table;
 #if (DPAA_VERSION >= 11)
@@ -3054,44 +3032,11 @@ static int action_to_next_engine_params(const struct dpa_cls_tbl_action *action,
 			e_FM_PCD_DROP_FRAME;
 		break;
 	case DPA_CLS_TBL_ACTION_ENQ:
-		if (distribution && classification) {
-			t_FmPcdKgSchemeParams *scheme_params =
-				kzalloc(sizeof(t_FmPcdKgSchemeParams),
-					GFP_KERNEL);
-			if (!scheme_params) {
-				log_err("Failed to alocate direct scheme "
-					"params.\n");
-				return -ENOMEM;
-			}
-			memset(scheme_params, 0, sizeof(*scheme_params));
-			scheme_params->modify = true;
-			scheme_params->alwaysDirect = true;
-#if (DPAA_VERSION >= 11)
-			scheme_params->bypassFqidGeneration = true;
-#else
-			scheme_params->bypassFqidGeneration = false;
-#endif
-			scheme_params->id.h_Scheme = distribution;
-			scheme_params->nextEngine = e_FM_PCD_CC;
-			scheme_params->kgNextEngineParams.cc.h_CcTree =
-					classification;
-			scheme_params->kgNextEngineParams.cc.grpId = 0;
-			scheme_params->keyExtractAndHashParams.
-					hashDistributionNumOfFqids = 1;
-
-			distribution = FM_PCD_KgSchemeSet(
-				((t_FmPcdCcTree *)classification)->h_FmPcd,
-				scheme_params);
-			kfree(scheme_params);
-			if (!distribution) {
-				log_err("Failed to set direct scheme.\n");
-				return -EINVAL;
-			}
-
+		if (action->enq_params.distribution) {
 			/* Redirect frames to KeyGen direct scheme */
 			next_engine_params->nextEngine = e_FM_PCD_KG;
 			next_engine_params->params.kgParams.h_DirectScheme =
-				distribution;
+				action->enq_params.distribution;
 			next_engine_params->params.kgParams.newFqid =
 				action->enq_params.new_fqid;
 			if (action->enq_params.override_fqid)
@@ -3598,15 +3543,6 @@ static int remove_hm_check_params(const struct dpa_cls_hm_remove_params
 {
 	BUG_ON(!remove_params);
 
-	switch (remove_params->type) {
-	case DPA_CLS_HM_REMOVE_PPPoE:
-		log_err("Unsupported HM: remove PPPoE.\n");
-		return -ENOSYS;
-		break;
-	default:
-		break;
-	}
-
 	return 0;
 }
 
@@ -3616,10 +3552,6 @@ static int insert_hm_check_params(const struct dpa_cls_hm_insert_params
 	BUG_ON(!insert_params);
 
 	switch (insert_params->type) {
-	case DPA_CLS_HM_INSERT_PPPoE:
-		log_err("Unsupported HM: insert PPPoE.\n");
-		return -ENOSYS;
-		break;
 	case DPA_CLS_HM_INSERT_ETHERNET:
 		if (insert_params->eth.num_tags >
 			DPA_CLS_HM_MAX_VLANs) {
@@ -4306,30 +4238,36 @@ int remove_hm_chain(struct list_head *chain_head, struct list_head *item)
 
 	list_del(item);
 
-	remove_hm_node(pcurrent);
+	release_hm_node_params(pcurrent);
+
+	/* Remove the node */
+	kfree(pcurrent);
 
 	index--;
 
 	return err;
 }
 
-static void remove_hm_node(struct dpa_cls_hm_node *node)
+static void release_hm_node_params(struct dpa_cls_hm_node *node)
 {
 	/* Check and remove all allocated buffers from the HM params: */
-	switch (node->params.type) {
-	case e_FM_PCD_MANIP_HDR:
-		if ((node->params.u.hdr.insrt) &&
-				(node->params.u.hdr.insrtParams.type ==
-				e_FM_PCD_MANIP_INSRT_GENERIC))
-			kfree(node->params.u.hdr.insrtParams.u.generic.p_Data);
-
-		break;
-	default:
-		break;
+	if ((node->params.type == e_FM_PCD_MANIP_HDR) &&
+						(node->params.u.hdr.insrt)) {
+		switch (node->params.u.hdr.insrtParams.type) {
+		case e_FM_PCD_MANIP_INSRT_GENERIC:
+			kfree(node->params.u.hdr.insrtParams.u.generic.
+				p_Data);
+			node->params.u.hdr.insrtParams.u.generic.p_Data =
+				NULL;
+			break;
+		case e_FM_PCD_MANIP_INSRT_BY_HDR:
+			kfree(node->params.u.hdr.insrtParams.u.byHdr.u.
+				specificL2Params.p_Data);
+			node->params.u.hdr.insrtParams.u.byHdr.u.
+				specificL2Params.p_Data = NULL;
+			break;
+		}
 	}
-
-	/* Remove the node */
-	kfree(node);
 }
 
 static int create_new_hm_op(int *hmd, int next_hmd)
@@ -4641,8 +4579,9 @@ static int nat_hm_update_params(struct dpa_cls_hm *pnat_hm)
 						HDR_MANIP_IPV4_SRC;
 					hm_node->params.u.hdr.
 						fieldUpdateParams.u.ipv4.
-						src = pnat_hm->nat_params.nat.
-						sip.addr.ipv4.word;
+						src =
+					be32_to_cpu(pnat_hm->nat_params.nat.
+						sip.addr.ipv4.word);
 				}
 
 				if (pnat_hm->nat_params.flags &
@@ -4653,8 +4592,9 @@ static int nat_hm_update_params(struct dpa_cls_hm *pnat_hm)
 						HDR_MANIP_IPV4_DST;
 					hm_node->params.u.hdr.
 						fieldUpdateParams.u.ipv4.
-						dst = pnat_hm->nat_params.nat.
-						dip.addr.ipv4.word;
+						dst =
+					be32_to_cpu(pnat_hm->nat_params.nat.
+						dip.addr.ipv4.word);
 				}
 			} else { /* We're dealing with IPv6 */
 				hm_node->params.u.hdr.fieldUpdateParams.type =
@@ -5561,6 +5501,14 @@ static int remove_hm_update_params(struct dpa_cls_hm *premove_hm)
 		hm_node->params.u.hdr.rmvParams.u.byHdr.u.specificL2 =
 					e_FM_PCD_MANIP_HDR_RMV_ETHERNET;
 		break;
+	case DPA_CLS_HM_REMOVE_PPPoE:
+		hm_node->params.u.hdr.rmvParams.type =
+					e_FM_PCD_MANIP_RMV_BY_HDR;
+		hm_node->params.u.hdr.rmvParams.u.byHdr.type =
+					e_FM_PCD_MANIP_RMV_BY_HDR_SPECIFIC_L2;
+		hm_node->params.u.hdr.rmvParams.u.byHdr.u.specificL2 =
+					e_FM_PCD_MANIP_HDR_RMV_PPPOE;
+		break;
 	case DPA_CLS_HM_REMOVE_PPP:
 		hm_node->params.u.hdr.rmvParams.type =
 						e_FM_PCD_MANIP_RMV_GENERIC;
@@ -5850,83 +5798,116 @@ static int insert_hm_update_params(struct dpa_cls_hm *pinsert_hm)
 
 	hm_node = pinsert_hm->hm_node[0];
 
-	hm_node->params.type			= e_FM_PCD_MANIP_HDR;
-	hm_node->params.u.hdr.insrt		= TRUE;
-	hm_node->params.u.hdr.insrtParams.type	= e_FM_PCD_MANIP_INSRT_GENERIC;
+	/* Release resources used by old parameters (if any): */
+	release_hm_node_params(hm_node);
+
+	hm_node->params.type		= e_FM_PCD_MANIP_HDR;
+	hm_node->params.u.hdr.insrt	= TRUE;
 
 	hm_node->params.u.hdr.dontParseAfterManip &=
 			(pinsert_hm->insert_params.reparse) ? FALSE : TRUE;
 
-	switch (pinsert_hm->insert_params.type) {
-	case DPA_CLS_HM_INSERT_ETHERNET:
-		size = (uint8_t) (sizeof(struct ethhdr) +
-			(pinsert_hm->insert_params.eth.num_tags *
-			sizeof(struct vlan_header)));
+	if (pinsert_hm->insert_params.type == DPA_CLS_HM_INSERT_PPPoE) {
+		uint16_t *ether_type;
+
+		size = (uint8_t) (sizeof(struct pppoe_header) +
+			ETHERTYPE_SIZE + PPP_HEADER_SIZE);
 		pdata = kzalloc(size, GFP_KERNEL);
 		if (!pdata) {
 			log_err("Not enough memory for insert HM.\n");
 			return -ENOMEM;
 		}
+		hm_node->params.u.hdr.insrtParams.type =
+				e_FM_PCD_MANIP_INSRT_BY_HDR;
+		hm_node->params.u.hdr.insrtParams.u.byHdr.type =
+				e_FM_PCD_MANIP_INSRT_BY_HDR_SPECIFIC_L2;
+		hm_node->params.u.hdr.insrtParams.u.byHdr.u.specificL2Params.
+				specificL2 = e_FM_PCD_MANIP_HDR_INSRT_PPPOE;
+		hm_node->params.u.hdr.insrtParams.u.byHdr.u.specificL2Params.
+				update = FALSE;
+		hm_node->params.u.hdr.insrtParams.u.byHdr.u.specificL2Params.
+				size = size;
+		hm_node->params.u.hdr.insrtParams.u.byHdr.u.specificL2Params.
+				p_Data = pdata;
 
-		if (pinsert_hm->insert_params.eth.num_tags) {
-			/* Copy Ethernet header data except the EtherType */
-			memcpy(pdata,
-				&pinsert_hm->insert_params.eth.eth_header,
-				sizeof(struct ethhdr) - ETHERTYPE_SIZE);
-			offset += (uint8_t)(sizeof(struct ethhdr) -
+		ether_type = (uint16_t *)pdata;
+		*ether_type = htons(ETYPE_PPPoE_SESSION);
+		/* Copy the PPPoE header data */
+		memcpy(&pdata[ETHERTYPE_SIZE],
+			&pinsert_hm->insert_params.pppoe_header,
+			sizeof(struct pppoe_header));
+	} else {
+		hm_node->params.u.hdr.insrtParams.type =
+				e_FM_PCD_MANIP_INSRT_GENERIC;
+
+		switch (pinsert_hm->insert_params.type) {
+		case DPA_CLS_HM_INSERT_ETHERNET:
+			size = (uint8_t) (sizeof(struct ethhdr) +
+				(pinsert_hm->insert_params.eth.num_tags *
+				sizeof(struct vlan_header)));
+			pdata = kzalloc(size, GFP_KERNEL);
+			if (!pdata) {
+				log_err("Not enough memory for insert HM.\n");
+				return -ENOMEM;
+			}
+
+			if (pinsert_hm->insert_params.eth.num_tags) {
+				/* Copy Ethernet header data except the EtherType */
+				memcpy(pdata,
+					&pinsert_hm->insert_params.eth.eth_header,
+					sizeof(struct ethhdr) - ETHERTYPE_SIZE);
+				offset += (uint8_t)(sizeof(struct ethhdr) -
 								ETHERTYPE_SIZE);
-			/* Copy the VLAN tags */
-			memcpy(&pdata[offset],
-				&pinsert_hm->insert_params.eth.qtag,
-				pinsert_hm->insert_params.eth.num_tags *
-				sizeof(struct vlan_header));
-			offset += (uint8_t) (pinsert_hm->insert_params.eth.
-				num_tags * sizeof(struct vlan_header));
-			/* Copy the EtherType */
-			memcpy(&pdata[offset],
-		&pinsert_hm->insert_params.eth.eth_header.h_proto,
-				ETHERTYPE_SIZE);
-			offset = 0;
-		} else
-			/* Copy the entire Ethernet header */
-			memcpy(pdata,
-				&pinsert_hm->insert_params.eth.eth_header,
-				sizeof(struct ethhdr));
-		break;
-	case DPA_CLS_HM_INSERT_PPP:
-		size	= PPP_HEADER_SIZE;
-		pdata	= kzalloc(size, GFP_KERNEL);
-		if (!pdata) {
-			log_err("Not enough memory for insert HM.\n");
-			return -ENOMEM;
-		}
+				/* Copy the VLAN tags */
+				memcpy(&pdata[offset],
+					&pinsert_hm->insert_params.eth.qtag,
+					pinsert_hm->insert_params.eth.num_tags *
+					sizeof(struct vlan_header));
+				offset += (uint8_t) (pinsert_hm->insert_params.eth.
+					num_tags * sizeof(struct vlan_header));
+				/* Copy the EtherType */
+				memcpy(&pdata[offset],
+			&pinsert_hm->insert_params.eth.eth_header.h_proto,
+					ETHERTYPE_SIZE);
+				offset = 0;
+			} else
+				/* Copy the entire Ethernet header */
+				memcpy(pdata,
+					&pinsert_hm->insert_params.eth.eth_header,
+					sizeof(struct ethhdr));
+			break;
+		case DPA_CLS_HM_INSERT_PPP:
+			size	= PPP_HEADER_SIZE;
+			pdata	= kzalloc(size, GFP_KERNEL);
+			if (!pdata) {
+				log_err("Not enough memory for insert HM.\n");
+				return -ENOMEM;
+			}
 
-		/* Copy the PPP PID */
-		memcpy(pdata, &pinsert_hm->insert_params.ppp_pid,
-			PPP_HEADER_SIZE);
-		break;
-	case DPA_CLS_HM_INSERT_CUSTOM:
-		size	= pinsert_hm->insert_params.custom.size;
-		pdata	= kzalloc(size, GFP_KERNEL);
-		if (!pdata) {
-			log_err("Not enough memory for insert HM.\n");
-			return -ENOMEM;
+			/* Copy the PPP PID */
+			memcpy(pdata, &pinsert_hm->insert_params.ppp_pid,
+				PPP_HEADER_SIZE);
+			break;
+		case DPA_CLS_HM_INSERT_CUSTOM:
+			size	= pinsert_hm->insert_params.custom.size;
+			pdata	= kzalloc(size, GFP_KERNEL);
+			if (!pdata) {
+				log_err("Not enough memory for insert HM.\n");
+				return -ENOMEM;
+			}
+			memcpy(pdata, pinsert_hm->insert_params.custom.data, size);
+			offset	= pinsert_hm->insert_params.custom.offset;
+			break;
+		default:
+			/* Should never get here */
+			BUG_ON(1);
+			break;
 		}
-		memcpy(pdata, pinsert_hm->insert_params.custom.data, size);
-		offset	= pinsert_hm->insert_params.custom.offset;
-		break;
-	default:
-		/* Should never get here */
-		BUG_ON(1);
-		break;
+		hm_node->params.u.hdr.insrtParams.u.generic.offset	= offset;
+		hm_node->params.u.hdr.insrtParams.u.generic.size	= size;
+		hm_node->params.u.hdr.insrtParams.u.generic.p_Data	= pdata;
+		hm_node->params.u.hdr.insrtParams.u.generic.replace	= FALSE;
 	}
-
-	kfree(hm_node->params.u.hdr.insrtParams.u.generic.p_Data);
-
-	hm_node->params.u.hdr.insrtParams.u.generic.offset	= offset;
-	hm_node->params.u.hdr.insrtParams.u.generic.size	= size;
-	hm_node->params.u.hdr.insrtParams.u.generic.p_Data	= pdata;
-	hm_node->params.u.hdr.insrtParams.u.generic.replace	= FALSE;
 
 	dpa_cls_hm_dbg(("DEBUG: dpa_hm %s (%d) <--\n", __func__,
 		__LINE__));
@@ -6311,8 +6292,8 @@ static int update_hm_update_params(struct dpa_cls_hm *pupdate_hm)
 					HDR_MANIP_IPV4_SRC;
 				hm_node->params.u.hdr.fieldUpdateParams.u.ipv4.
 					src =
-					pupdate_hm->update_params.update.l3.
-					ipsa.addr.ipv4.word;
+					be32_to_cpu(pupdate_hm->update_params.
+					update.l3.ipsa.addr.ipv4.word);
 			}
 
 			if (pupdate_hm->update_params.update.l3.field_flags &
@@ -6322,8 +6303,8 @@ static int update_hm_update_params(struct dpa_cls_hm *pupdate_hm)
 					HDR_MANIP_IPV4_DST;
 				hm_node->params.u.hdr.fieldUpdateParams.u.ipv4.
 					dst =
-					pupdate_hm->update_params.update.l3.
-					ipda.addr.ipv4.word;
+					be32_to_cpu(pupdate_hm->update_params.
+					update.l3.ipda.addr.ipv4.word);
 			}
 
 			if (pupdate_hm->update_params.update.l3.field_flags &
@@ -7884,52 +7865,16 @@ int dpa_classif_mcast_create_group(
 		replic_grp_params->numOfEntries = pgroup->num_members + 1;
 		next_engine_params = &replic_grp_params->nextEngineParams[0];
 
-		if (group_params->distribution &&
-		    group_params->classification) {
-			t_Handle classification, distribution;
-			t_FmPcdKgSchemeParams *scheme_params =
-					  kzalloc(sizeof(t_FmPcdKgSchemeParams),
-							GFP_KERNEL);
-			if (!scheme_params) {
-				log_err("Failed to alocate direct scheme "
-					"params.\n");
-				err = -ENOMEM;
-				goto dpa_classif_mcast_create_group_error;
-			}
-
-			classification = group_params->classification;
-			distribution = group_params->distribution;
-
-			memset(scheme_params, 0, sizeof(*scheme_params));
-			scheme_params->modify = true;
-			scheme_params->alwaysDirect = true;
-			scheme_params->bypassFqidGeneration = true;
-			scheme_params->id.h_Scheme = distribution;
-			scheme_params->nextEngine = e_FM_PCD_CC;
-			scheme_params->kgNextEngineParams.cc.h_CcTree =
-								 classification;
-			scheme_params->kgNextEngineParams.cc.grpId = 0;
-			scheme_params->keyExtractAndHashParams.
-					hashDistributionNumOfFqids = 1;
-
-			distribution = FM_PCD_KgSchemeSet(
-				((t_FmPcdCcTree *)classification)->h_FmPcd,
-				scheme_params);
-			kfree(scheme_params);
-			if (!distribution) {
-				log_err("Failed to set direct scheme.\n");
-				err = -EINVAL;
-				goto dpa_classif_mcast_create_group_error;
-			}
-
+		if (member_params->distribution) {
 			/* Redirect frames to KeyGen direct scheme */
 			next_engine_params->nextEngine = e_FM_PCD_KG;
 			next_engine_params->params.kgParams.h_DirectScheme =
-								   distribution;
+						member_params->distribution;
 			next_engine_params->params.kgParams.newFqid =
 						member_params->new_fqid;
-			next_engine_params->params.kgParams.overrideFqid =
-						member_params->override_fqid;
+			if (member_params->override_fqid)
+				next_engine_params->params.kgParams.
+							overrideFqid = TRUE;
 		} else {
 			if (member_params->policer_params) {
 				next_engine_params->nextEngine = e_FM_PCD_PLCR;
@@ -8104,51 +8049,16 @@ int dpa_classif_mcast_add_member(int grpd,
 	replic_grp_params->maxNumOfEntries = max_members;
 	replic_grp_params->numOfEntries = pgroup->num_members;
 	next_engine_params = &replic_grp_params->nextEngineParams[0];
-	if (pgroup->group_params.distribution &&
-	    pgroup->group_params.classification) {
-		t_Handle classification, distribution;
-		t_FmPcdKgSchemeParams *scheme_params =
-					  kzalloc(sizeof(t_FmPcdKgSchemeParams),
-							GFP_KERNEL);
-		if (!scheme_params) {
-			log_err("Failed to alocate direct scheme params.\n");
-			err = -ENOMEM;
-			goto dpa_classif_mcast_add_member_error;
-
-		}
-
-		classification = pgroup->group_params.classification;
-		distribution = pgroup->group_params.distribution;
-
-		memset(scheme_params, 0, sizeof(*scheme_params));
-		scheme_params->modify = true;
-		scheme_params->alwaysDirect = true;
-		scheme_params->bypassFqidGeneration = true;
-		scheme_params->id.h_Scheme = distribution;
-		scheme_params->nextEngine = e_FM_PCD_CC;
-		scheme_params->kgNextEngineParams.cc.h_CcTree = classification;
-		scheme_params->kgNextEngineParams.cc.grpId = 0;
-		scheme_params->keyExtractAndHashParams.
-				hashDistributionNumOfFqids = 1;
-
-		distribution = FM_PCD_KgSchemeSet(
-			((t_FmPcdCcTree *)classification)->h_FmPcd,
-			scheme_params);
-		kfree(scheme_params);
-		if (!distribution) {
-			log_err("Failed to set direct scheme.\n");
-			err = -EINVAL;
-			goto dpa_classif_mcast_add_member_error;
-		}
-
+	if (member_params->distribution) {
 		/* Redirect frames to KeyGen direct scheme */
 		next_engine_params->nextEngine = e_FM_PCD_KG;
 		next_engine_params->params.kgParams.h_DirectScheme =
-								   distribution;
+						member_params->distribution;
 		next_engine_params->params.kgParams.newFqid =
 					member_params->new_fqid;
-		next_engine_params->params.kgParams.overrideFqid =
-					member_params->override_fqid;
+		if (member_params->override_fqid)
+			next_engine_params->params.kgParams.
+							overrideFqid = TRUE;
 	} else {
 		if (member_params->policer_params) {
 			next_engine_params->nextEngine = e_FM_PCD_PLCR;

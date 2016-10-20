@@ -166,20 +166,6 @@ struct dpa_cls_tbl_params {
 	 */
 	void					*cc_node;
 
-	/*
-	 * Handle to a FMan distribution to send frames to instead of
-	 * enqueuing frames. If this handle is provided (not NULL) the enqueue
-	 * action will only select the frame queue, but it will NOT actually
-	 * enqueue the frame to the selected frame queue. Instead it will send
-	 * the frame to the indicated distribution for further processing.
-	 */
-	void					*distribution;
-
-	/*
-	 * Handle to a FMan classification to send frames after distribution
-	 */
-	void                                    *classification;
-
 	/* The type of the DPA Classifier table */
 	enum dpa_cls_tbl_type			type;
 
@@ -256,6 +242,15 @@ struct dpa_cls_tbl_enq_action_desc {
 	 * profiles defined. Otherwise it is not used.
 	 */
 	uint8_t					new_rel_vsp_id;
+
+	/*
+	 * Handle to a FMan distribution to send frames to instead of
+	 * enqueuing frames. If this handle is provided (not NULL) the enqueue
+	 * action will only select the frame queue, but it will NOT actually
+	 * enqueue the frame to the selected frame queue. Instead it will send
+	 * the frame to the indicated distribution for further processing.
+	 */
+	void					*distribution;
 };
 
 /* Action parameters to route to a new classifier table */
@@ -786,10 +781,21 @@ struct dpa_cls_hm_fwd_params {
 
 /* Types of the remove header manipulation operations */
 enum dpa_cls_hm_remove_type {
-	DPA_CLS_HM_REMOVE_ETHERNET,	/* removes ETH and all QTags */
-	DPA_CLS_HM_REMOVE_PPPoE,	/* removes ETH, all QTags and PPPoE */
+	/* Removes ETH and all QTags */
+	DPA_CLS_HM_REMOVE_ETHERNET,
+
+	/*
+	 * Removes PPPoE and the following PPP header. Ethertype is
+	 * automatically updated according to the original data packet's
+	 * PPP type field.
+	 */
+	DPA_CLS_HM_REMOVE_PPPoE,
+
 	DPA_CLS_HM_REMOVE_PPP,
-	DPA_CLS_HM_REMOVE_CUSTOM,	/* General remove */
+
+	/* General remove */
+	DPA_CLS_HM_REMOVE_CUSTOM,
+
 	DPA_CLS_HM_REMOVE_LAST_ENTRY
 };
 
@@ -856,10 +862,22 @@ struct dpa_cls_hm_remove_params {
 
 /* Types of insert header manipulation operations */
 enum dpa_cls_hm_insert_type {
-	DPA_CLS_HM_INSERT_ETHERNET,	/* Insert Ethernet + QTags */
-	DPA_CLS_HM_INSERT_PPPoE,	/* Insert PPPoE, ETH and QTags */
+	/* Insert Ethernet + QTags */
+	DPA_CLS_HM_INSERT_ETHERNET,
+
+	/*
+	 * Inserts PPPoE and PPP header. Ethertype is automatically updated
+	 * to 0x8864 (PPPoE session packet). PPP content type is automatically
+	 * detected and set by the u-code based on the original data packet's
+	 * payload.
+	 */
+	DPA_CLS_HM_INSERT_PPPoE,
+
 	DPA_CLS_HM_INSERT_PPP,
-	DPA_CLS_HM_INSERT_CUSTOM,	/* General insert */
+
+	/* General insert at an exact offset (in frame) */
+	DPA_CLS_HM_INSERT_CUSTOM,
+
 	DPA_CLS_HM_INSERT_LAST_ENTRY
 };
 
@@ -928,18 +946,6 @@ struct dpa_cls_hm_eth_ins_params {
 	struct vlan_header			qtag[DPA_CLS_HM_MAX_VLANs];
 };
 
-/* PPPoE header insert params */
-struct dpa_cls_hm_pppoe_ins_params {
-	/*
-	 * Parameters of the Ethernet header to insert together with PPPoE
-	 * header
-	 */
-	struct dpa_cls_hm_eth_ins_params	eth;
-
-	/* PPPoE header to insert */
-	struct pppoe_header			pppoe_header;
-};
-
 /* Ethernet header insert params */
 struct dpa_cls_hm_insert_params {
 	/* Specifies the type of insert header manipulation */
@@ -952,8 +958,8 @@ struct dpa_cls_hm_insert_params {
 		 */
 		struct dpa_cls_hm_eth_ins_params	eth;
 
-		/* PPPoE header insert parameters if type is "insert PPPoE" */
-		struct dpa_cls_hm_pppoe_ins_params	pppoe;
+		/* PPPoE header to insert if type is "insert PPPoE" */
+		struct pppoe_header			pppoe_header;
 
 		/*
 		 * PPP PID value to use in the PPP header if type is "insert
@@ -1549,18 +1555,6 @@ struct dpa_cls_mcast_group_params {
 	 * Number of members that already exist in the imported group
 	 */
 	unsigned int prefilled_members;
-
-	/*
-	 * External distribution handle. When provided, replicated frames
-	 * are not enqueued to members' frame queues. They are sent to this
-	 * distribution.
-	 */
-	void		*distribution;
-
-	/*
-	 * Handle to a FMan classification to send frames after distribution
-	 */
-	void		*classification;
 };
 
 /* Multicast group external resource */

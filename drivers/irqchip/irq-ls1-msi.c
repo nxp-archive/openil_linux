@@ -276,8 +276,8 @@ static int __init ls1_msi_probe(struct platform_device *pdev)
 }
 
 static struct of_device_id ls1_msi_id[] = {
-	{ .compatible = "fsl,1s1021a-msi", },
-	{ .compatible = "fsl,1s1043a-msi", },
+	{ .compatible = "fsl,ls1021a-msi", },
+	{ .compatible = "fsl,ls1043a-msi", },
 	{},
 };
 

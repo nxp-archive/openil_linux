@@ -122,7 +122,7 @@
 		};
 
 		msi1: msi-controller1@1570e00 {
-			compatible = "fsl,1s1021a-msi";
+			compatible = "fsl,ls1021a-msi";
 			reg = <0x0 0x1570e00 0x0 0x4>,
 			      <0x0 0x1570e04 0x0 0x4>;
 			reg-names = "msiir", "msir";
@@ -131,7 +131,7 @@
 		};
 
 		msi2: msi-controller2@1570e08 {
-			compatible = "fsl,1s1021a-msi";
+			compatible = "fsl,ls1021a-msi";
 			reg = <0x0 0x1570e08 0x0 0x4>,
 			      <0x0 0x1570e0c 0x0 0x4>;
 			reg-names = "msiir", "msir";
