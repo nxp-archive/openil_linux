@@ -189,6 +189,8 @@ struct qm_portal_config {
 	struct qman_portal_config public_cfg;
 	/* power management saved data */
 	u32 saved_isdr;
+	/* Set to non zero if portal is cache_inhibited mode */
+	int cache_inhibited;
 };
 
 /* Revision info (for errata and feature handling) */

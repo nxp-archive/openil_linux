@@ -32,6 +32,8 @@
 #ifdef CONFIG_HOTPLUG_CPU
 #include <linux/cpu.h>
 #endif
+#include <linux/sys_soc.h>
+
 /*
  * Global variables of the max portal/pool number this bman version supported
  */
@@ -103,13 +105,25 @@ static int __init fsl_bpid_range_init(struct device_node *node)
 	return 0;
 }
 
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
+static struct soc_device_attribute soc_msi_matches[] = {
+	{
+		.family = "QorIQ LS1046A",
+		.data = NULL
+	},
+	{},
+};
+#endif
+
 static struct bm_portal_config * __init parse_pcfg(struct device_node *node)
 {
 	struct bm_portal_config *pcfg;
 	const u32 *index;
 	int irq, ret;
 	resource_size_t len;
-
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
+	const struct soc_device_attribute *match;
+#endif
 	pcfg = kmalloc(sizeof(*pcfg), GFP_KERNEL);
 	if (!pcfg) {
 		pr_err("can't allocate portal config");
@@ -191,9 +205,22 @@ static struct bm_portal_config * __init parse_pcfg(struct device_node *node)
 		goto err;
 
 #if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
-	pcfg->addr_virt[DPA_PORTAL_CE] = ioremap_cache_ns(
-                                pcfg->addr_phys[DPA_PORTAL_CE].start,
-                                resource_size(&pcfg->addr_phys[DPA_PORTAL_CE]));
+
+	/* Check for LS1046A device as we need to use a
+	   cache-inhibited write combine mapping for that part */
+	match = soc_device_match(soc_msi_matches);
+	if (match)
+		pcfg->addr_virt[DPA_PORTAL_CE] =
+			ioremap_wc(pcfg->addr_phys[DPA_PORTAL_CE].start,
+				   resource_size(&pcfg->
+						 addr_phys[DPA_PORTAL_CE]));
+	else
+		pcfg->addr_virt[DPA_PORTAL_CE] =
+			ioremap_cache_ns(
+					 pcfg->addr_phys[DPA_PORTAL_CE].start,
+					 resource_size(&pcfg->addr_phys
+						       [DPA_PORTAL_CE]));
+
         pcfg->addr_virt[DPA_PORTAL_CI] = ioremap(
                                 pcfg->addr_phys[DPA_PORTAL_CI].start,
                                 resource_size(&pcfg->addr_phys[DPA_PORTAL_CI]));
