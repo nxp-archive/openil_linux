@@ -34,6 +34,7 @@
 
 #include <linux/netdevice.h>
 #include <linux/fsl_qman.h>	/* struct qman_fq */
+#include <linux/sys_soc.h>	/* soc_device_match */
 
 #include "fm_ext.h"
 #include "dpaa_eth_trace.h"
@@ -101,7 +102,13 @@ struct dpa_buffer_layout_s {
 #define DPA_BP_RAW_SIZE \
 	((DPA_MAX_FRM_SIZE + DPA_MAX_FD_OFFSET + \
 	  sizeof(struct skb_shared_info) + 128) & ~(SMP_CACHE_BYTES - 1))
-#endif
+#ifdef CONFIG_ARM64
+/* On LS1043 we do not use Jumbo and large buffers due to the 4K errata */
+#define DPA_BP_RAW_SIZE_4K	2048
+#define dpa_4k_bp_size(buffer_layout)	(SKB_WITH_OVERHEAD(DPA_BP_RAW_SIZE_4K) - \
+						SMP_CACHE_BYTES)
+#endif /* CONFIG_ARM64 */
+#endif /* CONFIG_FSL_DPAA_ETH_JUMBO_FRAME */
 
 /* This is what FMan is ever allowed to use.
  * FMan-DMA requires 16-byte alignment for Rx buffers, but SKB_DATA_ALIGN is
@@ -676,18 +683,33 @@ static inline void _dpa_bp_free_pf(void *addr)
 /* TODO: LS1043A SoC has a HW issue regarding FMan DMA transactions; The issue
  * manifests itself at high traffic rates when frames exceed 4K memory
  * boundaries; For the moment, we use a SW workaround to avoid frames larger
- * than 4K or that exceed 4K alignements.
+ * than 4K or that exceed 4K alignments.
  */
 
 #ifdef CONFIG_ARM64
-#define DPAA_LS1043A_DMA_4K_ISSUE	1
-#endif
+/* Detect the SoC at runtime */
+static inline bool check_4k_issue_soc(void)
+{
+	const struct soc_device_attribute soc_msi_matches[] = {
+		{ .family = "QorIQ LS1043A",
+		  .data = NULL },
+		{ },
+	};
 
-#ifdef DPAA_LS1043A_DMA_4K_ISSUE
+	if (soc_device_match(soc_msi_matches))
+		return true;
+
+	return false;
+}
+
+extern bool dpa_4k_issue;
+#define dpa_4k_errata	dpa_4k_issue
 #define HAS_DMA_ISSUE(start, size) \
 	(((u64)(start) ^ ((u64)(start) + (u64)(size))) & ~0xFFF)
-
 #define BOUNDARY_4K(start, size) (((u64)(start) + (u64)(size)) & ~0xFFF)
-#endif  /* DPAA_LS1043A_DMA_4K_ISSUE  */
+
+#else
+#define dpa_4k_errata	false
+#endif  /* CONFIG_ARM64 */
 
 #endif	/* __DPA_H */
