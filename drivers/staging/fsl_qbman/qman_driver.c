@@ -30,6 +30,7 @@
  */
 
 #include "qman_private.h"
+#include <linux/sys_soc.h>
 
 #include <asm/smp.h>	/* hard_smp_processor_id() if !CONFIG_SMP */
 #ifdef CONFIG_HOTPLUG_CPU
@@ -341,6 +342,11 @@ static void qman_get_ip_revision(struct device_node *dn)
 			ip_rev = QMAN_REV32;
 			qman_portal_max = 10;
 			ip_cfg = QMAN_REV_CFG_3; // TODO: Verify for ls1043
+		} else if (of_device_is_compatible(dn,
+						"fsl,qman-portal-3.2.1")) {
+			ip_rev = QMAN_REV32;
+			qman_portal_max = 10;
+			ip_cfg = QMAN_REV_CFG_3;
 		} else {
 			pr_warn("unknown QMan version in portal node,"
 				"default to rev1.1\n");
@@ -367,6 +373,16 @@ static void qman_get_ip_revision(struct device_node *dn)
 	}
 }
 
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
+static struct soc_device_attribute soc_msi_matches[] = {
+	{
+		.family = "QorIQ LS1046A",
+		.data = NULL
+	},
+	{},
+};
+#endif
+
 /* Parse a portal node, perform generic mapping duties and return the config. It
  * is not known at this stage for what purpose (or even if) the portal will be
  * used. */
@@ -377,8 +393,11 @@ static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 	u32 index, channel;
 	int irq, ret;
 	resource_size_t len;
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
+	const struct soc_device_attribute *match;
+#endif
 
-	pcfg = kmalloc(sizeof(*pcfg), GFP_KERNEL);
+	pcfg = kzalloc(sizeof(*pcfg), GFP_KERNEL);
 	if (!pcfg) {
 		pr_err("can't allocate portal config");
 		return NULL;
@@ -455,10 +474,20 @@ static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 		goto err;
 
 #if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
-	pcfg->addr_virt[DPA_PORTAL_CE] = ioremap_cache_ns(
-                                pcfg->addr_phys[DPA_PORTAL_CE].start,
-                                resource_size(&pcfg->addr_phys[DPA_PORTAL_CE]));
-
+	/* Check for LS1046A device as we need to use a
+	   cache-inhibited write combine mapping for that part */
+	match = soc_device_match(soc_msi_matches);
+	if (match) {
+		pcfg->addr_virt[DPA_PORTAL_CE] =
+			ioremap_wc(pcfg->addr_phys[DPA_PORTAL_CE].start,
+				   resource_size(&pcfg->
+						 addr_phys[DPA_PORTAL_CE]));
+		pcfg->cache_inhibited = 1;
+	} else
+		pcfg->addr_virt[DPA_PORTAL_CE] =
+			ioremap_cache_ns(pcfg->addr_phys[DPA_PORTAL_CE].start,
+					 resource_size(&pcfg->addr_phys
+						       [DPA_PORTAL_CE]));
         pcfg->addr_virt[DPA_PORTAL_CI] = ioremap(
                                 pcfg->addr_phys[DPA_PORTAL_CI].start,
                                 resource_size(&pcfg->addr_phys[DPA_PORTAL_CI]));

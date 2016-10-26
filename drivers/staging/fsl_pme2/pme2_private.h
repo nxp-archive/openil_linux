@@ -280,7 +280,7 @@ static inline void set_sg_addr(struct qm_sg_entry *sg, dma_addr_t addr)
 }
 static inline dma_addr_t get_sg_addr(const struct qm_sg_entry *sg)
 {
-	return (dma_addr_t)qm_sg_entry_get64(sg);
+	return qm_sg_addr(sg);
 }
 
 /******************/

@@ -106,9 +106,7 @@ struct ccsr_guts {
 	u32	srds2cr1;	/* 0x.0f44 - SerDes2 Control Register 0 */
 } __attribute__ ((packed));
 
-#ifdef CONFIG_FSL_GUTS
-extern u32 guts_get_svr(void);
-#endif
+u32 fsl_guts_get_svr(void);
 
 /* Alternate function signal multiplex control */
 #define MPC85xx_PMUXCR_QE(x) (0x8000 >> (x))

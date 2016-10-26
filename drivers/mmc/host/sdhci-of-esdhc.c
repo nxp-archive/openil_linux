@@ -961,7 +961,7 @@ static void esdhc_init(struct platform_device *pdev, struct sdhci_host *host)
 			     GFP_KERNEL);
 	pltfm_host->priv = esdhc;
 
-	svr = guts_get_svr();
+	svr = fsl_guts_get_svr();
 	esdhc->soc_ver = SVR_SOC_VER(svr);
 	esdhc->soc_rev = SVR_REV(svr);
 

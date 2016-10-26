@@ -14,6 +14,7 @@
 #include <linux/spinlock.h>
 #include <linux/sys_soc.h>
 #include <linux/err.h>
+#include <linux/glob.h>
 
 static DEFINE_IDA(soc_ida);
 static DEFINE_SPINLOCK(soc_lock);
@@ -179,3 +180,66 @@ static void __exit soc_bus_unregister(void)
 	bus_unregister(&soc_bus_type);
 }
 module_exit(soc_bus_unregister);
+
+static int soc_device_match_one(struct device *dev, void *arg)
+{
+	struct soc_device *soc_dev = container_of(dev, struct soc_device, dev);
+	const struct soc_device_attribute *match = arg;
+
+	if (match->machine &&
+	    !glob_match(match->machine, soc_dev->attr->machine))
+		return 0;
+
+	if (match->family &&
+	    !glob_match(match->family, soc_dev->attr->family))
+		return 0;
+
+	if (match->revision &&
+	    !glob_match(match->revision, soc_dev->attr->revision))
+		return 0;
+
+	if (match->soc_id &&
+	    !glob_match(match->soc_id, soc_dev->attr->soc_id))
+		return 0;
+
+	return 1;
+}
+
+/*
+ * soc_device_match - identify the SoC in the machine
+ * @matches: zero-terminated array of possible matches
+ *
+ * returns the first matching entry of the argument array, or NULL
+ * if none of them match.
+ *
+ * This function is meant as a helper in place of of_match_node()
+ * in cases where either no device tree is available or the information
+ * in a device node is insufficient to identify a particular variant
+ * by its compatible strings or other properties. For new devices,
+ * the DT binding should always provide unique compatible strings
+ * that allow the use of of_match_node() instead.
+ *
+ * The calling function can use the .data entry of the
+ * soc_device_attribute to pass a structure or function pointer for
+ * each entry.
+ */
+const struct soc_device_attribute *soc_device_match(
+	const struct soc_device_attribute *matches)
+{
+	struct device *dev;
+	int ret;
+
+	do {
+		if (!(matches->machine || matches->family ||
+		      matches->revision || matches->soc_id))
+			return NULL;
+		dev = NULL;
+		ret = bus_for_each_dev(&soc_bus_type, dev, (void *)matches,
+				       soc_device_match_one);
+		if (ret)
+			break;
+	} while (matches++);
+
+	return matches;
+}
+EXPORT_SYMBOL_GPL(soc_device_match);

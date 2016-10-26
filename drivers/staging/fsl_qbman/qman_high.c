@@ -126,13 +126,12 @@ struct qman_portal {
 	/* power management data */
 	u32 save_isdr;
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-	/* Keep a shadow copy of the DQRR on LE systems
-	   as the SW needs to do byteswaps of read only
-	   memory.  Must be aligned to the size of the
-	   ring to ensure easy index calcualtions based
-	   on address */
-	struct qm_dqrr_entry shadow_dqrr[QM_DQRR_SIZE]
-	            __attribute__((aligned(512)));
+	/* Keep a shadow copy of the DQRR on LE systems as the SW needs to
+	 * do byte swaps of DQRR read only memory.  First entry must be aligned
+	 * to 2 ** 10 to ensure DQRR index calculations based shadow copy
+	 * address (6 bits for address shift + 4 bits for the DQRR size).
+	 */
+	struct qm_dqrr_entry shadow_dqrr[QM_DQRR_SIZE] __aligned(1024);
 #endif
 };
 
@@ -393,14 +392,14 @@ static inline u64 be48_to_cpu(u64 in)
 }
 static inline void cpu_to_hw_fd(struct qm_fd *fd)
 {
-	fd->addr = cpu_to_be40(fd->addr);
+	fd->opaque_addr = cpu_to_be64(fd->opaque_addr);
 	fd->status = cpu_to_be32(fd->status);
 	fd->opaque = cpu_to_be32(fd->opaque);
 }
 
 static inline void hw_fd_to_cpu(struct qm_fd *fd)
 {
-	fd->addr = be40_to_cpu(fd->addr);
+	fd->opaque_addr = be64_to_cpu(fd->opaque_addr);
 	fd->status = be32_to_cpu(fd->status);
 	fd->opaque = be32_to_cpu(fd->opaque);
 }
@@ -570,10 +569,12 @@ struct qman_portal *qman_create_portal(
 
 	__p = &portal->p;
 
-#ifdef CONFIG_FSL_PAMU
+#if (defined CONFIG_PPC || defined CONFIG_PPC64) && defined CONFIG_FSL_PAMU
         /* PAMU is required for stashing */
         portal->use_eqcr_ci_stashing = ((qman_ip_rev >= QMAN_REV30) ?
-                                                                1 : 0);
+					1 : 0);
+#elif defined(CONFIG_ARM) || defined(CONFIG_ARM64)
+	portal->use_eqcr_ci_stashing = !config->cache_inhibited;
 #else
         portal->use_eqcr_ci_stashing = 0;
 #endif
@@ -1068,7 +1069,6 @@ mr_loop:
 		} else {
 			/* Its a software ERN */
 #ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
-			pr_info("ROY\n");
 			fq = get_fq_table_entry(be32_to_cpu(msg->ern.tag));
 #else
 			fq = (void *)(uintptr_t)be32_to_cpu(msg->ern.tag);
@@ -1136,6 +1136,7 @@ static inline unsigned int __poll_portal_fast(struct qman_portal *p,
 	unsigned int limit = 0;
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 	struct qm_dqrr_entry *shadow;
+	const struct qm_dqrr_entry *orig_dq;
 #endif
 loop:
 	qm_dqrr_pvb_update(&p->p);
@@ -1149,6 +1150,7 @@ loop:
 	   copied and the index stored within the copy */
 	shadow = &p->shadow_dqrr[DQRR_PTR2IDX(dq)];
 	*shadow = *dq;
+	orig_dq = dq;
 	dq = shadow;
 	shadow->fqid = be32_to_cpu(shadow->fqid);
 	shadow->contextB = be32_to_cpu(shadow->contextB);
@@ -1195,9 +1197,15 @@ loop:
 	 * check for HELDACTIVE to cover both. */
 	DPA_ASSERT((dq->stat & QM_DQRR_STAT_FQ_HELDACTIVE) ||
 		(res != qman_cb_dqrr_park));
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	if (res != qman_cb_dqrr_defer)
+		qm_dqrr_cdc_consume_1ptr(&p->p, orig_dq,
+					 (res == qman_cb_dqrr_park));
+#else
 	/* Defer just means "skip it, I'll consume it myself later on" */
 	if (res != qman_cb_dqrr_defer)
 		qm_dqrr_cdc_consume_1ptr(&p->p, dq, (res == qman_cb_dqrr_park));
+#endif
 	/* Move forward */
 	qm_dqrr_next(&p->p);
 	/* Entry processed and consumed, increment our counter. The callback can

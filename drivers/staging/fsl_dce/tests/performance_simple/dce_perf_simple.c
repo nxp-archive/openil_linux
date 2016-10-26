@@ -342,7 +342,7 @@ static int copy_bman_output_to_buffer(struct qm_sg_entry *sg, size_t cpylen,
 		struct qm_sg_entry *s_entry;
 
 		/* read in address of sg table */
-		phy_addr = (dma_addr_t)qm_sg_entry_get64(sg);
+		phy_addr = qm_sg_addr(sg);
 		fsl_dce_unmap(phy_addr);
 		cpumem = phys_to_virt(phy_addr);
 		s_entry = (struct qm_sg_entry *)cpumem;
@@ -351,7 +351,7 @@ static int copy_bman_output_to_buffer(struct qm_sg_entry *sg, size_t cpylen,
 			if (!entry->extension) {
 				u64 to_copy;
 
-				phy_addr = (dma_addr_t)qm_sg_entry_get64(entry);
+				phy_addr = qm_sg_addr(entry);
 				fsl_dce_unmap(phy_addr);
 				cpumem = phys_to_virt(phy_addr);
 				to_copy = min_t(u64, entry->length,
@@ -372,7 +372,7 @@ static int copy_bman_output_to_buffer(struct qm_sg_entry *sg, size_t cpylen,
 				}
 			} else {
 				/* address is pointing to another s/g table */
-				phy_addr = (dma_addr_t)qm_sg_entry_get64(entry);
+				phy_addr = qm_sg_addr(entry);
 				fsl_dce_unmap(phy_addr);
 				cpumem = phys_to_virt(phy_addr);
 				entry = (struct qm_sg_entry *)cpumem;
@@ -390,7 +390,7 @@ static int copy_bman_output_to_buffer(struct qm_sg_entry *sg, size_t cpylen,
 	} else {
 		pr_info("output is simple frame from bman pool %u\n",
 			(u32)sg->bpid);
-		phy_addr = (dma_addr_t)qm_sg_entry_get64(sg);
+		phy_addr = qm_sg_addr(sg);
 		fsl_dce_unmap(phy_addr);
 		cpumem = phys_to_virt(phy_addr);
 		if (cpylen != sg->length) {
