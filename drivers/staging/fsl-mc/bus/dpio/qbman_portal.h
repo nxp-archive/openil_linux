@@ -39,8 +39,7 @@
 /* Management command result codes */
 #define QBMAN_MC_RSLT_OK      0xf0
 
-/* TBD: as of QBMan 4.1, DQRR will be 8 rather than 4! */
-#define QBMAN_DQRR_SIZE 4
+/* QBMan DQRR size is set at runtime in qbman_portal.c */
 
 /* DQRR valid-bit reset bug. See qbman_portal.c::qbman_swp_init(). */
 #define WORKAROUND_DQRR_RESET_BUG
