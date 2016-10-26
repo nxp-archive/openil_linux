@@ -754,16 +754,9 @@ dpa_bp_alloc(struct dpa_bp *dpa_bp)
 		goto pdev_register_failed;
 	}
 
-	err = dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(40));
+	err = dma_coerce_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(40));
 	if (err)
 		goto pdev_mask_failed;
-	if (!pdev->dev.dma_mask)
-		pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
-	else {
-		err = dma_set_mask(&pdev->dev, DMA_BIT_MASK(40));
-		if (err)
-			goto pdev_mask_failed;
-	}
 
 #ifdef CONFIG_FMAN_ARM
 	/* force coherency */
@@ -1641,13 +1634,13 @@ dpa_fd_release(const struct net_device *net_dev, const struct qm_fd *fd)
 	void			*vaddr;
 
 	bmb.opaque = 0;
-	bm_buffer_set64(&bmb, fd->addr);
+	bm_buffer_set64(&bmb, qm_fd_addr(fd));
 
 	dpa_bp = dpa_bpid2pool(fd->bpid);
 	DPA_BUG_ON(!dpa_bp);
 
 	if (fd->format == qm_fd_sg) {
-		vaddr = phys_to_virt(fd->addr);
+		vaddr = phys_to_virt(qm_fd_addr(fd));
 		sgt = vaddr + dpa_fd_offset(fd);
 
 		dma_unmap_single(dpa_bp->dev, qm_fd_addr(fd), dpa_bp->size,

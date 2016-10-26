@@ -102,6 +102,11 @@ static const char rtx[][3] = {
 	[TX] = "TX"
 };
 
+#ifdef CONFIG_ARM64
+bool dpa_4k_issue;
+EXPORT_SYMBOL(dpa_4k_issue);
+#endif
+
 /* BM */
 
 #define DPAA_ETH_MAX_PAD (L1_CACHE_BYTES * 8)
@@ -954,13 +959,19 @@ dpaa_eth_priv_probe(struct platform_device *_of_dev)
 	 * buffer pool, based on FMan port buffer layout;also update
 	 * the maximum buffer size for private ports if necessary
 	 */
-	dpa_bp->size = dpa_bp_size(&buf_layout[RX]);
+#ifdef CONFIG_FSL_DPAA_ETH_JUMBO_FRAME
+	/* On LS1043 we do not allow large buffers due to the 4K errata. */
+	if (unlikely(dpa_4k_errata))
+		dpa_bp->size = dpa_4k_bp_size(&buf_layout[RX]);
+	else
+#endif
+		dpa_bp->size = dpa_bp_size(&buf_layout[RX]);
 
 #ifdef CONFIG_FSL_DPAA_ETH_JUMBO_FRAME
 	/* We only want to use jumbo frame optimization if we actually have
 	 * L2 MAX FRM set for jumbo frames as well.
 	 */
-	if (fm_get_max_frm() < 9600)
+	if (likely(!dpa_4k_errata) && fm_get_max_frm() < 9600)
 		dev_warn(dev,
 			"Invalid configuration: if jumbo frames support is on, FSL_FM_MAX_FRAME_SIZE should be set to 9600\n");
 #endif
@@ -1145,6 +1156,11 @@ static int __init __cold dpa_load(void)
 	dpa_rx_extra_headroom = fm_get_rx_extra_headroom();
 	dpa_max_frm = fm_get_max_frm();
 	dpa_num_cpus = num_possible_cpus();
+
+#ifdef CONFIG_ARM64
+	/* Detect if the current SoC requires the 4K alignment workaround */
+	dpa_4k_issue = check_4k_issue_soc();
+#endif
 
 #ifdef CONFIG_FSL_DPAA_DBG_LOOP
 	memset(dpa_loop_netdevs, 0, sizeof(dpa_loop_netdevs));

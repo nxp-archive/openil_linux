@@ -63,7 +63,6 @@ config FSL_DPAA_GENERIC_DRIVER
 
 config FSL_DPAA_ETH_JUMBO_FRAME
 	bool "Optimize for jumbo frames"
-	depends on !ARM64
 	default n
 	---help---
 	  Optimize the DPAA Ethernet driver throughput for large frames

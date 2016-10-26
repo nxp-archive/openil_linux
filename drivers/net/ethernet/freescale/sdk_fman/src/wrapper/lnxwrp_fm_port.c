@@ -104,18 +104,14 @@ static enum qman_cb_dqrr_result qm_tx_conf_dqrr_cb(struct qman_portal *portal,
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 {
 	/* extract the HC frame address */
-#ifdef CONFIG_ARM
-	uint32_t *hcf_va = XX_PhysToVirt(((struct qm_fd *)&dq->fd)->addr);
-#else
-	uint64_t hcf_va = (uint64_t)XX_PhysToVirt(qm_fd_addr((struct qm_fd *)&dq->fd));
-#endif
+	uint32_t *hcf_va = XX_PhysToVirt(qm_fd_addr((struct qm_fd *)&dq->fd));
 	int hcf_l = ((struct qm_fd *)&dq->fd)->length20;
 	int i;
 
 	/* 32b byteswap of all data in the HC Frame */
 	for(i = 0; i < hcf_l / 4; ++i)
-		((uint32_t *)(hcf_va))[i] =
-			___constant_swab32(((uint32_t *)(hcf_va))[i]);
+		hcf_va[i] =
+			___constant_swab32(hcf_va[i]);
 }
 #endif
 	FM_PCD_HcTxConf(p_LnxWrpFmDev->h_PcdDev, (t_DpaaFD *)&dq->fd);
@@ -232,18 +228,14 @@ static t_Error QmEnqueueCB(t_Handle h_Arg, void *p_Fd)
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 {
 	/* extract the HC frame address */
-#ifdef CONFIG_ARM
-	uint32_t *hcf_va = XX_PhysToVirt(((struct qm_fd *) p_Fd)->addr);
-#else
-	uint64_t hcf_va = (uint64_t)XX_PhysToVirt(qm_fd_addr((struct qm_fd *) p_Fd));
-#endif
+	uint32_t *hcf_va = XX_PhysToVirt(qm_fd_addr((struct qm_fd *) p_Fd));
 	int hcf_l = ((struct qm_fd *)p_Fd)->length20;
 	int i;
 
 	/* 32b byteswap of all data in the HC Frame */
 	for(i = 0; i < hcf_l / 4; ++i)
-		((uint32_t *)(hcf_va))[i] =
-			___constant_swab32(((uint32_t *)(hcf_va))[i]);
+		hcf_va[i] =
+			___constant_swab32(hcf_va[i]);
 }
 #endif
 

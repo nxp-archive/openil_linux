@@ -1212,6 +1212,12 @@ static int dpa_generic_tx_bp_probe(struct platform_device *_of_dev,
 		return -ENOMEM;
 	}
 
+#ifdef CONFIG_FSL_DPAA_ETH_JUMBO_FRAME
+	/* On LS1043 we do not allow large buffers due to the 4K errata. */
+	if (unlikely(dpa_4k_errata))
+		bp->size = dpa_4k_bp_size(buf_layout);
+	else
+#endif
 	bp->size = dpa_bp_size(buf_layout);
 	bp->percpu_count = devm_alloc_percpu(dev, *bp->percpu_count);
 	bp->target_count = CONFIG_FSL_DPAA_ETH_MAX_BUF_COUNT;
@@ -1224,6 +1230,12 @@ static int dpa_generic_tx_bp_probe(struct platform_device *_of_dev,
 		return -ENOMEM;
 	}
 
+#ifdef CONFIG_FSL_DPAA_ETH_JUMBO_FRAME
+	/* On LS1043 we do not allow large buffers due to the 4K errata. */
+	if (unlikely(dpa_4k_errata))
+		bp_sg->size = dpa_4k_bp_size(buf_layout);
+	else
+#endif
 	bp_sg->size = dpa_bp_size(buf_layout);
 	bp_sg->percpu_count = alloc_percpu(*bp_sg->percpu_count);
 	bp_sg->target_count = CONFIG_FSL_DPAA_ETH_MAX_BUF_COUNT;
