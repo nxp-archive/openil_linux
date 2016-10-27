@@ -4,18 +4,23 @@ The RCPM performs all device-level tasks associated with device run control
 and power management.
 
 Required properites:
-  - reg : Offset and length of the register set of RCPM block.
-  - compatible : Sould contain a chip-specific RCPM block compatible string
-	and (if applicable) may contain a chassis-version RCPM compatible string.
-	Chip-specific strings are of the form "fsl,<chip>-rcpm", such as:
+  - reg : Offset and length of the register set of the RCPM block.
+  - fsl,#rcpm-wakeup-cells : The number of IPPDEXPCR register cells in the
+	fsl,rcpm-wakeup property.
+  - compatible : Must contain a chip-specific RCPM block compatible string
+	and (if applicable) may contain a chassis-version RCPM compatible
+	string. Chip-specific strings are of the form "fsl,<chip>-rcpm",
+	such as:
 	* "fsl,p2041-rcpm"
 	* "fsl,p3041-rcpm"
 	* "fsl,p4080-rcpm"
 	* "fsl,p5020-rcpm"
 	* "fsl,p5040-rcpm"
 	* "fsl,t4240-rcpm"
-	* "fsl,b4420-rcpm"
-	* "fsl,b4860-rcpm"
+	* "fsl,ls1012a-rcpm"
+	* "fsl,ls1021a-rcpm"
+	* "fsl,ls1043a-rcpm"
+	* "fsl,ls1046a-rcpm"
 
 	Chassis-version strings are of the form "fsl,qoriq-rcpm-<version>",
 	such as:
@@ -29,28 +34,30 @@ Chassis Version		Example Chips
 ---------------		-------------------------------
 1.0				p4080, p5020, p5040, p2041, p3041
 2.0				t4240, b4860, b4420
-2.1				t1040, ls1021
+2.1				t1040, ls1012, ls1021, ls1043, ls1046
 
 Example:
 The RCPM node for T4240:
 	rcpm: global-utilities@e2000 {
 		compatible = "fsl,t4240-rcpm", "fsl,qoriq-rcpm-2.0";
 		reg = <0xe2000 0x1000>;
-	};
-
-The RCPM node for P4080:
-	rcpm: global-utilities@e2000 {
-		compatible = "fsl,qoriq-rcpm-1.0";
-		reg = <0xe2000 0x1000>;
+		fsl,#rcpm-wakeup-cells = <2>;
 	};
 
 * Freescale RCPM Wakeup Source Device Tree Bindings
 -------------------------------------------
-Required rcpm-wakeup property should be added to a device node if the device
+Required fsl,rcpm-wakeup property should be added to a device node if the device
 can be used as a wakeup source.
 
-  - rcpm-wakeup: should contain a pointer to the rcpm node and the
-	corresponding bit of device in the register.
+  - fsl,rcpm-wakeup: Consists of a phandle to the rcpm node and the IPPDEXPCR
+	register cells. The number of IPPDEXPCR register cells is defined in
+	"fsl,#rcpm-wakeup-cells" in the rcpm node. The first register cell is
+	the bit mask that should be set in IPPDEXPCR0, and the second register
+	cell is for IPPDEXPCR1, and so on.
+
+	Note: IPPDEXPCR(IP Powerdown Exception Control Register) provides a
+	mechanism for keeping certain blocks awake during STANDBY and MEM, in
+	order to use them as wake-up sources.
 
 Example:
 	lpuart0: serial@2950000 {
@@ -59,6 +66,5 @@ Example:
 		interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&sysclk>;
 		clock-names = "ipg";
-		rcpm-wakeup = <&rcpm 0x0 0x40000000>;
-		status = "disabled";
+		fsl,rcpm-wakeup = <&rcpm 0x0 0x40000000>;
 	};

@@ -23,6 +23,7 @@
 #include <linux/pm.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
+#include <linux/suspend.h>
 #include <uapi/linux/psci.h>
 
 #include <asm/acpi.h>
@@ -275,6 +276,35 @@ static void psci_sys_poweroff(void)
 	invoke_psci_fn(PSCI_0_2_FN_SYSTEM_OFF, 0, 0, 0);
 }
 
+static int psci_system_suspend(unsigned long unused)
+{
+	struct psci_power_state state = {
+		.id = 0,
+		.type = PSCI_POWER_STATE_TYPE_POWER_DOWN,
+		.affinity_level = 2, /* system level */
+	};
+
+	return psci_cpu_suspend(state, virt_to_phys(cpu_resume));
+}
+
+static int psci_system_suspend_enter(suspend_state_t state)
+{
+	return cpu_suspend(0, psci_system_suspend);
+}
+
+static const struct platform_suspend_ops psci_suspend_ops = {
+	.valid          = suspend_valid_only_mem,
+	.enter          = psci_system_suspend_enter,
+};
+
+static void __init psci_init_system_suspend(void)
+{
+	if (!IS_ENABLED(CONFIG_SUSPEND))
+		return;
+
+	suspend_set_ops(&psci_suspend_ops);
+}
+
 static void __init psci_0_2_set_functions(void)
 {
 	pr_info("Using standard PSCI v0.2 function IDs\n");
@@ -329,6 +359,8 @@ static int __init psci_probe(void)
 	}
 
 	psci_0_2_set_functions();
+
+	psci_init_system_suspend();
 
 	return 0;
 }

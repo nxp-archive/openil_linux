@@ -1,0 +1,72 @@
+* Freescale Layerscape SCFG PCIe MSI controller
+
+Layerscape SoCs may have one or multiple MSI controllers.
+Each MSI controller must be showed as a child node.
+
+Required properties:
+
+- compatible: should be "fsl,ls-scfg-msi"
+- #address-cells: must be 2
+- #size-cells: must be 2
+- ranges: allows valid 1:1 translation between child's address space and
+	  parent's address space
+- msi-controller: indicates that this is a PCIe MSI controller node
+
+Required child node:
+A child node must exist to represent the MSI controller.
+The following are properties specific to those nodes:
+
+- reg: physical base address of the controller and length of memory mapped.
+- interrupts: an interrupt to the parent interrupt controller.
+
+Optional properties:
+- interrupt-parent: the phandle to the parent interrupt controller.
+
+
+Notes:
+This interrupt controller hardware is a second level interrupt controller that
+is hooked to a parent interrupt controller: e.g: ARM GIC for ARM-based
+platforms. If interrupt-parent is not provided, the default parent interrupt
+controller will be used.
+Each PCIe node needs to have property msi-parent that points to
+MSI controller node
+
+Examples:
+
+	msi: msi-controller {
+		compatible = "fsl,ls-scfg-msi";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+		msi-controller;
+
+		msi0@1580000 {
+			reg = <0x0 0x1580000 0x0 0x10000>;
+			interrupts = <0 116 0x4>,
+				     <0 111 0x4>,
+				     <0 112 0x4>,
+				     <0 113 0x4>;
+		};
+
+		msi1@1590000 {
+			reg = <0x0 0x1590000 0x0 0x10000>;
+			interrupts = <0 126 0x4>,
+				     <0 121 0x4>,
+				     <0 122 0x4>,
+				     <0 123 0x4>;
+		};
+
+		msi2@15a0000 {
+			reg = <0x0 0x15a0000 0x0 0x10000>;
+			interrupts = <0 160 0x4>,
+				     <0 155 0x4>,
+				     <0 156 0x4>,
+				     <0 157 0x4>;
+		};
+	};
+
+	pcie@3400000 {
+			...
+			msi-parent = <&msi>;
+			...
+	};
