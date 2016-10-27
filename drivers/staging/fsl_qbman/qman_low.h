@@ -449,8 +449,10 @@ do { \
 #define EQCR_COMMIT_CHECKS(eqcr) \
 do { \
 	DPA_ASSERT(eqcr->busy); \
-	DPA_ASSERT(eqcr->cursor->orp == (eqcr->cursor->orp & 0x00ffffff)); \
-	DPA_ASSERT(eqcr->cursor->fqid == (eqcr->cursor->fqid & 0x00ffffff)); \
+	DPA_ASSERT(eqcr->cursor->orp == (eqcr->cursor->orp & \
+					cpu_to_be32(0x00ffffff))); \
+	DPA_ASSERT(eqcr->cursor->fqid == (eqcr->cursor->fqid & \
+					cpu_to_be32(0x00ffffff))); \
 } while (0)
 #endif
 

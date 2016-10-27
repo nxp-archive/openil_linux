@@ -480,7 +480,7 @@ static inline void qman_stop_dequeues_ex(struct qman_portal *p)
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 }
 
-static int drain_mr(struct qm_portal *p)
+static int drain_mr_fqrni(struct qm_portal *p)
 {
 	const struct qm_mr_entry *msg;
 loop:
@@ -505,6 +505,11 @@ loop:
 		msg = qm_mr_current(p);
 		if (!msg)
 			return 0;
+	}
+	if ((msg->verb & QM_MR_VERB_TYPE_MASK) != QM_MR_VERB_FQRNI) {
+		/* We aren't draining anything but FQRNIs */
+		pr_err("QMan found verb 0x%x in MR\n", msg->verb);
+		return -1;
 	}
 	qm_mr_next(p);
 	qm_mr_cci_consume(p, 1);
@@ -705,9 +710,23 @@ struct qman_portal *qman_create_portal(
 	}
 	isdr ^= (QM_PIRQ_DQRI | QM_PIRQ_MRI);
 	qm_isr_disable_write(__p, isdr);
-	while (qm_dqrr_current(__p) != NULL)
+	if (qm_dqrr_current(__p) != NULL) {
+		pr_err("Qman DQRR unclean\n");
 		qm_dqrr_cdc_consume_n(__p, 0xffff);
-	drain_mr(__p);
+	}
+	if (qm_mr_current(__p) != NULL) {
+		/* special handling, drain just in case it's a few FQRNIs */
+		if (drain_mr_fqrni(__p)) {
+			const struct qm_mr_entry *e = qm_mr_current(__p);
+			/*
+			 * Message ring cannot be empty no need to check
+			 * qm_mr_current returned successfully
+			 */
+			pr_err("Qman MR unclean, MR VERB 0x%x, rc 0x%x\n, addr 0x%x",
+				e->verb, e->ern.rc, e->ern.fd.addr_lo);
+			goto fail_dqrr_mr_empty;
+		}
+	}
 	/* Success */
 	portal->config = config;
 	qm_isr_disable_write(__p, 0);
@@ -715,6 +734,7 @@ struct qman_portal *qman_create_portal(
 	/* Write a sane SDQCR */
 	qm_dqrr_sdqcr_set(__p, portal->sdqcr);
 	return portal;
+fail_dqrr_mr_empty:
 fail_eqcr_empty:
 fail_affinity:
 	free_irq(config->public_cfg.irq, portal);
@@ -904,6 +924,7 @@ static inline void fq_state_change(struct qman_portal *p, struct qman_fq *fq,
 static u32 __poll_portal_slow(struct qman_portal *p, u32 is)
 {
 	const struct qm_mr_entry *msg;
+	struct qm_mr_entry swapped_msg;
 
 	if (is & QM_PIRQ_CSCI) {
 		struct qman_cgrs rr, c;
@@ -1020,6 +1041,8 @@ mr_loop:
 		msg = qm_mr_current(&p->p);
 		if (!msg)
 			goto mr_done;
+		swapped_msg = *msg;
+		hw_fd_to_cpu(&swapped_msg.ern.fd);
 		verb = msg->verb & QM_MR_VERB_TYPE_MASK;
 		/* The message is a software ERN iff the 0x20 bit is set */
 		if (verb & 0x20) {
@@ -1032,9 +1055,9 @@ mr_loop:
 				/* Lookup in the retirement table */
 				fq = table_find_fq(p, be32_to_cpu(msg->fq.fqid));
 				BUG_ON(!fq);
-				fq_state_change(p, fq, msg, verb);
+				fq_state_change(p, fq, &swapped_msg, verb);
 				if (fq->cb.fqs)
-					fq->cb.fqs(p, fq, msg);
+					fq->cb.fqs(p, fq, &swapped_msg);
 				break;
 			case QM_MR_VERB_FQPN:
 				/* Parked */
@@ -1047,7 +1070,7 @@ mr_loop:
 #endif
 				fq_state_change(p, fq, msg, verb);
 				if (fq->cb.fqs)
-					fq->cb.fqs(p, fq, msg);
+					fq->cb.fqs(p, fq, &swapped_msg);
 				break;
 			case QM_MR_VERB_DC_ERN:
 				/* DCP ERN */
@@ -1073,7 +1096,7 @@ mr_loop:
 #else
 			fq = (void *)(uintptr_t)be32_to_cpu(msg->ern.tag);
 #endif
-			fq->cb.ern(p, fq, msg);
+			fq->cb.ern(p, fq, &swapped_msg);
 		}
 		num++;
 		qm_mr_next(&p->p);
@@ -1239,8 +1262,15 @@ int qman_p_irqsource_add(struct qman_portal *p, u32 bits __maybe_unused)
 	else
 #endif
 	{
+		bits = bits & QM_PIRQ_VISIBLE;
 		PORTAL_IRQ_LOCK(p, irqflags);
-		set_bits(bits & QM_PIRQ_VISIBLE, &p->irq_sources);
+
+		/* Clear any previously remaining interrupt conditions in
+		 * QCSP_ISR. This prevents raising a false interrupt when
+		 * interrupt conditions are enabled in QCSP_IER.
+		 */
+		qm_isr_status_clear(&p->p, bits);
+		set_bits(bits, &p->irq_sources);
 		qm_isr_enable_write(&p->p, p->irq_sources);
 		PORTAL_IRQ_UNLOCK(p, irqflags);
 	}
@@ -2010,7 +2040,7 @@ int qman_query_fq(struct qman_fq *fq, struct qm_fqd *fqd)
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_MCR_VERB_QUERYFQ);
 	res = mcr->result;
 	if (res == QM_MCR_RESULT_OK)
-		memcpy_fromio(fqd, &mcr->queryfq.fqd, sizeof(*fqd));
+		*fqd = mcr->queryfq.fqd;
 	hw_fqd_to_cpu(fqd);
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
@@ -2037,7 +2067,7 @@ int qman_query_fq_np(struct qman_fq *fq, struct qm_mcr_queryfq_np *np)
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_MCR_VERB_QUERYFQ_NP);
 	res = mcr->result;
 	if (res == QM_MCR_RESULT_OK) {
-		memcpy_fromio(np, &mcr->queryfq_np, sizeof(*np));
+		*np = mcr->queryfq_np;
 		np->fqd_link = be24_to_cpu(np->fqd_link);
 		np->odp_seq = be16_to_cpu(np->odp_seq);
 		np->orp_nesn = be16_to_cpu(np->orp_nesn);
@@ -2055,10 +2085,7 @@ int qman_query_fq_np(struct qman_fq *fq, struct qm_mcr_queryfq_np *np)
 		np->od1_sfdr = be16_to_cpu(np->od1_sfdr);
 		np->od2_sfdr = be16_to_cpu(np->od2_sfdr);
 		np->od3_sfdr = be16_to_cpu(np->od3_sfdr);
-
-
 	}
-
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
 	if (res == QM_MCR_RESULT_ERR_FQID)
@@ -2124,7 +2151,7 @@ int qman_testwrite_cgr(struct qman_cgr *cgr, u64 i_bcnt,
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_MCC_VERB_CGRTESTWRITE);
 	res = mcr->result;
 	if (res == QM_MCR_RESULT_OK)
-		memcpy_fromio(result,  &mcr->cgrtestwrite, sizeof(*result));
+		*result = mcr->cgrtestwrite;
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
 	if (res != QM_MCR_RESULT_OK) {
@@ -2153,7 +2180,7 @@ int qman_query_cgr(struct qman_cgr *cgr, struct qm_mcr_querycgr *cgrd)
 	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_MCC_VERB_QUERYCGR);
 	res = mcr->result;
 	if (res == QM_MCR_RESULT_OK)
-		memcpy_fromio(cgrd, &mcr->querycgr, sizeof(*cgrd));
+		*cgrd = mcr->querycgr;
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
 	if (res != QM_MCR_RESULT_OK) {
@@ -2896,6 +2923,10 @@ int qman_create_cgr_to_dcp(struct qman_cgr *cgr, u32 flags, u16 dcp_portal,
 	struct qm_mcr_querycgr cgr_state;
 	int ret;
 
+	if ((qman_ip_rev & 0xFF00) < QMAN_REV30) {
+		pr_warn("This QMan version doesn't support to send CSCN to DCP portal\n");
+		return -EINVAL;
+	}
 	/* We have to check that the provided CGRID is within the limits of the
 	 * data-structures, for obvious reasons. However we'll let h/w take
 	 * care of determining whether it's within the limits of what exists on
@@ -3781,6 +3812,10 @@ int qman_ceetm_lni_enable_shaper(struct qm_ceetm_lni *lni, int coupled,
 {
 	struct qm_mcc_ceetm_mapping_shaper_tcfc_config config_opts;
 
+	if (lni->shaper_enable) {
+		pr_err("The shaper has already been enabled\n");
+		return -EINVAL;
+	}
 	lni->shaper_enable = 1;
 	lni->shaper_couple = coupled;
 	lni->oal = oal;
@@ -3812,11 +3847,14 @@ int qman_ceetm_lni_disable_shaper(struct qm_ceetm_lni *lni)
 		return -EINVAL;
 	}
 
-	config_opts.cid = CEETM_COMMAND_LNI_SHAPER | lni->idx;
+	config_opts.cid = cpu_to_be16(CEETM_COMMAND_LNI_SHAPER | lni->idx);
 	config_opts.dcpid = lni->dcp_idx;
-	config_opts.shaper_config.cpl = (lni->shaper_couple << 7) | lni->oal;
-	config_opts.shaper_config.crtbl = lni->cr_token_bucket_limit;
-	config_opts.shaper_config.ertbl = lni->er_token_bucket_limit;
+	config_opts.shaper_config.cpl = lni->shaper_couple;
+	config_opts.shaper_config.oal = lni->oal;
+	config_opts.shaper_config.crtbl =
+					cpu_to_be16(lni->cr_token_bucket_limit);
+	config_opts.shaper_config.ertbl =
+					cpu_to_be16(lni->er_token_bucket_limit);
 	/* Set CR/ER rate with all 1's to configure an infinite rate, thus
 	 * disable the shaping.
 	 */
@@ -4222,18 +4260,21 @@ int qman_ceetm_channel_enable_shaper(struct qm_ceetm_channel *channel,
 	}
 
 	config_opts.cid = cpu_to_be16(CEETM_COMMAND_CHANNEL_SHAPER |
-							channel->idx);
+						channel->idx);
 	config_opts.shaper_config.cpl = coupled;
-	config_opts.shaper_config.crtcr = cpu_to_be24((channel->cr_token_rate.
-					whole << 13) |
-					channel->cr_token_rate.fraction);
-	config_opts.shaper_config.ertcr = cpu_to_be24((channel->er_token_rate.
-					whole << 13) |
-					channel->er_token_rate.fraction);
+	config_opts.shaper_config.crtcr =
+				cpu_to_be24((channel->cr_token_rate.whole
+				<< 13) |
+				channel->cr_token_rate.fraction);
+	config_opts.shaper_config.ertcr =
+				cpu_to_be24(channel->er_token_rate.whole
+				<< 13 |
+				channel->er_token_rate.fraction);
 	config_opts.shaper_config.crtbl =
 				cpu_to_be16(channel->cr_token_bucket_limit);
 	config_opts.shaper_config.ertbl =
 				cpu_to_be16(channel->er_token_bucket_limit);
+
 	return qman_ceetm_configure_mapping_shaper_tcfc(&config_opts);
 }
 EXPORT_SYMBOL(qman_ceetm_channel_enable_shaper);
@@ -5040,7 +5081,7 @@ int qman_ceetm_get_queue_weight_in_ratio(struct qm_ceetm_cq *cq, u32 *ratio)
 		return -EINVAL;
 	}
 
-	*ratio = (n * (u32)100) / d;
+	*ratio = (n * 100) / d;
 	return 0;
 }
 EXPORT_SYMBOL(qman_ceetm_get_queue_weight_in_ratio);
@@ -5161,10 +5202,11 @@ int qman_ceetm_lfq_set_context(struct qm_ceetm_lfq *lfq, u64 context_a,
 	struct qm_mcc_ceetm_dct_config dct_config;
 	lfq->context_a = context_a;
 	lfq->context_b = context_b;
-	dct_config.dctidx = cpu_to_be16(lfq->dctidx);
+	dct_config.dctidx = cpu_to_be16((u16)lfq->dctidx);
 	dct_config.dcpid = lfq->parent->dcp_idx;
 	dct_config.context_b = cpu_to_be32(context_b);
 	dct_config.context_a = cpu_to_be64(context_a);
+
 	return qman_ceetm_configure_dct(&dct_config);
 }
 EXPORT_SYMBOL(qman_ceetm_lfq_set_context);
@@ -5202,6 +5244,7 @@ int qman_ceetm_create_fq(struct qm_ceetm_lfq *lfq, struct qman_fq *fq)
 }
 EXPORT_SYMBOL(qman_ceetm_create_fq);
 
+#define MAX_CCG_IDX 0x000F
 int qman_ceetm_ccg_claim(struct qm_ceetm_ccg **ccg,
 				struct qm_ceetm_channel *channel,
 				unsigned int idx,
@@ -5212,7 +5255,7 @@ int qman_ceetm_ccg_claim(struct qm_ceetm_ccg **ccg,
 {
 	struct qm_ceetm_ccg *p;
 
-	if (idx > 15) {
+	if (idx > MAX_CCG_IDX) {
 		pr_err("The given ccg index is out of range\n");
 		return -EINVAL;
 	}
@@ -5526,14 +5569,13 @@ int qman_ceetm_querycongestion(struct __qm_mcr_querycongestion *ccg_state,
 		if (res == QM_MCR_RESULT_OK) {
 			for (j = 0; j < 8; j++)
 				mcr->ccgr_query.congestion_state.state.
-				__state[j] =
-					be32_to_cpu(mcr->ccgr_query.
+				__state[j] = be32_to_cpu(mcr->ccgr_query.
 					congestion_state.state.__state[j]);
-
 			*(ccg_state + i) =
 				mcr->ccgr_query.congestion_state.state;
 		} else {
 			pr_err("QUERY CEETM CONGESTION STATE failed\n");
+			PORTAL_IRQ_UNLOCK(p, irqflags);
 			return -EIO;
 		}
 	}
