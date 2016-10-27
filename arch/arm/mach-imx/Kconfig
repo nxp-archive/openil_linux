@@ -618,7 +618,6 @@ config SOC_LS1021A
 	select ARM_GIC
 	select HAVE_ARM_ARCH_TIMER
 	select PCI_DOMAINS if PCI
-	select LS1_MSI if PCI_MSI
 	select ZONE_DMA if ARM_LPAE
 	select PLATFORM_VENDOR_FREESCALE if PM
 	select FSL_SLEEP_FSM if PM

@@ -94,6 +94,7 @@ struct ls_pcie_pm_ops {
 struct ls_pcie_drvdata {
 	u32 lut_offset;
 	u32 ltssm_shift;
+	u32 lut_dbg;
 	struct pcie_host_ops *ops;
 	struct ls_pcie_pm_ops *pm;
 };
@@ -302,7 +303,7 @@ static int ls_pcie_link_up(struct pcie_port *pp)
 	struct ls_pcie *pcie = to_ls_pcie(pp);
 	u32 state;
 
-	state = (ioread32(pcie->lut + PCIE_LUT_DBG) >>
+	state = (ioread32(pcie->lut + pcie->drvdata->lut_dbg) >>
 		 pcie->drvdata->ltssm_shift) &
 		 LTSSM_STATE_MASK;
 
@@ -314,7 +315,7 @@ static int ls_pcie_link_up(struct pcie_port *pp)
 
 static u32 ls_pcie_get_link_state(struct ls_pcie *pcie)
 {
-	return (ioread32(pcie->lut + PCIE_LUT_DBG) >>
+	return (ioread32(pcie->lut + pcie->drvdata->lut_dbg) >>
 		 pcie->drvdata->ltssm_shift) &
 		 LTSSM_STATE_MASK;
 }
@@ -385,6 +386,15 @@ static struct ls_pcie_drvdata ls1021_drvdata = {
 static struct ls_pcie_drvdata ls1043_drvdata = {
 	.lut_offset = 0x10000,
 	.ltssm_shift = 24,
+	.lut_dbg = 0x7fc,
+	.ops = &ls_pcie_host_ops,
+	.pm = &ls_pcie_host_pm_ops,
+};
+
+static struct ls_pcie_drvdata ls1046_drvdata = {
+	.lut_offset = 0x80000,
+	.ltssm_shift = 24,
+	.lut_dbg = 0x407fc,
 	.ops = &ls_pcie_host_ops,
 	.pm = &ls_pcie_host_pm_ops,
 };
@@ -392,6 +402,7 @@ static struct ls_pcie_drvdata ls1043_drvdata = {
 static struct ls_pcie_drvdata ls2080_drvdata = {
 	.lut_offset = 0x80000,
 	.ltssm_shift = 0,
+	.lut_dbg = 0x7fc,
 	.ops = &ls_pcie_host_ops,
 	.pm = &ls_pcie_host_pm_ops,
 };
@@ -399,6 +410,7 @@ static struct ls_pcie_drvdata ls2080_drvdata = {
 static const struct of_device_id ls_pcie_of_match[] = {
 	{ .compatible = "fsl,ls1021a-pcie", .data = &ls1021_drvdata },
 	{ .compatible = "fsl,ls1043a-pcie", .data = &ls1043_drvdata },
+	{ .compatible = "fsl,ls1046a-pcie", .data = &ls1046_drvdata },
 	{ .compatible = "fsl,ls2080a-pcie", .data = &ls2080_drvdata },
 	{ .compatible = "fsl,ls2085a-pcie", .data = &ls2080_drvdata },
 	{ },

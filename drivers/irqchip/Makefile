@@ -47,4 +47,4 @@ obj-$(CONFIG_KEYSTONE_IRQ)		+= irq-keystone.o
 obj-$(CONFIG_MIPS_GIC)			+= irq-mips-gic.o
 obj-$(CONFIG_ARCH_MEDIATEK)		+= irq-mtk-sysirq.o
 obj-$(CONFIG_ARCH_DIGICOLOR)		+= irq-digicolor.o
-obj-$(CONFIG_LS1_MSI)			+= irq-ls1-msi.o
+obj-$(CONFIG_LS_SCFG_MSI)		+= irq-ls-scfg-msi.o irq-ls-scfg-test.o
