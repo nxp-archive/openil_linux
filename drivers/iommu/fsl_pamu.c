@@ -668,7 +668,7 @@ static bool has_erratum_a007907(void)
 {
 	u32 pvr = mfspr(SPRN_PVR);
 
-	if (PVR_VER(pvr) == PVR_VER_E6500 && PVR_REV(pvr) <= 0x20)
+	if (PVR_VER(pvr) == PVR_VER_E6500)
 		return true;
 
 	return false;
