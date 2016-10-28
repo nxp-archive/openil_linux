@@ -184,7 +184,7 @@ int dpa_bp_shared_port_seed(struct dpa_bp *bp)
 	ptr = devres_alloc(devm_ioremap_release, sizeof(*ptr), GFP_KERNEL);
 	if (!ptr)
 		return -EIO;
-#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
+#ifndef CONFIG_PPC
 	bp->vaddr = ioremap_cache_ns(bp->paddr, bp->size * bp->config_count);
 #else
 	bp->vaddr = ioremap_prot(bp->paddr, bp->size * bp->config_count, 0);
