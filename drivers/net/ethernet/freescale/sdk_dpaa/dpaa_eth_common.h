@@ -58,11 +58,10 @@
 #define DPA_SGT_MAX_ENTRIES 16 /* maximum number of entries in SG Table */
 
 #define DPA_SGT_ENTRIES_THRESHOLD	DPA_SGT_MAX_ENTRIES
-#ifdef CONFIG_ARM64
-/* each S/G entry can be divided into two S/G entries */
+#ifndef CONFIG_PPC
+/* each S/G entry can be divided into two S/G entries during errata W/A */
 #define DPA_SGT_4K_ENTRIES_THRESHOLD	7
-#endif /* CONFIG_ARM64 */
-
+#endif
 
 #define DPA_BUFF_RELEASE_MAX 8 /* maximum number of buffers released at once */
 
