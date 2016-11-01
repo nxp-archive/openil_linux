@@ -99,15 +99,13 @@ static int _dpa_bp_add_8_bufs(const struct dpa_bp *dpa_bp)
 		 * We only need enough space to store a pointer, but allocate
 		 * an entire cacheline for performance reasons.
 		 */
-#ifdef CONFIG_ARM64
-		if (unlikely(dpa_4k_errata))
+#ifndef CONFIG_PPC
+		if (unlikely(dpaa_errata_a010022))
 			new_buf = page_address(alloc_page(GFP_ATOMIC));
 		else
-			new_buf = netdev_alloc_frag(SMP_CACHE_BYTES +
-						    DPA_BP_RAW_SIZE);
-#else
-		new_buf = netdev_alloc_frag(SMP_CACHE_BYTES + DPA_BP_RAW_SIZE);
 #endif
+		new_buf = netdev_alloc_frag(SMP_CACHE_BYTES + DPA_BP_RAW_SIZE);
+
 		if (unlikely(!new_buf))
 			goto netdev_alloc_failed;
 		new_buf = PTR_ALIGN(new_buf + SMP_CACHE_BYTES, SMP_CACHE_BYTES);
@@ -240,25 +238,21 @@ struct sk_buff *_dpa_cleanup_tx_fd(const struct dpa_priv_s *priv,
 	if (unlikely(fd->format == qm_fd_sg)) {
 		nr_frags = skb_shinfo(skb)->nr_frags;
 
-#ifdef CONFIG_ARM64
+#ifndef CONFIG_PPC
 /* addressing the 4k DMA issue can yield a larger number of fragments than
  * the skb had
  */
-		if (unlikely(dpa_4k_errata))
+		if (unlikely(dpaa_errata_a010022))
 			dma_unmap_single(dpa_bp->dev, addr, dpa_fd_offset(fd) +
 					 sizeof(struct qm_sg_entry) *
 					 DPA_SGT_MAX_ENTRIES,
 					 dma_dir);
 		else
-			dma_unmap_single(dpa_bp->dev, addr, dpa_fd_offset(fd) +
-					 sizeof(struct qm_sg_entry) *
-					 (1 + nr_frags),
-					 dma_dir);
-#else
+#endif
 		dma_unmap_single(dpa_bp->dev, addr, dpa_fd_offset(fd) +
 				 sizeof(struct qm_sg_entry) * (1 + nr_frags),
 				 dma_dir);
-#endif
+
 		/* The sgt buffer has been allocated with netdev_alloc_frag(),
 		 * it's from lowmem.
 		 */
@@ -282,8 +276,8 @@ struct sk_buff *_dpa_cleanup_tx_fd(const struct dpa_priv_s *priv,
 		sg_addr = qm_sg_addr(&sgt[0]);
 		sg_len = qm_sg_entry_get_len(&sgt[0]);
 		dma_unmap_single(dpa_bp->dev, sg_addr, sg_len, dma_dir);
-#ifdef CONFIG_ARM64
-		if (unlikely(dpa_4k_errata)) {
+#ifndef CONFIG_PPC
+		if (unlikely(dpaa_errata_a010022)) {
 			i = 1;
 			do {
 				DPA_BUG_ON(qm_sg_entry_get_ext(&sgt[i]));
@@ -422,15 +416,13 @@ static struct sk_buff *__hot contig_fd_to_skb(const struct dpa_priv_s *priv,
 	 * warn us that the frame length is larger than the truesize. We
 	 * bypass the warning.
 	 */
-#ifdef CONFIG_ARM64
-	/* We do not support Jumbo frames on LS1043 and thus we do not edit
-	 * the skb truesize when the 4k errata is present.
+#ifndef CONFIG_PPC
+	/* We do not support Jumbo frames on LS1043 and thus we edit
+	 * the skb truesize only when the 4k errata is not present.
 	 */
-	if (likely(!dpa_4k_errata))
-		skb->truesize = SKB_TRUESIZE(dpa_fd_length(fd));
-#else
-	skb->truesize = SKB_TRUESIZE(dpa_fd_length(fd));
+	if (likely(!dpaa_errata_a010022))
 #endif
+	skb->truesize = SKB_TRUESIZE(dpa_fd_length(fd));
 #endif
 
 	DPA_BUG_ON(fd_off != priv->rx_headroom);
@@ -792,7 +784,7 @@ int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 	struct net_device *net_dev = priv->net_dev;
 	int sg_len;
 	int err;
-#ifdef CONFIG_ARM64
+#ifndef CONFIG_PPC
 	dma_addr_t boundary;
 	int k;
 #endif
@@ -806,8 +798,8 @@ int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 	const int nr_frags = skb_shinfo(skb)->nr_frags;
 
 	fd->format = qm_fd_sg;
-#ifdef CONFIG_ARM64
-	if (unlikely(dpa_4k_errata)) {
+#ifndef CONFIG_PPC
+	if (unlikely(dpaa_errata_a010022)) {
 		/* get a page frag to store the SGTable */
 		sgt_buf = netdev_alloc_frag(priv->tx_headroom +
 			sizeof(struct qm_sg_entry) * DPA_SGT_MAX_ENTRIES);
@@ -875,8 +867,8 @@ int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 
 	qm_sg_entry_set64(&sgt[0], addr);
 
-#ifdef CONFIG_ARM64
-	if (unlikely(dpa_4k_errata))
+#ifndef CONFIG_PPC
+	if (unlikely(dpaa_errata_a010022))
 		goto workaround;
 
 	/* populate the rest of SGT entries */
@@ -1003,24 +995,19 @@ bypass_workaround:
 	/* DMA map the SGT page */
 	buffer_start = (void *)sgt - priv->tx_headroom;
 	DPA_WRITE_SKB_PTR(skb, skbh, buffer_start, 0);
-#ifdef CONFIG_ARM64
-	if (unlikely(dpa_4k_errata))
+#ifndef CONFIG_PPC
+	if (unlikely(dpaa_errata_a010022))
 		addr = dma_map_single(dpa_bp->dev, buffer_start,
 				      priv->tx_headroom +
 				      sizeof(struct qm_sg_entry) *
 				      DPA_SGT_MAX_ENTRIES,
 				      dma_dir);
 	else
-		addr = dma_map_single(dpa_bp->dev, buffer_start,
-				      priv->tx_headroom +
-				      sizeof(struct qm_sg_entry) *
-				      (1 + nr_frags),
-				      dma_dir);
-#else
+#endif
 	addr = dma_map_single(dpa_bp->dev, buffer_start, priv->tx_headroom +
 			      sizeof(struct qm_sg_entry) * (1 + nr_frags),
 			      dma_dir);
-#endif
+
 	if (unlikely(dma_mapping_error(dpa_bp->dev, addr))) {
 		dev_err(dpa_bp->dev, "DMA mapping failed");
 		err = -EINVAL;
@@ -1035,8 +1022,8 @@ bypass_workaround:
 
 sgt_map_failed:
 sg_map_failed:
-#ifdef CONFIG_ARM64
-	if (unlikely(dpa_4k_errata))
+#ifndef CONFIG_PPC
+	if (unlikely(dpaa_errata_a010022))
 		for (k = 0; k < j; k++) {
 			sg_addr = qm_sg_addr(&sgt[k]);
 			dma_unmap_page(dpa_bp->dev, sg_addr,
@@ -1125,11 +1112,11 @@ int __hot dpa_tx_extended(struct sk_buff *skb, struct net_device *net_dev,
 	 * Btw, we're using the first sgt entry to store the linear part of
 	 * the skb, so we're one extra frag short.
 	 */
-#ifdef CONFIG_ARM64
+#ifndef CONFIG_PPC
 	if (nonlinear &&
-	    ((unlikely(dpa_4k_errata) &&
+	    ((unlikely(dpaa_errata_a010022) &&
 	      likely(skb_shinfo(skb)->nr_frags < DPA_SGT_4K_ENTRIES_THRESHOLD)) ||
-	    (likely(!dpa_4k_errata) &&
+	    (likely(!dpaa_errata_a010022) &&
 	     likely(skb_shinfo(skb)->nr_frags < DPA_SGT_ENTRIES_THRESHOLD)))) {
 		/* Just create a S/G fd based on the skb */
 		err = skb_to_sg_fd(priv, skb, &fd);
@@ -1180,8 +1167,8 @@ int __hot dpa_tx_extended(struct sk_buff *skb, struct net_device *net_dev,
 			/* Common out-of-memory error path */
 			goto enomem;
 
-#ifdef CONFIG_ARM64
-		if (unlikely(dpa_4k_errata) &&
+#ifndef CONFIG_PPC
+		if (unlikely(dpaa_errata_a010022) &&
 		    unlikely(HAS_DMA_ISSUE(skb->data, skb->len))) {
 			err = skb_to_sg_fd(priv, skb, &fd);
 			percpu_priv->tx_frag_skbuffs++;

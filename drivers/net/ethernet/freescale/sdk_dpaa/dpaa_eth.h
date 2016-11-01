@@ -34,7 +34,6 @@
 
 #include <linux/netdevice.h>
 #include <linux/fsl_qman.h>	/* struct qman_fq */
-#include <linux/sys_soc.h>	/* soc_device_match */
 
 #include "fm_ext.h"
 #include "dpaa_eth_trace.h"
@@ -99,15 +98,15 @@ struct dpa_buffer_layout_s {
  * space to account for further alignments.
  */
 #define DPA_MAX_FRM_SIZE	9600
+#ifdef PPC
 #define DPA_BP_RAW_SIZE \
 	((DPA_MAX_FRM_SIZE + DPA_MAX_FD_OFFSET + \
 	  sizeof(struct skb_shared_info) + 128) & ~(SMP_CACHE_BYTES - 1))
-#ifdef CONFIG_ARM64
-/* On LS1043 we do not use Jumbo and large buffers due to the 4K errata */
-#define DPA_BP_RAW_SIZE_4K	2048
-#define dpa_4k_bp_size(buffer_layout)	(SKB_WITH_OVERHEAD(DPA_BP_RAW_SIZE_4K) - \
-						SMP_CACHE_BYTES)
-#endif /* CONFIG_ARM64 */
+#else /* CONFIG_PPC */
+#define DPA_BP_RAW_SIZE ((unlikely(dpaa_errata_a010022)) ? 2048 : \
+	((DPA_MAX_FRM_SIZE + DPA_MAX_FD_OFFSET + \
+	  sizeof(struct skb_shared_info) + 128) & ~(SMP_CACHE_BYTES - 1)))
+#endif /* CONFIG_PPC */
 #endif /* CONFIG_FSL_DPAA_ETH_JUMBO_FRAME */
 
 /* This is what FMan is ever allowed to use.
@@ -686,30 +685,13 @@ static inline void _dpa_bp_free_pf(void *addr)
  * than 4K or that exceed 4K alignments.
  */
 
-#ifdef CONFIG_ARM64
-/* Detect the SoC at runtime */
-static inline bool check_4k_issue_soc(void)
-{
-	const struct soc_device_attribute soc_msi_matches[] = {
-		{ .family = "QorIQ LS1043A",
-		  .data = NULL },
-		{ },
-	};
+#ifndef CONFIG_PPC
+extern bool dpaa_errata_a010022; /* SoC affected by A010022 errata */
 
-	if (soc_device_match(soc_msi_matches))
-		return true;
-
-	return false;
-}
-
-extern bool dpa_4k_issue;
-#define dpa_4k_errata	dpa_4k_issue
 #define HAS_DMA_ISSUE(start, size) \
 	(((u64)(start) ^ ((u64)(start) + (u64)(size))) & ~0xFFF)
 #define BOUNDARY_4K(start, size) (((u64)(start) + (u64)(size)) & ~0xFFF)
 
-#else
-#define dpa_4k_errata	false
-#endif  /* CONFIG_ARM64 */
+#endif  /* !CONFIG_PPC */
 
 #endif	/* __DPA_H */

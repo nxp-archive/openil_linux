@@ -57,6 +57,7 @@
 #include <linux/percpu.h>
 #include <linux/dma-mapping.h>
 #include <linux/fsl_bman.h>
+#include <linux/sys_soc.h>      /* soc_device_match */
 
 #include "fsl_fman.h"
 #include "fm_ext.h"
@@ -102,9 +103,9 @@ static const char rtx[][3] = {
 	[TX] = "TX"
 };
 
-#ifdef CONFIG_ARM64
-bool dpa_4k_issue;
-EXPORT_SYMBOL(dpa_4k_issue);
+#ifndef CONFIG_PPC
+bool dpaa_errata_a010022;
+EXPORT_SYMBOL(dpaa_errata_a010022);
 #endif
 
 /* BM */
@@ -959,19 +960,16 @@ dpaa_eth_priv_probe(struct platform_device *_of_dev)
 	 * buffer pool, based on FMan port buffer layout;also update
 	 * the maximum buffer size for private ports if necessary
 	 */
-#ifdef CONFIG_FSL_DPAA_ETH_JUMBO_FRAME
-	/* On LS1043 we do not allow large buffers due to the 4K errata. */
-	if (unlikely(dpa_4k_errata))
-		dpa_bp->size = dpa_4k_bp_size(&buf_layout[RX]);
-	else
-#endif
-		dpa_bp->size = dpa_bp_size(&buf_layout[RX]);
+	dpa_bp->size = dpa_bp_size(&buf_layout[RX]);
 
 #ifdef CONFIG_FSL_DPAA_ETH_JUMBO_FRAME
 	/* We only want to use jumbo frame optimization if we actually have
 	 * L2 MAX FRM set for jumbo frames as well.
 	 */
-	if (likely(!dpa_4k_errata) && fm_get_max_frm() < 9600)
+#ifndef CONFIG_PPC
+	if (likely(!dpaa_errata_a010022))
+#endif
+	if(fm_get_max_frm() < 9600)
 		dev_warn(dev,
 			"Invalid configuration: if jumbo frames support is on, FSL_FM_MAX_FRAME_SIZE should be set to 9600\n");
 #endif
@@ -1142,6 +1140,22 @@ static struct platform_driver dpa_driver = {
 	.remove		= dpa_remove
 };
 
+#ifndef CONFIG_PPC
+static bool __init __cold soc_has_errata_a010022(void)
+{
+	const struct soc_device_attribute soc_msi_matches[] = {
+		{ .family = "QorIQ LS1043A",
+		  .data = NULL },
+		{ },
+	};
+
+	if (soc_device_match(soc_msi_matches))
+		return true;
+
+	return false;
+}
+#endif
+
 static int __init __cold dpa_load(void)
 {
 	int	 _errno;
@@ -1157,9 +1171,9 @@ static int __init __cold dpa_load(void)
 	dpa_max_frm = fm_get_max_frm();
 	dpa_num_cpus = num_possible_cpus();
 
-#ifdef CONFIG_ARM64
+#ifndef CONFIG_PPC
 	/* Detect if the current SoC requires the 4K alignment workaround */
-	dpa_4k_issue = check_4k_issue_soc();
+	dpaa_errata_a010022 = soc_has_errata_a010022();
 #endif
 
 #ifdef CONFIG_FSL_DPAA_DBG_LOOP
