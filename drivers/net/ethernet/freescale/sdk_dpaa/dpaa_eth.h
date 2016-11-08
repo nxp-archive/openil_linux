@@ -98,7 +98,7 @@ struct dpa_buffer_layout_s {
  * space to account for further alignments.
  */
 #define DPA_MAX_FRM_SIZE	9600
-#ifdef PPC
+#ifdef CONFIG_PPC
 #define DPA_BP_RAW_SIZE \
 	((DPA_MAX_FRM_SIZE + DPA_MAX_FD_OFFSET + \
 	  sizeof(struct skb_shared_info) + 128) & ~(SMP_CACHE_BYTES - 1))
