@@ -51,6 +51,7 @@
 #include <linux/msi.h>
 #include <asm/fsl_pamu_stash.h>
 #include <asm/fsl_msi.h>
+#include <linux/math64.h>
 
 #define DRIVER_VERSION  "0.1"
 #define DRIVER_AUTHOR   "Bharat Bhushan <bharat.bhushan@freescale.com>"
@@ -226,7 +227,7 @@ error:
 
 static int iova_to_win(struct vfio_iommu *iommu, dma_addr_t iova)
 {
-	return (int) ((iova - iommu->aperture_start) / iommu->page_size);
+	return (int) div64_u64(iova - iommu->aperture_start, iommu->page_size);
 }
 
 /* Unmap DMA region */
@@ -397,7 +398,7 @@ static int __vfio_dma_map(struct vfio_iommu *iommu, dma_addr_t iova,
 	 */
 	/* total size to be mapped */
 	size = npage << PAGE_SHIFT;
-	nr_subwindows  = size / iommu->page_size;
+	nr_subwindows = div64_u64(size, iommu->page_size);
 	iova_map = iova;
 	iova_end = iova + size;
 
@@ -676,7 +677,7 @@ static int vfio_handle_set_attr(struct vfio_iommu *iommu,
 		}
 		iommu->nsubwindows = pamu_attr->attr_info.windows;
 		size = iommu->aperture_end - iommu->aperture_start + 1;
-		iommu->page_size = size / count;
+		iommu->page_size = div64_u64(size , count);
 		if (iommu_domain_set_attr(iommu->domain,
 				      DOMAIN_ATTR_WINDOWS, &count)) {
 			pr_err("%s Error getting domain windows\n",
