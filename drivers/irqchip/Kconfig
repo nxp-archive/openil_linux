@@ -160,6 +160,6 @@ config MIPS_GIC
 	select MIPS_CM
 
 config LS_SCFG_MSI
-	def_bool y if SOC_LS1021A || ARCH_LAYERSCAPE
+	def_bool y if SOC_LS1021A || ARCH_LAYERSCAPE || ARCH_LAYERSCAPE_AARCH32
 	depends on PCI && PCI_MSI
 	select PCI_MSI_IRQ_DOMAIN
