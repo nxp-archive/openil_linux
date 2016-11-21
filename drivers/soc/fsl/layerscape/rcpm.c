@@ -1,7 +1,7 @@
 /*
  * Run Control and Power Management (RCPM) driver
  *
- * Copyright 2016 NXP Semiconductors
+ * Copyright 2016 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
