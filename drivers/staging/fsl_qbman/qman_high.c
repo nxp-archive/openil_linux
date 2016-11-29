@@ -579,7 +579,7 @@ struct qman_portal *qman_create_portal(
         portal->use_eqcr_ci_stashing = ((qman_ip_rev >= QMAN_REV30) ?
 					1 : 0);
 #elif defined(CONFIG_ARM) || defined(CONFIG_ARM64)
-	portal->use_eqcr_ci_stashing = !config->cache_inhibited;
+	portal->use_eqcr_ci_stashing = 1;
 #else
         portal->use_eqcr_ci_stashing = 0;
 #endif
