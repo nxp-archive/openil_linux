@@ -2299,8 +2299,7 @@ static int __init caam_qi_algapi_init(void)
 	}
 
 	if (!list_empty(&alg_list))
-		dev_info(priv->qidev, "%s algorithms registered in /proc/crypto\n",
-			 (char *)of_get_property(dev_node, "compatible", NULL));
+		dev_info(priv->qidev, "algorithms registered in /proc/crypto\n");
 
 	return err;
 }
