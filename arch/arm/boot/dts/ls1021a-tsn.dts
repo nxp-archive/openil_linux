@@ -118,8 +118,7 @@
 };
 
 &enet2 {
-	tbi-handle = <&tbi1>;
-	phy-handle = <&rgmii_phy0>;
+	fixed-link = <0 1 1000 0 0>;
 	phy-connection-type = "rgmii";
 	status = "ok";
 };
