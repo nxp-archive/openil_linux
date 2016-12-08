@@ -267,19 +267,16 @@
 };
 
 &qspi {
-    num-cs = <2>;
-    bus-num = <0>;
-    status = "okay";
-    fsl,ddr-sampling-point = <4>;
+	num-cs = <2>;
+	status = "okay";
 
-    qflash0: s25fl128s@0 {
-        compatible = "spansion,m25p80";
-        #address-cells = <1>;
-        #size-cells = <1>;
-        spi-max-frequency = <20000000>;
-        ddr-quad-read;
-        reg = <0>;
-    };
+	qflash0: s25fl128s@0 {
+		compatible = "spansion,s25fl129p1";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		spi-max-frequency = <20000000>;
+		reg = <0>;
+	};
 };
 
 &sai2 {
