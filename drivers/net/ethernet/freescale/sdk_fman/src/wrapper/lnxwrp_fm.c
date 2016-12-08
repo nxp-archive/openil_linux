@@ -1081,20 +1081,11 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM"));
 
 #ifndef CONFIG_FMAN_ARM
-    u32 svr = mfspr(SPRN_SVR);
-
-    if (((SVR_SOC_VER(svr) == SVR_T4240 && SVR_REV(svr) > 0x10)) ||
-        ((SVR_SOC_VER(svr) == SVR_T4160 && SVR_REV(svr) > 0x10)) ||
-        ((SVR_SOC_VER(svr) == SVR_T4080 && SVR_REV(svr) > 0x10)) ||
-        (SVR_SOC_VER(svr) == SVR_T1024) ||
-        (SVR_SOC_VER(svr) == SVR_T1023) ||
-        (SVR_SOC_VER(svr) == SVR_T2080) ||
-        (SVR_SOC_VER(svr) == SVR_T2081))
-    {
-        if (FM_ConfigResetOnInitOverrideCallback(p_LnxWrpFmDev->h_Dev, ResetOnInitErrata_A007273) != E_OK)
-            RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM"));
-    }
-#endif
+#ifdef FM_HANG_AT_RESET_MAC_CLK_DISABLED_ERRATA_FMAN_A007273
+	if (FM_ConfigResetOnInitOverrideCallback(p_LnxWrpFmDev->h_Dev, ResetOnInitErrata_A007273) != E_OK)
+		RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM"));
+#endif /* FM_HANG_AT_RESET_MAC_CLK_DISABLED_ERRATA_FMAN_A007273 */
+#endif /* CONFIG_FMAN_ARM */
 
 #ifdef CONFIG_FMAN_P1023
     if (FM_ConfigDmaAidOverride(p_LnxWrpFmDev->h_Dev, TRUE) != E_OK)
