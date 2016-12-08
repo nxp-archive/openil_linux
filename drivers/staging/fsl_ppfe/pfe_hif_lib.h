@@ -155,10 +155,9 @@ struct tx_queue_desc {
 #define PFE_PKT_HEADER_SZ	sizeof(struct hif_hdr)
 #define PFE_BUF_SIZE		2048	/* must be big enough for headroom, pkt size and skb shared info */
 #define PFE_PKT_HEADROOM	128
-#define SKB_SHARED_INFO_SIZE	256    /* At least sizeof(struct skb_shared_info) bytes */
 
-//#define PFE_PKT_SIZE		1544	/* maximum ethernet packet size */
-#define PFE_PKT_SIZE		(PFE_BUF_SIZE - PFE_PKT_HEADROOM - SKB_SHARED_INFO_SIZE)	/* maximum ethernet packet size after reassembly offload*/
+#define SKB_SHARED_INFO_SIZE   (sizeof(struct skb_shared_info))
+#define PFE_PKT_SIZE		(PFE_BUF_SIZE - PFE_PKT_HEADROOM - SKB_SHARED_INFO_SIZE)
 #define MAX_L2_HDR_SIZE		14	/* Not correct for VLAN/PPPoE */
 #define MAX_L3_HDR_SIZE		20	/* Not correct for IPv6 */
 #define MAX_L4_HDR_SIZE		60	/* TCP with maximum options */
