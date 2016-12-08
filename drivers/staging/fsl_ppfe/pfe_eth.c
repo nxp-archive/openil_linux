@@ -2820,9 +2820,10 @@ static int pfe_eth_init_one( struct pfe *pfe, int id )
 
 	/* supported features */
 	dev->hw_features = NETIF_F_SG;
-	/* Enable after checksum offload is validated 
-	dev->hw_features = NETIF_F_RXCSUM | NETIF_F_IP_CSUM |  NETIF_F_IPV6_CSUM |
-				NETIF_F_SG; */
+
+	/*Enable after checksum offload is validated */
+	dev->hw_features = NETIF_F_RXCSUM | NETIF_F_IP_CSUM |
+		NETIF_F_IPV6_CSUM | NETIF_F_SG;
 
 	/* enabled by default */
 	dev->features = dev->hw_features;
