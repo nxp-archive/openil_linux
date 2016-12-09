@@ -579,7 +579,7 @@ struct qman_portal *qman_create_portal(
         portal->use_eqcr_ci_stashing = ((qman_ip_rev >= QMAN_REV30) ?
 					1 : 0);
 #elif defined(CONFIG_ARM) || defined(CONFIG_ARM64)
-	portal->use_eqcr_ci_stashing = !config->cache_inhibited;
+	portal->use_eqcr_ci_stashing = 1;
 #else
         portal->use_eqcr_ci_stashing = 0;
 #endif
@@ -1123,6 +1123,45 @@ static noinline void clear_vdqcr(struct qman_portal *p, struct qman_fq *fq)
 	wake_up(&affine_queue);
 }
 
+/* Copy a DQRR entry ensuring reads reach QBMan in order */
+static inline void safe_copy_dqrr(struct qm_dqrr_entry *dst,
+				  const struct qm_dqrr_entry *src)
+{
+	int i = 0;
+	const u64 *s64 = (u64*)src;
+	u64 *d64 = (u64*)dst;
+
+	/* DQRR only has 32 bytes of valid data so only need to
+	 * copy 4 - 64 bit values */
+	*d64 = *s64;
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
+	{
+		u64 res, zero = 0;
+		/* Create a dependancy after copying first bytes ensures no wrap
+		   transaction generated to QBMan */
+		/* Logical AND the value pointed to by s64 with 0x0 and
+		   store the result in res */
+		asm volatile("and %x[result], %x[in1], %x[in2]"
+			     : [result] "=r" (res)
+			     : [in1] "r" (zero), [in2] "r" (*s64)
+			     : "memory");
+		/* Add res to s64 - this creates a dependancy on the result of
+		   reading the value of s64 before the next read. The side
+		   effect of this is that the core must stall until the first
+		   aligned read is complete therefore preventing a WRAP
+		   transaction to be seen by the QBMan */
+		asm volatile("add %x[result], %x[in1], %x[in2]"
+			     : [result] "=r" (s64)
+			     : [in1] "r" (res), [in2] "r" (s64)
+			     : "memory");
+	}
+#endif
+	/* Copy the last 3 64 bit parts */
+	d64++; s64++;
+	for (;i<3; i++)
+		*d64++ = *s64++;
+}
+
 /* Look: no locks, no irq_save()s, no preempt_disable()s! :-) The only states
  * that would conflict with other things if they ran at the same time on the
  * same cpu are;
@@ -1172,7 +1211,8 @@ loop:
 	   QMan HW will ignore writes the DQRR entry is
 	   copied and the index stored within the copy */
 	shadow = &p->shadow_dqrr[DQRR_PTR2IDX(dq)];
-	*shadow = *dq;
+	/* Use safe copy here to avoid WRAP transaction */
+	safe_copy_dqrr(shadow, dq);
 	orig_dq = dq;
 	dq = shadow;
 	shadow->fqid = be32_to_cpu(shadow->fqid);
