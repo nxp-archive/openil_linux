@@ -72,3 +72,11 @@
 		reg = <0>;
 	};
 };
+
+&esdhc0 {
+	status = "okay";
+};
+
+&esdhc1 {
+	status = "okay";
+};

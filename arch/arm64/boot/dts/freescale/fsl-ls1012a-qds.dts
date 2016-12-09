@@ -174,3 +174,11 @@
 &sai2 {
 	status = "okay";
 };
+
+&esdhc0 {
+	status = "okay";
+};
+
+&esdhc1 {
+	status = "okay";
+};
