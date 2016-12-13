@@ -1096,6 +1096,10 @@ int bman_query_pools(struct bm_pool_state *state)
 		cpu_relax();
 	DPA_ASSERT((mcr->verb & BM_MCR_VERB_CMD_MASK) == BM_MCR_VERB_CMD_QUERY);
 	*state = mcr->query;
+	state->as.state.__state[0] = be32_to_cpu(state->as.state.__state[0]);
+	state->as.state.__state[1] = be32_to_cpu(state->as.state.__state[1]);
+	state->ds.state.__state[0] = be32_to_cpu(state->ds.state.__state[0]);
+	state->ds.state.__state[1] = be32_to_cpu(state->ds.state.__state[1]);
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
 	return 0;
