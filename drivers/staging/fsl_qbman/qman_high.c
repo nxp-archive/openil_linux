@@ -3809,7 +3809,7 @@ int qman_ceetm_lni_release(struct qm_ceetm_lni *lni)
 	config_opts.dcpid = lni->dcp_idx;
 	memset(&config_opts.shaper_config, 0,
 				sizeof(config_opts.shaper_config));
-	return	qman_ceetm_configure_mapping_shaper_tcfc(&config_opts);
+	return qman_ceetm_configure_mapping_shaper_tcfc(&config_opts);
 }
 EXPORT_SYMBOL(qman_ceetm_lni_release);
 
@@ -4198,6 +4198,7 @@ int qman_ceetm_channel_claim(struct qm_ceetm_channel **channel,
 		return -ENOMEM;
 	p->idx = channel_idx;
 	p->dcp_idx = lni->dcp_idx;
+	p->lni_idx = lni->idx;
 	list_add_tail(&p->node, &lni->channels);
 	INIT_LIST_HEAD(&p->class_queues);
 	INIT_LIST_HEAD(&p->ccgs);
@@ -4281,7 +4282,7 @@ int qman_ceetm_channel_enable_shaper(struct qm_ceetm_channel *channel,
 
 	query_opts.cid = cpu_to_be16(CEETM_COMMAND_CHANNEL_MAPPING |
 						channel->idx);
-	query_opts.dcpid = (u8)channel->dcp_idx;
+	query_opts.dcpid = channel->dcp_idx;
 
 	if (qman_ceetm_query_mapping_shaper_tcfc(&query_opts, &query_result)) {
 		pr_err("Can't query channel mapping\n");
