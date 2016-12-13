@@ -3347,7 +3347,7 @@ static int qman_ceetm_query_class_scheduler(struct qm_ceetm_channel *channel,
 	PORTAL_IRQ_LOCK(p, irqflags);
 
 	mcc = qm_mc_start(&p->p);
-	mcc->csch_query.cqcid = channel->idx;
+	mcc->csch_query.cqcid = cpu_to_be16(channel->idx);
 	mcc->csch_query.dcpid = channel->dcp_idx;
 	qm_mc_commit(&p->p, QM_CEETM_VERB_CLASS_SCHEDULER_QUERY);
 	while (!(mcr = qm_mc_result(&p->p)))
@@ -4351,7 +4351,8 @@ int qman_ceetm_channel_is_shaper_enabled(struct qm_ceetm_channel *channel)
 	struct qm_mcc_ceetm_mapping_shaper_tcfc_query query_opts;
 	struct qm_mcr_ceetm_mapping_shaper_tcfc_query query_result;
 
-	query_opts.cid = CEETM_COMMAND_CHANNEL_MAPPING | channel->idx;
+	query_opts.cid = cpu_to_be16(CEETM_COMMAND_CHANNEL_MAPPING |
+						channel->idx);
 	query_opts.dcpid = channel->dcp_idx;
 
 	if (qman_ceetm_query_mapping_shaper_tcfc(&query_opts, &query_result)) {
