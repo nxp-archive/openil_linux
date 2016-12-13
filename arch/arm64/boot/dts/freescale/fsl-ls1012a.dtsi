@@ -432,4 +432,36 @@
 			clocks = <&clockgen 4 0>;
 		};
 	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		pfe_reserved: packetbuffer@83400000 {
+			reg = <0 0x83400000 0 0xc00000>;
+		};
+	};
+
+	pfe: pfe@04000000 {
+		compatible = "fsl,pfe";
+		ranges = <0x0 0x00 0x04000000 0xc00000
+			  0x1 0x00 0x83400000 0xc00000>;
+		reg =   <0x0 0x90500000 0x0 0x10000>,	/* APB 64K */
+			<0x0 0x04000000 0x0 0xc00000>,	/* AXI 16M */
+			<0x0 0x83400000 0x0 0xc00000>,    /* PFE DDR 12M */
+			<0x0 0x10000000 0x0 0x2000>;	/* OCRAM 8K  */
+		fsl,pfe-num-interfaces = < 0x2 >;
+		interrupts = <0 172 0x4>;
+		#interrupt-names = "hifirq";
+		memory-region = <&pfe_reserved>;
+		fsl,pfe-scfg = <&scfg 0>;
+
+		status = "okay";
+		pfe_mac0: ethernet@0 {
+		};
+
+		pfe_mac1: ethernet@1 {
+		};
+	};
 };
