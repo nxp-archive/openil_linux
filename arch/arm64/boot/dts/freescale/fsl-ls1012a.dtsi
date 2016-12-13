@@ -430,6 +430,7 @@
 			reg = <0x0 0x3200000 0x0 0x10000>;
 			interrupts = <0 69 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clockgen 4 0>;
+			dma-coherent;
 		};
 	};
 };
