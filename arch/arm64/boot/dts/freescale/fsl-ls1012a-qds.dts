@@ -51,6 +51,8 @@
 
 	aliases {
 		crypto = &crypto;
+		ethernet0 = &pfe_mac0;
+		ethernet1 = &pfe_mac1;
 	};
 
 	sys_mclk: clock-mclk {
@@ -172,6 +174,48 @@
 		spi-max-frequency = <20000000>;
 		m25p,fast-read;
 		reg = <0>;
+	};
+};
+
+&pfe {
+	status = "okay";
+	ethernet@0 {
+		compatible = "fsl,pfe-gemac-port";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <	0x0 >;	/* GEM_ID */
+		fsl,gemac-bus-id = <0x0>;	/* BUS_ID */
+		fsl,gemac-phy-id = <0x1>;	/* PHY_ID */
+		fsl,mdio-mux-val = <0x3>;
+		local-mac-address = [ 00 1A 2B 3C 4D 5E ];
+		phy-mode = "sgmii-2500";
+		fsl,pfe-gemac-if-name = "eth0";
+		fsl,pfe-phy-if-flags = <0x0>;
+		fsl,pfe-gemac-mode = <0x1B00>; /* GEMAC_SW_CONF | GEMAC_SW_FULL_DUPLEX | GEMAC_SW_SPEED_1G */
+
+		mdio@0 {
+			reg = <0x1>; /* enabled/disabled */
+			fsl,mdio-phy-mask = <0xFFFFFFF9>;
+		};
+	};
+
+	ethernet@1 {
+		compatible = "fsl,pfe-gemac-port";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <	0x1 >;	/* GEM_ID */
+		fsl,gemac-bus-id = < 0x1 >;	/* BUS_ID */
+		fsl,gemac-phy-id = < 0x2 >;	/* PHY_ID */
+		fsl,mdio-mux-val = <0x2>;
+		local-mac-address = [ 00 AA BB CC DD EE ];
+		phy-mode = "sgmii-2500";
+		fsl,pfe-gemac-if-name = "eth1";
+		fsl,pfe-phy-if-flags = <0x0>;
+		fsl,pfe-gemac-mode = <0x1B00>; /* GEMAC_SW_CONF | GEMAC_SW_FULL_DUPLEX | GEMAC_SW_SPEED_1G */
+		mdio@0 {
+			reg = <0x0>; /* enabled/disabled */
+			fsl,mdio-phy-mask = <0xFFFFFFF9>;
+		};
 	};
 };
 

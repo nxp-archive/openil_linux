@@ -124,4 +124,6 @@ source "drivers/staging/fsl_pme2/Kconfig"
 
 source "drivers/staging/fsl_dpa_offload/Kconfig"
 
+source "drivers/staging/fsl_ppfe/Kconfig"
+
 endif # STAGING
