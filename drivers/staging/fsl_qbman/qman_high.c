@@ -3717,7 +3717,7 @@ int qman_ceetm_sp_claim(struct qm_ceetm_sp **sp, enum qm_dc_portal dcp_idx,
 			(dcp_idx == qm_dc_portal_fman1));
 
 	if ((sp_idx < qman_ceetms[dcp_idx].sp_range[0]) ||
-		(sp_idx > (qman_ceetms[dcp_idx].sp_range[0] +
+		(sp_idx >= (qman_ceetms[dcp_idx].sp_range[0] +
 		qman_ceetms[dcp_idx].sp_range[1]))) {
 		pr_err("Sub-portal index doesn't exist\n");
 		return -EINVAL;
@@ -3763,7 +3763,7 @@ int qman_ceetm_lni_claim(struct qm_ceetm_lni **lni, enum qm_dc_portal dcp_idx,
 	struct qm_ceetm_lni *p;
 
 	if ((lni_idx < qman_ceetms[dcp_idx].lni_range[0]) ||
-		(lni_idx > (qman_ceetms[dcp_idx].lni_range[0] +
+		(lni_idx >= (qman_ceetms[dcp_idx].lni_range[0] +
 		qman_ceetms[dcp_idx].lni_range[1]))) {
 		pr_err("The lni index is out of range\n");
 		return -EINVAL;
