@@ -30,11 +30,13 @@
 #define PORT_PHY3	0xB0
 #define PORT_PHY4	0xB4
 #define PORT_PHY5	0xB8
+#define PORT_AXICC	0xBC
 #define PORT_TRANS	0xC8
 
 /* port register default value */
 #define AHCI_PORT_PHY_1_CFG	0xa003fffe
 #define AHCI_PORT_TRANS_CFG	0x08000029
+#define AHCI_PORT_AXICC_CFG	0x3fffffff
 
 /* for ls1021a */
 #define LS1021A_PORT_PHY2	0x28183414
@@ -59,6 +61,7 @@ struct ahci_qoriq_priv {
 	struct ccsr_ahci *reg_base;
 	enum ahci_qoriq_type type;
 	void __iomem *ecc_addr;
+	bool is_dmacoherent;
 };
 
 static const struct of_device_id ahci_qoriq_of_match[] = {
@@ -171,6 +174,8 @@ static int ahci_qoriq_phy_init(struct ahci_host_priv *hpriv)
 		writel(LS1043A_PORT_PHY2, reg_base + PORT_PHY2);
 		writel(LS1043A_PORT_PHY3, reg_base + PORT_PHY3);
 		writel(AHCI_PORT_TRANS_CFG, reg_base + PORT_TRANS);
+		if (qpriv->is_dmacoherent)
+			writel(AHCI_PORT_AXICC_CFG, reg_base + PORT_AXICC);
 		break;
 
 	case AHCI_LS1046A:
@@ -224,6 +229,8 @@ static int ahci_qoriq_probe(struct platform_device *pdev)
 	rc = ahci_platform_enable_resources(hpriv);
 	if (rc)
 		return rc;
+
+	qoriq_priv->is_dmacoherent = of_property_read_bool(np, "dma-coherent");
 
 	hpriv->plat_data = qoriq_priv;
 	rc = ahci_qoriq_phy_init(hpriv);
