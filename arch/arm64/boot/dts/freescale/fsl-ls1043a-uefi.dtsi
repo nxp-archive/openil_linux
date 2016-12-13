@@ -226,7 +226,8 @@
 
 		rcpm: rcpm@1ee2000 {
 			compatible = "fsl,ls1043a-rcpm", "fsl,qoriq-rcpm-2.1";
-			reg = <0x0 0x1ee2000 0x0 0x10000>;
+			reg = <0x0 0x1ee2000 0x0 0x1000>;
+			fsl,#rcpm-wakeup-cells = <1>;
 		};
 
 		ifc: ifc@1530000 {
@@ -917,8 +918,7 @@
 			reg = <0x0 0x29d0000 0x0 0x10000>;
 			interrupts = <0 86 0x4>;
 			big-endian;
-			rcpm-wakeup = <&rcpm 0x0 0x20000000>;
-			status = "okay";
+			fsl,rcpm-wakeup = <&rcpm 0x00020000>;
 		};
 
 		wdog0: wdog@2ad0000 {
