@@ -220,6 +220,34 @@ static int gfar_gsettings(struct net_device *dev, struct ethtool_cmd *cmd)
 	return phy_ethtool_gset(phydev, cmd);
 }
 
+static int gfar_get_eee(struct net_device *dev, struct ethtool_eee *et_eee)
+{
+	struct gfar_private *priv = netdev_priv(dev);
+	struct phy_device *phydev = priv->phydev;
+
+	if (!phydev)
+		return -ENODEV;
+
+	return phy_ethtool_get_eee(phydev, et_eee);
+}
+
+static int gfar_set_eee(struct net_device *dev, struct ethtool_eee *et_eee)
+{
+	struct gfar_private *priv = netdev_priv(dev);
+	struct phy_device *phydev = priv->phydev;
+
+	if (!phydev)
+		return -ENODEV;
+
+	if (et_eee->eee_enabled ||
+	    et_eee->tx_lpi_enabled ||
+	    et_eee->tx_lpi_timer) {
+		return -EOPNOTSUPP;
+	}
+
+	return phy_ethtool_set_eee(phydev, et_eee);
+}
+
 /* Return the length of the register structure */
 static int gfar_reglen(struct net_device *dev)
 {
@@ -1569,6 +1597,8 @@ static int gfar_get_ts_info(struct net_device *dev,
 const struct ethtool_ops gfar_ethtool_ops = {
 	.get_settings = gfar_gsettings,
 	.set_settings = gfar_ssettings,
+	.get_eee = gfar_get_eee,
+	.set_eee = gfar_set_eee,
 	.get_drvinfo = gfar_gdrvinfo,
 	.get_regs_len = gfar_reglen,
 	.get_regs = gfar_get_regs,
