@@ -2974,7 +2974,7 @@ void qman_seed_ceetm1_lfqid_range(u32 lfqid, u32 count);
 	/* ----------------------------- */
 
 /**
- * qman_ceetm_claim_sp - Claims the given sub-portal, provided it is available
+ * qman_ceetm_sp_claim - Claims the given sub-portal, provided it is available
  * to us and configured for traffic-management.
  * @sp: the returned sub-portal object, if successful.
  * @dcp_id: specifies the desired Fman block (and thus the relevant CEETM
@@ -3764,7 +3764,7 @@ int qman_ceetm_cscn_swp_get(struct qm_ceetm_ccg *ccg,
 
 /** qman_ceetm_cscn_dcp_set - Add or remove a direct connect portal from the\
  * target mask.
- * qman_ceetm_cscn_swp_get - Query whether a given direct connect portal index
+ * qman_ceetm_cscn_dcp_get - Query whether a given direct connect portal index
  * is in the cscn target mask.
  * @ccg: the give CCG object.
  * @dcp_idx: the index of the direct connect portal.
@@ -3844,7 +3844,7 @@ int qman_ceetm_query_write_statistics(u16 cid, enum qm_dc_portal dcp_idx,
 int qman_set_wpm(int wpm_enable);
 
 /**
- * qman_get_swp - Query the waterfall power management setting
+ * qman_get_wpm - Query the waterfall power management setting
  *
  * @wpm_enable: boolean, 1 = enable wpm, 0 = disable wpm.
  *
