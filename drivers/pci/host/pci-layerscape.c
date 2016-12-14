@@ -383,6 +383,14 @@ static struct ls_pcie_drvdata ls1021_drvdata = {
 	.pm = &ls1021_pcie_host_pm_ops,
 };
 
+static struct ls_pcie_drvdata ls1012_drvdata = {
+	.lut_offset = 0x80000,
+	.ltssm_shift = 24,
+	.lut_dbg = 0x407fc,
+	.ops = &ls_pcie_host_ops,
+	.pm = &ls_pcie_host_pm_ops,
+};
+
 static struct ls_pcie_drvdata ls1043_drvdata = {
 	.lut_offset = 0x10000,
 	.ltssm_shift = 24,
@@ -408,6 +416,7 @@ static struct ls_pcie_drvdata ls2080_drvdata = {
 };
 
 static const struct of_device_id ls_pcie_of_match[] = {
+	{ .compatible = "fsl,ls1012a-pcie", .data = &ls1012_drvdata },
 	{ .compatible = "fsl,ls1021a-pcie", .data = &ls1021_drvdata },
 	{ .compatible = "fsl,ls1043a-pcie", .data = &ls1043_drvdata },
 	{ .compatible = "fsl,ls1046a-pcie", .data = &ls1046_drvdata },
