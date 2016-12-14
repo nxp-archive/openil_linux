@@ -496,10 +496,21 @@ static inline void hook_usdpaa_tlb1(struct vm_area_struct *vma,
 	int tlb_idx = usdpaa_test_fault(pfn, &phys_addr, &size);
 	if (tlb_idx != -1) {
 		unsigned long va = address & ~(size - 1);
+		unsigned long flags;
+		u32 pid = mfspr(SPRN_PID);
+
 		flush_tlb_mm(vma->vm_mm);
-		settlbcam(tlb_idx, va, phys_addr, size, pte_val(*ptep),
-			  mfspr(SPRN_PID));
-		loadcam_entry(tlb_idx);
+		local_irq_save(flags);
+		book3e_tlb_lock();
+
+		if (!book3e_tlb_exists(va, pid)) {
+			settlbcam(tlb_idx, va, phys_addr, size, pte_val(*ptep),
+				  pid);
+			loadcam_entry(tlb_idx);
+		}
+
+		book3e_tlb_unlock();
+		local_irq_restore(flags);
 	}
 }
 #else

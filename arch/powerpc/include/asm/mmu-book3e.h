@@ -338,6 +338,8 @@ static inline void book3e_tlb_unlock(void)
 {}
 #endif
 
+int book3e_tlb_exists(unsigned long ea, unsigned long pid);
+
 #endif /* !__ASSEMBLY__ */
 
 #endif /* _ASM_POWERPC_MMU_BOOK3E_H_ */

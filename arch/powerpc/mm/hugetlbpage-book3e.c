@@ -51,7 +51,7 @@ static inline int mmu_get_tsize(int psize)
 	return mmu_psize_defs[psize].enc;
 }
 
-static inline int book3e_tlb_exists(unsigned long ea, unsigned long pid)
+int book3e_tlb_exists(unsigned long ea, unsigned long pid)
 {
 	int found = 0;
 
