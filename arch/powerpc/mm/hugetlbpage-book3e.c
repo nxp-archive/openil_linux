@@ -91,6 +91,16 @@ void book3e_hugetlb_preload(struct vm_area_struct *vma, unsigned long ea,
 	if (unlikely(is_kernel_addr(ea)))
 		return;
 
+#ifdef CONFIG_PPC64
+	/*
+	 * Preloading is unnecessary on e6500 because the asm TLB miss
+	 * handler handles it, and if we preloaded anyway we'd need to add an
+	 * A-008139 erratum workaround here.
+	 */
+	if (book3e_htw_mode == PPC_HTW_E6500)
+		return;
+#endif
+
 	mm = vma->vm_mm;
 
 #ifdef CONFIG_PPC_MM_SLICES

@@ -515,6 +515,46 @@ _GLOBAL(restore_to_as0)
  * Must preserve r7, r8, r9, and r10
  */
 _GLOBAL(loadcam_entry)
+#ifdef CONFIG_PPC64
+BEGIN_FTR_SECTION		/* CPU_FTR_SMT */
+	rlwinm	r5,r3,16,0xff0000
+	oris	r5,r5,MAS0_TLBSEL(1)@h
+	mtspr	SPRN_MAS0,r10
+	isync
+	tlbre
+	mfspr	r5,SPRN_MAS1
+	andis.	r5,r5,MAS1_VALID@h
+	beq	5f
+
+BEGIN_FTR_SECTION_NESTED(532)
+	mfspr	r5,SPRN_MAS8
+	rlwinm	r5,r5,0,0x80000fff  /* tgs,tlpid -> sgs,slpid */
+	mtspr	SPRN_MAS5,r5
+END_FTR_SECTION_NESTED(CPU_FTR_EMB_HV,CPU_FTR_EMB_HV,532)
+
+	mfspr	r5,SPRN_MAS1
+	rlwinm	r6,r5,0,0x3fff0000  /* tid -> spid */
+	rlwimi	r6,r5,20,0x00000003 /* ind,ts -> sind,sas */
+	mfspr	r5,SPRN_MAS6
+	mtspr	SPRN_MAS6,r6
+
+	mfspr	r6,SPRN_MAS2
+	isync
+	tlbilxva 0,r6
+	isync
+
+	mtspr	SPRN_MAS6,r5
+
+5:
+BEGIN_FTR_SECTION_NESTED(532)
+	li	r5,0
+	mtspr	SPRN_MAS8,r5
+	mtspr	SPRN_MAS5,r5
+END_FTR_SECTION_NESTED(CPU_FTR_EMB_HV,CPU_FTR_EMB_HV,532)
+
+END_FTR_SECTION_IFSET(CPU_FTR_SMT)
+#endif
+
 	mflr	r5
 	LOAD_REG_ADDR_PIC(r4, TLBCAM)
 	mtlr	r5
