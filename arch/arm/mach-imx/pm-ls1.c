@@ -541,10 +541,8 @@ static int __init ls1_pm_init(void)
 	int ret = 0;
 
 	np = of_find_matching_node_and_match(NULL, rcpm_matches, &match);
-	if (!np) {
-		pr_err("%s: can't find the rcpm node.\n", __func__);
-		return -EINVAL;
-	}
+	if (!np)
+		return 0;
 
 	base = of_iomap(np, 0);
 	of_node_put(np);

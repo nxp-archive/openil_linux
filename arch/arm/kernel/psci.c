@@ -24,6 +24,8 @@
 #include <asm/compiler.h>
 #include <asm/errno.h>
 #include <asm/psci.h>
+#include <linux/suspend.h>
+#include <asm/suspend.h>
 #include <asm/system_misc.h>
 
 struct psci_operations psci_ops;
@@ -176,6 +178,35 @@ static void psci_sys_poweroff(void)
 	invoke_psci_fn(PSCI_0_2_FN_SYSTEM_OFF, 0, 0, 0);
 }
 
+static int psci_system_suspend(unsigned long unused)
+{
+	struct psci_power_state state = {
+		.id = 0,
+		.type = PSCI_POWER_STATE_TYPE_POWER_DOWN,
+		.affinity_level = 2, /* system level */
+	};
+
+	return psci_cpu_suspend(state, virt_to_phys(cpu_resume));
+}
+
+static int psci_system_suspend_enter(suspend_state_t state)
+{
+	return cpu_suspend(0, psci_system_suspend);
+}
+
+static const struct platform_suspend_ops psci_suspend_ops = {
+	.valid          = suspend_valid_only_mem,
+	.enter          = psci_system_suspend_enter,
+};
+
+static void __init psci_init_system_suspend(void)
+{
+	if (!IS_ENABLED(CONFIG_SUSPEND))
+		return;
+
+	suspend_set_ops(&psci_suspend_ops);
+}
+
 /*
  * PSCI Function IDs for v0.2+ are well defined so use
  * standard values.
@@ -232,6 +263,8 @@ static int psci_0_2_init(struct device_node *np)
 	arm_pm_restart = psci_sys_reset;
 
 	pm_power_off = psci_sys_poweroff;
+
+	psci_init_system_suspend();
 
 out_put_node:
 	of_node_put(np);
