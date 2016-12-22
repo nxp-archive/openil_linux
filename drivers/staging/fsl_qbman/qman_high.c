@@ -1136,12 +1136,12 @@ static inline void safe_copy_dqrr(struct qm_dqrr_entry *dst,
 	*d64 = *s64;
 #if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
 	{
-		u64 res, zero = 0;
+		u32 res, zero = 0;
 		/* Create a dependancy after copying first bytes ensures no wrap
 		   transaction generated to QBMan */
 		/* Logical AND the value pointed to by s64 with 0x0 and
 		   store the result in res */
-		asm volatile("and %x[result], %x[in1], %x[in2]"
+		asm volatile("and %[result], %[in1], %[in2]"
 			     : [result] "=r" (res)
 			     : [in1] "r" (zero), [in2] "r" (*s64)
 			     : "memory");
@@ -1150,7 +1150,7 @@ static inline void safe_copy_dqrr(struct qm_dqrr_entry *dst,
 		   effect of this is that the core must stall until the first
 		   aligned read is complete therefore preventing a WRAP
 		   transaction to be seen by the QBMan */
-		asm volatile("add %x[result], %x[in1], %x[in2]"
+		asm volatile("add %[result], %[in1], %[in2]"
 			     : [result] "=r" (s64)
 			     : [in1] "r" (res), [in2] "r" (s64)
 			     : "memory");
