@@ -416,7 +416,7 @@ fail:
 
 	return ret;
 }
-device_initcall(xenomai_init);
+subsys_initcall(xenomai_init);
 
 /**
  * @ingroup cobalt
