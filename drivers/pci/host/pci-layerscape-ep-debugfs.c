@@ -34,8 +34,10 @@
 #define PCIE_BAR1_SIZE		(8 * 1024) /* 8K for MSIX */
 #define PCIE_BAR2_SIZE		(4 * 1024) /* 4K */
 #define PCIE_BAR4_SIZE		(1 * 1024 * 1024) /* 1M */
+#define PCIE_MSI_OB_SIZE	(4 * 1024) /* 4K */
 
-#define PCIE_OB_BAR		0x1400000000ULL
+#define PCIE_MSI_MSG_ADDR_OFF	0x54
+#define PCIE_MSI_MSG_DATA_OFF	0x5c
 
 enum test_type {
 	TEST_TYPE_DMA,
@@ -57,21 +59,36 @@ struct ls_ep_test {
 	void __iomem		*cfg;
 	void __iomem		*buf;
 	void __iomem		*out;
+	void __iomem		*msi;
 	dma_addr_t		cfg_addr;
 	dma_addr_t		buf_addr;
 	dma_addr_t		out_addr;
 	dma_addr_t		bus_addr;
+	dma_addr_t		msi_addr;
+	u64			msi_msg_addr;
+	u16			msi_msg_data;
 	struct task_struct	*thread;
 	spinlock_t		lock;
 	struct completion	done;
 	u32			len;
 	int			loop;
+	char			data;
 	enum test_dirt		dirt;
 	enum test_type		type;
 	enum test_status	status;
 	u64			result; /* Mbps */
 	char			cmd[256];
 };
+
+static int ls_pcie_ep_trigger_msi(struct ls_ep_test *test)
+{
+	if (!test->msi)
+		return -EINVAL;
+
+	iowrite32(test->msi_msg_data, test->msi);
+
+	return 0;
+}
 
 static int ls_pcie_ep_test_try_run(struct ls_ep_test *test)
 {
@@ -93,18 +110,6 @@ static void ls_pcie_ep_test_done(struct ls_ep_test *test)
 	spin_lock(&test->lock);
 	test->status = TEST_IDLE;
 	spin_unlock(&test->lock);
-}
-
-static void ls_pcie_ep_test_setup_bars(struct ls_ep_dev *ep)
-{
-	/* BAR0 - 32bit - 4K configuration */
-	ls_pcie_ep_dev_setup_bar(ep, 0, PCIE_BAR0_SIZE);
-	/* BAR1 - 32bit - 8K MSIX*/
-	ls_pcie_ep_dev_setup_bar(ep, 1, PCIE_BAR1_SIZE);
-	/* BAR2 - 64bit - 4K MEM desciptor */
-	ls_pcie_ep_dev_setup_bar(ep, 2, PCIE_BAR2_SIZE);
-	/* BAR4 - 64bit - 1M MEM*/
-	ls_pcie_ep_dev_setup_bar(ep, 4, PCIE_BAR4_SIZE);
 }
 
 static void ls_pcie_ep_test_dma_cb(void *arg)
@@ -134,7 +139,7 @@ static int ls_pcie_ep_test_dma(struct ls_ep_test *test)
 		return -EINVAL;
 	}
 
-	memset(test->buf, 0x5a, test->len);
+	memset(test->buf, test->data, test->len);
 
 	if (test->dirt == TEST_DIRT_WRITE) {
 		src = test->buf_addr;
@@ -222,7 +227,7 @@ static int ls_pcie_ep_test_cpy(struct ls_ep_test *test)
 	struct timespec start, end, period;
 	int i = 0;
 
-	memset(test->buf, 0xa5, test->len);
+	memset(test->buf, test->data, test->len);
 
 	if (test->dirt == TEST_DIRT_WRITE) {
 		dst = test->out;
@@ -266,6 +271,9 @@ int ls_pcie_ep_test_thread(void *arg)
 		       test->cmd, test->result);
 
 	ls_pcie_ep_test_done(test);
+
+	ls_pcie_ep_trigger_msi(test);
+
 	do_exit(0);
 }
 
@@ -320,14 +328,14 @@ static int ls_pcie_ep_init_test(struct ls_ep_dev *ep, u64 bus_addr)
 	spin_lock_init(&test->lock);
 	test->status = TEST_IDLE;
 
-	test->buf = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO,
-					     get_order(PCIE_BAR4_SIZE));
+	test->buf = dma_alloc_coherent(pcie->dev, get_order(PCIE_BAR4_SIZE),
+					&test->buf_addr,
+					GFP_KERNEL);
 	if (!test->buf) {
 		dev_info(&ep->dev, "failed to get mem for bar4\n");
 		err = -ENOMEM;
 		goto _err;
 	}
-	test->buf_addr = virt_to_phys(test->buf);
 
 	test->cfg = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO,
 					     get_order(PCIE_BAR2_SIZE));
@@ -338,7 +346,7 @@ static int ls_pcie_ep_init_test(struct ls_ep_dev *ep, u64 bus_addr)
 	}
 	test->cfg_addr = virt_to_phys(test->cfg);
 
-	test->out_addr = PCIE_OB_BAR;
+	test->out_addr = pcie->out_base;
 	test->out = ioremap(test->out_addr, PCIE_BAR4_SIZE);
 	if (!test->out) {
 		dev_info(&ep->dev, "failed to map out\n");
@@ -348,11 +356,24 @@ static int ls_pcie_ep_init_test(struct ls_ep_dev *ep, u64 bus_addr)
 
 	test->bus_addr = bus_addr;
 
+	test->msi_addr = test->out_addr + PCIE_BAR4_SIZE;
+	test->msi = ioremap(test->msi_addr, PCIE_MSI_OB_SIZE);
+	if (!test->msi)
+		dev_info(&ep->dev, "failed to map MSI outbound region\n");
+
+	test->msi_msg_addr = ioread32(pcie->dbi + PCIE_MSI_MSG_ADDR_OFF) |
+		(((u64)ioread32(pcie->dbi + PCIE_MSI_MSG_ADDR_OFF + 4)) << 32);
+	test->msi_msg_data = ioread16(pcie->dbi + PCIE_MSI_MSG_DATA_OFF);
+
 	ls_pcie_ep_dev_cfg_enable(ep);
-	ls_pcie_ep_test_setup_bars(ep);
-	/* outbound iATU*/
+
+	/* outbound iATU for memory */
 	ls_pcie_iatu_outbound_set(pcie, 0, PCIE_ATU_TYPE_MEM,
 				  test->out_addr, bus_addr, PCIE_BAR4_SIZE);
+	/* outbound iATU for MSI */
+	ls_pcie_iatu_outbound_set(pcie, 1, PCIE_ATU_TYPE_MEM,
+				  test->msi_addr, test->msi_msg_addr,
+				  PCIE_MSI_OB_SIZE);
 
 	/* ATU 0 : INBOUND : map BAR0 */
 	ls_pcie_iatu_inbound_set(pcie, 0, 0, test->cfg_addr);
@@ -374,6 +395,7 @@ static int ls_pcie_ep_start_test(struct ls_ep_dev *ep, char *cmd)
 	enum test_type type;
 	enum test_dirt dirt;
 	u32 cnt, len, loop;
+	unsigned int data;
 	char dirt_str[2];
 	int ret;
 
@@ -382,10 +404,10 @@ static int ls_pcie_ep_start_test(struct ls_ep_dev *ep, char *cmd)
 	else
 		type = TEST_TYPE_MEMCPY;
 
-	cnt = sscanf(&cmd[3], "%1s %u %u", dirt_str, &len, &loop);
-	if (cnt != 3) {
+	cnt = sscanf(&cmd[4], "%1s %u %u %x", dirt_str, &len, &loop, &data);
+	if (cnt != 4) {
 		dev_info(&ep->dev, "format error %s", cmd);
-		dev_info(&ep->dev, "dma/cpy <r/w> <packet_size> <loop>\n");
+		dev_info(&ep->dev, "dma/cpy <r/w> <packet_size> <loop> <data>\n");
 		return -EINVAL;
 	}
 
@@ -412,6 +434,7 @@ static int ls_pcie_ep_start_test(struct ls_ep_dev *ep, char *cmd)
 	test->len = len;
 	test->loop = loop;
 	test->type = type;
+	test->data = (char)data;
 	test->dirt = dirt;
 	strcpy(test->cmd, cmd);
 	test->thread = kthread_run(ls_pcie_ep_test_thread, test,
@@ -565,8 +588,8 @@ static ssize_t ls_pcie_ep_dbg_test_read(struct file *filp,
 {
 	struct ls_ep_dev *ep = filp->private_data;
 	struct ls_ep_test *test = ep->driver_data;
-	char buf[256];
-	int len;
+	char buf[512];
+	int desc = 0, len;
 
 	if (!test) {
 		dev_info(&ep->dev, " there is NO test\n");
@@ -578,12 +601,14 @@ static ssize_t ls_pcie_ep_dbg_test_read(struct file *filp,
 		return 0;
 	}
 
+	desc = sprintf(buf, "MSI ADDR:0x%llx MSI DATA:0x%x\n",
+		test->msi_msg_addr, test->msi_msg_data);
 
-	snprintf(buf, sizeof(buf), "%s throughput:%lluMbps\n",
-		 test->cmd, test->result);
+	desc += sprintf(buf + desc, "%s throughput:%lluMbps\n",
+			test->cmd, test->result);
 
 	len = simple_read_from_buffer(buffer, count, ppos,
-				      buf, strlen(buf));
+				      buf, desc);
 
 	return len;
 }
@@ -639,13 +664,52 @@ static const struct file_operations ls_pcie_ep_dbg_test_fops = {
 	.write = ls_pcie_ep_dbg_test_write,
 };
 
+static ssize_t ls_pcie_ep_dbg_dump_read(struct file *filp,
+				   char __user *buffer,
+				   size_t count, loff_t *ppos)
+{
+	struct ls_ep_dev *ep = filp->private_data;
+	struct ls_ep_test *test = ep->driver_data;
+	char *buf;
+	int desc = 0, i, len;
+
+	buf = kmalloc(4 * 1024, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	if (!test) {
+		dev_info(&ep->dev, " there is NO test\n");
+		kfree(buf);
+		return 0;
+	}
+
+	desc += sprintf(buf + desc, "%s", "dump info:");
+	for (i = 0; i < 256; i += 4) {
+		if (i % 16 == 0)
+			desc += sprintf(buf + desc, "\n%08x:", i);
+		desc += sprintf(buf + desc, " %08x", readl(test->buf + i));
+	}
+
+	desc += sprintf(buf + desc, "\n");
+	len = simple_read_from_buffer(buffer, count, ppos, buf, desc);
+
+	kfree(buf);
+
+	return len;
+}
+
+static const struct file_operations ls_pcie_ep_dbg_dump_fops = {
+	.owner = THIS_MODULE,
+	.open = simple_open,
+	.read = ls_pcie_ep_dbg_dump_read,
+};
+
 static int ls_pcie_ep_dev_dbgfs_init(struct ls_ep_dev *ep)
 {
 	struct ls_pcie *pcie = ep->pcie;
 	struct dentry *pfile;
 
 	ls_pcie_ep_dev_cfg_enable(ep);
-	ls_pcie_ep_test_setup_bars(ep);
 
 	ep->dir = debugfs_create_dir(dev_name(&ep->dev), pcie->dir);
 	if (!ep->dir)
@@ -660,6 +724,11 @@ static int ls_pcie_ep_dev_dbgfs_init(struct ls_ep_dev *ep)
 				    &ls_pcie_ep_dbg_test_fops);
 	if (!pfile)
 		dev_info(&ep->dev, "debugfs test for failed\n");
+
+	pfile = debugfs_create_file("dump", 0600, ep->dir, ep,
+				    &ls_pcie_ep_dbg_dump_fops);
+	if (!pfile)
+		dev_info(&ep->dev, "debugfs dump for failed\n");
 
 	return 0;
 }
