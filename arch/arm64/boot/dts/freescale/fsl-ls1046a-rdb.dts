@@ -210,3 +210,12 @@
 		};
 	};
 };
+&fsldpaa {
+	ethernet@0 {
+		status = "disabled";
+	};
+
+	ethernet@1 {
+		status = "disabled";
+	};
+};
