@@ -526,13 +526,15 @@ BEGIN_FTR_SECTION		/* CPU_FTR_SMT */
 	andis.	r5,r5,MAS1_VALID@h
 	beq	5f
 
-BEGIN_FTR_SECTION_NESTED(532)
+	mfspr	r5,SPRN_MMUCFG
+	rlwinm.	r5,r5,0,MMUCFG_LPIDSIZE
+	beq	1f
+
 	mfspr	r5,SPRN_MAS8
 	rlwinm	r5,r5,0,0x80000fff  /* tgs,tlpid -> sgs,slpid */
 	mtspr	SPRN_MAS5,r5
-END_FTR_SECTION_NESTED(CPU_FTR_EMB_HV,CPU_FTR_EMB_HV,532)
 
-	mfspr	r5,SPRN_MAS1
+1:	mfspr	r5,SPRN_MAS1
 	rlwinm	r6,r5,0,0x3fff0000  /* tid -> spid */
 	rlwimi	r6,r5,20,0x00000003 /* ind,ts -> sind,sas */
 	mfspr	r5,SPRN_MAS6
@@ -545,13 +547,14 @@ END_FTR_SECTION_NESTED(CPU_FTR_EMB_HV,CPU_FTR_EMB_HV,532)
 
 	mtspr	SPRN_MAS6,r5
 
-5:
-BEGIN_FTR_SECTION_NESTED(532)
+5:	mfspr	r5,SPRN_MMUCFG
+	rlwinm.	r5,r5,0,MMUCFG_LPIDSIZE
+	beq	1f
+
 	li	r5,0
 	mtspr	SPRN_MAS8,r5
 	mtspr	SPRN_MAS5,r5
-END_FTR_SECTION_NESTED(CPU_FTR_EMB_HV,CPU_FTR_EMB_HV,532)
-
+1:
 END_FTR_SECTION_IFSET(CPU_FTR_SMT)
 #endif
 
