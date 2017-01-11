@@ -73,22 +73,38 @@ struct bman;
 union bman_ecir {
 	u32 ecir_raw;
 	struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 		u32 __reserved1:4;
 		u32 portal_num:4;
 		u32 __reserved2:12;
 		u32 numb:4;
 		u32 __reserved3:2;
 		u32 pid:6;
+#else
+		u32 pid:6;
+		u32 __reserved3:2;
+		u32 numb:4;
+		u32 __reserved2:12;
+		u32 portal_num:4;
+		u32 __reserved1:4;
+#endif
 	} __packed info;
 };
 
 union bman_eadr {
 	u32 eadr_raw;
 	struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 		u32 __reserved1:5;
 		u32 memid:3;
 		u32 __reserved2:14;
 		u32 eadr:10;
+#else
+		u32 eadr:10;
+		u32 __reserved2:14;
+		u32 memid:3;
+		u32 __reserved1:5;
+#endif
 	} __packed info;
 };
 
