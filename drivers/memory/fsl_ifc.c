@@ -324,6 +324,7 @@ static int fsl_ifc_suspend(struct device *dev)
 	struct fsl_ifc_runtime __iomem *runtime = ctrl->rregs;
 	__be32 nand_evter_intr_en, cm_evter_intr_en, nor_evter_intr_en,
 							 gpcm_evter_intr_en;
+	uint32_t ifc_bank, i;
 
 	ctrl->saved_gregs = kzalloc(sizeof(struct fsl_ifc_fcm), GFP_KERNEL);
 	if (!ctrl->saved_gregs)
@@ -344,9 +345,94 @@ static int fsl_ifc_suspend(struct device *dev)
 	ifc_out32(0x0, &runtime->ifc_nor.nor_evter_intr_en);
 	ifc_out32(0x0, &runtime->ifc_gpcm.gpcm_evter_intr_en);
 
-	memcpy_fromio(ctrl->saved_gregs, fcm, sizeof(struct fsl_ifc_fcm));
-	memcpy_fromio(ctrl->saved_rregs, runtime,
-					sizeof(struct fsl_ifc_runtime));
+	if (ctrl->saved_gregs) {
+		for (ifc_bank = 0; ifc_bank < FSL_IFC_BANK_COUNT; ifc_bank++) {
+			ctrl->saved_gregs->cspr_cs[ifc_bank].cspr_ext =
+				ifc_in32(&fcm->cspr_cs[ifc_bank].cspr_ext);
+			ctrl->saved_gregs->cspr_cs[ifc_bank].cspr =
+				ifc_in32(&fcm->cspr_cs[ifc_bank].cspr);
+			ctrl->saved_gregs->amask_cs[ifc_bank].amask =
+				ifc_in32(&fcm->amask_cs[ifc_bank].amask);
+			ctrl->saved_gregs->csor_cs[ifc_bank].csor_ext =
+				ifc_in32(&fcm->csor_cs[ifc_bank].csor_ext);
+			ctrl->saved_gregs->csor_cs[ifc_bank].csor =
+				ifc_in32(&fcm->csor_cs[ifc_bank].csor);
+			for (i = 0; i < 4; i++) {
+				ctrl->saved_gregs->ftim_cs[ifc_bank].ftim[i] =
+					ifc_in32(
+					&fcm->ftim_cs[ifc_bank].ftim[i]);
+			}
+		}
+
+		ctrl->saved_gregs->rb_map = ifc_in32(&fcm->rb_map);
+		ctrl->saved_gregs->wb_map = ifc_in32(&fcm->wb_map);
+		ctrl->saved_gregs->ifc_gcr = ifc_in32(&fcm->ifc_gcr);
+		ctrl->saved_gregs->ddr_ccr_low = ifc_in32(&fcm->ddr_ccr_low);
+		ctrl->saved_gregs->cm_evter_en = ifc_in32(&fcm->cm_evter_en);
+	}
+
+	if (ctrl->saved_rregs) {
+		/* IFC controller NAND machine registers */
+		ctrl->saved_rregs->ifc_nand.ncfgr =
+					ifc_in32(&runtime->ifc_nand.ncfgr);
+		ctrl->saved_rregs->ifc_nand.nand_fcr0 =
+					ifc_in32(&runtime->ifc_nand.nand_fcr0);
+		ctrl->saved_rregs->ifc_nand.nand_fcr1 =
+					ifc_in32(&runtime->ifc_nand.nand_fcr1);
+		ctrl->saved_rregs->ifc_nand.row0 =
+					ifc_in32(&runtime->ifc_nand.row0);
+		ctrl->saved_rregs->ifc_nand.row1 =
+					ifc_in32(&runtime->ifc_nand.row1);
+		ctrl->saved_rregs->ifc_nand.col0 =
+					ifc_in32(&runtime->ifc_nand.col0);
+		ctrl->saved_rregs->ifc_nand.col1 =
+					ifc_in32(&runtime->ifc_nand.col1);
+		ctrl->saved_rregs->ifc_nand.row2 =
+					ifc_in32(&runtime->ifc_nand.row2);
+		ctrl->saved_rregs->ifc_nand.col2 =
+					ifc_in32(&runtime->ifc_nand.col2);
+		ctrl->saved_rregs->ifc_nand.row3 =
+					ifc_in32(&runtime->ifc_nand.row3);
+		ctrl->saved_rregs->ifc_nand.col3 =
+					ifc_in32(&runtime->ifc_nand.col3);
+
+		ctrl->saved_rregs->ifc_nand.nand_fbcr =
+					ifc_in32(&runtime->ifc_nand.nand_fbcr);
+		ctrl->saved_rregs->ifc_nand.nand_fir0 =
+					ifc_in32(&runtime->ifc_nand.nand_fir0);
+		ctrl->saved_rregs->ifc_nand.nand_fir1 =
+					ifc_in32(&runtime->ifc_nand.nand_fir1);
+		ctrl->saved_rregs->ifc_nand.nand_fir2 =
+					ifc_in32(&runtime->ifc_nand.nand_fir2);
+		ctrl->saved_rregs->ifc_nand.nand_csel =
+					ifc_in32(&runtime->ifc_nand.nand_csel);
+		ctrl->saved_rregs->ifc_nand.nandseq_strt =
+					ifc_in32(
+					&runtime->ifc_nand.nandseq_strt);
+		ctrl->saved_rregs->ifc_nand.nand_evter_en =
+					ifc_in32(
+					&runtime->ifc_nand.nand_evter_en);
+		ctrl->saved_rregs->ifc_nand.nanndcr =
+					ifc_in32(&runtime->ifc_nand.nanndcr);
+		ctrl->saved_rregs->ifc_nand.nand_dll_lowcfg0 =
+					ifc_in32(
+					&runtime->ifc_nand.nand_dll_lowcfg0);
+		ctrl->saved_rregs->ifc_nand.nand_dll_lowcfg1 =
+					ifc_in32(
+					&runtime->ifc_nand.nand_dll_lowcfg1);
+
+		/* IFC controller NOR machine registers */
+		ctrl->saved_rregs->ifc_nor.nor_evter_en =
+					ifc_in32(
+					&runtime->ifc_nor.nor_evter_en);
+		ctrl->saved_rregs->ifc_nor.norcr =
+					ifc_in32(&runtime->ifc_nor.norcr);
+
+		/* IFC controller GPCM Machine registers */
+		ctrl->saved_rregs->ifc_gpcm.gpcm_evter_en =
+					ifc_in32(
+					&runtime->ifc_gpcm.gpcm_evter_en);
+	}
 
 /* save the interrupt values */
 	ctrl->saved_gregs->cm_evter_intr_en = cm_evter_intr_en;
