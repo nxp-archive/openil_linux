@@ -12,6 +12,7 @@
 
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
+#include <linux/clkdev.h>
 #include <linux/fsl/guts.h>
 #include <linux/fsl/svr.h>
 #include <linux/io.h>
@@ -1059,6 +1060,7 @@ static void __init create_one_pll(struct clockgen *cg, int idx)
 
 	for (i = 0; i < ARRAY_SIZE(pll->div); i++) {
 		struct clk *clk;
+		int ret;
 
 		snprintf(pll->div[i].name, sizeof(pll->div[i].name),
 			 "cg-pll%d-div%d", idx, i + 1);
@@ -1072,6 +1074,11 @@ static void __init create_one_pll(struct clockgen *cg, int idx)
 		}
 
 		pll->div[i].clk = clk;
+		ret = clk_register_clkdev(clk, pll->div[i].name, NULL);
+		if (ret != 0)
+			pr_err("%s: %s: register to lookup table failed %ld\n",
+				__func__, pll->div[i].name, PTR_ERR(clk));
+
 	}
 }
 
