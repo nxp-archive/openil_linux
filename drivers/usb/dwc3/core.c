@@ -814,6 +814,15 @@ static void dwc3_set_soc_bus_cfg(struct dwc3 *dwc)
 		}
 	}
 
+	/* Handle usb snooping */
+	if (dwc->dma_snooping_quirk) {
+		cfg &= ~DWC3_GSBUSCFG0_SNP_MASK;
+		cfg |= (AXI3_CACHE_TYPE_SNP << DWC3_GSBUSCFG0_DATARD_SHIFT) |
+			(AXI3_CACHE_TYPE_SNP << DWC3_GSBUSCFG0_DESCRD_SHIFT) |
+			(AXI3_CACHE_TYPE_SNP << DWC3_GSBUSCFG0_DATAWR_SHIFT) |
+			(AXI3_CACHE_TYPE_SNP << DWC3_GSBUSCFG0_DESCWR_SHIFT);
+	}
+
 	dwc3_writel(dwc->regs, DWC3_GSBUSCFG0, cfg);
 }
 
@@ -1145,6 +1154,8 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 				"snps,dis-del-phy-power-chg-quirk");
 	dwc->dis_tx_ipgap_linecheck_quirk = device_property_read_bool(dev,
 				"snps,dis-tx-ipgap-linecheck-quirk");
+	dwc->dma_snooping_quirk = device_property_read_bool(dev,
+				"snps,dma-snooping");
 
 	dwc->tx_de_emphasis_quirk = device_property_read_bool(dev,
 				"snps,tx_de_emphasis_quirk");
