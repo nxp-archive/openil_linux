@@ -196,7 +196,7 @@ void irq_shutdown(struct irq_desc *desc)
 	if (desc->irq_data.chip->irq_shutdown) {
 		desc->irq_data.chip->irq_shutdown(&desc->irq_data);
 #ifdef CONFIG_IPIPE
-		desc->istate |= ~IPIPE_IRQS_NEEDS_STARTUP;
+		desc->istate |= IPIPE_IRQS_NEEDS_STARTUP;
 #endif
 	} else if (desc->irq_data.chip->irq_disable)
 		desc->irq_data.chip->irq_disable(&desc->irq_data);
