@@ -13,6 +13,7 @@
  */
 #include <linux/string.h>
 #include <linux/thread_info.h>
+#include <linux/ipipe.h>
 #include <asm/errno.h>
 #include <asm/memory.h>
 #include <asm/domain.h>
@@ -198,7 +199,7 @@ extern int __get_user_64t_4(void *);
 
 #define get_user(x, p)							\
 	({								\
-		might_fault();						\
+		__ipipe_uaccess_might_fault();				\
 		__get_user_check(x, p);					\
 	 })
 
@@ -244,7 +245,7 @@ extern int __put_user_8(void *, unsigned long long);
 
 #define put_user(x, p)							\
 	({								\
-		might_fault();						\
+		__ipipe_uaccess_might_fault();				\
 		__put_user_check(x, p);					\
 	 })
 
@@ -301,7 +302,7 @@ do {									\
 	unsigned long __gu_addr = (unsigned long)(ptr);			\
 	unsigned long __gu_val;						\
 	__chk_user_ptr(ptr);						\
-	might_fault();							\
+	__ipipe_uaccess_might_fault();					\
 	switch (sizeof(*(ptr))) {					\
 	case 1:	__get_user_asm_byte(__gu_val, __gu_addr, err);	break;	\
 	case 2:	__get_user_asm_half(__gu_val, __gu_addr, err);	break;	\
@@ -383,7 +384,7 @@ do {									\
 	unsigned long __pu_addr = (unsigned long)(ptr);			\
 	__typeof__(*(ptr)) __pu_val = (x);				\
 	__chk_user_ptr(ptr);						\
-	might_fault();							\
+	__ipipe_uaccess_might_fault();					\
 	switch (sizeof(*(ptr))) {					\
 	case 1: __put_user_asm_byte(__pu_val, __pu_addr, err);	break;	\
 	case 2: __put_user_asm_half(__pu_val, __pu_addr, err);	break;	\
@@ -471,7 +472,6 @@ do {									\
 	: "+r" (err), "+r" (__pu_addr)				\
 	: "r" (x), "i" (-EFAULT)				\
 	: "cc")
-
 
 #ifdef CONFIG_MMU
 extern unsigned long __must_check __copy_from_user(void *to, const void __user *from, unsigned long n);

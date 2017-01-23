@@ -71,17 +71,41 @@ aic_handle(struct pt_regs *regs)
 	if (!irqstat)
 		irq_reg_writel(gc, 0, AT91_AIC_EOICR);
 	else
-		handle_domain_irq(aic_domain, irqnr, regs);
+		ipipe_handle_domain_irq(aic_domain, irqnr, regs);
 }
+
+#ifdef CONFIG_IPIPE
+static void aic_hold(struct irq_data *d)
+{
+	struct irq_domain *domain = d->domain;
+	struct irq_domain_chip_generic *dgc = domain->gc;
+	struct irq_chip_generic *gc = dgc->gc[0];
+
+	irq_gc_mask_disable_reg(d);
+	irq_reg_writel(0, gc->reg_base + AT91_AIC_EOICR);
+}
+
+static void aic_release(struct irq_data *d)
+{
+	struct irq_domain *domain = d->domain;
+	struct irq_domain_chip_generic *dgc = domain->gc;
+	struct irq_chip_generic *gc = dgc->gc[0];
+	unsigned long flags = hard_local_irq_save();
+
+	irq_gc_unmask_enable_reg(d);
+	hard_local_irq_restore(flags);
+}
+#endif
 
 static int aic_retrigger(struct irq_data *d)
 {
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
+	unsigned long flags;
 
 	/* Enable interrupt on AIC5 */
-	irq_gc_lock(gc);
+	flags = irq_gc_lock(gc);
 	irq_reg_writel(gc, d->mask, AT91_AIC_ISCR);
-	irq_gc_unlock(gc);
+	irq_gc_unlock(gc, flags);
 
 	return 0;
 }
@@ -106,31 +130,34 @@ static int aic_set_type(struct irq_data *d, unsigned type)
 static void aic_suspend(struct irq_data *d)
 {
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
+	unsigned long flags;
 
-	irq_gc_lock(gc);
+	flags = irq_gc_lock(gc);
 	irq_reg_writel(gc, gc->mask_cache, AT91_AIC_IDCR);
 	irq_reg_writel(gc, gc->wake_active, AT91_AIC_IECR);
-	irq_gc_unlock(gc);
+	irq_gc_unlock(gc, flags);
 }
 
 static void aic_resume(struct irq_data *d)
 {
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
+	unsigned long flags;
 
-	irq_gc_lock(gc);
+	flags = irq_gc_lock(gc);
 	irq_reg_writel(gc, gc->wake_active, AT91_AIC_IDCR);
 	irq_reg_writel(gc, gc->mask_cache, AT91_AIC_IECR);
-	irq_gc_unlock(gc);
+	irq_gc_unlock(gc, flags);
 }
 
 static void aic_pm_shutdown(struct irq_data *d)
 {
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
+	unsigned long flags;
 
-	irq_gc_lock(gc);
+	flags = irq_gc_lock(gc);
 	irq_reg_writel(gc, 0xffffffff, AT91_AIC_IDCR);
 	irq_reg_writel(gc, 0xffffffff, AT91_AIC_ICCR);
-	irq_gc_unlock(gc);
+	irq_gc_unlock(gc, flags);
 }
 #else
 #define aic_suspend		NULL
@@ -176,6 +203,7 @@ static int aic_irq_domain_xlate(struct irq_domain *d,
 {
 	struct irq_domain_chip_generic *dgc = d->gc;
 	struct irq_chip_generic *gc;
+	unsigned long flags;
 	unsigned smr;
 	int idx;
 	int ret;
@@ -194,12 +222,12 @@ static int aic_irq_domain_xlate(struct irq_domain *d,
 
 	gc = dgc->gc[idx];
 
-	irq_gc_lock(gc);
+	flags = irq_gc_lock(gc);
 	smr = irq_reg_readl(gc, AT91_AIC_SMR(*out_hwirq));
 	ret = aic_common_set_priority(intspec[2], &smr);
 	if (!ret)
 		irq_reg_writel(gc, smr, AT91_AIC_SMR(*out_hwirq));
-	irq_gc_unlock(gc);
+	irq_gc_unlock(gc, flags);
 
 	return ret;
 }
@@ -262,6 +290,10 @@ static int __init aic_of_init(struct device_node *node,
 	gc->chip_types[0].regs.disable = AT91_AIC_IDCR;
 	gc->chip_types[0].chip.irq_mask = irq_gc_mask_disable_reg;
 	gc->chip_types[0].chip.irq_unmask = irq_gc_unmask_enable_reg;
+#ifdef CONFIG_IPIPE
+	gc->chip_types[0].chip.irq_hold	= aic_hold;
+	gc->chip_types[0].chip.irq_release = aic_release;
+#endif
 	gc->chip_types[0].chip.irq_retrigger = aic_retrigger;
 	gc->chip_types[0].chip.irq_set_type = aic_set_type;
 	gc->chip_types[0].chip.irq_suspend = aic_suspend;
