@@ -147,8 +147,8 @@ sa1100_handle_irq(struct pt_regs *regs)
 		if (mask == 0)
 			break;
 
-		handle_domain_irq(sa1100_normal_irqdomain,
-				ffs(mask) - 1, regs);
+		ipipe_handle_domain_irq(sa1100_normal_irqdomain,
+					ffs(mask) - 1, regs);
 	} while (1);
 }
 

@@ -74,8 +74,8 @@ extern unsigned long ixp4xx_exp_bus_size;
 /*
  * Clock Speed Definitions.
  */
-#define IXP4XX_PERIPHERAL_BUS_CLOCK 	(66) /* 66Mhzi APB BUS   */ 
-#define IXP4XX_UART_XTAL        	14745600
+#define IXP4XX_PERIPHERAL_BUS_CLOCK 	(66) /* 66Mhzi APB BUS   */
+#define IXP4XX_UART_XTAL		14745600
 
 /*
  * This structure provide a means for the board setup code
@@ -132,4 +132,3 @@ extern int ixp4xx_setup(int nr, struct pci_sys_data *sys);
 extern struct pci_ops ixp4xx_ops;
 
 #endif // __ASSEMBLY__
-

@@ -313,6 +313,10 @@ static void __init mx5_clocks_common_init(void __iomem *ccm_base)
 	clk_prepare_enable(clk[IMX5_CLK_TMAX1]);
 	clk_prepare_enable(clk[IMX5_CLK_TMAX2]); /* esdhc2, fec */
 	clk_prepare_enable(clk[IMX5_CLK_TMAX3]); /* esdhc1, esdhc4 */
+
+#ifdef CONFIG_IPIPE
+	mxc_pic_muter_register();
+#endif
 }
 
 static void __init mx50_clocks_init(struct device_node *np)

@@ -91,6 +91,7 @@ BEGIN {
     driver_arch["net/ethernet/cadence/at91_ether.c"]="arm"
     driver_arch["gpu/ipu-v3/ipu-common.c"]="arm"
     driver_arch["gpu/ipu-v3/ipu-prv.h"]="arm"
+    driver_arch["memory/omap-gpmc.c"]="arm"
 
     driver_arch["tty/serial/bfin_uart.c"]="blackfin"
 

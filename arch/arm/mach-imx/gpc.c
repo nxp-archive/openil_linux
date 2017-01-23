@@ -14,6 +14,7 @@
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/irq.h>
+#include <linux/ipipe.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
@@ -74,28 +75,38 @@ void imx_gpc_set_arm_power_in_lpm(bool power_off)
 void imx_gpc_pre_suspend(bool arm_power_off)
 {
 	void __iomem *reg_imr1 = gpc_base + GPC_IMR1;
+	unsigned long flags;
 	int i;
 
 	/* Tell GPC to power off ARM core when suspend */
 	if (arm_power_off)
 		imx_gpc_set_arm_power_in_lpm(arm_power_off);
 
+	flags = hard_cond_local_irq_save();
+
 	for (i = 0; i < IMR_NUM; i++) {
 		gpc_saved_imrs[i] = readl_relaxed(reg_imr1 + i * 4);
 		writel_relaxed(~gpc_wake_irqs[i], reg_imr1 + i * 4);
 	}
+
+	hard_cond_local_irq_restore(flags);
 }
 
 void imx_gpc_post_resume(void)
 {
 	void __iomem *reg_imr1 = gpc_base + GPC_IMR1;
+	unsigned long flags;
 	int i;
 
 	/* Keep ARM core powered on for other low-power modes */
 	imx_gpc_set_arm_power_in_lpm(false);
 
+	flags = hard_cond_local_irq_save();
+
 	for (i = 0; i < IMR_NUM; i++)
 		writel_relaxed(gpc_saved_imrs[i], reg_imr1 + i * 4);
+
+	hard_cond_local_irq_restore(flags);
 }
 
 static int imx_gpc_irq_set_wake(struct irq_data *d, unsigned int on)
@@ -117,22 +128,31 @@ static int imx_gpc_irq_set_wake(struct irq_data *d, unsigned int on)
 void imx_gpc_mask_all(void)
 {
 	void __iomem *reg_imr1 = gpc_base + GPC_IMR1;
+	unsigned long flags;
 	int i;
+
+	flags = hard_cond_local_irq_save();
 
 	for (i = 0; i < IMR_NUM; i++) {
 		gpc_saved_imrs[i] = readl_relaxed(reg_imr1 + i * 4);
 		writel_relaxed(~0, reg_imr1 + i * 4);
 	}
 
+	hard_cond_local_irq_restore(flags);
 }
 
 void imx_gpc_restore_all(void)
 {
 	void __iomem *reg_imr1 = gpc_base + GPC_IMR1;
+	unsigned long flags;
 	int i;
+
+	flags = hard_cond_local_irq_save();
 
 	for (i = 0; i < IMR_NUM; i++)
 		writel_relaxed(gpc_saved_imrs[i], reg_imr1 + i * 4);
+
+	hard_cond_local_irq_restore(flags);
 }
 
 void imx_gpc_hwirq_unmask(unsigned int hwirq)
@@ -159,15 +179,42 @@ void imx_gpc_hwirq_mask(unsigned int hwirq)
 
 static void imx_gpc_irq_unmask(struct irq_data *d)
 {
+	unsigned long flags;
+
+	flags = hard_cond_local_irq_save();
 	imx_gpc_hwirq_unmask(d->hwirq);
 	irq_chip_unmask_parent(d);
+	/* Parent IC will handle virtual unlocking */
+	hard_cond_local_irq_restore(flags);
 }
 
 static void imx_gpc_irq_mask(struct irq_data *d)
 {
+	unsigned long flags;
+
+	flags = hard_cond_local_irq_save();
+	/* Parent IC will handle virtual locking */
+	imx_gpc_hwirq_mask(d->hwirq);
+	irq_chip_mask_parent(d);
+	hard_cond_local_irq_restore(flags);
+}
+
+#ifdef CONFIG_IPIPE
+
+static void imx_gpc_hold_irq(struct irq_data *d)
+{
+	irq_chip_eoi_parent(d);
 	imx_gpc_hwirq_mask(d->hwirq);
 	irq_chip_mask_parent(d);
 }
+
+static void imx_gpc_release_irq(struct irq_data *d)
+{
+	imx_gpc_hwirq_unmask(d->hwirq);
+	irq_chip_unmask_parent(d);
+}
+
+#endif /* CONFIG_IPIPE */
 
 static struct irq_chip imx_gpc_chip = {
 	.name			= "GPC",
@@ -178,6 +225,10 @@ static struct irq_chip imx_gpc_chip = {
 	.irq_set_wake		= imx_gpc_irq_set_wake,
 #ifdef CONFIG_SMP
 	.irq_set_affinity	= irq_chip_set_affinity_parent,
+#endif
+#ifdef CONFIG_IPIPE
+	.irq_hold		= imx_gpc_hold_irq,
+	.irq_release		= imx_gpc_release_irq,
 #endif
 };
 
