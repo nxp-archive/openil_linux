@@ -298,8 +298,7 @@ static void __exception_irq_entry gic_handle_irq(struct pt_regs *regs)
 		irqnr = irqstat & GICC_IAR_INT_ID_MASK;
 
 		if (likely(irqnr > 15 && irqnr < 1021)) {
-			irqnr = irq_find_mapping(gic->domain, irqnr);
-			ipipe_handle_multi_irq(irqnr, regs);
+			ipipe_handle_multi_irq(gic->domain, irqnr, regs);
 			continue;
 		}
 		if (irqnr < 16) {
