@@ -25,6 +25,8 @@
 #ifndef __ARM_IPIPE_H
 #define __ARM_IPIPE_H
 
+struct irq_domain;
+
 #ifdef CONFIG_IPIPE
 
 #include <linux/jump_label.h>
@@ -212,9 +214,11 @@ void __ipipe_grab_irq(int irq, struct pt_regs *regs);
 
 void __ipipe_exit_irq(struct pt_regs *regs);
 
-static inline void ipipe_handle_multi_irq(int irq, struct pt_regs *regs)
+static inline int ipipe_handle_multi_irq(struct irq_domain *domain,
+					 unsigned int irq, struct pt_regs *regs)
 {
 	__ipipe_grab_irq(irq, regs);
+	return 0;
 }
 
 static inline unsigned long __ipipe_ffnz(unsigned long ul)
@@ -255,9 +259,10 @@ struct task_struct *ipipe_switch_to(struct task_struct *prev,
 		(void) (flags);			\
 	} while(0)
 
-static inline void ipipe_handle_multi_irq(int irq, struct pt_regs *regs)
+static inline int ipipe_handle_multi_irq(struct irq_domain *domain,
+					 unsigned int irq, struct pt_regs *regs)
 {
-	__handle_domain_irq(NULL, irq, false, regs);
+	return handle_domain_irq(domain, irq, regs);
 }
 
 #ifdef CONFIG_SMP
