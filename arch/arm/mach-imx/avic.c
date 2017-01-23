@@ -147,8 +147,7 @@ static void __exception_irq_entry avic_handle_irq(struct pt_regs *regs)
 		if (nivector == 0xffff)
 			break;
 
-		nivector = irq_find_mapping(domain, nivector);
-		ipipe_handle_multi_irq(nivector, regs);
+		ipipe_handle_domain_irq(domain, nivector, regs);
 	} while (1);
 }
 

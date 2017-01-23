@@ -380,7 +380,7 @@ omap_intc_handle_irq(struct pt_regs *regs)
 
 	irqnr &= ACTIVEIRQ_MASK;
 	irqnr = irq_find_mapping(domain, irqnr);
-	ipipe_handle_multi_irq(irqnr, regs);
+	ipipe_handle_multi_irq(domain, irqnr, regs);
 }
 
 void __init omap3_init_irq(void)
