@@ -777,11 +777,15 @@ static int alloc_rsp_fqs(struct device *qidev)
 int caam_qi_init(struct platform_device *caam_pdev, struct device_node *np)
 {
 	struct platform_device *qi_pdev;
-	struct device *ctrldev, *qidev;
+	struct device *ctrldev = &caam_pdev->dev, *qidev;
 	struct caam_drv_private *ctrlpriv;
 	int err, i;
 	const cpumask_t *cpus = qman_affine_cpus();
 	struct cpumask old_cpumask = *tsk_cpus_allowed(current);
+	static struct platform_device_info qi_pdev_info = {
+		.name = "caam_qi",
+		.id = PLATFORM_DEVID_NONE
+	};
 
 	/*
 	 * QMAN requires that CGR must be removed from same CPU+portal from
@@ -793,23 +797,17 @@ int caam_qi_init(struct platform_device *caam_pdev, struct device_node *np)
 	mod_init_cpu = cpumask_first(cpus);
 	set_cpus_allowed_ptr(current, get_cpu_mask(mod_init_cpu));
 
-	qi_pdev = platform_device_register_simple("caam_qi", 0, NULL, 0);
+	qi_pdev_info.parent = ctrldev;
+	qi_pdev_info.dma_mask = dma_get_mask(ctrldev);
+	qi_pdev = platform_device_register_full(&qi_pdev_info);
 	if (IS_ERR(qi_pdev))
 		return PTR_ERR(qi_pdev);
 
-	ctrldev = &caam_pdev->dev;
 	ctrlpriv = dev_get_drvdata(ctrldev);
 	qidev = &qi_pdev->dev;
 
 	qipriv.qi_pdev = qi_pdev;
 	dev_set_drvdata(qidev, &qipriv);
-
-	/* Copy dma mask from controlling device */
-	err = dma_set_mask(qidev, dma_get_mask(ctrldev));
-	if (err) {
-		platform_device_unregister(qi_pdev);
-		return -ENODEV;
-	}
 
 	/* Response path cannot be congested */
 	caam_congested = false;
