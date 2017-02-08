@@ -617,6 +617,26 @@ int dpaa2_io_service_enqueue_fq(struct dpaa2_io *d,
 }
 EXPORT_SYMBOL(dpaa2_io_service_enqueue_fq);
 
+int dpaa2_io_service_enqueue_orp_fq(struct dpaa2_io *d,
+				    uint32_t fqid,
+				    const struct dpaa2_fd *fd,
+				    uint16_t orp_id,
+				    uint16_t seqnum,
+				    int last)
+{
+	struct qbman_eq_desc ed;
+
+	d = _service_select(d);
+	if (!d)
+		return -ENODEV;
+	qbman_eq_desc_clear(&ed);
+	qbman_eq_desc_set_orp(&ed, 0, orp_id, seqnum, !last);
+	qbman_eq_desc_set_fq(&ed, fqid);
+	return qbman_swp_enqueue(d->object.swp, &ed,
+				 (const struct qbman_fd *)fd);
+}
+EXPORT_SYMBOL(dpaa2_io_service_enqueue_orp_fq);
+
 int dpaa2_io_service_enqueue_qd(struct dpaa2_io *d,
 			       uint32_t qdid, uint8_t prio, uint16_t qdbin,
 			       const struct dpaa2_fd *fd)
@@ -633,6 +653,42 @@ int dpaa2_io_service_enqueue_qd(struct dpaa2_io *d,
 				 (const struct qbman_fd *)fd);
 }
 EXPORT_SYMBOL(dpaa2_io_service_enqueue_qd);
+
+int dpaa2_io_service_enqueue_orp_qd(struct dpaa2_io *d,
+				    uint32_t qdid, uint8_t prio,
+				    uint16_t qdbin,
+				    const struct dpaa2_fd *fd,
+				    uint16_t orp_id,
+				    uint16_t seqnum,
+				    int last)
+{
+	struct qbman_eq_desc ed;
+
+	d = _service_select(d);
+	if (!d)
+		return -ENODEV;
+	qbman_eq_desc_clear(&ed);
+	qbman_eq_desc_set_orp(&ed, 0, orp_id, seqnum, !last);
+	qbman_eq_desc_set_qd(&ed, qdid, qdbin, prio);
+	return qbman_swp_enqueue(d->object.swp, &ed,
+				 (const struct qbman_fd *)fd);
+}
+EXPORT_SYMBOL(dpaa2_io_service_enqueue_orp_qd);
+
+int dpaa2_io_service_orp_seqnum_drop(struct dpaa2_io *d,
+				     uint16_t orp_id, uint16_t seqnum)
+{
+	struct qbman_eq_desc ed;
+	struct qbman_fd fd;
+
+	d = _service_select(d);
+	if (!d)
+		return -ENODEV;
+	qbman_eq_desc_clear(&ed);
+	qbman_eq_desc_set_orp_hole(&ed, orp_id, seqnum);
+	return qbman_swp_enqueue(d->object.swp, &ed, &fd);
+}
+EXPORT_SYMBOL(dpaa2_io_service_orp_seqnum_drop);
 
 int dpaa2_io_service_release(struct dpaa2_io *d,
 			    uint32_t bpid,
