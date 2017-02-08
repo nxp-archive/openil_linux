@@ -160,6 +160,8 @@ static int ahci_qoriq_phy_init(struct ahci_host_priv *hpriv)
 
 	switch (qpriv->type) {
 	case AHCI_LS1021A:
+		if (!qpriv->ecc_addr)
+			return -EINVAL;
 		writel(SATA_ECC_DISABLE, qpriv->ecc_addr);
 		writel(AHCI_PORT_PHY_1_CFG, reg_base + PORT_PHY1);
 		writel(LS1021A_PORT_PHY2, reg_base + PORT_PHY2);
@@ -170,6 +172,9 @@ static int ahci_qoriq_phy_init(struct ahci_host_priv *hpriv)
 		break;
 
 	case AHCI_LS1043A:
+		if (!qpriv->ecc_addr)
+			return -EINVAL;
+		writel(0x80000000, qpriv->ecc_addr);
 		writel(AHCI_PORT_PHY_1_CFG, reg_base + PORT_PHY1);
 		writel(LS1043A_PORT_PHY2, reg_base + PORT_PHY2);
 		writel(LS1043A_PORT_PHY3, reg_base + PORT_PHY3);
@@ -179,6 +184,8 @@ static int ahci_qoriq_phy_init(struct ahci_host_priv *hpriv)
 		break;
 
 	case AHCI_LS1046A:
+		if (!qpriv->ecc_addr)
+			return -EINVAL;
 		writel(0x80000000, qpriv->ecc_addr);
 		writel(AHCI_PORT_PHY_1_CFG, reg_base + PORT_PHY1);
 		writel(AHCI_PORT_TRANS_CFG, reg_base + PORT_TRANS);
@@ -217,10 +224,9 @@ static int ahci_qoriq_probe(struct platform_device *pdev)
 
 	qoriq_priv->type = (enum ahci_qoriq_type)of_id->data;
 
-	if (qoriq_priv->type == AHCI_LS1021A ||
-			qoriq_priv->type == AHCI_LS1046A) {
-		res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
-				"sata-ecc");
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
+			"sata-ecc");
+	if (res) {
 		qoriq_priv->ecc_addr = devm_ioremap_resource(dev, res);
 		if (IS_ERR(qoriq_priv->ecc_addr))
 			return PTR_ERR(qoriq_priv->ecc_addr);
