@@ -65,7 +65,7 @@
  * TODO: we should probably remove this once we're done sanitising the
  * simulator...
  */
-#define DBG_POLL_START(loopvar) (loopvar = 10)
+#define DBG_POLL_START(loopvar) (loopvar = 1000)
 #define DBG_POLL_CHECK(loopvar) \
 	do {if (!(loopvar--)) BUG_ON(1); } while (0)
 
