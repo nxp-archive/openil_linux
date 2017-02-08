@@ -2294,8 +2294,11 @@ static void FillAdOfTypeResult(t_Handle h_Ad,
                                 NULL,
                                 p_CcNextEngineParams->params.plcrParams.newRelativeProfileId,
                                 &profileId);
-			if (err != E_OK)
-				RETURN_ERROR(MAJOR, err, NO_MSG);
+
+						if (err != E_OK) {
+							REPORT_ERROR(MAJOR, err, NO_MSG);
+							return;
+						}
 
                     }
                     else
