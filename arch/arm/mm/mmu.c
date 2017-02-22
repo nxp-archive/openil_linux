@@ -1542,7 +1542,7 @@ void __init early_paging_init(const struct machine_desc *mdesc,
 	 * alias of the page tables.  We expect __va() will work on
 	 * cpu_get_pgd(), which returns the value of TTBR0.
 	 */
-	cpu_switch_mm(pgd0, &init_mm);
+	cpu_switch_mm(pgd0, &init_mm, 0);
 	cpu_set_ttbr(1, __pa(pgd0) + TTBR1_OFFSET);
 
 	/* Finally flush any stale TLB values. */
