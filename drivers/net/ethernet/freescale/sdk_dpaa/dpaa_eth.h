@@ -464,6 +464,10 @@ int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 int __cold __attribute__((nonnull))
 	_dpa_fq_free(struct device *dev, struct qman_fq *fq);
 
+#ifdef CONFIG_FSL_DPAA_TS
+extern int dpa_phc_index;
+#endif
+
 /* Turn on HW checksum computation for this outgoing frame.
  * If the current protocol is not something we support in this regard
  * (or if the stack has already computed the SW checksum), we do nothing.
