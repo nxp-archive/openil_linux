@@ -521,6 +521,22 @@ static void dpa_get_strings(struct net_device *net_dev, u32 stringset, u8 *data)
 	memcpy(strings, dpa_stats_global, size);
 }
 
+#ifdef CONFIG_FSL_DPAA_TS
+static int dpa_get_ts_info(struct net_device *dev,
+			   struct ethtool_ts_info *info)
+{
+	info->so_timestamping = SOF_TIMESTAMPING_TX_HARDWARE |
+				SOF_TIMESTAMPING_RX_HARDWARE |
+				SOF_TIMESTAMPING_RAW_HARDWARE;
+	info->phc_index = dpa_phc_index;
+	info->tx_types = (1 << HWTSTAMP_TX_OFF) |
+			 (1 << HWTSTAMP_TX_ON);
+	info->rx_filters = (1 << HWTSTAMP_FILTER_NONE) |
+			   (1 << HWTSTAMP_FILTER_ALL);
+	return 0;
+}
+#endif
+
 const struct ethtool_ops dpa_ethtool_ops = {
 	.get_settings = dpa_get_settings,
 	.set_settings = dpa_set_settings,
@@ -540,5 +556,8 @@ const struct ethtool_ops dpa_ethtool_ops = {
 #ifdef CONFIG_PM
 	.get_wol = dpa_get_wol,
 	.set_wol = dpa_set_wol,
+#endif
+#ifdef CONFIG_FSL_DPAA_TS
+	.get_ts_info = dpa_get_ts_info,
 #endif
 };
