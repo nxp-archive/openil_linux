@@ -68,7 +68,7 @@ void context_tracking_enter(enum ctx_state state)
 	 * helpers are enough to protect RCU uses inside the exception. So
 	 * just return immediately if we detect we are in an IRQ.
 	 */
-	if (in_interrupt())
+	if (ipipe_root_p == 0 || in_interrupt())
 		return;
 
 	/* Kernel threads aren't supposed to go to userspace */
@@ -132,7 +132,7 @@ void context_tracking_exit(enum ctx_state state)
 {
 	unsigned long flags;
 
-	if (!context_tracking_is_enabled())
+	if (!ipipe_root_p || !context_tracking_is_enabled())
 		return;
 
 	if (in_interrupt())

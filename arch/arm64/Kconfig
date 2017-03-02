@@ -82,9 +82,13 @@ config ARM64
 	select RTC_LIB
 	select SPARSE_IRQ
 	select SYSCTL_EXCEPTION_TRACE
-	select HAVE_CONTEXT_TRACKING
+	select HAVE_CONTEXT_TRACKING if !IPIPE
 	help
 	  ARM 64-bit (AArch64) Linux support.
+
+config IPIPE_WANT_PREEMPTIBLE_SWITCH
+       depends on IPIPE
+       def_bool SMP
 
 config 64BIT
 	def_bool y
@@ -566,6 +570,8 @@ config HOTPLUG_CPU
 	help
 	  Say Y here to experiment with turning CPUs off and on.  CPUs
 	  can be controlled through /sys/devices/system/cpu.
+
+source kernel/ipipe/Kconfig
 
 source kernel/Kconfig.preempt
 

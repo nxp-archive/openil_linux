@@ -49,6 +49,12 @@ struct pt_regs;
 struct irq_desc {
 	struct irq_data		irq_data;
 	unsigned int __percpu	*kstat_irqs;
+#ifdef CONFIG_IPIPE
+	void			(*ipipe_ack)(unsigned int irq,
+					     struct irq_desc *desc);
+	void			(*ipipe_end)(unsigned int irq,
+					     struct irq_desc *desc);
+#endif /* CONFIG_IPIPE */
 	irq_flow_handler_t	handle_irq;
 #ifdef CONFIG_IRQ_PREFLOW_FASTEOI
 	irq_preflow_handler_t	preflow_handler;
@@ -155,6 +161,10 @@ static inline int irq_has_action(unsigned int irq)
 	return desc->action != NULL;
 }
 
+irq_flow_handler_t
+__fixup_irq_handler(struct irq_desc *desc, irq_flow_handler_t handle,
+		    int is_chained);
+
 /* caller has locked the irq_desc and both params are valid */
 static inline void __irq_set_handler_locked(unsigned int irq,
 					    irq_flow_handler_t handler)
@@ -162,6 +172,7 @@ static inline void __irq_set_handler_locked(unsigned int irq,
 	struct irq_desc *desc;
 
 	desc = irq_to_desc(irq);
+	handler = __fixup_irq_handler(desc, handler, 0);
 	desc->handle_irq = handler;
 }
 

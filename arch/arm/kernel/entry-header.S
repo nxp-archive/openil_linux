@@ -23,7 +23,7 @@
 @
 #define S_OFF		8
 
-/* 
+/*
  * The SWI code relies on the fact that R0 is at the bottom of the stack
  * (due to slow/fast restore user regs).
  */
@@ -200,6 +200,9 @@
 	.macro	svc_exit, rpsr, irq = 0
 	.if	\irq != 0
 	@ IRQs already off
+#ifdef CONFIG_IPIPE_DEBUG_INTERNAL
+	bl	__ipipe_bugon_irqs_enabled
+#endif
 #ifdef CONFIG_TRACE_IRQFLAGS
 	@ The parent context IRQs must have been enabled to get here in
 	@ the first place, so there's no point checking the PSR I bit.
@@ -215,6 +218,14 @@
 	blne	trace_hardirqs_off
 #endif
 	.endif
+
+#ifdef CONFIG_IPIPE_TRACE_IRQSOFF
+	mov	r0, #2		/* IPIPE_TRACE_END */
+	mov	r3, #0x90000000
+	ldr	r2, [sp, #S_PC]
+	mov	r1, pc
+	bl	ipipe_trace_asm
+#endif /* CONFIG_IPIPE_TRACE_IRQSOFF */
 	msr	spsr_cxsf, \rpsr
 #if defined(CONFIG_CPU_V6) || defined(CONFIG_CPU_32v6K)
 	@ We must avoid clrex due to Cortex-A15 erratum #830321
@@ -253,6 +264,22 @@
 	.endm
 
 	.macro	restore_user_regs, fast = 0, offset = 0
+#ifdef CONFIG_IPIPE_DEBUG_INTERNAL
+	bl	__ipipe_bugon_irqs_enabled
+#endif
+#ifdef CONFIG_IPIPE_TRACE_IRQSOFF
+	.if	\fast
+	mov	r4, r0
+	.endif
+	mov	r0, #2		/* IPIPE_TRACE_END */
+	mov	r3, #0x90000000
+	ldr	r2, [sp, #\offset + S_PC]
+	mov	r1, pc
+	bl	ipipe_trace_asm
+	.if	\fast
+	mov	r0, r4
+	.endif
+#endif /* CONFIG_IPIPE_TRACE_IRQSOFF */
 	mov	r2, sp
 	ldr	r1, [r2, #\offset + S_PSR]	@ get calling cpsr
 	ldr	lr, [r2, #\offset + S_PC]!	@ get pc
@@ -276,6 +303,9 @@
 	.macro	svc_exit, rpsr, irq = 0
 	.if	\irq != 0
 	@ IRQs already off
+#ifdef CONFIG_IPIPE_DEBUG_INTERNAL
+	bl	__ipipe_bugon_irqs_enabled
+#endif
 #ifdef CONFIG_TRACE_IRQFLAGS
 	@ The parent context IRQs must have been enabled to get here in
 	@ the first place, so there's no point checking the PSR I bit.
@@ -291,6 +321,14 @@
 	blne	trace_hardirqs_off
 #endif
 	.endif
+
+#ifdef CONFIG_IPIPE_TRACE_IRQSOFF
+	mov	r0, #2		/* IPIPE_TRACE_END */
+	mov	r3, #0x90000000
+	ldr	r2, [sp, #S_PC]
+	mov	r1, pc
+	bl	ipipe_trace_asm
+#endif /* CONFIG_IPIPE_TRACE_IRQSOFF */
 	ldr	lr, [sp, #S_SP]			@ top of the stack
 	ldrd	r0, r1, [sp, #S_LR]		@ calling lr and pc
 
@@ -336,6 +374,22 @@
 	.endm
 #else	/* ifdef CONFIG_CPU_V7M */
 	.macro	restore_user_regs, fast = 0, offset = 0
+#ifdef CONFIG_IPIPE_DEBUG_INTERNAL
+	bl	__ipipe_bugon_irqs_enabled
+#endif
+#ifdef CONFIG_IPIPE_TRACE_IRQSOFF
+	.if	\fast
+	mov	r4, r0
+	.endif
+	mov	r0, #2		/* IPIPE_TRACE_END */
+	mov	r3, #0x90000000
+	ldr	r2, [sp, #\offset + S_PC]
+	mov	r1, pc
+	bl	ipipe_trace_asm
+	.if	\fast
+	mov	r0, r4
+	.endif
+#endif /* CONFIG_IPIPE_TRACE_IRQSOFF */
 	mov	r2, sp
 	load_user_sp_lr r2, r3, \offset + S_SP	@ calling sp, lr
 	ldr	r1, [sp, #\offset + S_PSR]	@ get calling cpsr
@@ -384,6 +438,13 @@
 	.endif
 #endif
 	.endm
+
+	.macro slow_restore_user_regs
+	/* perform architecture specific actions before user return */
+	arch_ret_to_user r1, lr
+	ct_user_enter save = 0
+	restore_user_regs fast = 0, offset = 0
+       .endm
 
 /*
  * These are the registers used in the syscall handler, and allow us to
