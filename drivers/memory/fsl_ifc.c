@@ -36,6 +36,8 @@
 #include <linux/of_irq.h>
 #include <linux/sched.h>
 
+#include <rtdm/driver.h>
+
 struct fsl_ifc_ctrl *fsl_ifc_ctrl_dev;
 EXPORT_SYMBOL(fsl_ifc_ctrl_dev);
 #define FSL_IFC_V1_3_0	0x01030000
@@ -155,13 +157,15 @@ static irqreturn_t fsl_ifc_nand_irq(int irqno, void *data)
 	return IRQ_NONE;
 }
 
+
 /*
  * NOTE: This interrupt is used to report ifc events of various kinds,
  * such as transaction errors on the chipselects.
  */
-static irqreturn_t fsl_ifc_ctrl_irq(int irqno, void *data)
+static int fsl_ifc_ctrl_irq(rtdm_irq_t *irq_context)
 {
-	struct fsl_ifc_ctrl *ctrl = data;
+	struct fsl_ifc_ctrl *ctrl = rtdm_irq_get_arg(irq_context,
+							struct fsl_ifc_ctrl);
 	struct fsl_ifc_fcm __iomem *ifc = ctrl->gregs;
 	u32 err_axiid, err_srcid, status, cs_err, err_addr;
 	irqreturn_t ret = IRQ_NONE;
@@ -206,7 +210,7 @@ static irqreturn_t fsl_ifc_ctrl_irq(int irqno, void *data)
 
 	return ret;
 }
-
+static rtdm_irq_t irq_handle;
 /*
  * fsl_ifc_ctrl_probe
  *
@@ -285,8 +289,9 @@ static int fsl_ifc_ctrl_probe(struct platform_device *dev)
 
 	init_waitqueue_head(&fsl_ifc_ctrl_dev->nand_wait);
 
-	ret = request_irq(fsl_ifc_ctrl_dev->irq, fsl_ifc_ctrl_irq, IRQF_SHARED,
-			  "fsl-ifc", fsl_ifc_ctrl_dev);
+	ret = rtdm_irq_request(&irq_handle, fsl_ifc_ctrl_dev->irq,
+				fsl_ifc_ctrl_irq, RTDM_IRQTYPE_SHARED,
+				"fsl-ifc", fsl_ifc_ctrl_dev);
 	if (ret != 0) {
 		dev_err(&dev->dev, "failed to install irq (%d)\n",
 			fsl_ifc_ctrl_dev->irq);
@@ -595,7 +600,7 @@ static int __init fsl_ifc_init(void)
 {
 	return platform_driver_register(&fsl_ifc_ctrl_driver);
 }
-subsys_initcall(fsl_ifc_init);
+fs_initcall(fsl_ifc_init);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Freescale Semiconductor");

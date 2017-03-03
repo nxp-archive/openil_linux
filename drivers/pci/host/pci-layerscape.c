@@ -25,6 +25,7 @@
 #include <linux/regmap.h>
 #include <linux/list.h>
 #include <linux/syscore_ops.h>
+#include <rtdm/driver.h>
 
 #include "pcie-designware.h"
 
@@ -444,9 +445,9 @@ static void ls_pcie_host_hack_pm_init(struct ls_pcie *pcie)
 	of_node_put(np);
 }
 
-static irqreturn_t ls_pcie_pme_irq_handler(int irq, void *data)
+static int ls_pcie_pme_irq_handler(rtdm_irq_t *irq_context)
 {
-	struct pcie_port *pp = data;
+	struct pcie_port *pp = rtdm_irq_get_arg(irq_context, struct pcie_port);
 	struct ls_pcie *pcie = to_ls_pcie(pp);
 	u32 val;
 
@@ -461,6 +462,7 @@ static irqreturn_t ls_pcie_pme_irq_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static rtdm_irq_t irq_handle;
 static int ls_pcie_host_pme_init(struct ls_pcie *pcie,
 				 struct platform_device *pdev)
 {
@@ -482,8 +484,9 @@ static int ls_pcie_host_pme_init(struct ls_pcie *pcie,
 		return pcie->pme_irq;
 	}
 
-	ret = devm_request_irq(pp->dev, pcie->pme_irq, ls_pcie_pme_irq_handler,
-			       IRQF_SHARED, "ls-pcie-pme", pp);
+	ret = rtdm_irq_request(&irq_handle, pcie->pme_irq,
+				ls_pcie_pme_irq_handler, RTDM_IRQTYPE_SHARED,
+				"ls-pcie-pme", pp);
 	if (ret) {
 		dev_err(pp->dev, "Failed to request pme irq\n");
 		return ret;
