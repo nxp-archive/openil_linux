@@ -371,6 +371,8 @@ int mc_send_command(struct fsl_mc_io *mc_io, struct mc_command *cmd);
 #define fsl_mc_driver_register(drv) \
 	__fsl_mc_driver_register(drv, THIS_MODULE)
 
+void fsl_mc_device_remove(struct fsl_mc_device *mc_dev);
+
 int __must_check __fsl_mc_driver_register(struct fsl_mc_driver *fsl_mc_driver,
 					  struct module *owner);
 
