@@ -329,8 +329,6 @@ static int ls_scfg_msi_setup_hwirq(struct ls_scfg_msi_ctrl *ctrl,
 	msir->index = index;
 	msir->ctrl = ctrl;
 
-	flag = MSI_GROUP_AFFINITY_FLAG;
-
 	if (flag == MSI_GROUP_AFFINITY_FLAG) {
 		ret = request_irq(msir->virq, ls_scfg_msi_irq_handler,
 				  IRQF_NO_THREAD, "MSI-GROUP", msir);
