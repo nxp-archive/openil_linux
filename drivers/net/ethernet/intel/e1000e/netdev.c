@@ -44,6 +44,8 @@
 #include <linux/aer.h>
 #include <linux/prefetch.h>
 
+#include <rtdm/driver.h>
+
 #include "e1000.h"
 
 #define DRV_EXTRAVERSION "-k"
@@ -1830,21 +1832,22 @@ static irqreturn_t e1000_intr_msi(int __always_unused irq, void *data)
  * @irq: interrupt number
  * @data: pointer to a network interface device structure
  **/
-static irqreturn_t e1000_intr(int __always_unused irq, void *data)
+static int e1000_intr(rtdm_irq_t *irq_context)
 {
-	struct net_device *netdev = data;
+	struct net_device *netdev = rtdm_irq_get_arg(irq_context,
+					struct net_device);
 	struct e1000_adapter *adapter = netdev_priv(netdev);
 	struct e1000_hw *hw = &adapter->hw;
 	u32 rctl, icr = er32(ICR);
 
 	if (!icr || test_bit(__E1000_DOWN, &adapter->state))
-		return IRQ_NONE;	/* Not our interrupt */
+		return RTDM_IRQ_NONE;	/* Not our interrupt */
 
 	/* IMS will not auto-mask if INT_ASSERTED is not set, and if it is
 	 * not set, then the adapter didn't send an interrupt
 	 */
 	if (!(icr & E1000_ICR_INT_ASSERTED))
-		return IRQ_NONE;
+		return RTDM_IRQ_NONE;
 
 	/* Interrupt Auto-Mask...upon reading ICR,
 	 * interrupts are masked.  No need for the
@@ -1892,7 +1895,7 @@ static irqreturn_t e1000_intr(int __always_unused irq, void *data)
 		schedule_work(&adapter->reset_task);
 
 		/* return immediately since reset is imminent */
-		return IRQ_HANDLED;
+		return RTDM_IRQ_HANDLED;
 	}
 
 	if (napi_schedule_prep(&adapter->napi)) {
@@ -1903,7 +1906,7 @@ static irqreturn_t e1000_intr(int __always_unused irq, void *data)
 		__napi_schedule(&adapter->napi);
 	}
 
-	return IRQ_HANDLED;
+	return RTDM_IRQ_HANDLED;
 }
 
 static irqreturn_t e1000_msix_other(int __always_unused irq, void *data)
@@ -2174,6 +2177,7 @@ static int e1000_request_msix(struct e1000_adapter *adapter)
  * Attempts to configure interrupts using the best available
  * capabilities of the hardware and kernel.
  **/
+static rtdm_irq_t irq_handle;
 static int e1000_request_irq(struct e1000_adapter *adapter)
 {
 	struct net_device *netdev = adapter->netdev;
@@ -2199,8 +2203,8 @@ static int e1000_request_irq(struct e1000_adapter *adapter)
 		adapter->int_mode = E1000E_INT_MODE_LEGACY;
 	}
 
-	err = request_irq(adapter->pdev->irq, e1000_intr, IRQF_SHARED,
-			  netdev->name, netdev);
+	err = rtdm_irq_request(&irq_handle, adapter->pdev->irq, e1000_intr,
+			  0, netdev->name, netdev);
 	if (err)
 		e_err("Unable to allocate interrupt, Error: %d\n", err);
 
@@ -2225,7 +2229,8 @@ static void e1000_free_irq(struct e1000_adapter *adapter)
 		return;
 	}
 
-	free_irq(adapter->pdev->irq, netdev);
+	rtdm_irq_disable(&irq_handle);
+	rtdm_irq_free(&irq_handle);
 }
 
 /**
@@ -6521,7 +6526,7 @@ static void e1000_netpoll(struct net_device *netdev)
 		break;
 	default:		/* E1000E_INT_MODE_LEGACY */
 		disable_irq(adapter->pdev->irq);
-		e1000_intr(adapter->pdev->irq, netdev);
+		e1000_intr((rtdm_irq_t *)netdev);
 		enable_irq(adapter->pdev->irq);
 		break;
 	}
