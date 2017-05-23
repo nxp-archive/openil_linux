@@ -101,12 +101,14 @@ static int fsl_ifc_ctrl_init(struct fsl_ifc_ctrl *ctrl)
 	return 0;
 }
 
+static rtdm_irq_t irq_handle;
 static int fsl_ifc_ctrl_remove(struct platform_device *dev)
 {
 	struct fsl_ifc_ctrl *ctrl = dev_get_drvdata(&dev->dev);
 
 	free_irq(ctrl->nand_irq, ctrl);
-	free_irq(ctrl->irq, ctrl);
+	rtdm_irq_disable(&irq_handle);
+	rtdm_irq_free(&irq_handle);
 
 	irq_dispose_mapping(ctrl->nand_irq);
 	irq_dispose_mapping(ctrl->irq);
@@ -168,7 +170,7 @@ static int fsl_ifc_ctrl_irq(rtdm_irq_t *irq_context)
 							struct fsl_ifc_ctrl);
 	struct fsl_ifc_fcm __iomem *ifc = ctrl->gregs;
 	u32 err_axiid, err_srcid, status, cs_err, err_addr;
-	irqreturn_t ret = IRQ_NONE;
+	irqreturn_t ret = RTDM_IRQ_NONE;
 
 	/* read for chip select error */
 	cs_err = ifc_in32(&ifc->cm_evter_stat);
@@ -202,15 +204,15 @@ static int fsl_ifc_ctrl_irq(rtdm_irq_t *irq_context)
 		dev_err(ctrl->dev, "Transaction Address corresponding to error"
 					"ERADDR 0x%08X\n", err_addr);
 
-		ret = IRQ_HANDLED;
+		ret = RTDM_IRQ_HANDLED;
 	}
 
 	if (check_nand_stat(ctrl))
-		ret = IRQ_HANDLED;
+		ret = RTDM_IRQ_HANDLED;
 
 	return ret;
 }
-static rtdm_irq_t irq_handle;
+
 /*
  * fsl_ifc_ctrl_probe
  *
@@ -290,7 +292,7 @@ static int fsl_ifc_ctrl_probe(struct platform_device *dev)
 	init_waitqueue_head(&fsl_ifc_ctrl_dev->nand_wait);
 
 	ret = rtdm_irq_request(&irq_handle, fsl_ifc_ctrl_dev->irq,
-				fsl_ifc_ctrl_irq, RTDM_IRQTYPE_SHARED,
+				fsl_ifc_ctrl_irq, 0,
 				"fsl-ifc", fsl_ifc_ctrl_dev);
 	if (ret != 0) {
 		dev_err(&dev->dev, "failed to install irq (%d)\n",
@@ -314,7 +316,8 @@ err_nandirq:
 	free_irq(fsl_ifc_ctrl_dev->nand_irq, fsl_ifc_ctrl_dev);
 	irq_dispose_mapping(fsl_ifc_ctrl_dev->nand_irq);
 err_irq:
-	free_irq(fsl_ifc_ctrl_dev->irq, fsl_ifc_ctrl_dev);
+	rtdm_irq_disable(&irq_handle);
+	rtdm_irq_free(&irq_handle);
 	irq_dispose_mapping(fsl_ifc_ctrl_dev->irq);
 err:
 	return ret;
