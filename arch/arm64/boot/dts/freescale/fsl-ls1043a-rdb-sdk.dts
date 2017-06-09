@@ -44,7 +44,6 @@
  *     OTHER DEALINGS IN THE SOFTWARE.
  */
 
-/dts-v1/;
 #include "fsl-ls1043a-rdb.dts"
 
 &bman_fbpr {
