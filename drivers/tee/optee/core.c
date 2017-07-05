@@ -381,7 +381,7 @@ optee_config_shm_memremap(optee_invoke_fn *invoke_fn, void **memremaped_shm)
 		return ERR_PTR(-EINVAL);
 	}
 
-	va = memremap(paddr, size, MEMREMAP_WB);
+	va = ioremap_cache(paddr, size);
 	if (!va) {
 		pr_err("shared memory ioremap failed\n");
 		return ERR_PTR(-EINVAL);
@@ -397,7 +397,7 @@ optee_config_shm_memremap(optee_invoke_fn *invoke_fn, void **memremaped_shm)
 
 	pool = tee_shm_pool_alloc_res_mem(&priv_info, &dmabuf_info);
 	if (IS_ERR(pool)) {
-		memunmap(va);
+		iounmap(va);
 		goto out;
 	}
 
@@ -540,7 +540,7 @@ err:
 	if (pool)
 		tee_shm_pool_free(pool);
 	if (memremaped_shm)
-		memunmap(memremaped_shm);
+		iounmap(memremaped_shm);
 	return ERR_PTR(rc);
 }
 
@@ -562,7 +562,7 @@ static void optee_remove(struct optee *optee)
 
 	tee_shm_pool_free(optee->pool);
 	if (optee->memremaped_shm)
-		memunmap(optee->memremaped_shm);
+		iounmap(optee->memremaped_shm);
 	optee_wait_queue_exit(&optee->wait_queue);
 	optee_supp_uninit(&optee->supp);
 	mutex_destroy(&optee->call_queue.mutex);
