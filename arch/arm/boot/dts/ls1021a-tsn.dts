@@ -70,6 +70,13 @@
 			bitclock-master;
 		};
 	};
+
+	firmware {
+		optee {
+			compatible = "linaro,optee-tz";
+			method = "smc";
+			};
+		};
 };
 
 &dcu0 {
