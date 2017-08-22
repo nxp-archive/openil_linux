@@ -70,6 +70,12 @@ int __init dprc_driver_init(void);
 
 void dprc_driver_exit(void);
 
+int dprc_scan_objects(struct fsl_mc_device *mc_bus_dev,
+		      const char *driver_override,
+		      unsigned int *total_irq_count);
+
+bool fsl_mc_is_root_dprc(struct device *dev);
+
 int __init fsl_mc_allocator_driver_init(void);
 
 void fsl_mc_allocator_driver_exit(void);
