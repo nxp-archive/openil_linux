@@ -20,8 +20,7 @@
 #include <linux/delay.h>
 
 #include "../../staging/fsl-mc/include/mc.h"
-#include "../../staging/fsl-mc/include/mc-bus.h"
-#include "../../staging/fsl-mc/include/mc-sys.h"
+#include "../../staging/fsl-mc/include/dprc.h"
 #include "../../staging/fsl-mc/bus/dprc-cmd.h"
 
 #include "vfio_fsl_mc_private.h"
