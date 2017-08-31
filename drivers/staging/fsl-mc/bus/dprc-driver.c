@@ -315,6 +315,7 @@ int dprc_scan_objects(struct fsl_mc_device *mc_bus_dev,
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(dprc_scan_objects);
 
 /**
  * dprc_scan_container - Scans a physical DPRC and synchronizes Linux bus state
