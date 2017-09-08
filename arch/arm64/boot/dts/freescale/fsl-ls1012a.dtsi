@@ -472,4 +472,11 @@
 			phy_type = "ulpi";
 		};
 	};
+
+	firmware {
+		optee {
+			compatible = "linaro,optee-tz";
+			method = "smc";
+		};
+	};
 };
