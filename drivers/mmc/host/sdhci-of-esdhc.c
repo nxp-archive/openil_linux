@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2007, 2010, 2012 Freescale Semiconductor, Inc.
  * Copyright (c) 2009 MontaVista Software, Inc.
- * Copyright 2018-2019 NXP
+ * Copyright 2017-2019 NXP
  *
  * Authors: Xiaobo Xie <X.Xie@freescale.com>
  *	    Anton Vorontsov <avorontsov@ru.mvista.com>
@@ -523,15 +523,11 @@ static void esdhc_clock_enable(struct sdhci_host *host, bool enable)
 	/* Wait max 20 ms */
 	timeout = ktime_add_ms(ktime_get(), 20);
 	val = ESDHC_CLOCK_STABLE;
-	while  (1) {
-		bool timedout = ktime_after(ktime_get(), timeout);
-
-		if (sdhci_readl(host, ESDHC_PRSSTAT) & val)
-			break;
-		if (timedout) {
+	while (!(sdhci_readl(host, ESDHC_PRSSTAT) & val)) {
+		if (ktime_after(ktime_get(), timeout)) {
 			pr_err("%s: Internal clock never stabilised.\n",
 				mmc_hostname(host->mmc));
-			break;
+				break;
 		}
 		udelay(10);
 	}
