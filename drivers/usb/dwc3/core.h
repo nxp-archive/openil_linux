@@ -896,6 +896,7 @@ struct dwc3_scratchpad_array {
  * 	1	- -3.5dB de-emphasis
  * 	2	- No de-emphasis
  * 	3	- Reserved
+ * @disable_devinit_u1u2_quirk: disable device-initiated U1/U2 request.
  * @imod_interval: set the interrupt moderation interval in 250ns
  *                 increments or 0 to disable.
  */
@@ -1057,6 +1058,7 @@ struct dwc3 {
 
 	unsigned		tx_de_emphasis_quirk:1;
 	unsigned		tx_de_emphasis:2;
+	unsigned		disable_devinit_u1u2_quirk:1;
 
 	u16			imod_interval;
 };
