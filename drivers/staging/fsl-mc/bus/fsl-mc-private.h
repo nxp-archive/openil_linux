@@ -13,6 +13,7 @@
 #include "../include/mc.h"
 #include "../include/dprc.h"
 #include <linux/mutex.h>
+#include <linux/cdev.h>
 
 /**
  * Maximum number of total IRQs that can be pre-allocated for an MC bus'

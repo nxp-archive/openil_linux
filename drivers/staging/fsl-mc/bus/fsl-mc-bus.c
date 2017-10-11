@@ -21,6 +21,7 @@
 #include <linux/msi.h>
 #include <linux/dma-mapping.h>
 
+#include "fsl-mc-restool.h"
 #include "fsl-mc-private.h"
 #include "dprc-cmd.h"
 #include "dpmng-cmd.h"
@@ -952,8 +953,15 @@ static int fsl_mc_bus_probe(struct platform_device *pdev)
 	if (error < 0)
 		goto error_cleanup_mc_io;
 
+	error = fsl_mc_restool_create_device_file(to_fsl_mc_bus(mc_bus_dev));
+	if (error < 0)
+		goto error_cleanup_device;
+
 	mc->root_mc_bus_dev = mc_bus_dev;
 	return 0;
+
+error_cleanup_device:
+	fsl_mc_device_remove(mc_bus_dev);
 
 error_cleanup_mc_io:
 	fsl_destroy_mc_io(mc_io);
@@ -971,6 +979,7 @@ static int fsl_mc_bus_remove(struct platform_device *pdev)
 	if (WARN_ON(!fsl_mc_is_root_dprc(&mc->root_mc_bus_dev->dev)))
 		return -EINVAL;
 
+	fsl_mc_restool_remove_device_file(to_fsl_mc_bus(mc->root_mc_bus_dev));
 	fsl_mc_device_remove(mc->root_mc_bus_dev);
 
 	fsl_destroy_mc_io(mc->root_mc_bus_dev->mc_io);
@@ -1024,7 +1033,14 @@ static int __init fsl_mc_bus_driver_init(void)
 	if (error < 0)
 		goto error_cleanup_mc_allocator;
 
+	error = fsl_mc_restool_init();
+	if (error < 0)
+		goto error_cleanup_mc_msi;
+
 	return 0;
+
+error_cleanup_mc_msi:
+	its_fsl_mc_msi_cleanup();
 
 error_cleanup_mc_allocator:
 	fsl_mc_allocator_driver_exit();

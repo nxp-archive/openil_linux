@@ -19,5 +19,8 @@ mc-bus-driver-objs := fsl-mc-bus.o \
 		      dpbp.o \
 		      dpcon.o
 
+# MC restool kernel support
+obj-$(CONFIG_FSL_MC_RESTOOL) += fsl-mc-restool.o
+
 # MC DPIO driver
 obj-$(CONFIG_FSL_MC_DPIO) += dpio/

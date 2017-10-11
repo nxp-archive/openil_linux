@@ -14,6 +14,7 @@
 #include <linux/device.h>
 #include <linux/mod_devicetable.h>
 #include <linux/interrupt.h>
+#include <linux/cdev.h>
 #include "dprc.h"
 
 #define FSL_MC_VENDOR_FREESCALE	0x1957
@@ -439,6 +440,24 @@ struct fsl_mc_resource_pool {
 };
 
 /**
+ * struct fsl_mc_restool - information associated with a restool device file
+ * @cdev: struct char device linked to the root dprc
+ * @dev: dev_t for the char device to be added
+ * @device: newly created device in /dev
+ * @mutex: mutex lock to serialize the open/release operations
+ * @local_instance_in_use: local MC I/O instance in use or not
+ * @dynamic_instance_count: number of dynamically created MC I/O instances
+ */
+struct fsl_mc_restool {
+	struct cdev cdev;
+	dev_t dev;
+	struct device *device;
+	struct mutex mutex; /* serialize open/release operations */
+	bool local_instance_in_use;
+	u32 dynamic_instance_count;
+};
+
+/**
  * struct fsl_mc_bus - logical bus that corresponds to a physical DPRC
  * @mc_dev: fsl-mc device for the bus device itself.
  * @resource_pools: array of resource pools (one pool per resource type)
@@ -454,6 +473,7 @@ struct fsl_mc_bus {
 	struct fsl_mc_device_irq *irq_resources;
 	struct mutex scan_mutex;    /* serializes bus scanning */
 	struct dprc_attributes dprc_attr;
+	struct fsl_mc_restool restool_misc;
 };
 
 #define to_fsl_mc_bus(_mc_dev) \
