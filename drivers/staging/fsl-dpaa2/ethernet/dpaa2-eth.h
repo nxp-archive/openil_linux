@@ -141,6 +141,7 @@
 enum dpaa2_eth_swa_type {
 	DPAA2_ETH_SWA_SINGLE,
 	DPAA2_ETH_SWA_SG,
+	DPAA2_ETH_SWA_XDP,
 };
 
 /* Must keep this struct smaller than DPAA2_ETH_SWA_SIZE */
@@ -156,6 +157,9 @@ struct dpaa2_eth_swa {
 			int num_sg;
 			int num_dma_bufs;
 		} sg;
+		struct {
+			int dma_size;
+		} xdp;
 	};
 };
 
@@ -380,6 +384,7 @@ struct dpaa2_eth_channel {
 	struct bpf_prog *xdp_prog;
 	u64 rel_buf_array[DPAA2_ETH_BUFS_PER_CMD];
 	u8 rel_buf_cnt;
+	bool flush;
 };
 
 struct dpaa2_eth_cls_rule {
