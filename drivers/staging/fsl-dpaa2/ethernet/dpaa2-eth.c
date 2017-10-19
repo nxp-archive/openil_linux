@@ -304,6 +304,70 @@ static void release_fd_buf(struct dpaa2_eth_priv *priv,
 	ch->rel_buf_cnt = 0;
 }
 
+static u32 dpaa2_eth_run_xdp(struct dpaa2_eth_priv *priv,
+			     struct dpaa2_eth_channel *ch,
+			     const struct dpaa2_fd *fd,
+			     u16 queue_id,
+			     void *vaddr)
+{
+	struct device *dev = priv->net_dev->dev.parent;
+	dma_addr_t addr = dpaa2_fd_get_addr(fd);
+	struct rtnl_link_stats64 *percpu_stats;
+	struct bpf_prog *xdp_prog;
+	struct xdp_buff xdp;
+	u32 xdp_act = XDP_PASS;
+
+	xdp_prog = READ_ONCE(ch->xdp_prog);
+	if (!xdp_prog)
+		return xdp_act;
+
+	percpu_stats = this_cpu_ptr(priv->percpu_stats);
+
+	xdp.data = vaddr + dpaa2_fd_get_offset(fd);
+	xdp.data_end = xdp.data + dpaa2_fd_get_len(fd);
+	/* for now, we don't support changes in header size */
+	xdp.data_hard_start = xdp.data;
+
+	xdp_act = bpf_prog_run_xdp(xdp_prog, &xdp);
+	switch (xdp_act) {
+	case XDP_PASS:
+		break;
+	default:
+		bpf_warn_invalid_xdp_action(xdp_act);
+	case XDP_ABORTED:
+	case XDP_DROP:
+		/* This is our buffer, so we can release it back to hardware */
+		release_fd_buf(priv, ch, addr);
+		percpu_stats->rx_dropped++;
+		break;
+	case XDP_TX:
+		if (dpaa2_eth_xdp_tx(priv, fd, vaddr, queue_id)) {
+			dma_unmap_single(dev, addr, DPAA2_ETH_RX_BUF_SIZE,
+					 DMA_BIDIRECTIONAL);
+			free_rx_fd(priv, fd, vaddr);
+			ch->buf_count--;
+		}
+		break;
+	case XDP_REDIRECT:
+		dma_unmap_single(dev, addr, DPAA2_ETH_RX_BUF_SIZE,
+				 DMA_BIDIRECTIONAL);
+		ch->buf_count--;
+		ch->flush = true;
+		/* Mark the actual start of the data buffer */
+		xdp.data_hard_start = vaddr;
+		if (xdp_do_redirect(priv->net_dev, &xdp, xdp_prog))
+			free_rx_fd(priv, fd, vaddr);
+		break;
+	}
+
+	if (xdp_act == XDP_TX || xdp_act == XDP_REDIRECT) {
+		percpu_stats->rx_packets++;
+		percpu_stats->rx_bytes += dpaa2_fd_get_len(fd);
+	}
+
+	return xdp_act;
+}
+
 /* Main Rx frame processing routine */
 static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 			 struct dpaa2_eth_channel *ch,
@@ -321,8 +385,6 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 	struct dpaa2_fas *fas;
 	void *buf_data;
 	u32 status = 0;
-	struct bpf_prog *xdp_prog;
-	struct xdp_buff xdp;
 	u32 xdp_act;
 
 	/* Tracing point */
@@ -340,55 +402,11 @@ static void dpaa2_eth_rx(struct dpaa2_eth_priv *priv,
 	percpu_stats = this_cpu_ptr(priv->percpu_stats);
 	percpu_extras = this_cpu_ptr(priv->percpu_extras);
 
-	xdp_prog = READ_ONCE(ch->xdp_prog);
-
 	if (fd_format == dpaa2_fd_single) {
-		if (xdp_prog) {
-			xdp.data = buf_data;
-			xdp.data_end = buf_data + dpaa2_fd_get_len(fd);
-			/* for now, we don't support changes in header size */
-			xdp.data_hard_start = buf_data;
+		xdp_act = dpaa2_eth_run_xdp(priv, ch, fd, queue_id, vaddr);
+		if (xdp_act != XDP_PASS)
+			return;
 
-			/* update stats here, as we won't reach the code
-			 * that does that for standard frames
-			 */
-			percpu_stats->rx_packets++;
-			percpu_stats->rx_bytes += dpaa2_fd_get_len(fd);
-
-			xdp_act = bpf_prog_run_xdp(xdp_prog, &xdp);
-			switch (xdp_act) {
-			case XDP_PASS:
-				break;
-			default:
-				bpf_warn_invalid_xdp_action(xdp_act);
-			case XDP_ABORTED:
-			case XDP_DROP:
-				release_fd_buf(priv, ch, addr);
-				goto drop_cnt;
-			case XDP_TX:
-				if (dpaa2_eth_xdp_tx(priv, fd, vaddr,
-						     queue_id)) {
-					dma_unmap_single(dev, addr,
-							 DPAA2_ETH_RX_BUF_SIZE,
-							 DMA_BIDIRECTIONAL);
-					free_rx_fd(priv, fd, vaddr);
-					ch->buf_count--;
-				}
-				return;
-			case XDP_REDIRECT:
-				dma_unmap_single(dev, addr,
-						 DPAA2_ETH_RX_BUF_SIZE,
-						 DMA_BIDIRECTIONAL);
-				ch->buf_count--;
-				ch->flush = true;
-				/* Mark the actual start of the data buffer */
-				xdp.data_hard_start = vaddr;
-				if (xdp_do_redirect(priv->net_dev,
-						    &xdp, xdp_prog))
-					free_rx_fd(priv, fd, vaddr);
-				return;
-			}
-		}
 		dma_unmap_single(dev, addr, DPAA2_ETH_RX_BUF_SIZE,
 				 DMA_BIDIRECTIONAL);
 		skb = build_linear_skb(priv, ch, fd, vaddr);
