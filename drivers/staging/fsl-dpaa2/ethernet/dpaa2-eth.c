@@ -329,6 +329,9 @@ static u32 dpaa2_eth_run_xdp(struct dpaa2_eth_priv *priv,
 	xdp.data_hard_start = xdp.data;
 
 	xdp_act = bpf_prog_run_xdp(xdp_prog, &xdp);
+	if (xdp.data != xdp.data_hard_start)
+		dev_warn_once(dev, "XDP header adjustment is not supported");
+
 	switch (xdp_act) {
 	case XDP_PASS:
 		break;
