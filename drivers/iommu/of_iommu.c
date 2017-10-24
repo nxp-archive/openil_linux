@@ -261,11 +261,9 @@ static int of_pci_iommu_init(struct pci_dev *pdev, u16 alias, void *data)
 	return err;
 }
 
-static const struct iommu_ops
-*of_fsl_mc_iommu_init(struct fsl_mc_device *mc_dev,
-		      struct device_node *master_np)
+static int of_fsl_mc_iommu_init(struct fsl_mc_device *mc_dev,
+				struct device_node *master_np)
 {
-	const struct iommu_ops *ops;
 	struct of_phandle_args iommu_spec = { .args_count = 1 };
 	int err;
 
@@ -273,11 +271,11 @@ static const struct iommu_ops
 			 "iommu-map-mask", &iommu_spec.np,
 			 iommu_spec.args);
 	if (err)
-		return NULL;
+		return err == -ENODEV ? NO_IOMMU : err;
 
-	ops = of_iommu_xlate(&mc_dev->dev, &iommu_spec);
+	err = of_iommu_xlate(&mc_dev->dev, &iommu_spec);
 	of_node_put(iommu_spec.np);
-	return ops;
+	return err;
 }
 
 const struct iommu_ops *of_iommu_configure(struct device *dev,
@@ -312,7 +310,7 @@ const struct iommu_ops *of_iommu_configure(struct device *dev,
 		err = pci_for_each_dma_alias(to_pci_dev(dev),
 					     of_pci_iommu_init, &info);
 	} else if (dev_is_fsl_mc(dev)) {
-		ops = of_fsl_mc_iommu_init(to_fsl_mc_device(dev), master_np);
+		err = of_fsl_mc_iommu_init(to_fsl_mc_device(dev), master_np);
 	} else {
 		struct of_phandle_args iommu_spec;
 		int idx = 0;
