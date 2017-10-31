@@ -249,13 +249,14 @@ static struct ptp_clock_info ptp_dpa_caps = {
 	.settime64	= ptp_dpa_settime,
 	.enable		= ptp_dpa_enable,
 };
+int dpa_phc_index = -1;
+EXPORT_SYMBOL(dpa_phc_index);
 
 static int __init __cold dpa_ptp_load(void)
 {
 	struct device *ptp_dev;
 	struct timespec64 now;
 	struct ptp_clock *clock = ptp_priv.clock;
-	int dpa_phc_index;
 	int err;
 
 	if (!(ptp_priv.of_dev && ptp_priv.mac_dev))
