@@ -694,7 +694,7 @@
 			reg = <0x0 0x2000000 0x0 0x10000>;
 			interrupts = <0 34 0x4>; /* Level high type */
 			clock-names = "i2c";
-			clocks = <&clockgen 4 3>;
+			clocks = <&clockgen 4 1>;
 		};
 
 		i2c1: i2c@2010000 {
@@ -705,7 +705,7 @@
 			reg = <0x0 0x2010000 0x0 0x10000>;
 			interrupts = <0 34 0x4>; /* Level high type */
 			clock-names = "i2c";
-			clocks = <&clockgen 4 3>;
+			clocks = <&clockgen 4 1>;
 		};
 
 		i2c2: i2c@2020000 {
@@ -716,7 +716,7 @@
 			reg = <0x0 0x2020000 0x0 0x10000>;
 			interrupts = <0 35 0x4>; /* Level high type */
 			clock-names = "i2c";
-			clocks = <&clockgen 4 3>;
+			clocks = <&clockgen 4 1>;
 		};
 
 		i2c3: i2c@2030000 {
@@ -727,7 +727,7 @@
 			reg = <0x0 0x2030000 0x0 0x10000>;
 			interrupts = <0 35 0x4>; /* Level high type */
 			clock-names = "i2c";
-			clocks = <&clockgen 4 3>;
+			clocks = <&clockgen 4 1>;
 		};
 
 		ifc: ifc@2240000 {
