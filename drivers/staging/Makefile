@@ -51,3 +51,4 @@ obj-$(CONFIG_CRYPTO_DEV_CCREE)	+= ccree/
 obj-$(CONFIG_DRM_VBOXVIDEO)	+= vboxvideo/
 obj-$(CONFIG_PI433)		+= pi433/
 obj-$(CONFIG_FSL_SDK_DPA)      += fsl_qbman/
+obj-$(CONFIG_FSL_PPFE)		+= fsl_ppfe/
