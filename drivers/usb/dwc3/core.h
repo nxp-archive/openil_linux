@@ -816,7 +816,6 @@ struct dwc3_scratchpad_array {
  * @regs_size: address space size
  * @fladj: frame length adjustment
  * @incrx_type: INCR burst type adjustment
- * @dma_snooping_quirk: set if enable dma-snooping quirk.
  * @irq_gadget: peripheral controller's IRQ number
  * @nr_scratch: number of scratch buffers
  * @u1u2: only used on revisions <1.83a for workaround
@@ -870,6 +869,7 @@ struct dwc3_scratchpad_array {
  * @setup_packet_pending: true when there's a Setup Packet in FIFO. Workaround
  * @three_stage_setup: set if we perform a three phase setup
  * @usb3_lpm_capable: set if hadrware supports Link Power Management
+ * @dma_coherent: set if hadrware supports DMA snoop
  * @disable_scramble_quirk: set if we enable the disable scramble quirk
  * @u2exit_lfps_quirk: set if we enable u2exit lfps quirk
  * @u2ss_inp3_quirk: set if we enable P3 OK for U2/SS Inactive quirk
@@ -1038,6 +1038,7 @@ struct dwc3 {
 	unsigned		setup_packet_pending:1;
 	unsigned		three_stage_setup:1;
 	unsigned		usb3_lpm_capable:1;
+	unsigned		dma_coherent:1;
 
 	unsigned		disable_scramble_quirk:1;
 	unsigned		u2exit_lfps_quirk:1;
@@ -1054,7 +1055,6 @@ struct dwc3 {
 	unsigned		dis_u2_freeclk_exists_quirk:1;
 	unsigned		dis_del_phy_power_chg_quirk:1;
 	unsigned		dis_tx_ipgap_linecheck_quirk:1;
-	unsigned		dma_snooping_quirk:1;
 
 	unsigned		tx_de_emphasis_quirk:1;
 	unsigned		tx_de_emphasis:2;
