@@ -1103,9 +1103,15 @@ static struct platform_driver fsl_ifc_nand_driver = {
 	.probe       = fsl_ifc_nand_probe,
 	.remove      = fsl_ifc_nand_remove,
 };
-
+#ifdef CONFIG_IPIPE
+static int __init fsl_ifc_nand_init(void)
+{
+	return platform_driver_register(&fsl_ifc_nand_driver);
+}
+late_initcall(fsl_ifc_nand_init);
+#else
 module_platform_driver(fsl_ifc_nand_driver);
-
+#endif
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Freescale");
 MODULE_DESCRIPTION("Freescale Integrated Flash Controller MTD NAND driver");

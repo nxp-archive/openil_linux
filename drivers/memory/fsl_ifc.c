@@ -35,6 +35,9 @@
 #include <linux/irqdomain.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
+#ifdef CONFIG_IPIPE
+#include <rtdm/driver.h>
+#endif
 
 struct fsl_ifc_ctrl *fsl_ifc_ctrl_dev;
 EXPORT_SYMBOL(fsl_ifc_ctrl_dev);
@@ -98,14 +101,20 @@ static int fsl_ifc_ctrl_init(struct fsl_ifc_ctrl *ctrl)
 
 	return 0;
 }
-
+#ifdef CONFIG_IPIPE
+static rtdm_irq_t irq_handle;
+#endif
 static int fsl_ifc_ctrl_remove(struct platform_device *dev)
 {
 	struct fsl_ifc_ctrl *ctrl = dev_get_drvdata(&dev->dev);
 
 	free_irq(ctrl->nand_irq, ctrl);
-	free_irq(ctrl->irq, ctrl);
-
+#ifdef CONFIG_IPIPE
+	rtdm_irq_disable(&irq_handle);
+	rtdm_irq_free(&irq_handle);
+#else
+    free_irq(ctrl->irq, ctrl);
+#endif
 	irq_dispose_mapping(ctrl->nand_irq);
 	irq_dispose_mapping(ctrl->irq);
 
@@ -159,13 +168,25 @@ static irqreturn_t fsl_ifc_nand_irq(int irqno, void *data)
  * NOTE: This interrupt is used to report ifc events of various kinds,
  * such as transaction errors on the chipselects.
  */
+#ifdef CONFIG_IPIPE
+static int fsl_ifc_ctrl_irq(rtdm_irq_t *irq_context)
+#else
 static irqreturn_t fsl_ifc_ctrl_irq(int irqno, void *data)
+#endif
 {
+#ifdef CONFIG_IPIPE
+    struct fsl_ifc_ctrl *ctrl = rtdm_irq_get_arg(irq_context,
+							struct fsl_ifc_ctrl);
+#else
 	struct fsl_ifc_ctrl *ctrl = data;
+#endif
 	struct fsl_ifc_global __iomem *ifc = ctrl->gregs;
 	u32 err_axiid, err_srcid, status, cs_err, err_addr;
-	irqreturn_t ret = IRQ_NONE;
-
+#ifdef CONFIG_IPIPE
+	irqreturn_t ret = RTDM_IRQ_NONE;
+#else
+    irqreturn_t ret = IRQ_NONE;
+#endif
 	/* read for chip select error */
 	cs_err = ifc_in32(&ifc->cm_evter_stat);
 	if (cs_err) {
@@ -197,13 +218,19 @@ static irqreturn_t fsl_ifc_ctrl_irq(int irqno, void *data)
 
 		dev_err(ctrl->dev, "Transaction Address corresponding to error"
 					"ERADDR 0x%08X\n", err_addr);
-
+#ifdef CONFIG_IPIPE
+		ret = RTDM_IRQ_HANDLED;
+#else
 		ret = IRQ_HANDLED;
+#endif
 	}
 
 	if (check_nand_stat(ctrl))
+#ifdef CONFIG_IPIPE
+		ret = RTDM_IRQ_HANDLED;
+#else
 		ret = IRQ_HANDLED;
-
+#endif
 	return ret;
 }
 
@@ -283,9 +310,14 @@ static int fsl_ifc_ctrl_probe(struct platform_device *dev)
 		goto err;
 
 	init_waitqueue_head(&fsl_ifc_ctrl_dev->nand_wait);
+#ifdef CONFIG_IPIPE
+    ret = rtdm_irq_request(&irq_handle, fsl_ifc_ctrl_dev->irq,
+			fsl_ifc_ctrl_irq, 0, "fsl-ifc", fsl_ifc_ctrl_dev);
+#else
+    ret = request_irq(fsl_ifc_ctrl_dev->irq, fsl_ifc_ctrl_irq, IRQF_SHARED,
+			"fsl-ifc", fsl_ifc_ctrl_dev);
+#endif
 
-	ret = request_irq(fsl_ifc_ctrl_dev->irq, fsl_ifc_ctrl_irq, IRQF_SHARED,
-			  "fsl-ifc", fsl_ifc_ctrl_dev);
 	if (ret != 0) {
 		dev_err(&dev->dev, "failed to install irq (%d)\n",
 			fsl_ifc_ctrl_dev->irq);
@@ -308,7 +340,12 @@ err_nandirq:
 	free_irq(fsl_ifc_ctrl_dev->nand_irq, fsl_ifc_ctrl_dev);
 	irq_dispose_mapping(fsl_ifc_ctrl_dev->nand_irq);
 err_irq:
-	free_irq(fsl_ifc_ctrl_dev->irq, fsl_ifc_ctrl_dev);
+#ifdef CONFIG_IPIPE
+	rtdm_irq_disable(&irq_handle);
+	rtdm_irq_free(&irq_handle);
+#else
+    free_irq(fsl_ifc_ctrl_dev->irq, fsl_ifc_ctrl_dev);
+#endif
 	irq_dispose_mapping(fsl_ifc_ctrl_dev->irq);
 err:
 	return ret;
@@ -594,8 +631,11 @@ static int __init fsl_ifc_init(void)
 {
 	return platform_driver_register(&fsl_ifc_ctrl_driver);
 }
+#ifdef CONFIG_IPIPE
+device_initcall(fsl_ifc_init);
+#else
 subsys_initcall(fsl_ifc_init);
-
+#endif
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Freescale Semiconductor");
 MODULE_DESCRIPTION("Freescale Integrated Flash Controller driver");
