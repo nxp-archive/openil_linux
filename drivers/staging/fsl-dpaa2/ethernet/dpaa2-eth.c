@@ -321,12 +321,14 @@ static u32 dpaa2_eth_run_xdp(struct dpaa2_eth_priv *priv,
 
 	xdp.data = vaddr + dpaa2_fd_get_offset(fd);
 	xdp.data_end = xdp.data + dpaa2_fd_get_len(fd);
-	/* for now, we don't support changes in header size */
-	xdp.data_hard_start = xdp.data;
+	/* Allow the XDP program to use the specially reserved headroom */
+	xdp.data_hard_start = xdp.data - XDP_PACKET_HEADROOM;
 
 	xdp_act = bpf_prog_run_xdp(xdp_prog, &xdp);
-	if (xdp.data != xdp.data_hard_start)
-		dev_warn_once(dev, "XDP header adjustment is not supported");
+
+	/* xdp.data pointer may have changed */
+	dpaa2_fd_set_offset(fd, xdp.data - vaddr);
+	dpaa2_fd_set_len(fd, xdp.data_end - xdp.data);
 
 	switch (xdp_act) {
 	case XDP_PASS:
@@ -1752,6 +1754,11 @@ static int set_buffer_layout(struct dpaa2_eth_priv *priv)
 	buf_layout.pass_parser_result = true;
 	buf_layout.data_align = priv->rx_buf_align;
 	buf_layout.data_head_room = dpaa2_eth_rx_headroom(priv);
+	/* If XDP program is attached, reserve extra space for
+	 * potential header expansions
+	 */
+	if (priv->has_xdp_prog)
+		buf_layout.data_head_room += XDP_PACKET_HEADROOM;
 	buf_layout.options = DPNI_BUF_LAYOUT_OPT_PARSER_RESULT |
 			     DPNI_BUF_LAYOUT_OPT_FRAME_STATUS |
 			     DPNI_BUF_LAYOUT_OPT_PRIVATE_DATA_SIZE |
@@ -1772,7 +1779,7 @@ static int dpaa2_eth_set_xdp(struct net_device *net_dev, struct bpf_prog *prog)
 {
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
 	struct dpaa2_eth_channel *ch;
-	struct bpf_prog *old_prog;
+	struct bpf_prog *old_prog = NULL;
 	int i;
 
 	/* No support for SG frames */
@@ -1796,6 +1803,13 @@ static int dpaa2_eth_set_xdp(struct net_device *net_dev, struct bpf_prog *prog)
 		if (old_prog)
 			bpf_prog_put(old_prog);
 	}
+
+	/* When turning XDP on/off we need to do some reconfiguring
+	 * of the Rx buffer layout. Buffer pool was drained on dpaa2_eth_stop,
+	 * so we are sure no old format buffers will be used from now on
+	 */
+	if (priv->has_xdp_prog != !!old_prog)
+		set_buffer_layout(priv);
 
 	if (netif_running(net_dev))
 		dpaa2_eth_open(net_dev);
