@@ -710,7 +710,8 @@ static int build_single_fd(struct dpaa2_eth_priv *priv,
 	struct dpaa2_eth_swa *swa;
 	dma_addr_t addr;
 
-	buffer_start = PTR_ALIGN(skb->data - dpaa2_eth_tx_headroom(priv),
+	buffer_start = PTR_ALIGN(skb->data -
+				 dpaa2_eth_needed_headroom(priv, skb),
 				 DPAA2_ETH_TX_BUF_ALIGN);
 
 	/* Store a backpointer to the skb at the beginning of the buffer
@@ -830,6 +831,7 @@ static netdev_tx_t dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	struct dpaa2_fd fd;
 	struct rtnl_link_stats64 *percpu_stats;
 	struct dpaa2_eth_drv_stats *percpu_extras;
+	unsigned int needed_headroom;
 	struct dpaa2_eth_fq *fq;
 	u16 queue_mapping;
 	int err, i;
@@ -851,11 +853,11 @@ static netdev_tx_t dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	percpu_extras = this_cpu_ptr(priv->percpu_extras);
 
 	/* For non-linear skb we don't need a minimum headroom */
-	if (skb_headroom(skb) < dpaa2_eth_tx_headroom(priv) &&
-	    !skb_is_nonlinear(skb)) {
+	needed_headroom = dpaa2_eth_needed_headroom(priv, skb);
+	if (skb_headroom(skb) < needed_headroom) {
 		struct sk_buff *ns;
 
-		ns = skb_realloc_headroom(skb, dpaa2_eth_tx_headroom(priv));
+		ns = skb_realloc_headroom(skb, needed_headroom);
 		if (unlikely(!ns)) {
 			percpu_stats->tx_dropped++;
 			goto err_alloc_headroom;
@@ -1803,6 +1805,7 @@ static int dpaa2_eth_xdp_xmit(struct net_device *net_dev, struct xdp_buff *xdp)
 	struct device *dev = net_dev->dev.parent;
 	struct rtnl_link_stats64 *percpu_stats;
 	struct dpaa2_eth_drv_stats *percpu_extras;
+	unsigned int needed_headroom;
 	struct dpaa2_eth_swa *swa;
 	struct dpaa2_eth_fq *fq;
 	struct dpaa2_fd fd;
@@ -1817,8 +1820,9 @@ static int dpaa2_eth_xdp_xmit(struct net_device *net_dev, struct xdp_buff *xdp)
 	 * Otherwise return an error and let the original net_device handle it
 	 */
 	/* TODO: Do we update i/f counters here or just on the Rx device? */
+	needed_headroom = dpaa2_eth_needed_headroom(priv, NULL);
 	if (xdp->data < xdp->data_hard_start ||
-	    xdp->data - xdp->data_hard_start < dpaa2_eth_tx_headroom(priv)) {
+	    xdp->data - xdp->data_hard_start < needed_headroom) {
 		percpu_stats->tx_dropped++;
 		return -EINVAL;
 	}
@@ -1829,7 +1833,7 @@ static int dpaa2_eth_xdp_xmit(struct net_device *net_dev, struct xdp_buff *xdp)
 	/* Setup the FD fields */
 	memset(&fd, 0, sizeof(fd));
 
-	buffer_start = PTR_ALIGN(xdp->data - dpaa2_eth_tx_headroom(priv),
+	buffer_start = PTR_ALIGN(xdp->data - needed_headroom,
 				 DPAA2_ETH_TX_BUF_ALIGN);
 
 	swa = (struct dpaa2_eth_swa *)buffer_start;
