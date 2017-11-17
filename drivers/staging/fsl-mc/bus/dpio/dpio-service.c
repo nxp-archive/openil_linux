@@ -154,7 +154,7 @@ struct dpaa2_io *dpaa2_io_create(const struct dpaa2_io_desc *desc)
 
 	return obj;
 }
-EXPORT_SYMBOL(dpaa2_io_create);
+EXPORT_SYMBOL_GPL(dpaa2_io_create);
 
 /**
  * dpaa2_io_down() - release the dpaa2_io object.
@@ -171,7 +171,7 @@ void dpaa2_io_down(struct dpaa2_io *d)
 		return;
 	kfree(d);
 }
-EXPORT_SYMBOL(dpaa2_io_down);
+EXPORT_SYMBOL_GPL(dpaa2_io_down);
 
 #define DPAA_POLL_MAX 32
 
@@ -218,7 +218,7 @@ done:
 	qbman_swp_interrupt_set_inhibit(swp, 0);
 	return IRQ_HANDLED;
 }
-EXPORT_SYMBOL(dpaa2_io_irq);
+EXPORT_SYMBOL_GPL(dpaa2_io_irq);
 
 /**
  * dpaa2_io_service_register() - Prepare for servicing of FQDAN or CDAN
@@ -261,7 +261,7 @@ int dpaa2_io_service_register(struct dpaa2_io *d,
 							 ctx->qman64);
 	return 0;
 }
-EXPORT_SYMBOL(dpaa2_io_service_register);
+EXPORT_SYMBOL_GPL(dpaa2_io_service_register);
 
 /**
  * dpaa2_io_service_deregister - The opposite of 'register'.
@@ -284,7 +284,7 @@ void dpaa2_io_service_deregister(struct dpaa2_io *service,
 	list_del(&ctx->node);
 	spin_unlock_irqrestore(&d->lock_notifications, irqflags);
 }
-EXPORT_SYMBOL(dpaa2_io_service_deregister);
+EXPORT_SYMBOL_GPL(dpaa2_io_service_deregister);
 
 /**
  * dpaa2_io_service_rearm() - Rearm the notification for the given DPIO service.
@@ -318,7 +318,7 @@ int dpaa2_io_service_rearm(struct dpaa2_io *d,
 
 	return err;
 }
-EXPORT_SYMBOL(dpaa2_io_service_rearm);
+EXPORT_SYMBOL_GPL(dpaa2_io_service_rearm);
 
 /**
  * dpaa2_io_service_pull_fq() - pull dequeue functions from a fq.
@@ -381,7 +381,7 @@ int dpaa2_io_service_pull_channel(struct dpaa2_io *d, u32 channelid,
 
 	return err;
 }
-EXPORT_SYMBOL(dpaa2_io_service_pull_channel);
+EXPORT_SYMBOL_GPL(dpaa2_io_service_pull_channel);
 
 /**
  * dpaa2_io_service_enqueue_fq() - Enqueue a frame to a frame queue.
@@ -437,7 +437,7 @@ int dpaa2_io_service_enqueue_qd(struct dpaa2_io *d,
 
 	return qbman_swp_enqueue(d->swp, &ed, fd);
 }
-EXPORT_SYMBOL(dpaa2_io_service_enqueue_qd);
+EXPORT_SYMBOL_GPL(dpaa2_io_service_enqueue_qd);
 
 /**
  * dpaa2_io_service_release() - Release buffers to a buffer pool.
@@ -464,7 +464,7 @@ int dpaa2_io_service_release(struct dpaa2_io *d,
 
 	return qbman_swp_release(d->swp, &rd, buffers, num_buffers);
 }
-EXPORT_SYMBOL(dpaa2_io_service_release);
+EXPORT_SYMBOL_GPL(dpaa2_io_service_release);
 
 /**
  * dpaa2_io_service_acquire() - Acquire buffers from a buffer pool.
@@ -495,7 +495,7 @@ int dpaa2_io_service_acquire(struct dpaa2_io *d,
 
 	return err;
 }
-EXPORT_SYMBOL(dpaa2_io_service_acquire);
+EXPORT_SYMBOL_GPL(dpaa2_io_service_acquire);
 
 /*
  * 'Stores' are reusable memory blocks for holding dequeue results, and to
@@ -549,7 +549,7 @@ struct dpaa2_io_store *dpaa2_io_store_create(unsigned int max_frames,
 
 	return ret;
 }
-EXPORT_SYMBOL(dpaa2_io_store_create);
+EXPORT_SYMBOL_GPL(dpaa2_io_store_create);
 
 /**
  * dpaa2_io_store_destroy() - Frees the dma memory storage for dequeue
@@ -563,7 +563,7 @@ void dpaa2_io_store_destroy(struct dpaa2_io_store *s)
 	kfree(s->alloced_addr);
 	kfree(s);
 }
-EXPORT_SYMBOL(dpaa2_io_store_destroy);
+EXPORT_SYMBOL_GPL(dpaa2_io_store_destroy);
 
 /**
  * dpaa2_io_store_next() - Determine when the next dequeue result is available.
@@ -611,7 +611,7 @@ struct dpaa2_dq *dpaa2_io_store_next(struct dpaa2_io_store *s, int *is_last)
 
 	return ret;
 }
-EXPORT_SYMBOL(dpaa2_io_store_next);
+EXPORT_SYMBOL_GPL(dpaa2_io_store_next);
 
 /**
  * dpaa2_io_query_fq_count() - Get the frame and byte count for a given fq.
@@ -648,7 +648,7 @@ int dpaa2_io_query_fq_count(struct dpaa2_io *d, u32 fqid,
 
 	return 0;
 }
-EXPORT_SYMBOL(dpaa2_io_query_fq_count);
+EXPORT_SYMBOL_GPL(dpaa2_io_query_fq_count);
 
 /**
  * dpaa2_io_query_bp_count() - Query the number of buffers currently in a
@@ -679,7 +679,7 @@ int dpaa2_io_query_bp_count(struct dpaa2_io *d, u32 bpid, u32 *num)
 	*num = qbman_bp_info_num_free_bufs(&state);
 	return 0;
 }
-EXPORT_SYMBOL(dpaa2_io_query_bp_count);
+EXPORT_SYMBOL_GPL(dpaa2_io_query_bp_count);
 
 /**
  * dpaa2_io_service_enqueue_orp_fq() - Enqueue a frame to a frame queue with
