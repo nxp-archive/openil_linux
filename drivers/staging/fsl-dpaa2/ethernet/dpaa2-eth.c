@@ -706,13 +706,19 @@ static int build_single_fd(struct dpaa2_eth_priv *priv,
 			   struct dpaa2_fd *fd)
 {
 	struct device *dev = priv->net_dev->dev.parent;
-	u8 *buffer_start;
+	u8 *buffer_start, *aligned_start;
 	struct dpaa2_eth_swa *swa;
 	dma_addr_t addr;
 
-	buffer_start = PTR_ALIGN(skb->data -
-				 dpaa2_eth_needed_headroom(priv, skb),
-				 DPAA2_ETH_TX_BUF_ALIGN);
+	buffer_start = skb->data - dpaa2_eth_needed_headroom(priv, skb);
+
+	/* If there's enough room to align the FD address, do it.
+	 * It will help hardware optimize accesses.
+	 */
+	aligned_start = PTR_ALIGN(buffer_start - DPAA2_ETH_TX_BUF_ALIGN,
+				  DPAA2_ETH_TX_BUF_ALIGN);
+	if (aligned_start >= skb->head)
+		buffer_start = aligned_start;
 
 	/* Store a backpointer to the skb at the beginning of the buffer
 	 * (in the private data area) such that we can release it
@@ -1809,7 +1815,7 @@ static int dpaa2_eth_xdp_xmit(struct net_device *net_dev, struct xdp_buff *xdp)
 	struct dpaa2_eth_swa *swa;
 	struct dpaa2_eth_fq *fq;
 	struct dpaa2_fd fd;
-	void *buffer_start;
+	void *buffer_start, *aligned_start;
 	dma_addr_t addr;
 	int err, i;
 
@@ -1833,8 +1839,12 @@ static int dpaa2_eth_xdp_xmit(struct net_device *net_dev, struct xdp_buff *xdp)
 	/* Setup the FD fields */
 	memset(&fd, 0, sizeof(fd));
 
-	buffer_start = PTR_ALIGN(xdp->data - needed_headroom,
-				 DPAA2_ETH_TX_BUF_ALIGN);
+	/* Align FD address, if possible */
+	buffer_start = xdp->data - needed_headroom;
+	aligned_start = PTR_ALIGN(buffer_start - DPAA2_ETH_TX_BUF_ALIGN,
+				  DPAA2_ETH_TX_BUF_ALIGN);
+	if (aligned_start >= xdp->data_hard_start)
+		buffer_start = aligned_start;
 
 	swa = (struct dpaa2_eth_swa *)buffer_start;
 	/* fill in necessary fields here */
