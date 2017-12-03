@@ -61,12 +61,54 @@ extern unsigned int __ipipe_printk_virq;
 
 void __ipipe_set_irq_pending(struct ipipe_domain *ipd, unsigned int irq);
 
+void __ipipe_complete_domain_migration(void);
+
+int __ipipe_switch_tail(void);
+
+int __ipipe_migrate_head(void);
+
+void __ipipe_reenter_root(void);
+
+void __ipipe_share_current(int flags);
+
+void __ipipe_arch_share_current(int flags);
+
 /*
  * Obsolete - no arch implements PIC muting anymore. Null helpers are
  * kept for building legacy co-kernel releases.
  */
 static inline void ipipe_mute_pic(void) { }
 static inline void ipipe_unmute_pic(void) { }
+
+#ifdef CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH
+
+#define prepare_arch_switch(next)			\
+	do {						\
+		hard_local_irq_enable();		\
+		__ipipe_report_schedule(current, next);	\
+	} while(0)
+
+#ifndef ipipe_get_active_mm
+static inline struct mm_struct *ipipe_get_active_mm(void)
+{
+	return __this_cpu_read(ipipe_percpu.active_mm);
+}
+#define ipipe_get_active_mm ipipe_get_active_mm
+#endif
+
+#else /* !CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH */
+
+#define prepare_arch_switch(next)			\
+	do {						\
+		__ipipe_report_schedule(current, next);	\
+		hard_local_irq_disable();		\
+	} while(0)
+
+#ifndef ipipe_get_active_mm
+#define ipipe_get_active_mm()	(current->active_mm)
+#endif
+
+#endif /* !CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH */
 
 static inline bool __ipipe_hrclock_ok(void)
 {
@@ -226,6 +268,13 @@ static inline void ipipe_unlock_irq(unsigned int irq)
 		__ipipe_unlock_irq(irq);
 }
 
+static inline struct ipipe_threadinfo *ipipe_current_threadinfo(void)
+{
+	return &current_thread_info()->ipipe_data;
+}
+
+#define ipipe_task_threadinfo(p) (&task_thread_info(p)->ipipe_data)
+
 void ipipe_enable_irq(unsigned int irq);
 
 static inline void ipipe_disable_irq(unsigned int irq)
@@ -338,12 +387,36 @@ void __ipipe_tracer_hrclock_initialized(void);
 #define __ipipe_tracer_hrclock_initialized()	do { } while(0)
 #endif /* !CONFIG_IPIPE_TRACE */
 
+#ifdef CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH
+#define ipipe_mm_switch_protect(__flags)	do { (void)(__flags); } while (0)
+#define ipipe_mm_switch_unprotect(__flags)	do { (void)(__flags); } while (0)
+#else /* !CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH */
+#define ipipe_mm_switch_protect(__flags)		\
+	do {						\
+		(__flags) = hard_local_irq_save();	\
+	} while (0)
+#define ipipe_mm_switch_unprotect(__flags)		\
+	do {						\
+		hard_local_irq_restore(__flags);	\
+	} while (0)
+#endif /* !CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH */
+
 #else	/* !CONFIG_IPIPE */
 
 #define __ipipe_root_p		1
 #define ipipe_root_p		1
 
+#define ipipe_mm_switch_protect(__flags)	do { (void)(__flags); } while (0)
+#define ipipe_mm_switch_unprotect(__flags)	do { (void)(__flags); } while (0)
+
 static inline void __ipipe_init_threadflags(struct thread_info *ti) { }
+
+static inline void __ipipe_complete_domain_migration(void) { }
+
+static inline int __ipipe_switch_tail(void)
+{
+	return 0;
+}
 
 static inline void __ipipe_nmi_enter(void) { }
 

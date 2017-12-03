@@ -1191,6 +1191,71 @@ int __ipipe_notify_kevent(int kevent, void *data)
 	return ret;
 }
 
+void __weak ipipe_migration_hook(struct task_struct *p)
+{
+}
+
+static void complete_domain_migration(void) /* hw IRQs off */
+{
+	struct ipipe_percpu_domain_data *p;
+	struct ipipe_percpu_data *pd;
+	struct task_struct *t;
+
+	ipipe_root_only();
+	pd = raw_cpu_ptr(&ipipe_percpu);
+	t = pd->task_hijacked;
+	if (t == NULL)
+		return;
+
+	pd->task_hijacked = NULL;
+	t->state &= ~TASK_HARDENING;
+	if (t->state != TASK_INTERRUPTIBLE)
+		/* Migration aborted (by signal). */
+		return;
+
+	ipipe_set_ti_thread_flag(task_thread_info(t), TIP_HEAD);
+	p = ipipe_this_cpu_head_context();
+	IPIPE_WARN_ONCE(test_bit(IPIPE_STALL_FLAG, &p->status));
+	/*
+	 * hw IRQs are disabled, but the completion hook assumes the
+	 * head domain is logically stalled: fix it up.
+	 */
+	__set_bit(IPIPE_STALL_FLAG, &p->status);
+	ipipe_migration_hook(t);
+	__clear_bit(IPIPE_STALL_FLAG, &p->status);
+	if (__ipipe_ipending_p(p))
+		__ipipe_sync_pipeline(p->domain);
+}
+
+void __ipipe_complete_domain_migration(void)
+{
+	unsigned long flags;
+
+	flags = hard_local_irq_save();
+	complete_domain_migration();
+	hard_local_irq_restore(flags);
+}
+EXPORT_SYMBOL_GPL(__ipipe_complete_domain_migration);
+
+int __ipipe_switch_tail(void)
+{
+	int x;
+
+#ifdef CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH
+	hard_local_irq_disable();
+#endif
+	x = __ipipe_root_p;
+	if (x)
+		complete_domain_migration();
+
+#ifndef CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH
+	if (x)
+#endif
+		hard_local_irq_enable();
+
+	return !x;
+}
+
 static void dispatch_irq_head(unsigned int irq) /* hw interrupts off */
 {
 	struct ipipe_percpu_domain_data *p = ipipe_this_cpu_head_context(), *old;
@@ -1819,6 +1884,18 @@ out:
 	ipipe_restore_head(flags);
 }
 EXPORT_SYMBOL_GPL(__ipipe_post_work_root);
+
+void __weak __ipipe_arch_share_current(int flags)
+{
+}
+
+void __ipipe_share_current(int flags)
+{
+	ipipe_root_only();
+
+	__ipipe_arch_share_current(flags);
+}
+EXPORT_SYMBOL_GPL(__ipipe_share_current);
 
 #if defined(CONFIG_DEBUG_ATOMIC_SLEEP) || defined(CONFIG_PROVE_LOCKING) || \
 	defined(CONFIG_PREEMPT_VOLUNTARY) || defined(CONFIG_IPIPE_DEBUG_CONTEXT)
