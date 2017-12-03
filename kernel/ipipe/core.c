@@ -497,6 +497,95 @@ void __ipipe_restore_head(unsigned long x) /* hw interrupt off */
 }
 EXPORT_SYMBOL_GPL(__ipipe_restore_head);
 
+void __ipipe_spin_lock_irq(ipipe_spinlock_t *lock)
+{
+	hard_local_irq_disable();
+	if (ipipe_smp_p)
+		arch_spin_lock(&lock->arch_lock);
+	__set_bit(IPIPE_STALL_FLAG, &__ipipe_current_context->status);
+}
+EXPORT_SYMBOL_GPL(__ipipe_spin_lock_irq);
+
+void __ipipe_spin_unlock_irq(ipipe_spinlock_t *lock)
+{
+	if (ipipe_smp_p)
+		arch_spin_unlock(&lock->arch_lock);
+	__clear_bit(IPIPE_STALL_FLAG, &__ipipe_current_context->status);
+	hard_local_irq_enable();
+}
+EXPORT_SYMBOL_GPL(__ipipe_spin_unlock_irq);
+
+unsigned long __ipipe_spin_lock_irqsave(ipipe_spinlock_t *lock)
+{
+	unsigned long flags;
+	int s;
+
+	flags = hard_local_irq_save();
+	if (ipipe_smp_p)
+		arch_spin_lock(&lock->arch_lock);
+	s = __test_and_set_bit(IPIPE_STALL_FLAG, &__ipipe_current_context->status);
+
+	return arch_mangle_irq_bits(s, flags);
+}
+EXPORT_SYMBOL_GPL(__ipipe_spin_lock_irqsave);
+
+int __ipipe_spin_trylock_irqsave(ipipe_spinlock_t *lock,
+				 unsigned long *x)
+{
+	unsigned long flags;
+	int s;
+
+	flags = hard_local_irq_save();
+	if (ipipe_smp_p && !arch_spin_trylock(&lock->arch_lock)) {
+		hard_local_irq_restore(flags);
+		return 0;
+	}
+	s = __test_and_set_bit(IPIPE_STALL_FLAG, &__ipipe_current_context->status);
+	*x = arch_mangle_irq_bits(s, flags);
+
+	return 1;
+}
+EXPORT_SYMBOL_GPL(__ipipe_spin_trylock_irqsave);
+
+void __ipipe_spin_unlock_irqrestore(ipipe_spinlock_t *lock,
+				    unsigned long x)
+{
+	if (ipipe_smp_p)
+		arch_spin_unlock(&lock->arch_lock);
+	if (!arch_demangle_irq_bits(&x))
+		__clear_bit(IPIPE_STALL_FLAG, &__ipipe_current_context->status);
+	hard_local_irq_restore(x);
+}
+EXPORT_SYMBOL_GPL(__ipipe_spin_unlock_irqrestore);
+
+int __ipipe_spin_trylock_irq(ipipe_spinlock_t *lock)
+{
+	unsigned long flags;
+
+	flags = hard_local_irq_save();
+	if (ipipe_smp_p && !arch_spin_trylock(&lock->arch_lock)) {
+		hard_local_irq_restore(flags);
+		return 0;
+	}
+	__set_bit(IPIPE_STALL_FLAG, &__ipipe_current_context->status);
+
+	return 1;
+}
+EXPORT_SYMBOL_GPL(__ipipe_spin_trylock_irq);
+
+void __ipipe_spin_unlock_irqbegin(ipipe_spinlock_t *lock)
+{
+	if (ipipe_smp_p)
+		arch_spin_unlock(&lock->arch_lock);
+}
+
+void __ipipe_spin_unlock_irqcomplete(unsigned long x)
+{
+	if (!arch_demangle_irq_bits(&x))
+		__clear_bit(IPIPE_STALL_FLAG, &__ipipe_current_context->status);
+	hard_local_irq_restore(x);
+}
+
 #ifdef __IPIPE_3LEVEL_IRQMAP
 
 /* Must be called hw IRQs off. */
@@ -1366,6 +1455,20 @@ out:
 	return __my_cpu_offset;
 }
 EXPORT_SYMBOL(__ipipe_cpu_get_offset);
+
+void __ipipe_spin_unlock_debug(unsigned long flags)
+{
+	/*
+	 * We catch a nasty issue where spin_unlock_irqrestore() on a
+	 * regular kernel spinlock is about to re-enable hw interrupts
+	 * in a section entered with hw irqs off. This is clearly the
+	 * sign of a massive breakage coming. Usual suspect is a
+	 * regular spinlock which was overlooked, used within a
+	 * section which must run with hw irqs disabled.
+	 */
+	IPIPE_WARN_ONCE(!raw_irqs_disabled_flags(flags) && hard_irqs_disabled());
+}
+EXPORT_SYMBOL(__ipipe_spin_unlock_debug);
 
 #endif /* CONFIG_IPIPE_DEBUG_INTERNAL && CONFIG_SMP */
 
