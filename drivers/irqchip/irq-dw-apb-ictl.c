@@ -42,7 +42,7 @@ static void dw_apb_ictl_handler(struct irq_desc *desc)
 			u32 hwirq = ffs(stat) - 1;
 			u32 virq = irq_find_mapping(d, gc->irq_base + hwirq);
 
-			generic_handle_irq(virq);
+			ipipe_handle_demuxed_irq(virq);
 			stat &= ~(1 << hwirq);
 		}
 	}
@@ -55,11 +55,12 @@ static void dw_apb_ictl_resume(struct irq_data *d)
 {
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
 	struct irq_chip_type *ct = irq_data_get_chip_type(d);
+	unsigned long flags;
 
-	irq_gc_lock(gc);
+	flags = irq_gc_lock(gc);
 	writel_relaxed(~0, gc->reg_base + ct->regs.enable);
 	writel_relaxed(*ct->mask_cache, gc->reg_base + ct->regs.mask);
-	irq_gc_unlock(gc);
+	irq_gc_unlock(gc, flags);
 }
 #else
 #define dw_apb_ictl_resume	NULL
@@ -144,6 +145,7 @@ static int __init dw_apb_ictl_init(struct device_node *np,
 		gc->chip_types[0].chip.irq_mask = irq_gc_mask_set_bit;
 		gc->chip_types[0].chip.irq_unmask = irq_gc_mask_clr_bit;
 		gc->chip_types[0].chip.irq_resume = dw_apb_ictl_resume;
+		gc->chip_types[0].chip.flags |= IRQCHIP_PIPELINE_SAFE;
 	}
 
 	irq_set_chained_handler_and_data(irq, dw_apb_ictl_handler, domain);
