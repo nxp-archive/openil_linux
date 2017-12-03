@@ -74,6 +74,18 @@ unsigned __ipipe_processor_id(void);
 
 #define IPIPE_TRAP_MAYDAY        0	/* Internal recovery trap */
 
+/* ARM traps */
+#define IPIPE_TRAP_ACCESS	 1	/* Data or instruction access exception */
+#define IPIPE_TRAP_SECTION	 2	/* Section fault */
+#define IPIPE_TRAP_DABT		 3	/* Generic data abort */
+#define IPIPE_TRAP_UNKNOWN	 4	/* Unknown exception */
+#define IPIPE_TRAP_BREAK	 5	/* Instruction breakpoint */
+#define IPIPE_TRAP_FPU		 6	/* Floating point exception */
+#define IPIPE_TRAP_VFP		 7	/* VFP floating point exception */
+#define IPIPE_TRAP_UNDEFINSTR	 8	/* Undefined instruction */
+#define IPIPE_TRAP_ALIGNMENT	 9	/* Unaligned access exception */
+#define IPIPE_NR_FAULTS         10
+
 #endif /* CONFIG_IPIPE */
 
 #endif /* __ASM_ARM_IPIPE_BASE_H */

@@ -528,6 +528,9 @@ asmlinkage void __exception_irq_entry handle_fiq_as_nmi(struct pt_regs *regs)
  */
 asmlinkage void bad_mode(struct pt_regs *regs, int reason)
 {
+	if (__ipipe_report_trap(IPIPE_TRAP_UNKNOWN,regs))
+		return;
+
 	console_verbose();
 
 	pr_crit("Bad mode in %s handler detected\n", handler[reason]);

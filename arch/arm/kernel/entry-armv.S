@@ -286,6 +286,13 @@ __und_svc:
 	svc_entry
 #endif
 
+#ifdef CONFIG_IPIPE
+	mov	r0, #7				@ r0 = IPIPE_TRAP_UNDEFINSTR
+	mov	r1, sp				@ r1 = &regs
+	bl	__ipipe_notify_trap		@ branch to trap handler
+	cmp	r0, #0
+	bne	__und_svc_finish
+#endif /* CONFIG_IPIPE */
 	@
 	@ call emulation code, which returns using r9 if it has emulated
 	@ the instruction, or the more conventional lr if we are to treat
@@ -506,6 +513,15 @@ ENDPROC(__irq_usr)
 	.align	5
 __und_usr:
 	usr_entry uaccess=0
+
+#ifdef CONFIG_IPIPE
+	mov	r0, #7				@ r0 = IPIPE_TRAP_UNDEFINSTR
+	mov	r1, sp				@ r1 = &regs
+	bl	__ipipe_notify_trap		@ branch to trap handler
+	cmp	r0, #0
+	bne	ret_from_exception
+	uaccess_enable ip
+#endif /* CONFIG_IPIPE */
 
 	mov	r2, r4
 	mov	r3, r5
