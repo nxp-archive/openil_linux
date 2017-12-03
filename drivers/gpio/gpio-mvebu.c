@@ -391,10 +391,11 @@ static void mvebu_gpio_irq_ack(struct irq_data *d)
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
 	struct mvebu_gpio_chip *mvchip = gc->private;
 	u32 mask = d->mask;
+	unsigned long flags;
 
-	irq_gc_lock(gc);
+	flags = irq_gc_lock(gc);
 	mvebu_gpio_write_edge_cause(mvchip, ~mask);
-	irq_gc_unlock(gc);
+	irq_gc_unlock(gc, flags);
 }
 
 static void mvebu_gpio_edge_irq_mask(struct irq_data *d)
@@ -403,11 +404,12 @@ static void mvebu_gpio_edge_irq_mask(struct irq_data *d)
 	struct mvebu_gpio_chip *mvchip = gc->private;
 	struct irq_chip_type *ct = irq_data_get_chip_type(d);
 	u32 mask = d->mask;
+	unsigned long flags;
 
-	irq_gc_lock(gc);
+	flags = irq_gc_lock(gc);
 	ct->mask_cache_priv &= ~mask;
 	mvebu_gpio_write_edge_mask(mvchip, ct->mask_cache_priv);
-	irq_gc_unlock(gc);
+	irq_gc_unlock(gc, flags);
 }
 
 static void mvebu_gpio_edge_irq_unmask(struct irq_data *d)
@@ -416,11 +418,12 @@ static void mvebu_gpio_edge_irq_unmask(struct irq_data *d)
 	struct mvebu_gpio_chip *mvchip = gc->private;
 	struct irq_chip_type *ct = irq_data_get_chip_type(d);
 	u32 mask = d->mask;
+	unsigned long flags;
 
-	irq_gc_lock(gc);
+	flags = irq_gc_lock(gc);
 	ct->mask_cache_priv |= mask;
 	mvebu_gpio_write_edge_mask(mvchip, ct->mask_cache_priv);
-	irq_gc_unlock(gc);
+	irq_gc_unlock(gc, flags);
 }
 
 static void mvebu_gpio_level_irq_mask(struct irq_data *d)
@@ -429,11 +432,12 @@ static void mvebu_gpio_level_irq_mask(struct irq_data *d)
 	struct mvebu_gpio_chip *mvchip = gc->private;
 	struct irq_chip_type *ct = irq_data_get_chip_type(d);
 	u32 mask = d->mask;
+	unsigned long flags;
 
-	irq_gc_lock(gc);
+	flags = irq_gc_lock(gc);
 	ct->mask_cache_priv &= ~mask;
 	mvebu_gpio_write_level_mask(mvchip, ct->mask_cache_priv);
-	irq_gc_unlock(gc);
+	irq_gc_unlock(gc, flags);
 }
 
 static void mvebu_gpio_level_irq_unmask(struct irq_data *d)
@@ -442,11 +446,12 @@ static void mvebu_gpio_level_irq_unmask(struct irq_data *d)
 	struct mvebu_gpio_chip *mvchip = gc->private;
 	struct irq_chip_type *ct = irq_data_get_chip_type(d);
 	u32 mask = d->mask;
+	unsigned long flags;
 
-	irq_gc_lock(gc);
+	flags = irq_gc_lock(gc);
 	ct->mask_cache_priv |= mask;
 	mvebu_gpio_write_level_mask(mvchip, ct->mask_cache_priv);
-	irq_gc_unlock(gc);
+	irq_gc_unlock(gc, flags);
 }
 
 /*****************************************************************************
@@ -580,7 +585,7 @@ static void mvebu_gpio_irq_handler(struct irq_desc *desc)
 				     polarity);
 		}
 
-		generic_handle_irq(irq);
+		ipipe_handle_demuxed_irq(irq);
 	}
 
 	chained_irq_exit(chip, desc);
@@ -1224,6 +1229,7 @@ static int mvebu_gpio_probe(struct platform_device *pdev)
 	ct->chip.irq_unmask = mvebu_gpio_level_irq_unmask;
 	ct->chip.irq_set_type = mvebu_gpio_irq_set_type;
 	ct->chip.name = mvchip->chip.label;
+	ct->chip.flags = IRQCHIP_PIPELINE_SAFE;
 
 	ct = &gc->chip_types[1];
 	ct->type = IRQ_TYPE_EDGE_RISING | IRQ_TYPE_EDGE_FALLING;
@@ -1233,6 +1239,7 @@ static int mvebu_gpio_probe(struct platform_device *pdev)
 	ct->chip.irq_set_type = mvebu_gpio_irq_set_type;
 	ct->handler = handle_edge_irq;
 	ct->chip.name = mvchip->chip.label;
+	ct->chip.flags = IRQCHIP_PIPELINE_SAFE;
 
 	/*
 	 * Setup the interrupt handlers. Each chip can have up to 4
