@@ -911,6 +911,15 @@ config PLAT_PXA
 config PLAT_VERSATILE
 	bool
 
+if IPIPE
+config IPIPE_ARM_KUSER_TSC
+       bool
+       select HAVE_IPIPE_TRACER_SUPPORT
+       select GENERIC_TIME_VSYSCALL
+       select IPIPE_HAVE_HOSTRT if IPIPE
+       default y if ARM_TIMER_SP804 || ARCH_MXC || ARCH_OMAP
+endif
+
 source "arch/arm/firmware/Kconfig"
 
 source arch/arm/mm/Kconfig

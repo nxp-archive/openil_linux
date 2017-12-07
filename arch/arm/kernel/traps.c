@@ -813,10 +813,21 @@ void __init trap_init(void)
 #ifdef CONFIG_KUSER_HELPERS
 static void __init kuser_init(void *vectors)
 {
+#ifndef CONFIG_IPIPE
 	extern char __kuser_helper_start[], __kuser_helper_end[];
 	int kuser_sz = __kuser_helper_end - __kuser_helper_start;
+#else /* !CONFIG_IPIPE */
+	extern char __ipipe_tsc_area_start[], __kuser_helper_end[];
+	int kuser_sz = __kuser_helper_end - __ipipe_tsc_area_start;
+	extern char __vectors_start[], __vectors_end[];
+#endif /* !CONFIG_IPIPE */
 
+#ifndef CONFIG_IPIPE
 	memcpy(vectors + 0x1000 - kuser_sz, __kuser_helper_start, kuser_sz);
+#else /* !CONFIG_IPIPE */
+	BUG_ON(0x1000 - kuser_sz < __vectors_end - __vectors_start);
+	memcpy(vectors + 0x1000 - kuser_sz, __ipipe_tsc_area_start, kuser_sz);
+#endif /* !CONFIG_IPIPE */
 
 	/*
 	 * vectors + 0xfe0 = __kuser_get_tls
