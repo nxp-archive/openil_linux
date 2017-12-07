@@ -73,6 +73,10 @@ void __ipipe_share_current(int flags);
 
 void __ipipe_arch_share_current(int flags);
 
+int __ipipe_disable_ondemand_mappings(struct task_struct *p);
+
+int __ipipe_pin_vma(struct mm_struct *mm, struct vm_area_struct *vma);
+
 /*
  * Obsolete - no arch implements PIC muting anymore. Null helpers are
  * kept for building legacy co-kernel releases.
