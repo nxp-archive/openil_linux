@@ -2,6 +2,7 @@
  *  linux/arch/arm/kernel/entry-common.S
  *
  *  Copyright (C) 2000 Russell King
+ *  Copyright (C) 2005 Stelian Pop.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -59,11 +60,12 @@ __ret_fast_syscall:
 	tst	r1, #_TIF_SYSCALL_WORK | _TIF_WORK_MASK
 	bne	fast_work_pending
 
-
 	/* perform architecture specific actions before user return */
 	arch_ret_to_user r1, lr
 
 	restore_user_regs fast = 1, offset = S_OFF
+
+
  UNWIND(.fnend		)
 ENDPROC(ret_fast_syscall)
 
@@ -138,12 +140,7 @@ ENTRY(ret_to_user_from_irq)
 	bne	slow_work_pending
 no_work_pending:
 	asm_trace_hardirqs_on save = 0
-
-	/* perform architecture specific actions before user return */
-	arch_ret_to_user r1, lr
-	ct_user_enter save = 0
-
-	restore_user_regs fast = 0, offset = 0
+	slow_restore_user_regs
 ENDPROC(ret_to_user_from_irq)
 ENDPROC(ret_to_user)
 
@@ -151,6 +148,7 @@ ENDPROC(ret_to_user)
  * This is how we return from a fork.
  */
 ENTRY(ret_from_fork)
+	enable_irq_cond
 	bl	schedule_tail
 	cmp	r5, #0
 	movne	r0, r4
@@ -159,6 +157,12 @@ ENTRY(ret_from_fork)
 1:	get_thread_info tsk
 	b	ret_slow_syscall
 ENDPROC(ret_from_fork)
+
+#ifdef CONFIG_IPIPE
+ENTRY(__ipipe_ret_to_user_irqs_disabled)
+	slow_restore_user_regs
+ENDPROC(__ipipe_ret_to_user_irqs_disabled)
+#endif
 
 /*=============================================================================
  * SWI handler
@@ -183,6 +187,16 @@ ENTRY(vector_swi)
 	str	r0, [sp, #S_OLD_R0]		@ Save OLD_R0
 #endif
 	zero_fp
+#ifdef CONFIG_IPIPE_TRACE_IRQSOFF
+	mov	r4, lr
+	mov	r0, #1		/* IPIPE_TRACE_BEGIN */
+	mov	r3, #0x90000000
+	sub	r2, lr, #4	/* calling PC */
+	mov	r1, pc
+	bl	ipipe_trace_asm
+	mov	lr, r4
+	ldm	sp, {r0 - r4}
+#endif /* CONFIG_IPIPE_TRACE_IRQSOFF */
 	alignment_trap r10, ip, __cr_alignment
 	asm_trace_hardirqs_on save=0
 	enable_irq_notrace
@@ -462,3 +476,27 @@ ENDPROC(sys_oabi_readahead)
 
 #endif
 
+#if defined(CONFIG_FRAME_POINTER) && (CONFIG_IPIPE_TRACE)
+
+	.text
+	.align 0
+	.type arm_return_addr %function
+	.global arm_return_addr
+
+arm_return_addr:
+	mov	ip, r0
+	mov	r0, fp
+3:
+	cmp	r0, #0
+	beq	1f		@ frame list hit end, bail
+	cmp	ip, #0
+	beq	2f		@ reached desired frame
+	ldr	r0, [r0, #-12]  @ else continue, get next fp
+	sub	ip, ip, #1
+	b	3b
+2:
+	ldr	r0, [r0, #-4]   @ get target return address
+1:
+	mov	pc, lr
+
+#endif

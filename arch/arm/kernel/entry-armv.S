@@ -4,6 +4,7 @@
  *  Copyright (C) 1996,1997,1998 Russell King.
  *  ARM700 fix by Matthew Godbolt (linux-user@willothewisp.demon.co.uk)
  *  nommu support by Hyok S. Choi (hyok.choi@samsung.com)
+ *  Copyright (C) 2005 Stelian Pop.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -48,6 +49,10 @@
 	arch_irq_handler_default
 #endif
 9997:
+#ifdef CONFIG_IPIPE
+	bl	__ipipe_check_root_interruptible
+	cmp	r0, #1
+#endif /* CONFIG_IPIPE */
 	.endm
 
 	.macro	pabt_helper
@@ -196,6 +201,14 @@ ENDPROC(__und_invalid)
 #ifdef CONFIG_TRACE_IRQFLAGS
 	bl	trace_hardirqs_off
 #endif
+#ifdef CONFIG_IPIPE_TRACE_IRQSOFF
+	mov	r0, #1		/* IPIPE_TRACE_BEGIN */
+	mov	r3, #0x90000000
+	ldr	r2, [sp, #S_PC]
+	mov	r1, pc
+	bl	ipipe_trace_asm
+	ldmia	r7, {r2 - r6}
+#endif /* CONFIG_IPIPE_TRACE_IRQSOFF */
 	.endif
 	.endm
 
@@ -213,6 +226,9 @@ ENDPROC(__dabt_svc)
 __irq_svc:
 	svc_entry
 	irq_handler
+#ifdef CONFIG_IPIPE
+	bne	__ipipe_fast_svc_irq_exit
+#endif
 
 #ifdef CONFIG_PREEMPT
 	ldr	r8, [tsk, #TI_PREEMPT]		@ get preempt count
@@ -223,6 +239,9 @@ __irq_svc:
 	blne	svc_preempt
 #endif
 
+#ifdef CONFIG_IPIPE
+__ipipe_fast_svc_irq_exit:
+#endif
 	svc_exit r5, irq = 1			@ return from exception
  UNWIND(.fnend		)
 ENDPROC(__irq_svc)
@@ -232,12 +251,16 @@ ENDPROC(__irq_svc)
 #ifdef CONFIG_PREEMPT
 svc_preempt:
 	mov	r8, lr
+#ifdef CONFIG_IPIPE
+1:	bl	__ipipe_preempt_schedule_irq	@ irq en/disable is done inside
+#else /* CONFIG_IPIPE */
 1:	bl	preempt_schedule_irq		@ irq en/disable is done inside
+#endif /* CONFIG_IPIPE */
 	ldr	r0, [tsk, #TI_FLAGS]		@ get new tasks TI_FLAGS
 	tst	r0, #_TIF_NEED_RESCHED
 	reteq	r8				@ go again
 	b	1b
-#endif
+#endif /* CONFIG_PREEMPT */
 
 __und_fault:
 	@ Correct the PC such that it is pointing at the instruction
@@ -262,6 +285,7 @@ __und_svc:
 #else
 	svc_entry
 #endif
+
 	@
 	@ call emulation code, which returns using r9 if it has emulated
 	@ the instruction, or the more conventional lr if we are to treat
@@ -381,6 +405,15 @@ ENDPROC(__fiq_abt)
 	sub	sp, sp, #PT_REGS_SIZE
  ARM(	stmib	sp, {r1 - r12}	)
  THUMB(	stmia	sp, {r0 - r12}	)
+#ifdef CONFIG_IPIPE_TRACE_IRQSOFF
+	mov	r4, r0
+	mov	r0, #1		/* IPIPE_TRACE_BEGIN */
+	mov	r3, #0x90000000
+	ldr	r2, [r4, #4]	/* lr_<exception> */
+	mov	r1, pc
+	bl	ipipe_trace_asm
+	mov	r0, r4
+#endif /* CONFIG_IPIPE_TRACE_IRQSOFF */
 
  ATRAP(	mrc	p15, 0, r7, c1, c0, 0)
  ATRAP(	ldr	r8, .LCcralign)
@@ -458,6 +491,10 @@ __irq_usr:
 	usr_entry
 	kuser_cmpxchg_check
 	irq_handler
+#ifdef CONFIG_IPIPE
+ THUMB(	it ne)
+	bne	__ipipe_ret_to_user_irqs_disabled
+#endif	/* CONFIG_IPIPE */
 	get_thread_info tsk
 	mov	why, #0
 	b	ret_to_user_from_irq
@@ -752,7 +789,16 @@ __pabt_usr:
 ENTRY(ret_from_exception)
  UNWIND(.fnstart	)
  UNWIND(.cantunwind	)
+#ifdef CONFIG_IPIPE
+	disable_irq
 	get_thread_info tsk
+	ldr	r0, [tsk, #TI_IPIPE]
+	tst	r0, #_TIP_HEAD
+ THUMB(	it ne)
+	bne	__ipipe_ret_to_user_irqs_disabled  @ Fast exit path over non-root domains
+#else /* !CONFIG_IPIPE */
+	get_thread_info tsk
+#endif /* !CONFIG_IPIPE */
 	mov	why, #0
 	b	ret_to_user
  UNWIND(.fnend		)

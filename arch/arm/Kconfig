@@ -75,6 +75,7 @@ config ARM
 	select HAVE_HW_BREAKPOINT if (PERF_EVENTS && (CPU_V6 || CPU_V6K || CPU_V7))
 	select HAVE_IDE if PCI || ISA || PCMCIA
 	select HAVE_IRQ_TIME_ACCOUNTING
+	select HAVE_IPIPE_SUPPORT
 	select HAVE_KERNEL_GZIP
 	select HAVE_KERNEL_LZ4
 	select HAVE_KERNEL_LZMA
@@ -1482,6 +1483,8 @@ config ARCH_NR_GPIO
 
 	  If unsure, leave the default value.
 
+source "kernel/ipipe/Kconfig"
+
 config HZ_FIXED
 	int
 	default 200 if ARCH_EBSA110
@@ -1749,6 +1752,7 @@ config ALIGNMENT_TRAP
 config UACCESS_WITH_MEMCPY
 	bool "Use kernel mem{cpy,set}() for {copy_to,clear}_user()"
 	depends on MMU
+	depends on !IPIPE
 	default y if CPU_FEROCEON
 	help
 	  Implement faster copy_to_user and clear_user methods for CPU
