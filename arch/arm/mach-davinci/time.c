@@ -88,6 +88,9 @@ struct timer_s {
 	unsigned long opts;
 	unsigned long flags;
 	void __iomem *base;
+#ifdef CONFIG_IPIPE
+	void *pbase;
+#endif /*CONFIG_IPIPE */
 	unsigned long tim_off;
 	unsigned long prd_off;
 	unsigned long enamode_shift;
@@ -238,6 +241,9 @@ static void __init timer_init(void)
 		t->base = base[timer];
 		if (!t->base)
 			continue;
+#ifdef CONFIG_IPIPE
+		t->pbase = (void *)dtip[timer].base;
+#endif /* CONFIG_IPIPE */
 
 		if (IS_TIMER_BOT(t->id)) {
 			t->enamode_shift = 6;
@@ -334,6 +340,15 @@ static int davinci_set_periodic(struct clock_event_device *evt)
 
 #ifdef CONFIG_IPIPE
 static struct ipipe_timer davinci_itimer;
+
+static struct __ipipe_tscinfo tsc_info = {
+	.type = IPIPE_TSC_TYPE_FREERUNNING,
+	.u = {
+			{
+				.mask = 0xffffffff,
+			},
+	},
+};
 #endif /* CONFIG_IPIPE */
 
 static struct clock_event_device clockevent_davinci = {
@@ -408,6 +423,13 @@ void __init davinci_timer_init(struct clk *timer_clk)
 
 	clockevent_davinci.cpumask = cpumask_of(0);
 #ifdef CONFIG_IPIPE
+	tsc_info.freq = davinci_clock_tick_rate;
+	tsc_info.counter_vaddr = (void *)(timers[TID_CLOCKSOURCE].base +
+			timers[TID_CLOCKSOURCE].tim_off);
+	tsc_info.u.counter_paddr = timers[TID_CLOCKSOURCE].pbase +
+			timers[TID_CLOCKSOURCE].tim_off;
+	__ipipe_tsc_register(&tsc_info);
+
 	davinci_itimer.irq = timers[TID_CLOCKEVENT].irq;
 	davinci_itimer.min_delay_ticks = 3;
 #endif /* CONFIG_IPIPE */
