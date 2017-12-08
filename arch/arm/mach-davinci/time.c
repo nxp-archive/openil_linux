@@ -20,6 +20,8 @@
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/sched_clock.h>
+#include <linux/ipipe.h>
+#include <linux/ipipe_tickdev.h>
 
 #include <asm/mach/irq.h>
 #include <asm/mach/time.h>
@@ -89,6 +91,9 @@ struct timer_s {
 	unsigned long tim_off;
 	unsigned long prd_off;
 	unsigned long enamode_shift;
+#ifdef CONFIG_IPIPE
+	int irq;
+#endif /* CONFIG_IPIPE */
 	struct irqaction irqaction;
 };
 static struct timer_s timers[];
@@ -254,6 +259,9 @@ static void __init timer_init(void)
 			irq = USING_COMPARE(t) ? dtip[i].cmp_irq : irq;
 			setup_irq(irq, &t->irqaction);
 		}
+#ifdef CONFIG_IPIPE
+		t->irq = irq;
+#endif /* CONFIG_IPIPE */
 	}
 }
 
@@ -324,6 +332,10 @@ static int davinci_set_periodic(struct clock_event_device *evt)
 	return 0;
 }
 
+#ifdef CONFIG_IPIPE
+static struct ipipe_timer davinci_itimer;
+#endif /* CONFIG_IPIPE */
+
 static struct clock_event_device clockevent_davinci = {
 	.features		= CLOCK_EVT_FEAT_PERIODIC |
 				  CLOCK_EVT_FEAT_ONESHOT,
@@ -331,6 +343,9 @@ static struct clock_event_device clockevent_davinci = {
 	.set_state_shutdown	= davinci_shutdown,
 	.set_state_periodic	= davinci_set_periodic,
 	.set_state_oneshot	= davinci_set_oneshot,
+#ifdef CONFIG_IPIPE
+	.ipipe_timer		= &davinci_itimer,
+#endif /* CONFIG_IPIPE */
 };
 
 void __init davinci_timer_init(struct clk *timer_clk)
@@ -392,6 +407,10 @@ void __init davinci_timer_init(struct clk *timer_clk)
 	clockevent_davinci.name = id_to_name[timers[TID_CLOCKEVENT].id];
 
 	clockevent_davinci.cpumask = cpumask_of(0);
+#ifdef CONFIG_IPIPE
+	davinci_itimer.irq = timers[TID_CLOCKEVENT].irq;
+	davinci_itimer.min_delay_ticks = 3;
+#endif /* CONFIG_IPIPE */
 	clockevents_config_and_register(&clockevent_davinci,
 					davinci_clock_tick_rate, 1, 0xfffffffe);
 
