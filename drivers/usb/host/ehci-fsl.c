@@ -32,11 +32,6 @@
 #include <linux/fsl_devices.h>
 #include <linux/of_platform.h>
 
-#ifdef CONFIG_PPC
-#include <asm/fsl_pm.h>
-#include <linux/suspend.h>
-#endif
-
 #include "ehci-fsl.h"
 
 #define FSL_USB_PHY_ADDR	0xffe214000
