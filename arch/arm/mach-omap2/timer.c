@@ -596,6 +596,18 @@ static void omap2_gptimer_clksrc_resume(struct clocksource *unused)
 				   OMAP_TIMER_NONPOSTED);
 }
 
+#ifdef CONFIG_IPIPE
+
+static struct __ipipe_tscinfo __maybe_unused tsc_info = {
+	.type = IPIPE_TSC_TYPE_FREERUNNING,
+	.u = {
+		{
+			.mask = 0xffffffff,
+		},
+	},
+};
+#endif
+
 static void __init omap2_gptimer_clocksource_init(int gptimer_id,
 						  const char *fck_source,
 						  const char *property)
@@ -607,7 +619,7 @@ static void __init omap2_gptimer_clocksource_init(int gptimer_id,
 
 	res = omap_dm_timer_init_one(&clksrc, fck_source, property,
 				     &clocksource_gpt.name,
-				     OMAP_TIMER_NONPOSTED, false);
+				     OMAP_TIMER_NONPOSTED, IS_ENABLED(CONFIG_IPIPE));
 
 	if (soc_is_am43xx()) {
 		clocksource_gpt.suspend = omap2_gptimer_clksrc_suspend;
@@ -623,6 +635,19 @@ static void __init omap2_gptimer_clocksource_init(int gptimer_id,
 				   OMAP_TIMER_CTRL_ST | OMAP_TIMER_CTRL_AR, 0,
 				   OMAP_TIMER_NONPOSTED);
 	sched_clock_register(dmtimer_read_sched_clock, 32, clksrc.rate);
+
+#ifdef CONFIG_IPIPE
+	{
+		unsigned long off = OMAP_TIMER_COUNTER_REG & 0xff;
+		if (clksrc.revision == 2)
+			off += OMAP_TIMER_V2_FUNC_OFFSET;
+
+		tsc_info.freq = clksrc.rate;
+		tsc_info.counter_vaddr = (unsigned long)clksrc.io_base + off;
+		tsc_info.u.counter_paddr = clksrc.phys_base + off;
+		__ipipe_tsc_register(&tsc_info);
+	}
+#endif
 
 	if (clocksource_register_hz(&clocksource_gpt, clksrc.rate))
 		pr_err("Could not register clocksource %s\n",
