@@ -1666,7 +1666,7 @@ static int hdspm_set_rate(struct hdspm * hdspm, int rate, int called_internally)
 			    HDSPM_AUTOSYNC_FROM_NONE) {
 
 				dev_warn(hdspm->card->dev,
-					 "Detected no Externel Sync\n");
+					 "Detected no External Sync\n");
 				not_set = 1;
 
 			} else if (rate != external_freq) {
@@ -6088,18 +6088,17 @@ static int snd_hdspm_open(struct snd_pcm_substream *substream)
 					     SNDRV_PCM_HW_PARAM_PERIOD_SIZE,
 					     32, 4096);
 		/* RayDAT & AIO have a fixed buffer of 16384 samples per channel */
-		snd_pcm_hw_constraint_minmax(runtime,
+		snd_pcm_hw_constraint_single(runtime,
 					     SNDRV_PCM_HW_PARAM_BUFFER_SIZE,
-					     16384, 16384);
+					     16384);
 		break;
 
 	default:
 		snd_pcm_hw_constraint_minmax(runtime,
 					     SNDRV_PCM_HW_PARAM_PERIOD_SIZE,
 					     64, 8192);
-		snd_pcm_hw_constraint_minmax(runtime,
-					     SNDRV_PCM_HW_PARAM_PERIODS,
-					     2, 2);
+		snd_pcm_hw_constraint_single(runtime,
+					     SNDRV_PCM_HW_PARAM_PERIODS, 2);
 		break;
 	}
 
@@ -6362,7 +6361,7 @@ static int snd_hdspm_hwdep_ioctl(struct snd_hwdep *hw, struct file *file,
 	return 0;
 }
 
-static struct snd_pcm_ops snd_hdspm_ops = {
+static const struct snd_pcm_ops snd_hdspm_ops = {
 	.open = snd_hdspm_open,
 	.close = snd_hdspm_release,
 	.ioctl = snd_hdspm_ioctl,

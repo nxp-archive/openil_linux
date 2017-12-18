@@ -21,6 +21,7 @@
 #include <linux/platform_device.h>
 #include <linux/usb/ch9.h>
 #include <linux/usb/gadget.h>
+#include <linux/usb/otg.h>
 #include "common.h"
 
 /*
@@ -50,6 +51,8 @@ struct usbhsg_gpriv {
 	int			 uep_size;
 
 	struct usb_gadget_driver	*driver;
+	struct usb_phy		*transceiver;
+	bool			 vbus_active;
 
 	u32	status;
 #define USBHSG_STATUS_STARTED		(1 << 0)
@@ -128,7 +131,8 @@ static void __usbhsg_queue_pop(struct usbhsg_uep *uep,
 	struct device *dev = usbhsg_gpriv_to_dev(gpriv);
 	struct usbhs_priv *priv = usbhsg_gpriv_to_priv(gpriv);
 
-	dev_dbg(dev, "pipe %d : queue pop\n", usbhs_pipe_number(pipe));
+	if (pipe)
+		dev_dbg(dev, "pipe %d : queue pop\n", usbhs_pipe_number(pipe));
 
 	ureq->req.status = status;
 	spin_unlock(usbhs_priv_to_lock(priv));
@@ -187,13 +191,12 @@ static void usbhsg_queue_push(struct usbhsg_uep *uep,
 /*
  *		dma map/unmap
  */
-static int usbhsg_dma_map_ctrl(struct usbhs_pkt *pkt, int map)
+static int usbhsg_dma_map_ctrl(struct device *dma_dev, struct usbhs_pkt *pkt,
+			       int map)
 {
 	struct usbhsg_request *ureq = usbhsg_pkt_to_ureq(pkt);
 	struct usb_request *req = &ureq->req;
 	struct usbhs_pipe *pipe = pkt->pipe;
-	struct usbhsg_uep *uep = usbhsg_pipe_to_uep(pipe);
-	struct usbhsg_gpriv *gpriv = usbhsg_uep_to_gpriv(uep);
 	enum dma_data_direction dir;
 	int ret = 0;
 
@@ -203,13 +206,13 @@ static int usbhsg_dma_map_ctrl(struct usbhs_pkt *pkt, int map)
 		/* it can not use scatter/gather */
 		WARN_ON(req->num_sgs);
 
-		ret = usb_gadget_map_request(&gpriv->gadget, req, dir);
+		ret = usb_gadget_map_request_by_dev(dma_dev, req, dir);
 		if (ret < 0)
 			return ret;
 
 		pkt->dma = req->dma;
 	} else {
-		usb_gadget_unmap_request(&gpriv->gadget, req, dir);
+		usb_gadget_unmap_request_by_dev(dma_dev, req, dir);
 	}
 
 	return ret;
@@ -332,7 +335,6 @@ static void __usbhsg_recip_send_status(struct usbhsg_gpriv *gpriv,
 	buf = kmalloc(sizeof(*buf), GFP_ATOMIC);
 	if (!buf) {
 		usb_ep_free_request(&dcp->ep, req);
-		dev_err(dev, "recip data allocation fail\n");
 		return;
 	}
 
@@ -561,7 +563,7 @@ static int usbhsg_pipe_disable(struct usbhsg_uep *uep)
 		if (!pkt)
 			break;
 
-		usbhsg_queue_pop(uep, usbhsg_pkt_to_ureq(pkt), -ECONNRESET);
+		usbhsg_queue_pop(uep, usbhsg_pkt_to_ureq(pkt), -ESHUTDOWN);
 	}
 
 	usbhs_pipe_disable(pipe);
@@ -696,7 +698,13 @@ static int usbhsg_ep_dequeue(struct usb_ep *ep, struct usb_request *req)
 	struct usbhsg_request *ureq = usbhsg_req_to_ureq(req);
 	struct usbhs_pipe *pipe = usbhsg_uep_to_pipe(uep);
 
-	usbhs_pkt_pop(pipe, usbhsg_ureq_to_pkt(ureq));
+	if (pipe)
+		usbhs_pkt_pop(pipe, usbhsg_ureq_to_pkt(ureq));
+
+	/*
+	 * To dequeue a request, this driver should call the usbhsg_queue_pop()
+	 * even if the pipe is NULL.
+	 */
 	usbhsg_queue_pop(uep, ureq, -ECONNRESET);
 
 	return 0;
@@ -887,6 +895,27 @@ static int usbhsg_try_stop(struct usbhs_priv *priv, u32 status)
 }
 
 /*
+ * VBUS provided by the PHY
+ */
+static int usbhsm_phy_get_vbus(struct platform_device *pdev)
+{
+	struct usbhs_priv *priv = usbhs_pdev_to_priv(pdev);
+	struct usbhsg_gpriv *gpriv = usbhsg_priv_to_gpriv(priv);
+
+	return  gpriv->vbus_active;
+}
+
+static void usbhs_mod_phy_mode(struct usbhs_priv *priv)
+{
+	struct usbhs_mod_info *info = &priv->mod_info;
+
+	info->irq_vbus		= NULL;
+	priv->pfunc.get_vbus	= usbhsm_phy_get_vbus;
+
+	usbhs_irq_callback_update(priv, NULL);
+}
+
+/*
  *
  *		linux usb function
  *
@@ -896,11 +925,27 @@ static int usbhsg_gadget_start(struct usb_gadget *gadget,
 {
 	struct usbhsg_gpriv *gpriv = usbhsg_gadget_to_gpriv(gadget);
 	struct usbhs_priv *priv = usbhsg_gpriv_to_priv(gpriv);
+	struct device *dev = usbhs_priv_to_dev(priv);
+	int ret;
 
 	if (!driver		||
 	    !driver->setup	||
 	    driver->max_speed < USB_SPEED_FULL)
 		return -EINVAL;
+
+	/* connect to bus through transceiver */
+	if (!IS_ERR_OR_NULL(gpriv->transceiver)) {
+		ret = otg_set_peripheral(gpriv->transceiver->otg,
+					&gpriv->gadget);
+		if (ret) {
+			dev_err(dev, "%s: can't bind to transceiver\n",
+				gpriv->gadget.name);
+			return ret;
+		}
+
+		/* get vbus using phy versions */
+		usbhs_mod_phy_mode(priv);
+	}
 
 	/* first hook up the driver ... */
 	gpriv->driver = driver;
@@ -914,6 +959,10 @@ static int usbhsg_gadget_stop(struct usb_gadget *gadget)
 	struct usbhs_priv *priv = usbhsg_gpriv_to_priv(gpriv);
 
 	usbhsg_try_stop(priv, USBHSG_STATUS_REGISTERD);
+
+	if (!IS_ERR_OR_NULL(gpriv->transceiver))
+		otg_set_peripheral(gpriv->transceiver->otg, NULL);
+
 	gpriv->driver = NULL;
 
 	return 0;
@@ -961,12 +1010,26 @@ static int usbhsg_set_selfpowered(struct usb_gadget *gadget, int is_self)
 	return 0;
 }
 
+static int usbhsg_vbus_session(struct usb_gadget *gadget, int is_active)
+{
+	struct usbhsg_gpriv *gpriv = usbhsg_gadget_to_gpriv(gadget);
+	struct usbhs_priv *priv = usbhsg_gpriv_to_priv(gpriv);
+	struct platform_device *pdev = usbhs_priv_to_pdev(priv);
+
+	gpriv->vbus_active = !!is_active;
+
+	renesas_usbhs_call_notify_hotplug(pdev);
+
+	return 0;
+}
+
 static const struct usb_gadget_ops usbhsg_gadget_ops = {
 	.get_frame		= usbhsg_get_frame,
 	.set_selfpowered	= usbhsg_set_selfpowered,
 	.udc_start		= usbhsg_gadget_start,
 	.udc_stop		= usbhsg_gadget_stop,
 	.pullup			= usbhsg_pullup,
+	.vbus_session		= usbhsg_vbus_session,
 };
 
 static int usbhsg_start(struct usbhs_priv *priv)
@@ -991,22 +1054,25 @@ int usbhs_mod_gadget_probe(struct usbhs_priv *priv)
 	struct usbhsg_gpriv *gpriv;
 	struct usbhsg_uep *uep;
 	struct device *dev = usbhs_priv_to_dev(priv);
+	struct renesas_usbhs_driver_pipe_config *pipe_configs =
+					usbhs_get_dparam(priv, pipe_configs);
 	int pipe_size = usbhs_get_dparam(priv, pipe_size);
 	int i;
 	int ret;
 
 	gpriv = kzalloc(sizeof(struct usbhsg_gpriv), GFP_KERNEL);
-	if (!gpriv) {
-		dev_err(dev, "Could not allocate gadget priv\n");
+	if (!gpriv)
 		return -ENOMEM;
-	}
 
 	uep = kzalloc(sizeof(struct usbhsg_uep) * pipe_size, GFP_KERNEL);
 	if (!uep) {
-		dev_err(dev, "Could not allocate ep\n");
 		ret = -ENOMEM;
 		goto usbhs_mod_gadget_probe_err_gpriv;
 	}
+
+	gpriv->transceiver = usb_get_phy(USB_PHY_TYPE_UNDEFINED);
+	dev_info(dev, "%stransceiver found\n",
+		 !IS_ERR(gpriv->transceiver) ? "" : "no ");
 
 	/*
 	 * CAUTION
@@ -1036,6 +1102,8 @@ int usbhs_mod_gadget_probe(struct usbhs_priv *priv)
 	gpriv->gadget.name		= "renesas_usbhs_udc";
 	gpriv->gadget.ops		= &usbhsg_gadget_ops;
 	gpriv->gadget.max_speed		= USB_SPEED_HIGH;
+	gpriv->gadget.quirk_avoids_skb_reserve = usbhs_get_dparam(priv,
+								has_usb_dmac);
 
 	INIT_LIST_HEAD(&gpriv->gadget.ep_list);
 
@@ -1055,12 +1123,21 @@ int usbhs_mod_gadget_probe(struct usbhs_priv *priv)
 		if (usbhsg_is_dcp(uep)) {
 			gpriv->gadget.ep0 = &uep->ep;
 			usb_ep_set_maxpacket_limit(&uep->ep, 64);
-		}
-		/* init normal pipe */
-		else {
-			usb_ep_set_maxpacket_limit(&uep->ep, 512);
+			uep->ep.caps.type_control = true;
+		} else {
+			/* init normal pipe */
+			if (pipe_configs[i].type == USB_ENDPOINT_XFER_ISOC)
+				uep->ep.caps.type_iso = true;
+			if (pipe_configs[i].type == USB_ENDPOINT_XFER_BULK)
+				uep->ep.caps.type_bulk = true;
+			if (pipe_configs[i].type == USB_ENDPOINT_XFER_INT)
+				uep->ep.caps.type_int = true;
+			usb_ep_set_maxpacket_limit(&uep->ep,
+						   pipe_configs[i].bufsize);
 			list_add_tail(&uep->ep.ep_list, &gpriv->gadget.ep_list);
 		}
+		uep->ep.caps.dir_in = true;
+		uep->ep.caps.dir_out = true;
 	}
 
 	ret = usb_add_gadget_udc(dev, &gpriv->gadget);

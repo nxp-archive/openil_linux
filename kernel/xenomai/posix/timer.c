@@ -47,6 +47,7 @@ timer_init(struct cobalt_timer *timer,
 	   const struct sigevent *__restrict__ evp) /* nklocked, IRQs off. */
 {
 	struct cobalt_thread *owner = cobalt_current_thread(), *target = NULL;
+	struct xnclock *clock;
 
 	/*
 	 * First, try to offload this operation to the extended
@@ -59,14 +60,8 @@ timer_init(struct cobalt_timer *timer,
 	/*
 	 * Ok, we have no extension available, or we do but it does
 	 * not want to overload the standard behavior: handle this
-	 * timer the pure Cobalt way then. We only know about standard
-	 * clocks in this case.
+	 * timer the pure Cobalt way then.
 	 */
-	if (timer->clockid != CLOCK_MONOTONIC &&
-	    timer->clockid != CLOCK_MONOTONIC_RAW &&
-	    timer->clockid != CLOCK_REALTIME)
-		return ERR_PTR(-EINVAL);
-
 	if (evp == NULL || evp->sigev_notify == SIGEV_NONE) {
 		target = owner;	/* Assume SIGEV_THREAD_ID. */
 		goto init;
@@ -83,11 +78,11 @@ timer_init(struct cobalt_timer *timer,
 	if (target == NULL)
 		return ERR_PTR(-EINVAL);
 init:
-	/*
-	 * All standard clocks are based on the core clock, and we
-	 * want to deliver a signal when a timer elapses.
-	 */
-	xntimer_init(&timer->timerbase, &nkclock, cobalt_timer_handler,
+	clock = cobalt_clock_find(timer->clockid);
+	if (IS_ERR(clock))
+		return ERR_PTR(PTR_ERR(clock));
+
+	xntimer_init(&timer->timerbase, clock, cobalt_timer_handler,
 		     target->threadbase.sched, XNTIMER_UGRAVITY);
 
 	return target;
@@ -544,7 +539,7 @@ fail:
 	return -EINVAL;
 }
 
-int cobalt_timer_deliver(timer_t timerid) /* nklocked, IRQs off. */
+int cobalt_timer_deliver(struct cobalt_thread *waiter, timer_t timerid) /* nklocked, IRQs off. */
 {
 	struct cobalt_timer *timer;
 	xnticks_t now;
@@ -558,7 +553,8 @@ int cobalt_timer_deliver(timer_t timerid) /* nklocked, IRQs off. */
 		timer->overruns = 0;
 	else {
 		now = xnclock_read_raw(xntimer_clock(&timer->timerbase));
-		timer->overruns = xntimer_get_overruns(&timer->timerbase, now);
+		timer->overruns = xntimer_get_overruns(&timer->timerbase,
+					       &waiter->threadbase, now);
 		if ((unsigned int)timer->overruns > COBALT_DELAYMAX)
 			timer->overruns = COBALT_DELAYMAX;
 	}

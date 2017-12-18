@@ -7,7 +7,7 @@
  *
  * Copyright (C) 2008-2011 Gabor Juhos <juhosg@openwrt.org>
  * Copyright (C) 2008 Imre Kaloz <kaloz@openwrt.org>
- * Copyright (C) 2013 John Crispin <blogic@openwrt.org>
+ * Copyright (C) 2013 John Crispin <john@phrozen.org>
  */
 
 #include <linux/kernel.h>
@@ -39,16 +39,6 @@ static struct rt2880_pmx_group rt2880_pinmux_data_act[] = {
 	GRP("pci", pci_func, 1, RT2880_GPIO_MODE_PCI),
 	{ 0 }
 };
-
-static void rt288x_wdt_reset(void)
-{
-	u32 t;
-
-	/* enable WDT reset output on pin SRAM_CS_N */
-	t = rt_sysc_r32(SYSC_REG_CLKCFG);
-	t |= CLKCFG_SRAM_CS_N_WDT;
-	rt_sysc_w32(t, SYSC_REG_CLKCFG);
-}
 
 void __init ralink_clk_init(void)
 {
@@ -119,4 +109,5 @@ void prom_soc_init(struct ralink_soc_info *soc_info)
 	soc_info->mem_size_max = RT2880_MEM_SIZE_MAX;
 
 	rt2880_pinmux_data = rt2880_pinmux_data_act;
+	ralink_soc = RT2880_SOC;
 }

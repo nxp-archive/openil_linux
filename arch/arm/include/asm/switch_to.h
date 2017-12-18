@@ -10,7 +10,9 @@
  * CPU.
  */
 #if defined(CONFIG_PREEMPT) && defined(CONFIG_SMP) && defined(CONFIG_CPU_V7)
-#define finish_arch_switch(prev)	dsb(ish)
+#define __complete_pending_tlbi()	dsb(ish)
+#else
+#define __complete_pending_tlbi()
 #endif
 
 /*
@@ -23,6 +25,7 @@ extern struct task_struct *__switch_to(struct task_struct *, struct thread_info 
 #ifdef CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH
 #define switch_to(prev,next,last)					\
 do {									\
+	__complete_pending_tlbi();					\
 	hard_cond_local_irq_disable();					\
 	last = __switch_to(prev,task_thread_info(prev), task_thread_info(next));	\
 	hard_cond_local_irq_enable();					\

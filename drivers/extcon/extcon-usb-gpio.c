@@ -15,6 +15,8 @@
  */
 
 #include <linux/extcon.h>
+#include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
@@ -22,8 +24,10 @@
 #include <linux/module.h>
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
+#include <linux/pm_wakeirq.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
+#include <linux/acpi.h>
 
 #define USB_GPIO_DEBOUNCE_MS	20	/* ms */
 
@@ -38,18 +42,10 @@ struct usb_extcon_info {
 	struct delayed_work wq_detcable;
 };
 
-/* List of detectable cables */
-enum {
-	EXTCON_CABLE_USB = 0,
-	EXTCON_CABLE_USB_HOST,
-
-	EXTCON_CABLE_END,
-};
-
-static const char *usb_extcon_cable[] = {
-	[EXTCON_CABLE_USB] = "USB",
-	[EXTCON_CABLE_USB_HOST] = "USB-HOST",
-	NULL,
+static const unsigned int usb_extcon_cable[] = {
+	EXTCON_USB,
+	EXTCON_USB_HOST,
+	EXTCON_NONE,
 };
 
 static void usb_extcon_detect_cable(struct work_struct *work)
@@ -67,24 +63,16 @@ static void usb_extcon_detect_cable(struct work_struct *work)
 		 * As we don't have event for USB peripheral cable attached,
 		 * we simulate USB peripheral attach here.
 		 */
-		extcon_set_cable_state(info->edev,
-				       usb_extcon_cable[EXTCON_CABLE_USB_HOST],
-				       false);
-		extcon_set_cable_state(info->edev,
-				       usb_extcon_cable[EXTCON_CABLE_USB],
-				       true);
+		extcon_set_state_sync(info->edev, EXTCON_USB_HOST, false);
+		extcon_set_state_sync(info->edev, EXTCON_USB, true);
 	} else {
 		/*
 		 * ID = 0 means USB HOST cable attached.
 		 * As we don't have event for USB peripheral cable detached,
 		 * we simulate USB peripheral detach here.
 		 */
-		extcon_set_cable_state(info->edev,
-				       usb_extcon_cable[EXTCON_CABLE_USB],
-				       false);
-		extcon_set_cable_state(info->edev,
-				       usb_extcon_cable[EXTCON_CABLE_USB_HOST],
-				       true);
+		extcon_set_state_sync(info->edev, EXTCON_USB, false);
+		extcon_set_state_sync(info->edev, EXTCON_USB_HOST, true);
 	}
 }
 
@@ -105,7 +93,7 @@ static int usb_extcon_probe(struct platform_device *pdev)
 	struct usb_extcon_info *info;
 	int ret;
 
-	if (!np)
+	if (!np && !ACPI_HANDLE(dev))
 		return -EINVAL;
 
 	info = devm_kzalloc(&pdev->dev, sizeof(*info), GFP_KERNEL);
@@ -113,7 +101,7 @@ static int usb_extcon_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	info->dev = dev;
-	info->id_gpiod = devm_gpiod_get(&pdev->dev, "id");
+	info->id_gpiod = devm_gpiod_get(&pdev->dev, "id", GPIOD_IN);
 	if (IS_ERR(info->id_gpiod)) {
 		dev_err(dev, "failed to get ID GPIO\n");
 		return PTR_ERR(info->id_gpiod);
@@ -155,7 +143,8 @@ static int usb_extcon_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, info);
-	device_init_wakeup(dev, 1);
+	device_init_wakeup(dev, true);
+	dev_pm_set_wake_irq(dev, info->id_irq);
 
 	/* Perform initial detection */
 	usb_extcon_detect_cable(&info->wq_detcable.work);
@@ -169,6 +158,9 @@ static int usb_extcon_remove(struct platform_device *pdev)
 
 	cancel_delayed_work_sync(&info->wq_detcable);
 
+	dev_pm_clear_wake_irq(&pdev->dev);
+	device_init_wakeup(&pdev->dev, false);
+
 	return 0;
 }
 
@@ -177,12 +169,6 @@ static int usb_extcon_suspend(struct device *dev)
 {
 	struct usb_extcon_info *info = dev_get_drvdata(dev);
 	int ret = 0;
-
-	if (device_may_wakeup(dev)) {
-		ret = enable_irq_wake(info->id_irq);
-		if (ret)
-			return ret;
-	}
 
 	/*
 	 * We don't want to process any IRQs after this point
@@ -199,13 +185,10 @@ static int usb_extcon_resume(struct device *dev)
 	struct usb_extcon_info *info = dev_get_drvdata(dev);
 	int ret = 0;
 
-	if (device_may_wakeup(dev)) {
-		ret = disable_irq_wake(info->id_irq);
-		if (ret)
-			return ret;
-	}
-
 	enable_irq(info->id_irq);
+	if (!device_may_wakeup(dev))
+		queue_delayed_work(system_power_efficient_wq,
+				   &info->wq_detcable, 0);
 
 	return ret;
 }
@@ -220,6 +203,12 @@ static const struct of_device_id usb_extcon_dt_match[] = {
 };
 MODULE_DEVICE_TABLE(of, usb_extcon_dt_match);
 
+static const struct platform_device_id usb_extcon_platform_ids[] = {
+	{ .name = "extcon-usb-gpio", },
+	{ /* sentinel */ }
+};
+MODULE_DEVICE_TABLE(platform, usb_extcon_platform_ids);
+
 static struct platform_driver usb_extcon_driver = {
 	.probe		= usb_extcon_probe,
 	.remove		= usb_extcon_remove,
@@ -228,6 +217,7 @@ static struct platform_driver usb_extcon_driver = {
 		.pm	= &usb_extcon_pm_ops,
 		.of_match_table = usb_extcon_dt_match,
 	},
+	.id_table = usb_extcon_platform_ids,
 };
 
 module_platform_driver(usb_extcon_driver);

@@ -23,8 +23,6 @@
 #ifndef __ASM_ARM_IPIPE_BASE_H
 #define __ASM_ARM_IPIPE_BASE_H
 
-#include <asm/irq.h>		/* For NR_IRQS */
-
 #ifdef CONFIG_IPIPE
 
 #define IPIPE_NR_ROOT_IRQS	1024

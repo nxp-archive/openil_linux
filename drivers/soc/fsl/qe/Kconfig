@@ -4,6 +4,7 @@
 
 config QUICC_ENGINE
 	bool "Freescale QUICC Engine (QE) Support"
+	depends on OF && HAS_IOMEM
 	select GENERIC_ALLOCATOR
 	select CRC32
 	help
@@ -21,7 +22,7 @@ config UCC_SLOW
 
 config UCC_FAST
 	bool
-	default y if UCC_GETH
+	default y if UCC_GETH || QE_TDM
 	help
 	  This option provides qe_lib support to UCC fast
 	  protocols: HDLC, Ethernet, ATM, transparent
@@ -32,7 +33,7 @@ config UCC
 
 config QE_TDM
 	bool
-	select UCC_FAST
+	default y if FSL_UCC_HDLC
 
 config QE_USB
 	bool

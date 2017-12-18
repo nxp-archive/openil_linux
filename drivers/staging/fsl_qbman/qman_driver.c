@@ -378,7 +378,7 @@ static void qman_get_ip_revision(struct device_node *dn)
 static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 {
 	struct qm_portal_config *pcfg;
-	const u32 *index_p, *channel_p;
+	const u32 *index_p;
 	u32 index, channel;
 	int irq, ret;
 	resource_size_t len;
@@ -430,16 +430,7 @@ static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 		goto err;
 	}
 
-	channel_p = of_get_property(node, "fsl,qman-channel-id", &ret);
-	if (!channel_p || (ret != 4)) {
-		pr_err("Can't get %s property '%s'\n", node->full_name,
-			"fsl,qman-channel-id");
-		goto err;
-	}
-	channel = be32_to_cpu(*channel_p);
-	if (channel != (index + QM_CHANNEL_SWPORTAL0))
-		pr_err("Warning: node %s has mismatched %s and %s\n",
-			node->full_name, "cell-index", "fsl,qman-channel-id");
+	channel = index + QM_CHANNEL_SWPORTAL0;
 	pcfg->public_cfg.channel = channel;
 	pcfg->public_cfg.cpu = -1;
 	irq = irq_of_parse_and_map(node, 0);
@@ -654,7 +645,7 @@ static struct qman_portal *init_pcfg(struct qm_portal_config *pcfg)
 static void init_slave(int cpu)
 {
 	struct qman_portal *p;
-	struct cpumask oldmask = *tsk_cpus_allowed(current);
+	struct cpumask oldmask = current->cpus_allowed;
 	set_cpus_allowed_ptr(current, get_cpu_mask(cpu));
 	p = qman_create_affine_slave(shared_portals[shared_portals_idx++], cpu);
 	if (!p)
@@ -702,7 +693,7 @@ static void qman_portal_update_sdest(const struct qm_portal_config *pcfg,
 #endif
 }
 
-static void qman_offline_cpu(unsigned int cpu)
+static int qman_offline_cpu(unsigned int cpu)
 {
 	struct qman_portal *p;
 	const struct qm_portal_config *pcfg;
@@ -714,10 +705,11 @@ static void qman_offline_cpu(unsigned int cpu)
 			qman_portal_update_sdest(pcfg, 0);
 		}
 	}
+	return 0;
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
-static void qman_online_cpu(unsigned int cpu)
+static int qman_online_cpu(unsigned int cpu)
 {
 	struct qman_portal *p;
 	const struct qm_portal_config *pcfg;
@@ -729,9 +721,10 @@ static void qman_online_cpu(unsigned int cpu)
 			qman_portal_update_sdest(pcfg, cpu);
 		}
 	}
+	return 0;
 }
 
-static int __cpuinit qman_hotplug_cpu_callback(struct notifier_block *nfb,
+static int qman_hotplug_cpu_callback(struct notifier_block *nfb,
 				unsigned long action, void *hcpu)
 {
 	unsigned int cpu = (unsigned long)hcpu;
@@ -982,4 +975,3 @@ void resume_unused_qportal(void)
 	return;
 }
 #endif
-

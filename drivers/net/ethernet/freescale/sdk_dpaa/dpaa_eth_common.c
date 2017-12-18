@@ -52,9 +52,6 @@
 #endif /* CONFIG_FSL_DPAA_DBG_LOOP */
 #include "mac.h"
 
-/* DPAA platforms benefit from hardware-assisted queue management */
-#define DPA_NETIF_FEATURES	NETIF_F_HW_ACCEL_MQ
-
 /* Size in bytes of the FQ taildrop threshold */
 #define DPA_FQ_TD		0x200000
 
@@ -109,8 +106,6 @@ int dpa_netdev_init(struct net_device *net_dev,
 	int err;
 	struct dpa_priv_s *priv = netdev_priv(net_dev);
 	struct device *dev = net_dev->dev.parent;
-
-	net_dev->hw_features |= DPA_NETIF_FEATURES;
 
 	net_dev->priv_flags |= IFF_LIVE_ADDR_CHANGE;
 
@@ -228,8 +223,7 @@ void __cold dpa_timeout(struct net_device *net_dev)
 	percpu_priv = raw_cpu_ptr(priv->percpu_priv);
 
 	if (netif_msg_timer(priv))
-		netdev_crit(net_dev, "Transmit timeout latency: %u ms\n",
-			jiffies_to_msecs(jiffies - net_dev->trans_start));
+		netdev_crit(net_dev, "Transmit timeout!\n");
 
 	percpu_priv->stats.tx_errors++;
 }
@@ -245,7 +239,7 @@ EXPORT_SYMBOL(dpa_timeout);
  * Calculates the statistics for the given device by adding the statistics
  * collected by each CPU.
  */
-struct rtnl_link_stats64 * __cold
+void __cold
 dpa_get_stats64(struct net_device *net_dev,
 		struct rtnl_link_stats64 *stats)
 {
@@ -264,14 +258,21 @@ dpa_get_stats64(struct net_device *net_dev,
 		for (j = 0; j < numstats; j++)
 			netstats[j] += cpustats[j];
 	}
-
-	return stats;
 }
 EXPORT_SYMBOL(dpa_get_stats64);
 
 int dpa_change_mtu(struct net_device *net_dev, int new_mtu)
 {
-	const int max_mtu = dpa_get_max_mtu();
+	int max_mtu = dpa_get_max_mtu();
+
+#ifndef CONFIG_PPC
+	/* Due to the A010022 FMan errata, we can not use contig frames larger
+	 * than 4K, nor S/G frames. We need to prevent the user from setting a
+	 * large MTU.
+	 */
+	if (unlikely(dpaa_errata_a010022))
+		max_mtu = DPA_BP_RAW_SIZE;
+#endif
 
 	/* Make sure we don't exceed the Ethernet controller's MAXFRM */
 	if (new_mtu < 68 || new_mtu > max_mtu) {
@@ -583,7 +584,7 @@ dpa_mac_probe(struct platform_device *_of_dev)
 	}
 
 #ifdef CONFIG_FSL_DPAA_1588
-	phandle_prop = of_get_property(mac_node, "ptimer-handle", &lenp);
+	phandle_prop = of_get_property(mac_node, "ptp-timer", &lenp);
 	if (phandle_prop && ((mac_dev->phy_if != PHY_INTERFACE_MODE_SGMII) ||
 			((mac_dev->phy_if == PHY_INTERFACE_MODE_SGMII) &&
 			 (mac_dev->speed == SPEED_1000)))) {
@@ -603,7 +604,7 @@ dpa_mac_probe(struct platform_device *_of_dev)
 	if ((mac_dev->phy_if != PHY_INTERFACE_MODE_SGMII) ||
 	    ((mac_dev->phy_if == PHY_INTERFACE_MODE_SGMII) &&
 			 (mac_dev->speed == SPEED_1000))) {
-		ptp_priv.node = of_parse_phandle(mac_node, "ptimer-handle", 0);
+		ptp_priv.node = of_parse_phandle(mac_node, "ptp-timer", 0);
 		if (ptp_priv.node) {
 			ptp_priv.of_dev = of_find_device_by_node(ptp_priv.node);
 			if (unlikely(ptp_priv.of_dev == NULL)) {
@@ -750,14 +751,19 @@ dpa_bp_alloc(struct dpa_bp *dpa_bp)
 	pdev = platform_device_register_simple("dpaa_eth_bpool",
 			dpa_bp->bpid, NULL, 0);
 	if (IS_ERR(pdev)) {
+		pr_err("platform_device_register_simple() failed\n");
 		err = PTR_ERR(pdev);
 		goto pdev_register_failed;
 	}
-
+	{
+		struct dma_map_ops *ops = get_dma_ops(&pdev->dev);
+		ops->dma_supported = NULL;
+	}
 	err = dma_coerce_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(40));
-	if (err)
+	if (err) {
+		pr_err("dma_coerce_mask_and_coherent() failed\n");
 		goto pdev_mask_failed;
-
+	}
 #ifdef CONFIG_FMAN_ARM
 	/* force coherency */
 	pdev->dev.archdata.dma_coherent = true;
@@ -851,8 +857,9 @@ dpa_bp_free(struct dpa_priv_s *priv)
 {
 	int i;
 
-	for (i = 0; i < priv->bp_count; i++)
-		_dpa_bp_free(&priv->dpa_bp[i]);
+	if (priv->dpa_bp)
+		for (i = 0; i < priv->bp_count; i++)
+			_dpa_bp_free(&priv->dpa_bp[i]);
 }
 EXPORT_SYMBOL(dpa_bp_free);
 
@@ -1063,10 +1070,10 @@ void dpa_release_channel(void)
 }
 EXPORT_SYMBOL(dpa_release_channel);
 
-int dpaa_eth_add_channel(void *__arg)
+void dpaa_eth_add_channel(u16 channel)
 {
 	const cpumask_t *cpus = qman_affine_cpus();
-	u32 pool = QM_SDQCR_CHANNELS_POOL_CONV((u16)(unsigned long)__arg);
+	u32 pool = QM_SDQCR_CHANNELS_POOL_CONV(channel);
 	int cpu;
 	struct qman_portal *portal;
 
@@ -1074,7 +1081,6 @@ int dpaa_eth_add_channel(void *__arg)
 		portal = (struct qman_portal *)qman_get_affine_portal(cpu);
 		qman_p_static_dequeue_add(portal, pool);
 	}
-	return 0;
 }
 EXPORT_SYMBOL(dpaa_eth_add_channel);
 

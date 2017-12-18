@@ -15,25 +15,27 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/fsl/guts.h>
-#include <linux/io.h>
 
+#include <asm/io.h>
 #include <asm/fsl_pm.h>
 
 static struct ccsr_guts __iomem *guts;
 
 static void mpc85xx_irq_mask(int cpu)
 {
+
 }
 
 static void mpc85xx_irq_unmask(int cpu)
 {
+
 }
 
 static void mpc85xx_cpu_die(int cpu)
 {
 	u32 tmp;
 
-	tmp = (mfspr(SPRN_HID0) & ~(HID0_DOZE | HID0_SLEEP)) | HID0_NAP;
+	tmp = (mfspr(SPRN_HID0) & ~(HID0_DOZE|HID0_SLEEP)) | HID0_NAP;
 	mtspr(SPRN_HID0, tmp);
 
 	/* Enter NAP mode. */
@@ -49,6 +51,7 @@ static void mpc85xx_cpu_die(int cpu)
 
 static void mpc85xx_cpu_up_prepare(int cpu)
 {
+
 }
 
 static void mpc85xx_freeze_time_base(bool freeze)

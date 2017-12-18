@@ -8,7 +8,6 @@ void devm_ioremap_release(struct device *dev, void *res)
 {
 	iounmap(*(void __iomem **)res);
 }
-EXPORT_SYMBOL(devm_ioremap_release);
 
 static int devm_ioremap_match(struct device *dev, void *res, void *match_data)
 {
@@ -120,10 +119,9 @@ EXPORT_SYMBOL(devm_iounmap);
  * @dev: generic device to handle the resource for
  * @res: resource to be handled
  *
- * Checks that a resource is a valid memory region, requests the memory region
- * and ioremaps it either as cacheable or as non-cacheable memory depending on
- * the resource's flags. All operations are managed and will be undone on
- * driver detach.
+ * Checks that a resource is a valid memory region, requests the memory
+ * region and ioremaps it. All operations are managed and will be undone
+ * on driver detach.
  *
  * Returns a pointer to the remapped memory or an ERR_PTR() encoded error code
  * on failure. Usage example:
@@ -154,11 +152,7 @@ void __iomem *devm_ioremap_resource(struct device *dev, struct resource *res)
 		return IOMEM_ERR_PTR(-EBUSY);
 	}
 
-	if (res->flags & IORESOURCE_CACHEABLE)
-		dest_ptr = devm_ioremap(dev, res->start, size);
-	else
-		dest_ptr = devm_ioremap_nocache(dev, res->start, size);
-
+	dest_ptr = devm_ioremap(dev, res->start, size);
 	if (!dest_ptr) {
 		dev_err(dev, "ioremap failed for resource %pR\n", res);
 		devm_release_mem_region(dev, res->start, size);
@@ -242,7 +236,7 @@ struct pcim_iomap_devres {
 
 static void pcim_iomap_release(struct device *gendev, void *res)
 {
-	struct pci_dev *dev = container_of(gendev, struct pci_dev, dev);
+	struct pci_dev *dev = to_pci_dev(gendev);
 	struct pcim_iomap_devres *this = res;
 	int i;
 
@@ -424,7 +418,7 @@ void pcim_iounmap_regions(struct pci_dev *pdev, int mask)
 	if (!iomap)
 		return;
 
-	for (i = 0; i < DEVICE_COUNT_RESOURCE; i++) {
+	for (i = 0; i < PCIM_IOMAP_MAX; i++) {
 		if (!(mask & (1 << i)))
 			continue;
 

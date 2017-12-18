@@ -41,7 +41,7 @@ enum vcpu_ftr {
 #define E500_TLB_MAS2_ATTR	(0x7f)
 
 struct tlbe_ref {
-	pfn_t pfn;		/* valid only for TLB0, except briefly */
+	kvm_pfn_t pfn;		/* valid only for TLB0, except briefly */
 	unsigned int flags;	/* E500_TLB_* */
 };
 
@@ -149,22 +149,6 @@ unsigned int kvmppc_e500_get_sid(struct kvmppc_vcpu_e500 *vcpu_e500,
 				 unsigned int pr, int avoid_recursion);
 #endif
 
-static inline bool has_feature(const struct kvm_vcpu *vcpu,
-			       enum vcpu_ftr ftr)
-{
-	bool has_ftr;
-
-	switch (ftr) {
-	case VCPU_FTR_MMU_V2:
-		has_ftr = ((vcpu->arch.mmucfg & MMUCFG_MAVN) == MMUCFG_MAVN_V2);
-		break;
-
-	default:
-		return false;
-	}
-	return has_ftr;
-}
-
 /* TLB helper functions */
 static inline unsigned int
 get_tlb_size(const struct kvm_book3e_206_tlb_entry *tlbe)
@@ -224,16 +208,6 @@ get_tlb_tsize(const struct kvm_book3e_206_tlb_entry *tlbe)
 	return (tlbe->mas1 & MAS1_TSIZE_MASK) >> MAS1_TSIZE_SHIFT;
 }
 
-static inline unsigned int
-get_tlb_ind(const struct kvm_vcpu *vcpu,
-	    const struct kvm_book3e_206_tlb_entry *tlbe)
-{
-	if (has_feature(vcpu, VCPU_FTR_MMU_V2))
-		return (tlbe->mas1 & MAS1_IND) >> MAS1_IND_SHIFT;
-
-	return 0;
-}
-
 static inline unsigned int get_cur_pid(struct kvm_vcpu *vcpu)
 {
 	return vcpu->arch.pid & 0xff;
@@ -257,30 +231,6 @@ static inline unsigned int get_cur_spid(const struct kvm_vcpu *vcpu)
 static inline unsigned int get_cur_sas(const struct kvm_vcpu *vcpu)
 {
 	return vcpu->arch.shared->mas6 & 0x1;
-}
-
-static inline unsigned int get_cur_ind(const struct kvm_vcpu *vcpu)
-{
-	if (has_feature(vcpu, VCPU_FTR_MMU_V2))
-		return (vcpu->arch.shared->mas1 & MAS1_IND) >> MAS1_IND_SHIFT;
-
-	return 0;
-}
-
-static inline unsigned int get_cur_indd(const struct kvm_vcpu *vcpu)
-{
-	if (has_feature(vcpu, VCPU_FTR_MMU_V2))
-		return (vcpu->arch.shared->mas4 & MAS4_INDD) >> MAS4_INDD_SHIFT;
-
-	return 0;
-}
-
-static inline unsigned int get_cur_sind(const struct kvm_vcpu *vcpu)
-{
-	if (has_feature(vcpu, VCPU_FTR_MMU_V2))
-		return (vcpu->arch.shared->mas6 & MAS6_SIND) >> MAS6_SIND_SHIFT;
-
-	return 0;
 }
 
 static inline unsigned int get_tlb_tlbsel(const struct kvm_vcpu *vcpu)
@@ -337,34 +287,6 @@ void kvmppc_e500_tlbil_one(struct kvmppc_vcpu_e500 *vcpu_e500,
 void kvmppc_e500_tlbil_all(struct kvmppc_vcpu_e500 *vcpu_e500);
 
 #ifdef CONFIG_KVM_BOOKE_HV
-/*
- * On e6500 cores with hw page table walk support the HW might
- * populate TLB0 by its own, following a page table walk.
- * Below functions ensure that the hw added tlb0 entries
- * are also pruned when the guest invalidates the tlb.
- * Note that as a consequence of the HWPTW, the shadow tlb could
- * be left out-of-sync with respect to the hw tlb state.
- */
-void kvmppc_e500_tlbil_ea_on_host(struct kvm_vcpu *vcpu, gva_t ea, int pid,
-				  int sas, int sind);
-void kvmppc_e500_tlbil_pid_on_host(struct kvm_vcpu *vcpu, int pid);
-void kvmppc_e500_tlbil_lpid_on_host(struct kvm_vcpu *vcpu);
-#else
-/*
- * The TLB on non E.HV cores is fully virtualized (SW state will always
- * stay in sync with HW state) so no additional HW TLB invalidates are
- * necessary.
- */
-static inline void kvmppc_e500_tlbil_ea_on_host(struct kvm_vcpu *vcpu, gva_t ea,
-						int pid, int sas, int sind)
-{}
-static inline void kvmppc_e500_tlbil_pid_on_host(struct kvm_vcpu *vcpu, int pid)
-{}
-static inline void kvmppc_e500_tlbil_lpid_on_host(struct kvm_vcpu *vcpu)
-{}
-#endif
-
-#ifdef CONFIG_KVM_BOOKE_HV
 #define kvmppc_e500_get_tlb_stid(vcpu, gtlbe)       get_tlb_tid(gtlbe)
 #define get_tlbmiss_tid(vcpu)           get_cur_pid(vcpu)
 #define get_tlb_sts(gtlbe)              (gtlbe->mas1 & MAS1_TS)
@@ -402,4 +324,19 @@ static inline unsigned int get_tlbmiss_tid(struct kvm_vcpu *vcpu)
 /* Force TS=1 for all guest mappings. */
 #define get_tlb_sts(gtlbe)              (MAS1_TS)
 #endif /* !BOOKE_HV */
+
+static inline bool has_feature(const struct kvm_vcpu *vcpu,
+			       enum vcpu_ftr ftr)
+{
+	bool has_ftr;
+	switch (ftr) {
+	case VCPU_FTR_MMU_V2:
+		has_ftr = ((vcpu->arch.mmucfg & MMUCFG_MAVN) == MMUCFG_MAVN_V2);
+		break;
+	default:
+		return false;
+	}
+	return has_ftr;
+}
+
 #endif /* KVM_E500_H */

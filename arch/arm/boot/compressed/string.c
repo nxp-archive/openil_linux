@@ -65,6 +65,15 @@ size_t strlen(const char *s)
 	return sc - s;
 }
 
+size_t strnlen(const char *s, size_t count)
+{
+	const char *sc;
+
+	for (sc = s; count-- && *sc != '\0'; ++sc)
+		/* nothing */;
+	return sc - s;
+}
+
 int memcmp(const void *cs, const void *ct, size_t count)
 {
 	const unsigned char *su1 = cs, *su2 = ct, *end = su1 + count;
@@ -93,23 +102,6 @@ int strcmp(const char *cs, const char *ct)
 	return res;
 }
 
-char *strstr(const char *s1, const char *s2)
-{
-	size_t l1, l2;
-
-	l2 = strlen(s2);
-	if (!l2)
-		return (char *)s1;
-	l1 = strlen(s1);
-	while (l1 >= l2) {
-		l1--;
-		if (!memcmp(s1, s2, l2))
-			return (char *)s1;
-		s1++;
-	}
-	return NULL;
-}
- 
 void *memchr(const void *s, int c, size_t count)
 {
 	const unsigned char *p = s;

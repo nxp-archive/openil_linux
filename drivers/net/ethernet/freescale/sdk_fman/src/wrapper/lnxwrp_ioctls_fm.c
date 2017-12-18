@@ -57,7 +57,7 @@
 #include <linux/io.h>
 #include <linux/ioport.h>
 #include <linux/of_platform.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <asm/errno.h>
 #ifndef CONFIG_FMAN_ARM
 #include <sysdev/fsl_soc.h>

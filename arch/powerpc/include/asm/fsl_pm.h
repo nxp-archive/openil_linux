@@ -10,8 +10,6 @@
  */
 #ifndef __PPC_FSL_PM_H
 #define __PPC_FSL_PM_H
-#ifdef __KERNEL__
-#include <linux/suspend.h>
 
 #define E500_PM_PH10	1
 #define E500_PM_PH15	2
@@ -22,10 +20,9 @@
 
 #define PLAT_PM_SLEEP	20
 #define PLAT_PM_LPM20	30
-#define PLAT_PM_LPM35	40
 
-#define FSL_PM_SLEEP		BIT(0)
-#define FSL_PM_DEEP_SLEEP	BIT(1)
+#define FSL_PM_SLEEP		(1 << 0)
+#define FSL_PM_DEEP_SLEEP	(1 << 1)
 
 struct fsl_pm_ops {
 	/* mask pending interrupts to the RCPM from MPIC */
@@ -37,7 +34,7 @@ struct fsl_pm_ops {
 	void (*cpu_exit_state)(int cpu, int state);
 	void (*cpu_up_prepare)(int cpu);
 	void (*cpu_die)(int cpu);
-	int (*plat_enter_sleep)(int state);
+	int (*plat_enter_sleep)(void);
 	void (*freeze_time_base)(bool freeze);
 
 	/* keep the power of IP blocks during sleep/deep sleep */
@@ -51,40 +48,4 @@ extern const struct fsl_pm_ops *qoriq_pm_ops;
 
 int __init fsl_rcpm_init(void);
 
-#ifdef CONFIG_FSL_QORIQ_PM
-int fsl_enter_deepsleep(void);
-int fsl_deepsleep_init(void);
-#else
-static inline int fsl_enter_deepsleep(void) { return -1; }
-static inline int fsl_deepsleep_init(void) { return -1; }
-#endif
-
-void fsl_dp_enter_low(void *priv);
-void fsl_booke_deep_sleep_resume(void);
-
-struct fsl_iomap {
-	void *ccsr_lcc_base;
-	void *ccsr_scfg_base;
-	void *ccsr_dcfg_base;
-	void *ccsr_rcpm_base;
-	void *ccsr_ddr_base;
-	void *ccsr_gpio1_base;
-	void *ccsr_cpc_base;
-	void *dcsr_epu_base;
-	void *dcsr_npc_base;
-	void *dcsr_rcpm_base;
-	void *cpld_base;
-	void *fpga_base;
-};
-
-#ifdef CONFIG_FSL_QORIQ_PM
-suspend_state_t pm_suspend_state(void);
-#else
-static inline suspend_state_t pm_suspend_state(void)
-{
-	return PM_SUSPEND_STANDBY;
-}
-#endif
-
-#endif /* __KERNEL__ */
 #endif /* __PPC_FSL_PM_H */

@@ -13,5 +13,4 @@ config LS_SOC_DRIVERS
 
 if LS_SOC_DRIVERS
 	source "drivers/soc/fsl/layerscape/Kconfig"
-	source "drivers/soc/fsl/ls2-console/Kconfig"
 endif

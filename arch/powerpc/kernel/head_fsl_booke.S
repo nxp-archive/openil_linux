@@ -42,6 +42,7 @@
 #include <asm/asm-offsets.h>
 #include <asm/cache.h>
 #include <asm/ptrace.h>
+#include <asm/export.h>
 #include "head_booke.h"
 
 /* As with the other PowerPC ports, it is expected that when code
@@ -430,15 +431,7 @@ interrupt_base:
 		  unknown_exception, EXC_XFER_EE)
 
 	/* Watchdog Timer Interrupt */
-#ifdef CONFIG_FSL_ERRATUM_A_006184
-	START_EXCEPTION(WatchdogTimer)
-	mtspr	SPRN_SPRG_WSCRATCH_CRIT, r3
-	lis	r3, TSR_WIS@h
-	mtspr	SPRN_TSR, r3
-	/* use WSCRATCH to avoid any potential problems with KVM paravirt */
-	mfspr	r3, SPRN_SPRG_WSCRATCH_CRIT
-	rfci
-#elif defined(CONFIG_BOOKE_WDT)
+#ifdef CONFIG_BOOKE_WDT
 	CRITICAL_EXCEPTION(0x3200, WATCHDOG, WatchdogTimer, WatchdogException)
 #else
 	CRITICAL_EXCEPTION(0x3200, WATCHDOG, WatchdogTimer, unknown_exception)
@@ -865,29 +858,6 @@ _GLOBAL(load_up_spe)
 	oris	r5,r5,MSR_SPE@h
 	mtmsr	r5			/* enable use of SPE now */
 	isync
-/*
- * For SMP, we don't do lazy SPE switching because it just gets too
- * horrendously complex, especially when a task switches from one CPU
- * to another.  Instead we call giveup_spe in switch_to.
- */
-#ifndef CONFIG_SMP
-	lis	r3,last_task_used_spe@ha
-	lwz	r4,last_task_used_spe@l(r3)
-	cmpi	0,r4,0
-	beq	1f
-	addi	r4,r4,THREAD	/* want THREAD of last_task_used_spe */
-	SAVE_32EVRS(0,r10,r4,THREAD_EVR0)
-	evxor	evr10, evr10, evr10	/* clear out evr10 */
-	evmwumiaa evr10, evr10, evr10	/* evr10 <- ACC = 0 * 0 + ACC */
-	li	r5,THREAD_ACC
-	evstddx	evr10, r4, r5		/* save off accumulator */
-	lwz	r5,PT_REGS(r4)
-	lwz	r4,_MSR-STACK_FRAME_OVERHEAD(r5)
-	lis	r10,MSR_SPE@h
-	andc	r4,r4,r10	/* disable SPE for previous task */
-	stw	r4,_MSR-STACK_FRAME_OVERHEAD(r5)
-1:
-#endif /* !CONFIG_SMP */
 	/* enable use of SPE after return */
 	oris	r9,r9,MSR_SPE@h
 	mfspr	r5,SPRN_SPRG_THREAD	/* current task's THREAD (phys) */
@@ -897,10 +867,6 @@ _GLOBAL(load_up_spe)
 	evlddx	evr4,r10,r5
 	evmra	evr4,evr4
 	REST_32EVRS(0,r10,r5,THREAD_EVR0)
-#ifndef CONFIG_SMP
-	subi	r4,r5,THREAD
-	stw	r4,last_task_used_spe@l(r3)
-#endif /* !CONFIG_SMP */
 	blr
 
 /*
@@ -1019,16 +985,10 @@ _GLOBAL(__setup_ehv_ivors)
 
 #ifdef CONFIG_SPE
 /*
- * extern void giveup_spe(struct task_struct *prev)
+ * extern void __giveup_spe(struct task_struct *prev)
  *
  */
-_GLOBAL(giveup_spe)
-	mfmsr	r5
-	oris	r5,r5,MSR_SPE@h
-	mtmsr	r5			/* enable use of SPE now */
-	isync
-	cmpi	0,r3,0
-	beqlr-				/* if no previous owner, done */
+_GLOBAL(__giveup_spe)
 	addi	r3,r3,THREAD		/* want THREAD of task */
 	lwz	r5,PT_REGS(r3)
 	cmpi	0,r5,0
@@ -1043,11 +1003,6 @@ _GLOBAL(giveup_spe)
 	andc	r4,r4,r3		/* disable SPE for previous task */
 	stw	r4,_MSR-STACK_FRAME_OVERHEAD(r5)
 1:
-#ifndef CONFIG_SMP
-	li	r5,0
-	lis	r4,last_task_used_spe@ha
-	stw	r5,last_task_used_spe@l(r4)
-#endif /* !CONFIG_SMP */
 	blr
 #endif /* CONFIG_SPE */
 
@@ -1153,6 +1108,112 @@ __secondary_hold_acknowledge:
 #endif
 
 /*
+ * Create a tlb entry with the same effective and physical address as
+ * the tlb entry used by the current running code. But set the TS to 1.
+ * Then switch to the address space 1. It will return with the r3 set to
+ * the ESEL of the new created tlb.
+ */
+_GLOBAL(switch_to_as1)
+	mflr	r5
+
+	/* Find a entry not used */
+	mfspr	r3,SPRN_TLB1CFG
+	andi.	r3,r3,0xfff
+	mfspr	r4,SPRN_PID
+	rlwinm	r4,r4,16,0x3fff0000	/* turn PID into MAS6[SPID] */
+	mtspr	SPRN_MAS6,r4
+1:	lis	r4,0x1000		/* Set MAS0(TLBSEL) = 1 */
+	addi	r3,r3,-1
+	rlwimi	r4,r3,16,4,15		/* Setup MAS0 = TLBSEL | ESEL(r3) */
+	mtspr	SPRN_MAS0,r4
+	tlbre
+	mfspr	r4,SPRN_MAS1
+	andis.	r4,r4,MAS1_VALID@h
+	bne	1b
+
+	/* Get the tlb entry used by the current running code */
+	bl	0f
+0:	mflr	r4
+	tlbsx	0,r4
+
+	mfspr	r4,SPRN_MAS1
+	ori	r4,r4,MAS1_TS		/* Set the TS = 1 */
+	mtspr	SPRN_MAS1,r4
+
+	mfspr	r4,SPRN_MAS0
+	rlwinm	r4,r4,0,~MAS0_ESEL_MASK
+	rlwimi	r4,r3,16,4,15		/* Setup MAS0 = TLBSEL | ESEL(r3) */
+	mtspr	SPRN_MAS0,r4
+	tlbwe
+	isync
+	sync
+
+	mfmsr	r4
+	ori	r4,r4,MSR_IS | MSR_DS
+	mtspr	SPRN_SRR0,r5
+	mtspr	SPRN_SRR1,r4
+	sync
+	rfi
+
+/*
+ * Restore to the address space 0 and also invalidate the tlb entry created
+ * by switch_to_as1.
+ * r3 - the tlb entry which should be invalidated
+ * r4 - __pa(PAGE_OFFSET in AS1) - __pa(PAGE_OFFSET in AS0)
+ * r5 - device tree virtual address. If r4 is 0, r5 is ignored.
+ * r6 - boot cpu
+*/
+_GLOBAL(restore_to_as0)
+	mflr	r0
+
+	bl	0f
+0:	mflr	r9
+	addi	r9,r9,1f - 0b
+
+	/*
+	 * We may map the PAGE_OFFSET in AS0 to a different physical address,
+	 * so we need calculate the right jump and device tree address based
+	 * on the offset passed by r4.
+	 */
+	add	r9,r9,r4
+	add	r5,r5,r4
+	add	r0,r0,r4
+
+2:	mfmsr	r7
+	li	r8,(MSR_IS | MSR_DS)
+	andc	r7,r7,r8
+
+	mtspr	SPRN_SRR0,r9
+	mtspr	SPRN_SRR1,r7
+	sync
+	rfi
+
+	/* Invalidate the temporary tlb entry for AS1 */
+1:	lis	r9,0x1000		/* Set MAS0(TLBSEL) = 1 */
+	rlwimi	r9,r3,16,4,15		/* Setup MAS0 = TLBSEL | ESEL(r3) */
+	mtspr	SPRN_MAS0,r9
+	tlbre
+	mfspr	r9,SPRN_MAS1
+	rlwinm	r9,r9,0,2,31		/* Clear MAS1 Valid and IPPROT */
+	mtspr	SPRN_MAS1,r9
+	tlbwe
+	isync
+
+	cmpwi	r4,0
+	cmpwi	cr1,r6,0
+	cror	eq,4*cr1+eq,eq
+	bne	3f			/* offset != 0 && is_boot_cpu */
+	mtlr	r0
+	blr
+
+	/*
+	 * The PAGE_OFFSET will map to a different physical address,
+	 * jump to _start to do another relocation again.
+	*/
+3:	mr	r3,r5
+	bl	_start
+
+/*
  * We put a few things here that have to be page-aligned. This stuff
  * goes at the beginning of the data segment, which is page-aligned.
  */
@@ -1163,6 +1224,7 @@ sdata:
 	.globl	empty_zero_page
 empty_zero_page:
 	.space	4096
+EXPORT_SYMBOL(empty_zero_page)
 	.globl	swapper_pg_dir
 swapper_pg_dir:
 	.space	PGD_TABLE_SIZE

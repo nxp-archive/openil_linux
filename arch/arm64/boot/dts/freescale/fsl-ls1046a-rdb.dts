@@ -1,7 +1,7 @@
 /*
  * Device Tree Include file for Freescale Layerscape-1046A family SoC.
  *
- * Copyright 2016, Freescale Semiconductor, Inc.
+ * Copyright 2016 Freescale Semiconductor, Inc.
  *
  * Mingkai Hu <mingkai.hu@nxp.com>
  *
@@ -53,13 +53,6 @@
 	compatible = "fsl,ls1046a-rdb", "fsl,ls1046a";
 
 	aliases {
-		ethernet0 = &fm1mac3;
-		ethernet1 = &fm1mac4;
-		ethernet2 = &fm1mac5;
-		ethernet3 = &fm1mac6;
-		ethernet4 = &fm1mac9;
-		ethernet5 = &fm1mac10;
-
 		serial0 = &duart0;
 		serial1 = &duart1;
 		serial2 = &duart2;
@@ -69,6 +62,14 @@
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};
+};
+
+&esdhc {
+	mmc-hs200-1_8v;
+	sd-uhs-sdr104;
+	sd-uhs-sdr50;
+	sd-uhs-sdr25;
+	sd-uhs-sdr12;
 };
 
 &duart0 {
@@ -156,6 +157,8 @@
 	};
 };
 
+#include "fsl-ls1046-post.dtsi"
+
 &fman0 {
 	ethernet@e4000 {
 		phy-handle = <&rgmii_phy1>;
@@ -183,7 +186,7 @@
 	};
 
 	ethernet@f2000 { /* 10GEC2 */
-		fixed-link = <0 1 10000 0 0>;
+		fixed-link = <0 1 1000 0 0>;
 		phy-connection-type = "xgmii";
 	};
 
@@ -191,31 +194,25 @@
 		rgmii_phy1: ethernet-phy@1 {
 			reg = <0x1>;
 		};
+
 		rgmii_phy2: ethernet-phy@2 {
 			reg = <0x2>;
 		};
+
 		sgmii_phy1: ethernet-phy@3 {
 			reg = <0x3>;
 		};
+
 		sgmii_phy2: ethernet-phy@4 {
 			reg = <0x4>;
 		};
 	};
 
 	mdio@fd000 {
-		aqr106_phy: ethernet-phy@1 {
+		aqr106_phy: ethernet-phy@0 {
 			compatible = "ethernet-phy-ieee802.3-c45";
 			interrupts = <0 131 4>;
 			reg = <0x0>;
 		};
-	};
-};
-&fsldpaa {
-	ethernet@0 {
-		status = "disabled";
-	};
-
-	ethernet@1 {
-		status = "disabled";
 	};
 };

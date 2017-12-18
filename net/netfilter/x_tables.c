@@ -26,6 +26,7 @@
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/audit.h>
+#include <linux/user_namespace.h>
 #include <net/net_namespace.h>
 
 #include <linux/netfilter/x_tables.h>
@@ -66,9 +67,6 @@ static const char *const xt_prefix[NFPROTO_NUMPROTO] = {
 	[NFPROTO_BRIDGE] = "eb",
 	[NFPROTO_IPV6]   = "ip6",
 };
-
-/* Allow this many total (re)entries. */
-static const unsigned int xt_jumpstack_multiplier = 2;
 
 /* Registration hooks for targets. */
 int xt_register_target(struct xt_target *target)
@@ -947,35 +945,26 @@ EXPORT_SYMBOL_GPL(xt_compat_target_to_user);
 
 struct xt_table_info *xt_alloc_table_info(unsigned int size)
 {
-	struct xt_table_info *newinfo;
-	int cpu;
+	struct xt_table_info *info = NULL;
+	size_t sz = sizeof(*info) + size;
+
+	if (sz < sizeof(*info))
+		return NULL;
 
 	/* Pedantry: prevent them from hitting BUG() in vmalloc.c --RR */
 	if ((SMP_ALIGN(size) >> PAGE_SHIFT) + 2 > totalram_pages)
 		return NULL;
 
-	newinfo = kzalloc(XT_TABLE_INFO_SZ, GFP_KERNEL);
-	if (!newinfo)
-		return NULL;
-
-	newinfo->size = size;
-
-	for_each_possible_cpu(cpu) {
-		if (size <= PAGE_SIZE)
-			newinfo->entries[cpu] = kmalloc_node(size,
-							GFP_KERNEL,
-							cpu_to_node(cpu));
-		else
-			newinfo->entries[cpu] = vmalloc_node(size,
-							cpu_to_node(cpu));
-
-		if (newinfo->entries[cpu] == NULL) {
-			xt_free_table_info(newinfo);
+	if (sz <= (PAGE_SIZE << PAGE_ALLOC_COSTLY_ORDER))
+		info = kmalloc(sz, GFP_KERNEL | __GFP_NOWARN | __GFP_NORETRY);
+	if (!info) {
+		info = vmalloc(sz);
+		if (!info)
 			return NULL;
-		}
 	}
-
-	return newinfo;
+	memset(info, 0, sizeof(*info));
+	info->size = size;
+	return info;
 }
 EXPORT_SYMBOL(xt_alloc_table_info);
 
@@ -983,18 +972,13 @@ void xt_free_table_info(struct xt_table_info *info)
 {
 	int cpu;
 
-	for_each_possible_cpu(cpu)
-		kvfree(info->entries[cpu]);
-
 	if (info->jumpstack != NULL) {
 		for_each_possible_cpu(cpu)
 			kvfree(info->jumpstack[cpu]);
 		kvfree(info->jumpstack);
 	}
 
-	free_percpu(info->stackptr);
-
-	kfree(info);
+	kvfree(info);
 }
 EXPORT_SYMBOL(xt_free_table_info);
 
@@ -1002,12 +986,45 @@ EXPORT_SYMBOL(xt_free_table_info);
 struct xt_table *xt_find_table_lock(struct net *net, u_int8_t af,
 				    const char *name)
 {
-	struct xt_table *t;
+	struct xt_table *t, *found = NULL;
 
 	mutex_lock(&xt[af].mutex);
 	list_for_each_entry(t, &net->xt.tables[af], list)
 		if (strcmp(t->name, name) == 0 && try_module_get(t->me))
 			return t;
+
+	if (net == &init_net)
+		goto out;
+
+	/* Table doesn't exist in this netns, re-try init */
+	list_for_each_entry(t, &init_net.xt.tables[af], list) {
+		if (strcmp(t->name, name))
+			continue;
+		if (!try_module_get(t->me))
+			return NULL;
+
+		mutex_unlock(&xt[af].mutex);
+		if (t->table_init(net) != 0) {
+			module_put(t->me);
+			return NULL;
+		}
+
+		found = t;
+
+		mutex_lock(&xt[af].mutex);
+		break;
+	}
+
+	if (!found)
+		goto out;
+
+	/* and once again: */
+	list_for_each_entry(t, &net->xt.tables[af], list)
+		if (strcmp(t->name, name) == 0)
+			return t;
+
+	module_put(found->me);
+ out:
 	mutex_unlock(&xt[af].mutex);
 	return NULL;
 }
@@ -1036,14 +1053,13 @@ EXPORT_SYMBOL_GPL(xt_compat_unlock);
 DEFINE_PER_CPU(seqcount_t, xt_recseq);
 EXPORT_PER_CPU_SYMBOL_GPL(xt_recseq);
 
+struct static_key xt_tee_enabled __read_mostly;
+EXPORT_SYMBOL_GPL(xt_tee_enabled);
+
 static int xt_jumpstack_alloc(struct xt_table_info *i)
 {
 	unsigned int size;
 	int cpu;
-
-	i->stackptr = alloc_percpu(unsigned int);
-	if (i->stackptr == NULL)
-		return -ENOMEM;
 
 	size = sizeof(void **) * nr_cpu_ids;
 	if (size > PAGE_SIZE)
@@ -1053,8 +1069,21 @@ static int xt_jumpstack_alloc(struct xt_table_info *i)
 	if (i->jumpstack == NULL)
 		return -ENOMEM;
 
-	i->stacksize *= xt_jumpstack_multiplier;
-	size = sizeof(void *) * i->stacksize;
+	/* ruleset without jumps -- no stack needed */
+	if (i->stacksize == 0)
+		return 0;
+
+	/* Jumpstack needs to be able to record two full callchains, one
+	 * from the first rule set traversal, plus one table reentrancy
+	 * via -j TEE without clobbering the callchain that brought us to
+	 * TEE target.
+	 *
+	 * This is done by allocating two jumpstacks per cpu, on reentry
+	 * the upper half of the stack is used.
+	 *
+	 * see the jumpstack setup in ipt_do_table() for more details.
+	 */
+	size = sizeof(void *) * i->stacksize * 2u;
 	for_each_possible_cpu(cpu) {
 		if (size > PAGE_SIZE)
 			i->jumpstack[cpu] = vmalloc_node(size,
@@ -1236,11 +1265,9 @@ static int xt_table_seq_show(struct seq_file *seq, void *v)
 {
 	struct xt_table *table = list_entry(v, struct xt_table, list);
 
-	if (strlen(table->name)) {
+	if (*table->name)
 		seq_printf(seq, "%s\n", table->name);
-		return seq_has_overflowed(seq);
-	} else
-		return 0;
+	return 0;
 }
 
 static const struct seq_operations xt_table_seq_ops = {
@@ -1376,10 +1403,8 @@ static int xt_match_seq_show(struct seq_file *seq, void *v)
 		if (trav->curr == trav->head)
 			return 0;
 		match = list_entry(trav->curr, struct xt_match, list);
-		if (*match->name == '\0')
-			return 0;
-		seq_printf(seq, "%s\n", match->name);
-		return seq_has_overflowed(seq);
+		if (*match->name)
+			seq_printf(seq, "%s\n", match->name);
 	}
 	return 0;
 }
@@ -1431,10 +1456,8 @@ static int xt_target_seq_show(struct seq_file *seq, void *v)
 		if (trav->curr == trav->head)
 			return 0;
 		target = list_entry(trav->curr, struct xt_target, list);
-		if (*target->name == '\0')
-			return 0;
-		seq_printf(seq, "%s\n", target->name);
-		return seq_has_overflowed(seq);
+		if (*target->name)
+			seq_printf(seq, "%s\n", target->name);
 	}
 	return 0;
 }
@@ -1472,22 +1495,25 @@ static const struct file_operations xt_target_ops = {
 #endif /* CONFIG_PROC_FS */
 
 /**
- * xt_hook_link - set up hooks for a new table
+ * xt_hook_ops_alloc - set up hooks for a new table
  * @table:	table with metadata needed to set up hooks
  * @fn:		Hook function
  *
- * This function will take care of creating and registering the necessary
- * Netfilter hooks for XT tables.
+ * This function will create the nf_hook_ops that the x_table needs
+ * to hand to xt_hook_link_net().
  */
-struct nf_hook_ops *xt_hook_link(const struct xt_table *table, nf_hookfn *fn)
+struct nf_hook_ops *
+xt_hook_ops_alloc(const struct xt_table *table, nf_hookfn *fn)
 {
 	unsigned int hook_mask = table->valid_hooks;
 	uint8_t i, num_hooks = hweight32(hook_mask);
 	uint8_t hooknum;
 	struct nf_hook_ops *ops;
-	int ret;
 
-	ops = kmalloc(sizeof(*ops) * num_hooks, GFP_KERNEL);
+	if (!num_hooks)
+		return ERR_PTR(-EINVAL);
+
+	ops = kcalloc(num_hooks, sizeof(*ops), GFP_KERNEL);
 	if (ops == NULL)
 		return ERR_PTR(-ENOMEM);
 
@@ -1496,40 +1522,23 @@ struct nf_hook_ops *xt_hook_link(const struct xt_table *table, nf_hookfn *fn)
 		if (!(hook_mask & 1))
 			continue;
 		ops[i].hook     = fn;
-		ops[i].owner    = table->me;
 		ops[i].pf       = table->af;
 		ops[i].hooknum  = hooknum;
 		ops[i].priority = table->priority;
 		++i;
 	}
 
-	ret = nf_register_hooks(ops, num_hooks);
-	if (ret < 0) {
-		kfree(ops);
-		return ERR_PTR(ret);
-	}
-
 	return ops;
 }
-EXPORT_SYMBOL_GPL(xt_hook_link);
-
-/**
- * xt_hook_unlink - remove hooks for a table
- * @ops:	nf_hook_ops array as returned by nf_hook_link
- * @hook_mask:	the very same mask that was passed to nf_hook_link
- */
-void xt_hook_unlink(const struct xt_table *table, struct nf_hook_ops *ops)
-{
-	nf_unregister_hooks(ops, hweight32(table->valid_hooks));
-	kfree(ops);
-}
-EXPORT_SYMBOL_GPL(xt_hook_unlink);
+EXPORT_SYMBOL_GPL(xt_hook_ops_alloc);
 
 int xt_proto_init(struct net *net, u_int8_t af)
 {
 #ifdef CONFIG_PROC_FS
 	char buf[XT_FUNCTION_MAXNAMELEN];
 	struct proc_dir_entry *proc;
+	kuid_t root_uid;
+	kgid_t root_gid;
 #endif
 
 	if (af >= ARRAY_SIZE(xt_prefix))
@@ -1537,12 +1546,17 @@ int xt_proto_init(struct net *net, u_int8_t af)
 
 
 #ifdef CONFIG_PROC_FS
+	root_uid = make_kuid(net->user_ns, 0);
+	root_gid = make_kgid(net->user_ns, 0);
+
 	strlcpy(buf, xt_prefix[af], sizeof(buf));
 	strlcat(buf, FORMAT_TABLES, sizeof(buf));
 	proc = proc_create_data(buf, 0440, net->proc_net, &xt_table_ops,
 				(void *)(unsigned long)af);
 	if (!proc)
 		goto out;
+	if (uid_valid(root_uid) && gid_valid(root_gid))
+		proc_set_user(proc, root_uid, root_gid);
 
 	strlcpy(buf, xt_prefix[af], sizeof(buf));
 	strlcat(buf, FORMAT_MATCHES, sizeof(buf));
@@ -1550,6 +1564,8 @@ int xt_proto_init(struct net *net, u_int8_t af)
 				(void *)(unsigned long)af);
 	if (!proc)
 		goto out_remove_tables;
+	if (uid_valid(root_uid) && gid_valid(root_gid))
+		proc_set_user(proc, root_uid, root_gid);
 
 	strlcpy(buf, xt_prefix[af], sizeof(buf));
 	strlcat(buf, FORMAT_TARGETS, sizeof(buf));
@@ -1557,6 +1573,8 @@ int xt_proto_init(struct net *net, u_int8_t af)
 				(void *)(unsigned long)af);
 	if (!proc)
 		goto out_remove_matches;
+	if (uid_valid(root_uid) && gid_valid(root_gid))
+		proc_set_user(proc, root_uid, root_gid);
 #endif
 
 	return 0;

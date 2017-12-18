@@ -1,7 +1,7 @@
 /*
  * Device Tree Include file for Freescale Layerscape-1046A family SoC.
  *
- * Copyright 2016, Freescale Semiconductor, Inc.
+ * Copyright 2016 Freescale Semiconductor, Inc.
  *
  * Shaohui Xie <Shaohui.Xie@nxp.com>
  *
@@ -53,19 +53,6 @@
 	compatible = "fsl,ls1046a-qds", "fsl,ls1046a";
 
 	aliases {
-		emi1_slot1 = &ls1046mdio_s1;
-		emi1_slot2 = &ls1046mdio_s2;
-		emi1_slot4 = &ls1046mdio_s4;
-
-		ethernet0 = &fm1mac1;
-		ethernet1 = &fm1mac2;
-		ethernet2 = &fm1mac3;
-		ethernet3 = &fm1mac4;
-		ethernet4 = &fm1mac5;
-		ethernet5 = &fm1mac6;
-		ethernet6 = &fm1mac9;
-		ethernet7 = &fm1mac10;
-
 		gpio0 = &gpio0;
 		gpio1 = &gpio1;
 		gpio2 = &gpio2;
@@ -74,6 +61,10 @@
 		serial1 = &duart1;
 		serial2 = &duart2;
 		serial3 = &duart3;
+
+		emi1_slot1 = &ls1046mdio_s1;
+		emi1_slot2 = &ls1046mdio_s2;
+		emi1_slot4 = &ls1046mdio_s4;
 
 		sgmii_s1_p1 = &sgmii_phy_s1_p1;
 		sgmii_s1_p2 = &sgmii_phy_s1_p2;
@@ -234,6 +225,8 @@
 		reg = <0>;
 	};
 };
+
+#include "fsl-ls1046-post.dtsi"
 
 &fman0 {
 	ethernet@e0000 {

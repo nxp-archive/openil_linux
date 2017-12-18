@@ -380,6 +380,10 @@ static void unregister_driver(struct rtdm_driver *drv)
  * - -EAGAIN is returned if no registry slot is available (check/raise
  * CONFIG_XENO_OPT_REGISTRY_NRSLOTS).
  *
+ * - -ENOSYS is returned if cobalt is disabled
+ *
+ * - -ENXIO is returned if no valid minor could be assigned
+ *
  * @coretags{secondary-only}
  */
 int rtdm_dev_register(struct rtdm_device *dev)
@@ -454,7 +458,7 @@ int rtdm_dev_register(struct rtdm_device *dev)
 		if (IS_ERR(kdev)) {
 			xnregistry_remove(dev->named.handle);
 			ret = PTR_ERR(kdev);
-			goto fail;
+			goto fail2;
 		}
 		__set_bit(minor, drv->minor_map);
 	} else {
@@ -477,7 +481,7 @@ int rtdm_dev_register(struct rtdm_device *dev)
 				     dev, dev->name);
 		if (IS_ERR(kdev)) {
 			ret = PTR_ERR(kdev);
-			goto fail;
+			goto fail2;
 		}
 
 		id = get_proto_id(drv->protocol_family, drv->socket_type);
@@ -500,7 +504,7 @@ int rtdm_dev_register(struct rtdm_device *dev)
 fail:
 	if (kdev)
 		device_destroy(kdev_class, rdev);
-
+fail2:
 	unregister_driver(drv);
 
 	mutex_unlock(&register_lock);
@@ -575,7 +579,9 @@ EXPORT_SYMBOL_GPL(rtdm_dev_unregister);
  *
  * @param[in] drv Address of the RTDM driver descriptor.
  *
- * @param[in] cls Pointer to the kernel device class.
+ * @param[in] cls Pointer to the kernel device class. NULL is allowed
+ * to clear a previous setting, switching back to the default "rtdm"
+ * device class.
  *
  * @return 0 on success, otherwise:
  *
@@ -592,7 +598,8 @@ EXPORT_SYMBOL_GPL(rtdm_dev_unregister);
  */
 int rtdm_drv_set_sysclass(struct rtdm_driver *drv, struct class *cls)
 {
-	if (drv->profile_info.kdev_class || atomic_read(&drv->refcount))
+	if ((cls && drv->profile_info.kdev_class) ||
+	    atomic_read(&drv->refcount))
 		return -EBUSY;
 
 	drv->profile_info.kdev_class = cls;

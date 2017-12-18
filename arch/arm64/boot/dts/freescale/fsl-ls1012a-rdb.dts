@@ -1,7 +1,7 @@
 /*
  * Device Tree file for Freescale LS1012A RDB Board.
  *
- * Copyright 2016, Freescale Semiconductor
+ * Copyright 2016 Freescale Semiconductor, Inc.
  *
  * This file is dual-licensed: you can use it either under the terms
  * of the GPLv2 or the X11 license, at your option. Note that this dual
@@ -48,12 +48,6 @@
 / {
 	model = "LS1012A RDB Board";
 	compatible = "fsl,ls1012a-rdb", "fsl,ls1012a";
-
-	aliases {
-		crypto = &crypto;
-		ethernet0 = &pfe_mac0;
-		ethernet1 = &pfe_mac1;
-	};
 };
 
 &duart0 {
@@ -79,52 +73,19 @@
 	};
 };
 
+&sata {
+	status = "okay";
+};
+
 &esdhc0 {
+	sd-uhs-sdr104;
+	sd-uhs-sdr50;
+	sd-uhs-sdr25;
+	sd-uhs-sdr12;
 	status = "okay";
 };
 
 &esdhc1 {
+	mmc-hs200-1_8v;
 	status = "okay";
-};
-
-&pfe {
-	status = "okay";
-	ethernet@0 {
-		compatible = "fsl,pfe-gemac-port";
-		#address-cells = <1>;
-		#size-cells = <0>;
-		reg = <	0x0 >;	/* GEM_ID */
-		fsl,gemac-bus-id = <0x0>;	/* BUS_ID */
-		fsl,gemac-phy-id = <0x2>;	/* PHY_ID */
-		fsl,mdio-mux-val = <0x0>;
-		local-mac-address = [ 00 1A 2B 3C 4D 5E ];
-		phy-mode = "sgmii";
-		fsl,pfe-gemac-if-name = "eth0";
-		fsl,pfe-phy-if-flags = <0x0>;
-		fsl,pfe-gemac-mode = <0x1B00>; /* GEMAC_SW_CONF | GEMAC_SW_FULL_DUPLEX | GEMAC_SW_SPEED_1G */
-
-		mdio@0 {
-			reg = <0x1>; /* enabled/disabled */
-			fsl,mdio-phy-mask = <0xFFFFFFF9>;
-		};
-	};
-
-	ethernet@1 {
-		compatible = "fsl,pfe-gemac-port";
-		#address-cells = <1>;
-		#size-cells = <0>;
-		reg = <	0x1 >;	/* GEM_ID */
-		fsl,gemac-bus-id = < 0x1 >;	/* BUS_ID */
-		fsl,gemac-phy-id = < 0x1 >;	/* PHY_ID */
-		fsl,mdio-mux-val = <0x0>;
-		local-mac-address = [ 00 AA BB CC DD EE ];
-		phy-mode = "rgmii";
-		fsl,pfe-gemac-if-name = "eth2";
-		fsl,pfe-phy-if-flags = <0x0>;
-		fsl,pfe-gemac-mode = <0x1B00>; /* GEMAC_SW_CONF | GEMAC_SW_FULL_DUPLEX | GEMAC_SW_SPEED_1G */
-		mdio@0 {
-			reg = <0x0>; /* enabled/disabled */
-			fsl,mdio-phy-mask = <0xFFFFFFF9>;
-		};
-	};
 };

@@ -1163,13 +1163,13 @@ rme96_set_buffer_size_constraint(struct rme96 *rme96,
 {
 	unsigned int size;
 
-	snd_pcm_hw_constraint_minmax(runtime, SNDRV_PCM_HW_PARAM_BUFFER_BYTES,
-				     RME96_BUFFER_SIZE, RME96_BUFFER_SIZE);
+	snd_pcm_hw_constraint_single(runtime, SNDRV_PCM_HW_PARAM_BUFFER_BYTES,
+				     RME96_BUFFER_SIZE);
 	if ((size = rme96->playback_periodsize) != 0 ||
 	    (size = rme96->capture_periodsize) != 0)
-		snd_pcm_hw_constraint_minmax(runtime,
+		snd_pcm_hw_constraint_single(runtime,
 					     SNDRV_PCM_HW_PARAM_PERIOD_BYTES,
-					     size, size);
+					     size);
 	else
 		snd_pcm_hw_constraint_list(runtime, 0,
 					   SNDRV_PCM_HW_PARAM_PERIOD_BYTES,
@@ -1505,7 +1505,7 @@ snd_rme96_capture_pointer(struct snd_pcm_substream *substream)
 	return snd_rme96_capture_ptr(rme96);
 }
 
-static struct snd_pcm_ops snd_rme96_playback_spdif_ops = {
+static const struct snd_pcm_ops snd_rme96_playback_spdif_ops = {
 	.open =		snd_rme96_playback_spdif_open,
 	.close =	snd_rme96_playback_close,
 	.ioctl =	snd_pcm_lib_ioctl,
@@ -1518,7 +1518,7 @@ static struct snd_pcm_ops snd_rme96_playback_spdif_ops = {
 	.mmap =		snd_pcm_lib_mmap_iomem,
 };
 
-static struct snd_pcm_ops snd_rme96_capture_spdif_ops = {
+static const struct snd_pcm_ops snd_rme96_capture_spdif_ops = {
 	.open =		snd_rme96_capture_spdif_open,
 	.close =	snd_rme96_capture_close,
 	.ioctl =	snd_pcm_lib_ioctl,
@@ -1530,7 +1530,7 @@ static struct snd_pcm_ops snd_rme96_capture_spdif_ops = {
 	.mmap =		snd_pcm_lib_mmap_iomem,
 };
 
-static struct snd_pcm_ops snd_rme96_playback_adat_ops = {
+static const struct snd_pcm_ops snd_rme96_playback_adat_ops = {
 	.open =		snd_rme96_playback_adat_open,
 	.close =	snd_rme96_playback_close,
 	.ioctl =	snd_pcm_lib_ioctl,
@@ -1543,7 +1543,7 @@ static struct snd_pcm_ops snd_rme96_playback_adat_ops = {
 	.mmap =		snd_pcm_lib_mmap_iomem,
 };
 
-static struct snd_pcm_ops snd_rme96_capture_adat_ops = {
+static const struct snd_pcm_ops snd_rme96_capture_adat_ops = {
 	.open =		snd_rme96_capture_adat_open,
 	.close =	snd_rme96_capture_close,
 	.ioctl =	snd_pcm_lib_ioctl,

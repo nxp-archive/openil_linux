@@ -59,7 +59,6 @@
 #include <linux/clk.h>
 #include <asm/uaccess.h>
 #include <asm/errno.h>
-#include <linux/fsl/qe.h>        /* For struct qe_firmware */
 #ifndef CONFIG_FMAN_ARM
 #include <sysdev/fsl_soc.h>
 #include <linux/fsl/guts.h>
@@ -452,6 +451,47 @@ typedef _Packed struct {
     return E_OK;
 }
 
+/* Structure that defines QE firmware binary files.
+ *
+ * See Documentation/powerpc/qe_firmware.txt for a description of these
+ * fields.
+ */
+struct qe_firmware {
+        struct qe_header {
+                __be32 length;  /* Length of the entire structure, in bytes */
+                u8 magic[3];    /* Set to { 'Q', 'E', 'F' } */
+                u8 version;     /* Version of this layout. First ver is '1' */
+        } header;
+        u8 id[62];      /* Null-terminated identifier string */
+        u8 split;       /* 0 = shared I-RAM, 1 = split I-RAM */
+        u8 count;       /* Number of microcode[] structures */
+        struct {
+                __be16 model;           /* The SOC model  */
+                u8 major;               /* The SOC revision major */
+                u8 minor;               /* The SOC revision minor */
+        } __attribute__ ((packed)) soc;
+        u8 padding[4];                  /* Reserved, for alignment */
+        __be64 extended_modes;          /* Extended modes */
+        __be32 vtraps[8];               /* Virtual trap addresses */
+        u8 reserved[4];                 /* Reserved, for future expansion */
+        struct qe_microcode {
+                u8 id[32];              /* Null-terminated identifier */
+                __be32 traps[16];       /* Trap addresses, 0 == ignore */
+                __be32 eccr;            /* The value for the ECCR register */
+                __be32 iram_offset;     /* Offset into I-RAM for the code */
+                __be32 count;           /* Number of 32-bit words of the code */
+                __be32 code_offset;     /* Offset of the actual microcode */
+                u8 major;               /* The microcode version major */
+                u8 minor;               /* The microcode version minor */
+                u8 revision;            /* The microcode version revision */
+                u8 padding;             /* Reserved, for alignment */
+                u8 reserved[4];         /* Reserved, for future expansion */
+        } __attribute__ ((packed)) microcode[1];
+        /* All microcode binaries should be located here */
+        /* CRC32 should be located here, after the microcode binaries */
+} __attribute__ ((packed));
+
+
 /**
  * FindFmanMicrocode - find the Fman microcode
  *
@@ -644,9 +684,9 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
 
     /* Get the RTC base address and size */
     memset(ids, 0, sizeof(ids));
-    if (WARN_ON(strlen("rtc") >= sizeof(ids[0].name)))
+    if (WARN_ON(strlen("ptp-timer") >= sizeof(ids[0].name)))
         return NULL;
-    strcpy(ids[0].name, "rtc");
+    strcpy(ids[0].name, "ptp-timer");
     if (WARN_ON(strlen("fsl,fman-rtc") >= sizeof(ids[0].compatible)))
         return NULL;
     strcpy(ids[0].compatible, "fsl,fman-rtc");
@@ -1037,9 +1077,13 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
 		int i;
 		int usz = p_LnxWrpFmDev->fmDevSettings.param.firmware.size;
 		void * p_Code = p_LnxWrpFmDev->fmDevSettings.param.firmware.p_Code;
+		u32 *dest = kzalloc(usz, GFP_KERNEL);
 
+		if (p_Code && dest)
 		for(i=0; i < usz / 4; ++i)
-			((u32 *)p_Code)[i] = be32_to_cpu(((u32 *)p_Code)[i]);
+			dest[i] = be32_to_cpu(((u32 *)p_Code)[i]);
+
+		p_LnxWrpFmDev->fmDevSettings.param.firmware.p_Code = dest;
 	}
 #endif
 

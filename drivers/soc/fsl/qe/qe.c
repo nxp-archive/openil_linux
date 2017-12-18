@@ -16,14 +16,12 @@
  */
 #include <linux/errno.h>
 #include <linux/sched.h>
-#include <linux/wait.h>
 #include <linux/kernel.h>
 #include <linux/param.h>
 #include <linux/string.h>
 #include <linux/spinlock.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
-#include <linux/jiffies.h>
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/ioport.h>
@@ -39,7 +37,6 @@
 static void qe_snums_init(void);
 static int qe_sdma_init(void);
 
-static DECLARE_WAIT_QUEUE_HEAD(wait_q);
 static DEFINE_SPINLOCK(qe_lock);
 DEFINE_SPINLOCK(cmxgcr_lock);
 EXPORT_SYMBOL(cmxgcr_lock);
@@ -110,15 +107,27 @@ void qe_reset(void)
 		panic("sdma init failed!");
 }
 
+/* issue commands to QE, return 0 on success while -EIO on error
+ *
+ * @cmd: the command code, should be QE_INIT_TX_RX, QE_STOP_TX and so on
+ * @device: which sub-block will run the command, QE_CR_SUBBLOCK_UCCFAST1 - 8
+ * , QE_CR_SUBBLOCK_UCCSLOW1 - 8, QE_CR_SUBBLOCK_MCC1 - 3,
+ * QE_CR_SUBBLOCK_IDMA1 - 4 and such on.
+ * @mcn_protocol: specifies mode for the command for non-MCC, should be
+ * QE_CR_PROTOCOL_HDLC_TRANSPARENT, QE_CR_PROTOCOL_QMC, QE_CR_PROTOCOL_UART
+ * and such on.
+ * @cmd_input: command related data.
+ */
 int qe_issue_cmd(u32 cmd, u32 device, u8 mcn_protocol, u32 cmd_input)
 {
 	unsigned long flags;
 	u8 mcn_shift = 0, dev_shift = 0;
-	u32 ret;
+	int ret;
+	int i;
 
 	spin_lock_irqsave(&qe_lock, flags);
 	if (cmd == QE_RESET) {
-		iowrite32be((u32)(cmd | QE_CR_FLG), &qe_immr->cp.cecr);
+		iowrite32be((cmd | QE_CR_FLG), &qe_immr->cp.cecr);
 	} else {
 		if (cmd == QE_ASSIGN_PAGE) {
 			/* Here device is the SNUM, not sub-block */
@@ -141,14 +150,20 @@ int qe_issue_cmd(u32 cmd, u32 device, u8 mcn_protocol, u32 cmd_input)
 	}
 
 	/* wait for the QE_CR_FLG to clear */
-	ret = wait_event_timeout(wait_q,
-				 (ioread32be(&qe_immr->cp.cecr) & QE_CR_FLG)
-				 == 0, usecs_to_jiffies(100));
+	ret = -EIO;
+	for (i = 0; i < 100; i++) {
+		if ((ioread32be(&qe_immr->cp.cecr) & QE_CR_FLG) == 0) {
+			ret = 0;
+			break;
+		}
+		udelay(1);
+	}
+
 	/* On timeout (e.g. failure), the expression will be false (ret == 0),
 	   otherwise it will be true (ret == 1). */
 	spin_unlock_irqrestore(&qe_lock, flags);
 
-	return ret == 1;
+	return ret;
 }
 EXPORT_SYMBOL(qe_issue_cmd);
 
@@ -180,7 +195,7 @@ unsigned int qe_get_brg_clk(void)
 			return brg_clk;
 	}
 
-	ret = of_property_read_u32_index(qe, "brg-frequency", 0, &val);
+	ret = of_property_read_u32(qe, "brg-frequency", &val);
 	if (!ret)
 		brg_clk = val;
 
@@ -240,10 +255,10 @@ enum qe_clock qe_clock_source(const char *source)
 	if (strcasecmp(source, "none") == 0)
 		return QE_CLK_NONE;
 
-	if (strcasecmp(source, "tsync_pin") == 0)
+	if (strcmp(source, "tsync_pin") == 0)
 		return QE_TSYNC_PIN;
 
-	if (strcasecmp(source, "rsync_pin") == 0)
+	if (strcmp(source, "rsync_pin") == 0)
 		return QE_RSYNC_PIN;
 
 	if (strncasecmp(source, "brg", 3) == 0) {
@@ -661,7 +676,7 @@ unsigned int qe_get_num_of_snums(void)
 			return num_of_snums;
 	}
 
-	ret = of_property_read_u32_index(qe, "fsl,qe-num-snums", 0, &val);
+	ret = of_property_read_u32(qe, "fsl,qe-num-snums", &val);
 	if (!ret) {
 		num_of_snums = val;
 		if ((num_of_snums < 28) || (num_of_snums > QE_NUM_OF_SNUM)) {

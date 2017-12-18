@@ -72,6 +72,9 @@ void __init __ipipe_tsc_register(struct __ipipe_tscinfo *info)
 #endif
 	registered = ipipe_tsc_value != NULL;
 
+	if (WARN_ON(info->freq == 0))
+		return;
+
 	if (registered && info->freq < tsc_info.freq)
 		return;
 
@@ -228,15 +231,23 @@ static __init int cpufreq_transition_handler(struct notifier_block *nb,
 	struct cpufreq_freqs *freqs = data;
 	unsigned int freq;
 
-	if (state == CPUFREQ_POSTCHANGE && tsc_info.refresh_freq) {
+	if (state == CPUFREQ_POSTCHANGE &&
+	    ipipe_tsc_value && tsc_info.refresh_freq) {
 		freq = tsc_info.refresh_freq();
-		if (freqs->cpu == 0) {
-			tsc_info.freq = freq;
-			__ipipe_tsc_register(&tsc_info);
-			__ipipe_report_clockfreq_update(freq);
+		if (freq) {
+			if (freqs->cpu == 0) {
+				int oldrate;
+				tsc_info.freq = freq;
+				__ipipe_tsc_register(&tsc_info);
+				__ipipe_report_clockfreq_update(freq);
+				/* force timekeeper to recalculate the clocksource */
+				oldrate = clksrc.rating;
+				clocksource_change_rating(&clksrc, 0);
+				clocksource_change_rating(&clksrc, oldrate);
+			}
+			smp_call_function_single(freqs->cpu, update_timer_freq,
+						 &freq, 1);
 		}
-		smp_call_function_single(freqs->cpu, update_timer_freq,
-					 &freq, 1);
 	}
 
 	return NOTIFY_OK;

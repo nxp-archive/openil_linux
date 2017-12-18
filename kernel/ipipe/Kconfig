@@ -63,3 +63,8 @@ config IPIPE_HAVE_SAFE_THREAD_INFO
 
 config IPIPE_HAVE_VM_NOTIFIER
 	bool
+
+if IPIPE && ARM && RAW_PRINTK && !DEBUG_LL
+comment "CAUTION: DEBUG_LL must be selected, and properly configured for"
+comment "RAW_PRINTK to work. Otherwise, you will get no output on raw_printk()"
+endif

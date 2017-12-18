@@ -36,6 +36,7 @@
 #define MAX_COUNT_VAL		0xffff
 
 static void __iomem *ftm1_base;
+static void __iomem *rcpm_ftm_addr;
 static u32 alarm_freq;
 static bool big_endian;
 
@@ -78,10 +79,11 @@ static inline void ftm_counter_disable(void __iomem *base)
 
 static inline void ftm_irq_acknowledge(void __iomem *base)
 {
-	unsigned long timeout = jiffies + msecs_to_jiffies(100);
+	unsigned int timeout = 100;
 
-	while ((FTM_SC_TOF & ftm_readl(base + FTM_SC)) && time_before(jiffies, timeout))
-		ftm_writel(ftm_readl(base + FTM_SC) & (~FTM_SC_TOF), base + FTM_SC);
+	while ((FTM_SC_TOF & ftm_readl(base + FTM_SC)) && timeout--)
+		ftm_writel(ftm_readl(base + FTM_SC) & (~FTM_SC_TOF),
+			   base + FTM_SC);
 }
 
 static inline void ftm_irq_enable(void __iomem *base)
@@ -135,7 +137,7 @@ static void ftm_clean_alarm(void)
 	ftm_counter_disable(ftm1_base);
 
 	ftm_writel(0x00, ftm1_base + FTM_CNTIN);
-	ftm_writel(~0UL, ftm1_base + FTM_MOD);
+	ftm_writel(~0U, ftm1_base + FTM_MOD);
 
 	ftm_reset_counter(ftm1_base);
 }
@@ -212,6 +214,7 @@ static int ftm_alarm_probe(struct platform_device *pdev)
 	struct resource *r;
 	int irq;
 	int ret;
+	u32 ippdexpcr;
 
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!r)
@@ -220,6 +223,16 @@ static int ftm_alarm_probe(struct platform_device *pdev)
 	ftm1_base = devm_ioremap_resource(&pdev->dev, r);
 	if (IS_ERR(ftm1_base))
 		return PTR_ERR(ftm1_base);
+
+	r = platform_get_resource_byname(pdev, IORESOURCE_MEM, "FlexTimer1");
+	if (r) {
+		rcpm_ftm_addr = devm_ioremap_resource(&pdev->dev, r);
+		if (IS_ERR(rcpm_ftm_addr))
+			return PTR_ERR(rcpm_ftm_addr);
+		ippdexpcr = ioread32be(rcpm_ftm_addr);
+		ippdexpcr |= 0x20000;
+		iowrite32be(ippdexpcr, rcpm_ftm_addr);
+	}
 
 	irq = irq_of_parse_and_map(np, 0);
 	if (irq <= 0) {

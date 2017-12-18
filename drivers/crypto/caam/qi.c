@@ -2,7 +2,8 @@
  * CAAM/SEC 4.x QI transport/backend driver
  * Queue Interface backend functionality
  *
- * Copyright 2013 Freescale Semiconductor, Inc.
+ * Copyright 2013-2016 Freescale Semiconductor, Inc.
+ * Copyright 2016-2017 NXP
  */
 
 #include <linux/cpumask.h>
@@ -14,112 +15,103 @@
 #include "desc.h"
 #include "intern.h"
 #include "desc_constr.h"
-#include "sg_sw_qm.h"
 
-#define PRE_HDR_LEN		2	/* Length in u32 words */
 #define PREHDR_RSLS_SHIFT	31
-#ifndef CONFIG_FSL_DPAA_ETH_MAX_BUF_COUNT
-/* If DPA_ETH is not available, then use a reasonably backlog per CPU */
-#define MAX_RSP_FQ_BACKLOG_PER_CPU	64
-#endif
-#define CAAM_QI_MEMCACHE_SIZE	256	/* Length of a single buffer in
-					   the QI driver memory cache. */
 
 /*
- * The jobs are processed by the driver against a driver context.
- * With every cryptographic context, a driver context is attached.
- * The driver context contains data for private use by driver.
- * For the applications, this is an opaque structure.
+ * Use a reasonable backlog of frames (per CPU) as congestion threshold,
+ * so that resources used by the in-flight buffers do not become a memory hog.
  */
+#define MAX_RSP_FQ_BACKLOG_PER_CPU	256
 
-struct caam_drv_ctx {
-	u32 prehdr[PRE_HDR_LEN];	/* Preheader placed before shrd desc */
-	u32 sh_desc[MAX_SDLEN];		/* Shared descriptor */
-	dma_addr_t context_a; /* shared descriptor dma address */
-	struct qman_fq *req_fq;		/* Request frame queue to caam */
-	struct qman_fq *rsp_fq;		/* Response frame queue from caam */
-	int cpu;			/* cpu on which to recv caam rsp */
-	struct device *qidev;		/* device pointer for QI backend */
-} ____cacheline_aligned;
+#define CAAM_QI_ENQUEUE_RETRIES	10000
 
+#define CAAM_NAPI_WEIGHT	63
+
+/*
+ * caam_napi - struct holding CAAM NAPI-related params
+ * @irqtask: IRQ task for QI backend
+ * @p: QMan portal
+ */
 struct caam_napi {
-	struct napi_struct irqtask;	/* IRQ task for QI backend */
+	struct napi_struct irqtask;
 	struct qman_portal *p;
 };
 
 /*
- * percpu private data structure to main list of pending responses expected
- * on each cpu.
+ * caam_qi_pcpu_priv - percpu private data structure to main list of pending
+ *                     responses expected on each cpu.
+ * @caam_napi: CAAM NAPI params
+ * @net_dev: netdev used by NAPI
+ * @rsp_fq: response FQ from CAAM
  */
 struct caam_qi_pcpu_priv {
 	struct caam_napi caam_napi;
-	struct net_device net_dev;	/* netdev used by NAPI */
-	struct qman_fq rsp_fq;		/* Response FQ from CAAM */
+	struct net_device net_dev;
+	struct qman_fq *rsp_fq;
 } ____cacheline_aligned;
 
 static DEFINE_PER_CPU(struct caam_qi_pcpu_priv, pcpu_qipriv);
+static DEFINE_PER_CPU(int, last_cpu);
 
+/*
+ * caam_qi_priv - CAAM QI backend private params
+ * @cgr: QMan congestion group
+ * @qi_pdev: platform device for QI backend
+ */
 struct caam_qi_priv {
-	struct qman_cgr rsp_cgr;	/* QMAN response CGR */
-	struct platform_device *qi_pdev; /* Platform device for QI backend */
+	struct qman_cgr cgr;
+	struct platform_device *qi_pdev;
 };
 
 static struct caam_qi_priv qipriv ____cacheline_aligned;
 
 /*
- * This is written by one core - the one that initialized the CGR, and
- * read by multiple cores (all the others)
+ * This is written by only one core - the one that initialized the CGR - and
+ * read by multiple cores (all the others).
  */
-static bool caam_congested __read_mostly;
+bool caam_congested __read_mostly;
+EXPORT_SYMBOL(caam_congested);
 
 #ifdef CONFIG_DEBUG_FS
 /*
  * This is a counter for the number of times the congestion group (where all
- * the response queueus are) was congested. Incremented each time the congestion
- * callback is called with congested == true,.
+ * the request and response queueus are) reached congestion. Incremented
+ * each time the congestion callback is called with congested == true.
  */
 static u64 times_congested;
 #endif
+
 /*
- * CPU from where the module initialised. This is required because
- * QMAN driver requires CGRs to be removed from same CPU from where
- * they were originally allocated
+ * CPU from where the module initialised. This is required because QMan driver
+ * requires CGRs to be removed from same CPU from where they were originally
+ * allocated.
  */
 static int mod_init_cpu;
 
 /*
  * This is a a cache of buffers, from which the users of CAAM QI driver
- * can allocate short (currently 128B) buffers. It's speedier than
+ * can allocate short (CAAM_QI_MEMCACHE_SIZE) buffers. It's faster than
  * doing malloc on the hotpath.
  * NOTE: A more elegant solution would be to have some headroom in the frames
- *       being processed. This can be added by the dpa_eth driver. This would
- *       pose a problem for userspace application processing which cannot
- *       know of this limitation. So for now, this will work.
+ *       being processed. This could be added by the dpaa-ethernet driver.
+ *       This would pose a problem for userspace application processing which
+ *       cannot know of this limitation. So for now, this will work.
  * NOTE: The memcache is SMP-safe. No need to handle spinlocks in-here
  */
 static struct kmem_cache *qi_cache;
-
-bool caam_drv_ctx_busy(struct caam_drv_ctx *drv_ctx)
-{
-	return caam_congested;
-}
-EXPORT_SYMBOL(caam_drv_ctx_busy);
 
 int caam_qi_enqueue(struct device *qidev, struct caam_drv_req *req)
 {
 	struct qm_fd fd;
 	int ret;
-	const size_t size = 2 * sizeof(struct qm_sg_entry);
 	int num_retries = 0;
 
 	fd.cmd = 0;
 	fd.format = qm_fd_compound;
 	fd.cong_weight = req->fd_sgt[1].length;
-
-	cpu_to_hw_sg(&req->fd_sgt[0]);
-	cpu_to_hw_sg(&req->fd_sgt[1]);
-	fd.addr = dma_map_single(qidev, req->fd_sgt, size,
-				 DMA_BIDIRECTIONAL);
+	fd.addr = dma_map_single(qidev, req->fd_sgt, sizeof(req->fd_sgt),
+			      DMA_BIDIRECTIONAL);
 	if (dma_mapping_error(qidev, fd.addr)) {
 		dev_err(qidev, "DMA mapping error for QI enqueue request\n");
 		return -EIO;
@@ -130,10 +122,10 @@ int caam_qi_enqueue(struct device *qidev, struct caam_drv_req *req)
 		if (likely(!ret))
 			return 0;
 
-		if (-EBUSY != ret)
+		if (ret != -EBUSY)
 			break;
 		num_retries++;
-	} while (num_retries < 10000);
+	} while (num_retries < CAAM_QI_ENQUEUE_RETRIES);
 
 	dev_err(qidev, "qman_enqueue failed: %d\n", ret);
 
@@ -146,25 +138,24 @@ static void caam_fq_ern_cb(struct qman_portal *qm, struct qman_fq *fq,
 {
 	const struct qm_fd *fd;
 	struct caam_drv_req *drv_req;
-	const size_t size = 2 * sizeof(struct qm_sg_entry);
 	struct device *qidev = &(raw_cpu_ptr(&pcpu_qipriv)->net_dev.dev);
 
 	fd = &msg->ern.fd;
 
-	if (qm_fd_compound != fd->format) {
-		dev_err(qidev, "Non compound FD from CAAM\n");
+	if (fd->format != qm_fd_compound) {
+		dev_err(qidev, "Non-compound FD from CAAM\n");
 		return;
 	}
 
-	drv_req = ((struct caam_drv_req *)phys_to_virt(fd->addr));
+	drv_req = (struct caam_drv_req *)phys_to_virt(qm_fd_addr_get64(fd));
 	if (!drv_req) {
 		dev_err(qidev,
-			"Can't find original request for caam response\n");
+			"Can't find original request for CAAM response\n");
 		return;
 	}
 
-	dma_unmap_single(drv_req->drv_ctx->qidev, fd->addr,
-			 size, DMA_BIDIRECTIONAL);
+	dma_unmap_single(drv_req->drv_ctx->qidev, qm_fd_addr(fd),
+			 sizeof(drv_req->fd_sgt), DMA_BIDIRECTIONAL);
 
 	drv_req->cbk(drv_req, -EIO);
 }
@@ -174,54 +165,48 @@ static struct qman_fq *create_caam_req_fq(struct device *qidev,
 					  dma_addr_t hwdesc,
 					  int fq_sched_flag)
 {
-	int ret, flags;
+	int ret;
 	struct qman_fq *req_fq;
 	struct qm_mcc_initfq opts;
 
 	req_fq = kzalloc(sizeof(*req_fq), GFP_ATOMIC);
-	if (!req_fq) {
-		dev_err(qidev, "Mem alloc for CAAM req FQ failed\n");
+	if (!req_fq)
 		return ERR_PTR(-ENOMEM);
-	}
 
 	req_fq->cb.ern = caam_fq_ern_cb;
 	req_fq->cb.fqs = NULL;
 
-	flags = QMAN_FQ_FLAG_DYNAMIC_FQID |
-		QMAN_FQ_FLAG_TO_DCPORTAL |
-		QMAN_FQ_FLAG_LOCKED;
-
-	ret = qman_create_fq(0, flags, req_fq);
+	ret = qman_create_fq(0, QMAN_FQ_FLAG_DYNAMIC_FQID |
+				QMAN_FQ_FLAG_TO_DCPORTAL | QMAN_FQ_FLAG_LOCKED,
+			     req_fq);
 	if (ret) {
-		dev_err(qidev, "Failed to create session REQ FQ\n");
+		dev_err(qidev, "Failed to create session req FQ\n");
 		goto create_req_fq_fail;
 	}
 
-	flags = fq_sched_flag;
 	opts.we_mask = QM_INITFQ_WE_FQCTRL | QM_INITFQ_WE_DESTWQ |
-			QM_INITFQ_WE_CONTEXTB | QM_INITFQ_WE_CONTEXTA;
-
-	opts.fqd.fq_ctrl = QM_FQCTRL_CPCSTASH;
+		       QM_INITFQ_WE_CONTEXTB | QM_INITFQ_WE_CONTEXTA |
+		       QM_INITFQ_WE_CGID;
+	opts.fqd.fq_ctrl = QM_FQCTRL_CPCSTASH | QM_FQCTRL_CGE;
 	opts.fqd.dest.channel = qm_channel_caam;
 	opts.fqd.dest.wq = 2;
 	opts.fqd.context_b = qman_fq_fqid(rsp_fq);
 	opts.fqd.context_a.hi = upper_32_bits(hwdesc);
 	opts.fqd.context_a.lo = lower_32_bits(hwdesc);
+	opts.fqd.cgid = qipriv.cgr.cgrid;
 
-	ret = qman_init_fq(req_fq, flags, &opts);
+	ret = qman_init_fq(req_fq, fq_sched_flag, &opts);
 	if (ret) {
 		dev_err(qidev, "Failed to init session req FQ\n");
 		goto init_req_fq_fail;
 	}
-#ifdef DEBUG
-	dev_info(qidev, "Allocated request FQ %u for CPU %u\n",
-		 req_fq->fqid, smp_processor_id());
-#endif
+
+	dev_dbg(qidev, "Allocated request FQ %u for CPU %u\n", req_fq->fqid,
+		smp_processor_id());
 	return req_fq;
 
 init_req_fq_fail:
 	qman_destroy_fq(req_fq, 0);
-
 create_req_fq_fail:
 	kfree(req_fq);
 	return ERR_PTR(ret);
@@ -230,34 +215,34 @@ create_req_fq_fail:
 static int empty_retired_fq(struct device *qidev, struct qman_fq *fq)
 {
 	int ret;
-	enum qman_fq_state state;
 
-	u32 flags = QMAN_VOLATILE_FLAG_WAIT_INT | QMAN_VOLATILE_FLAG_FINISH;
-	u32 vdqcr = QM_VDQCR_PRECEDENCE_VDQCR | QM_VDQCR_NUMFRAMES_TILLEMPTY;
-
-	ret = qman_volatile_dequeue(fq, flags, vdqcr);
+	ret = qman_volatile_dequeue(fq, QMAN_VOLATILE_FLAG_WAIT_INT |
+				    QMAN_VOLATILE_FLAG_FINISH,
+				    QM_VDQCR_PRECEDENCE_VDQCR |
+				    QM_VDQCR_NUMFRAMES_TILLEMPTY);
 	if (ret) {
 		dev_err(qidev, "Volatile dequeue fail for FQ: %u\n", fq->fqid);
 		return ret;
 	}
 
 	do {
-		qman_poll_dqrr(16);
-		qman_fq_state(fq, &state, &flags);
-	} while (flags & QMAN_FQ_STATE_NE);
+		struct qman_portal *p;
+
+		p = qman_get_affine_portal(smp_processor_id());
+		qman_p_poll_dqrr(p, 16);
+	} while (fq->flags & QMAN_FQ_STATE_NE);
 
 	return 0;
 }
 
 static int kill_fq(struct device *qidev, struct qman_fq *fq)
 {
-	enum qman_fq_state state;
 	u32 flags;
 	int ret;
 
 	ret = qman_retire_fq(fq, &flags);
 	if (ret < 0) {
-		dev_err(qidev, "qman_retire_fq failed\n");
+		dev_err(qidev, "qman_retire_fq failed: %d\n", ret);
 		return ret;
 	}
 
@@ -265,19 +250,18 @@ static int kill_fq(struct device *qidev, struct qman_fq *fq)
 		goto empty_fq;
 
 	/* Async FQ retirement condition */
-	if (1 == ret) {
+	if (ret == 1) {
 		/* Retry till FQ gets in retired state */
 		do {
 			msleep(20);
-			qman_fq_state(fq, &state, &flags);
-		} while (qman_fq_state_retired != state);
+		} while (fq->state != qman_fq_state_retired);
 
-		WARN_ON(flags & QMAN_FQ_STATE_BLOCKOOS);
-		WARN_ON(flags & QMAN_FQ_STATE_ORL);
+		WARN_ON(fq->flags & QMAN_FQ_STATE_BLOCKOOS);
+		WARN_ON(fq->flags & QMAN_FQ_STATE_ORL);
 	}
 
 empty_fq:
-	if (flags & QMAN_FQ_STATE_NE) {
+	if (fq->flags & QMAN_FQ_STATE_NE) {
 		ret = empty_retired_fq(qidev, fq);
 		if (ret) {
 			dev_err(qidev, "empty_retired_fq fail for FQ: %u\n",
@@ -291,16 +275,11 @@ empty_fq:
 		dev_err(qidev, "OOS of FQID: %u failed\n", fq->fqid);
 
 	qman_destroy_fq(fq, 0);
+	kfree(fq);
 
 	return ret;
 }
 
-/*
- * TODO: This CAAM FQ empty logic can be improved. We can enqueue a NULL
- * job descriptor to the FQ. This must be the last enqueue request to the
- * FQ. When the response of this job comes back, the FQ is empty. Also
- * holding tanks are guaranteed to be not holding any jobs from this FQ.
- */
 static int empty_caam_fq(struct qman_fq *fq)
 {
 	int ret;
@@ -328,17 +307,14 @@ static int empty_caam_fq(struct qman_fq *fq)
 
 int caam_drv_ctx_update(struct caam_drv_ctx *drv_ctx, u32 *sh_desc)
 {
-	size_t size;
-	u32 num_words;
 	int ret;
+	u32 num_words;
 	struct qman_fq *new_fq, *old_fq;
 	struct device *qidev = drv_ctx->qidev;
 
-	/* Check the size of new shared descriptor */
 	num_words = desc_len(sh_desc);
 	if (num_words > MAX_SDLEN) {
-		dev_err(qidev, "Invalid descriptor len: %d words\n",
-			num_words);
+		dev_err(qidev, "Invalid descriptor len: %d words\n", num_words);
 		return -EINVAL;
 	}
 
@@ -353,43 +329,39 @@ int caam_drv_ctx_update(struct caam_drv_ctx *drv_ctx, u32 *sh_desc)
 		return PTR_ERR(new_fq);
 	}
 
-	/* Hook up new FQ to context so that new requests keep queueing */
+	/* Hook up new FQ to context so that new requests keep queuing */
 	drv_ctx->req_fq = new_fq;
 
 	/* Empty and remove the older FQ */
 	ret = empty_caam_fq(old_fq);
 	if (ret) {
-		dev_err(qidev, "Old SEC FQ empty failed\n");
+		dev_err(qidev, "Old CAAM FQ empty failed: %d\n", ret);
 
 		/* We can revert to older FQ */
 		drv_ctx->req_fq = old_fq;
 
-		if (kill_fq(qidev, new_fq)) {
-			dev_warn(qidev, "New SEC FQ: %u kill failed\n",
-				 new_fq->fqid);
-		}
+		if (kill_fq(qidev, new_fq))
+			dev_warn(qidev, "New CAAM FQ kill failed\n");
 
 		return ret;
 	}
 
 	/*
-	 * Now update the shared descriptor for driver context.
-	 * Re-initialise pre-header. Set RSLS and SDLEN
+	 * Re-initialise pre-header. Set RSLS and SDLEN.
+	 * Update the shared descriptor for driver context.
 	 */
 	drv_ctx->prehdr[0] = cpu_to_caam32((1 << PREHDR_RSLS_SHIFT) |
 					   num_words);
-
-	/* Copy the new shared descriptor now */
 	memcpy(drv_ctx->sh_desc, sh_desc, desc_bytes(sh_desc));
-
-	size = sizeof(drv_ctx->sh_desc) + sizeof(drv_ctx->prehdr);
 	dma_sync_single_for_device(qidev, drv_ctx->context_a,
-				   size, DMA_BIDIRECTIONAL);
+				   sizeof(drv_ctx->sh_desc) +
+				   sizeof(drv_ctx->prehdr),
+				   DMA_BIDIRECTIONAL);
 
 	/* Put the new FQ in scheduled state */
 	ret = qman_schedule_fq(new_fq);
 	if (ret) {
-		dev_err(qidev, "Fail to sched new SEC FQ, ecode = %d\n", ret);
+		dev_err(qidev, "Fail to sched new CAAM FQ, ecode = %d\n", ret);
 
 		/*
 		 * We can kill new FQ and revert to old FQ.
@@ -398,23 +370,15 @@ int caam_drv_ctx_update(struct caam_drv_ctx *drv_ctx, u32 *sh_desc)
 
 		drv_ctx->req_fq = old_fq;
 
-		if (kill_fq(qidev, new_fq)) {
-			dev_warn(qidev, "New SEC FQ: %u kill failed\n",
-				 new_fq->fqid);
-		}
-	} else {
-		/* Remove older FQ */
-		if (kill_fq(qidev, old_fq)) {
-			dev_warn(qidev, "Old SEC FQ: %u kill failed\n",
-				 old_fq->fqid);
-		}
+		if (kill_fq(qidev, new_fq))
+			dev_warn(qidev, "New CAAM FQ kill failed\n");
+	} else if (kill_fq(qidev, old_fq)) {
+		dev_warn(qidev, "Old CAAM FQ kill failed\n");
 	}
 
 	return 0;
 }
 EXPORT_SYMBOL(caam_drv_ctx_update);
-
-
 
 struct caam_drv_ctx *caam_drv_ctx_init(struct device *qidev,
 				       int *cpu,
@@ -423,10 +387,8 @@ struct caam_drv_ctx *caam_drv_ctx_init(struct device *qidev,
 	size_t size;
 	u32 num_words;
 	dma_addr_t hwdesc;
-	struct qman_fq *rsp_fq;
 	struct caam_drv_ctx *drv_ctx;
 	const cpumask_t *cpus = qman_affine_cpus();
-	static DEFINE_PER_CPU(int, last_cpu);
 
 	num_words = desc_len(sh_desc);
 	if (num_words > MAX_SDLEN) {
@@ -436,50 +398,45 @@ struct caam_drv_ctx *caam_drv_ctx_init(struct device *qidev,
 	}
 
 	drv_ctx = kzalloc(sizeof(*drv_ctx), GFP_ATOMIC);
-	if (!drv_ctx) {
-		dev_err(qidev, "Mem alloc for driver context failed\n");
+	if (!drv_ctx)
 		return ERR_PTR(-ENOMEM);
-	}
 
-	/* Initialise pre-header. Set RSLS and SDLEN */
+	/*
+	 * Initialise pre-header - set RSLS and SDLEN - and shared descriptor
+	 * and dma-map them.
+	 */
 	drv_ctx->prehdr[0] = cpu_to_caam32((1 << PREHDR_RSLS_SHIFT) |
 					   num_words);
-
-	/* Copy the shared descriptor now */
 	memcpy(drv_ctx->sh_desc, sh_desc, desc_bytes(sh_desc));
-
-	/* Map address for pre-header + descriptor */
 	size = sizeof(drv_ctx->prehdr) + sizeof(drv_ctx->sh_desc);
-	hwdesc = dma_map_single(qidev, drv_ctx->prehdr,
-				size, DMA_BIDIRECTIONAL);
+	hwdesc = dma_map_single(qidev, drv_ctx->prehdr, size,
+				DMA_BIDIRECTIONAL);
 	if (dma_mapping_error(qidev, hwdesc)) {
-		dev_err(qidev, "DMA map error for preheader+shdesc\n");
+		dev_err(qidev, "DMA map error for preheader + shdesc\n");
 		kfree(drv_ctx);
 		return ERR_PTR(-ENOMEM);
 	}
-
 	drv_ctx->context_a = hwdesc;
 
-	/*
-	 * If the given CPU does not own the portal, choose another
-	 * one with a portal.
-	 */
+	/* If given CPU does not own the portal, choose another one that does */
 	if (!cpumask_test_cpu(*cpu, cpus)) {
-		last_cpu = cpumask_next(last_cpu, cpus);
-		if (last_cpu >= nr_cpu_ids)
-			last_cpu = cpumask_first(cpus);
-		 *cpu = last_cpu;
-	}
+		int *pcpu = &get_cpu_var(last_cpu);
 
+		*pcpu = cpumask_next(*pcpu, cpus);
+		if (*pcpu >= nr_cpu_ids)
+			*pcpu = cpumask_first(cpus);
+		*cpu = *pcpu;
+
+		put_cpu_var(last_cpu);
+	}
 	drv_ctx->cpu = *cpu;
 
-	/* Find response FQ hooked with this CPU*/
-	rsp_fq = &per_cpu(pcpu_qipriv.rsp_fq, drv_ctx->cpu);
-	drv_ctx->rsp_fq = rsp_fq;
+	/* Find response FQ hooked with this CPU */
+	drv_ctx->rsp_fq = per_cpu(pcpu_qipriv.rsp_fq, drv_ctx->cpu);
 
-	/*Attach request FQ*/
-	drv_ctx->req_fq = create_caam_req_fq(qidev, rsp_fq,
-					     hwdesc, QMAN_INITFQ_FLAG_SCHED);
+	/* Attach request FQ */
+	drv_ctx->req_fq = create_caam_req_fq(qidev, drv_ctx->rsp_fq, hwdesc,
+					     QMAN_INITFQ_FLAG_SCHED);
 	if (unlikely(IS_ERR_OR_NULL(drv_ctx->req_fq))) {
 		dev_err(qidev, "create_caam_req_fq failed\n");
 		dma_unmap_single(qidev, hwdesc, size, DMA_BIDIRECTIONAL);
@@ -518,62 +475,54 @@ static int caam_qi_poll(struct napi_struct *napi, int budget)
 	return cleaned;
 }
 
-
 void caam_drv_ctx_rel(struct caam_drv_ctx *drv_ctx)
 {
-	size_t size;
-
 	if (IS_ERR_OR_NULL(drv_ctx))
 		return;
 
-	size = sizeof(drv_ctx->sh_desc) + sizeof(drv_ctx->prehdr);
-
-	/* Remove request FQ*/
+	/* Remove request FQ */
 	if (kill_fq(drv_ctx->qidev, drv_ctx->req_fq))
-		dev_err(drv_ctx->qidev, "Crypto session Req FQ kill failed\n");
+		dev_err(drv_ctx->qidev, "Crypto session req FQ kill failed\n");
 
 	dma_unmap_single(drv_ctx->qidev, drv_ctx->context_a,
-			 size, DMA_BIDIRECTIONAL);
-
+			 sizeof(drv_ctx->sh_desc) + sizeof(drv_ctx->prehdr),
+			 DMA_BIDIRECTIONAL);
 	kfree(drv_ctx);
 }
 EXPORT_SYMBOL(caam_drv_ctx_rel);
 
 int caam_qi_shutdown(struct device *qidev)
 {
-	struct caam_qi_priv *priv = dev_get_drvdata(qidev);
 	int i, ret;
-
+	struct caam_qi_priv *priv = dev_get_drvdata(qidev);
 	const cpumask_t *cpus = qman_affine_cpus();
-	struct cpumask old_cpumask = *tsk_cpus_allowed(current);
+	struct cpumask old_cpumask = current->cpus_allowed;
 
 	for_each_cpu(i, cpus) {
 		struct napi_struct *irqtask;
 
 		irqtask = &per_cpu_ptr(&pcpu_qipriv.caam_napi, i)->irqtask;
-
 		napi_disable(irqtask);
 		netif_napi_del(irqtask);
 
-		if (kill_fq(qidev, &per_cpu(pcpu_qipriv.rsp_fq, i)))
+		if (kill_fq(qidev, per_cpu(pcpu_qipriv.rsp_fq, i)))
 			dev_err(qidev, "Rsp FQ kill failed, cpu: %d\n", i);
 	}
 
 	/*
-	 * QMAN driver requires CGRs to be deleted from same CPU from where
-	 * they were instantiated. Hence we get the module removal execute
-	 * from the same CPU from where it was originally inserted.
+	 * QMan driver requires CGRs to be deleted from same CPU from where they
+	 * were instantiated. Hence we get the module removal execute from the
+	 * same CPU from where it was originally inserted.
 	 */
 	set_cpus_allowed_ptr(current, get_cpu_mask(mod_init_cpu));
 
-	ret = qman_delete_cgr(&priv->rsp_cgr);
+	ret = qman_delete_cgr(&priv->cgr);
 	if (ret)
-		dev_err(qidev, "Delete response CGR failed: %d\n", ret);
+		dev_err(qidev, "Deletion of CGR failed: %d\n", ret);
 	else
-		qman_release_cgrid(priv->rsp_cgr.cgrid);
+		qman_release_cgrid(priv->cgr.cgrid);
 
-	if (qi_cache)
-		kmem_cache_destroy(qi_cache);
+	kmem_cache_destroy(qi_cache);
 
 	/* Now that we're done with the CGRs, restore the cpus allowed mask */
 	set_cpus_allowed_ptr(current, &old_cpumask);
@@ -582,8 +531,7 @@ int caam_qi_shutdown(struct device *qidev)
 	return ret;
 }
 
-static void rsp_cgr_cb(struct qman_portal *qm, struct qman_cgr *cgr,
-			int congested)
+static void cgr_cb(struct qman_portal *qm, struct qman_cgr *cgr, int congested)
 {
 	caam_congested = congested;
 
@@ -591,41 +539,37 @@ static void rsp_cgr_cb(struct qman_portal *qm, struct qman_cgr *cgr,
 #ifdef CONFIG_DEBUG_FS
 		times_congested++;
 #endif
-		pr_debug_ratelimited("CAAM rsp path congested\n");
+		pr_debug_ratelimited("CAAM entered congestion\n");
 
 	} else {
-		pr_debug_ratelimited("CAAM rsp path congestion state exit\n");
+		pr_debug_ratelimited("CAAM exited congestion\n");
 	}
 }
 
 static int caam_qi_napi_schedule(struct qman_portal *p, struct caam_napi *np)
 {
 	/*
-	 * In case of threaded ISR for RT enable kernel,
-	 * in_irq() does not return appropriate value, so use
-	 * in_serving_softirq to distinguish softirq or irq context.
+	 * In case of threaded ISR, for RT kernels in_irq() does not return
+	 * appropriate value, so use in_serving_softirq to distinguish between
+	 * softirq and irq contexts.
 	 */
 	if (unlikely(in_irq() || !in_serving_softirq())) {
 		/* Disable QMan IRQ source and invoke NAPI */
-		int ret = qman_p_irqsource_remove(p, QM_PIRQ_DQRI);
-
-		if (likely(!ret)) {
-			np->p = p;
-			napi_schedule(&np->irqtask);
-			return 1;
-		}
+		qman_p_irqsource_remove(p, QM_PIRQ_DQRI);
+		np->p = p;
+		napi_schedule(&np->irqtask);
+		return 1;
 	}
 	return 0;
 }
 
 static enum qman_cb_dqrr_result caam_rsp_fq_dqrr_cb(struct qman_portal *p,
-					struct qman_fq *rsp_fq,
-					const struct qm_dqrr_entry *dqrr)
+						    struct qman_fq *rsp_fq,
+						    const struct qm_dqrr_entry *dqrr)
 {
 	struct caam_napi *caam_napi = raw_cpu_ptr(&pcpu_qipriv.caam_napi);
 	struct caam_drv_req *drv_req;
 	const struct qm_fd *fd;
-	const size_t size = 2 * sizeof(struct qm_sg_entry);
 	struct device *qidev = &(raw_cpu_ptr(&pcpu_qipriv)->net_dev.dev);
 
 	if (caam_qi_napi_schedule(p, caam_napi))
@@ -635,8 +579,8 @@ static enum qman_cb_dqrr_result caam_rsp_fq_dqrr_cb(struct qman_portal *p,
 	if (unlikely(fd->status))
 		dev_err(qidev, "Error: %#x in CAAM response FD\n", fd->status);
 
-	if (unlikely(qm_fd_compound != fd->format)) {
-		dev_err(qidev, "Non compound FD from CAAM\n");
+	if (unlikely(fd->format != fd->format)) {
+		dev_err(qidev, "Non-compound FD from CAAM\n");
 		return qman_cb_dqrr_consume;
 	}
 
@@ -647,11 +591,10 @@ static enum qman_cb_dqrr_result caam_rsp_fq_dqrr_cb(struct qman_portal *p,
 		return qman_cb_dqrr_consume;
 	}
 
-	dma_unmap_single(drv_req->drv_ctx->qidev, fd->addr,
-			 size, DMA_BIDIRECTIONAL);
+	dma_unmap_single(drv_req->drv_ctx->qidev, qm_fd_addr(fd),
+			 sizeof(drv_req->fd_sgt), DMA_BIDIRECTIONAL);
 
 	drv_req->cbk(drv_req, fd->status);
-
 	return qman_cb_dqrr_consume;
 }
 
@@ -660,107 +603,83 @@ static int alloc_rsp_fq_cpu(struct device *qidev, unsigned int cpu)
 	struct qm_mcc_initfq opts;
 	struct qman_fq *fq;
 	int ret;
-	u32 flags;
 
-	fq = &per_cpu(pcpu_qipriv.rsp_fq, cpu);
+	fq = kzalloc(sizeof(*fq), GFP_KERNEL | GFP_DMA);
+	if (!fq)
+		return -ENOMEM;
 
 	fq->cb.dqrr = caam_rsp_fq_dqrr_cb;
 
-	flags = QMAN_FQ_FLAG_NO_ENQUEUE | QMAN_FQ_FLAG_DYNAMIC_FQID;
-
-	ret = qman_create_fq(0, flags, fq);
+	ret = qman_create_fq(0, QMAN_FQ_FLAG_NO_ENQUEUE |
+			     QMAN_FQ_FLAG_DYNAMIC_FQID, fq);
 	if (ret) {
 		dev_err(qidev, "Rsp FQ create failed\n");
+		kfree(fq);
 		return -ENODEV;
 	}
-
-	flags = QMAN_INITFQ_FLAG_SCHED;
 
 	opts.we_mask = QM_INITFQ_WE_FQCTRL | QM_INITFQ_WE_DESTWQ |
 		QM_INITFQ_WE_CONTEXTB | QM_INITFQ_WE_CONTEXTA |
-		QM_INITFQ_WE_CGID | QMAN_INITFQ_FLAG_LOCAL;
-
-	opts.fqd.fq_ctrl = QM_FQCTRL_CTXASTASHING |
-			   QM_FQCTRL_CPCSTASH |
+		QM_INITFQ_WE_CGID;
+	opts.fqd.fq_ctrl = QM_FQCTRL_CTXASTASHING | QM_FQCTRL_CPCSTASH |
 			   QM_FQCTRL_CGE;
-
 	opts.fqd.dest.channel = qman_affine_channel(cpu);
-	opts.fqd.cgid = qipriv.rsp_cgr.cgrid;
 	opts.fqd.dest.wq = 3;
-	opts.fqd.context_a.stashing.exclusive =
-					QM_STASHING_EXCL_CTX |
-					QM_STASHING_EXCL_DATA;
-
+	opts.fqd.cgid = qipriv.cgr.cgrid;
+	opts.fqd.context_a.stashing.exclusive =	QM_STASHING_EXCL_CTX |
+						QM_STASHING_EXCL_DATA;
 	opts.fqd.context_a.stashing.data_cl = 1;
 	opts.fqd.context_a.stashing.context_cl = 1;
 
-	ret = qman_init_fq(fq, flags, &opts);
+	ret = qman_init_fq(fq, QMAN_INITFQ_FLAG_SCHED, &opts);
 	if (ret) {
 		dev_err(qidev, "Rsp FQ init failed\n");
+		kfree(fq);
 		return -ENODEV;
 	}
-#ifdef DEBUG
-	dev_info(qidev, "Allocated response FQ %u for CPU %u",
-		 fq->fqid, cpu);
-#endif
+
+	per_cpu(pcpu_qipriv.rsp_fq, cpu) = fq;
+
+	dev_dbg(qidev, "Allocated response FQ %u for CPU %u", fq->fqid, cpu);
 	return 0;
 }
 
-static int alloc_cgrs(struct device *qidev)
+static int init_cgr(struct device *qidev)
 {
-	struct qm_mcc_initcgr opts;
 	int ret;
+	struct qm_mcc_initcgr opts;
 	const u64 cpus = *(u64 *)qman_affine_cpus();
 	const int num_cpus = hweight64(cpus);
-	u64 val;
+	const u64 val = num_cpus * MAX_RSP_FQ_BACKLOG_PER_CPU;
 
-	/*Allocate response CGR*/
-	ret = qman_alloc_cgrid(&qipriv.rsp_cgr.cgrid);
+	ret = qman_alloc_cgrid(&qipriv.cgr.cgrid);
 	if (ret) {
-		dev_err(qidev, "CGR alloc failed for rsp FQs");
+		dev_err(qidev, "CGR alloc failed for rsp FQs: %d\n", ret);
 		return ret;
 	}
 
-	qipriv.rsp_cgr.cb = rsp_cgr_cb;
+	qipriv.cgr.cb = cgr_cb;
 	memset(&opts, 0, sizeof(opts));
-	opts.we_mask = QM_CGR_WE_CSCN_EN | QM_CGR_WE_CS_THRES |
-			QM_CGR_WE_MODE;
+	opts.we_mask = QM_CGR_WE_CSCN_EN | QM_CGR_WE_CS_THRES | QM_CGR_WE_MODE;
 	opts.cgr.cscn_en = QM_CGR_EN;
 	opts.cgr.mode = QMAN_CGR_MODE_FRAME;
-#ifdef CONFIG_FSL_DPAA_ETH_MAX_BUF_COUNT
-	/*
-	 * This effectively sets the to-CPU threshold equal to half of the
-	 * number of buffers available to dpa_eth driver. It means that at most
-	 * half of the buffers can be in the queues from SEC, waiting
-	 * to be transmitted to the core (and then on the TX queues).
-	 * NOTE: This is an arbitrary division; the factor '2' below could
-	 *       also be '3' or '4'. It also depends on the number of devices
-	 *       using the dpa_eth buffers (which can be >1 if f.i. PME/DCE are
-	 *       also used.
-	 */
-	val = num_cpus * CONFIG_FSL_DPAA_ETH_MAX_BUF_COUNT / 2;
-#else
-	val = num_cpus * MAX_RSP_FQ_BACKLOG_PER_CPU;
-#endif
 	qm_cgr_cs_thres_set64(&opts.cgr.cs_thres, val, 1);
 
-	ret = qman_create_cgr(&qipriv.rsp_cgr,
-				QMAN_CGR_FLAG_USE_INIT, &opts);
+	ret = qman_create_cgr(&qipriv.cgr, QMAN_CGR_FLAG_USE_INIT, &opts);
 	if (ret) {
-		dev_err(qidev, "Error %d creating CAAM rsp CGRID: %u\n",
-			ret, qipriv.rsp_cgr.cgrid);
+		dev_err(qidev, "Error %d creating CAAM CGRID: %u\n", ret,
+			qipriv.cgr.cgrid);
 		return ret;
 	}
-#ifdef DEBUG
-	dev_info(qidev, "CAAM to CPU threshold set to %llu\n", val);
-#endif
+
+	dev_dbg(qidev, "Congestion threshold set to %llu\n", val);
 	return 0;
 }
 
 static int alloc_rsp_fqs(struct device *qidev)
 {
-	const cpumask_t *cpus = qman_affine_cpus();
 	int ret, i;
+	const cpumask_t *cpus = qman_affine_cpus();
 
 	/*Now create response FQs*/
 	for_each_cpu(i, cpus) {
@@ -774,25 +693,34 @@ static int alloc_rsp_fqs(struct device *qidev)
 	return 0;
 }
 
-int caam_qi_init(struct platform_device *caam_pdev, struct device_node *np)
+static void free_rsp_fqs(void)
 {
+	int i;
+	const cpumask_t *cpus = qman_affine_cpus();
+
+	for_each_cpu(i, cpus)
+		kfree(per_cpu(pcpu_qipriv.rsp_fq, i));
+}
+
+int caam_qi_init(struct platform_device *caam_pdev)
+{
+	int err, i;
 	struct platform_device *qi_pdev;
 	struct device *ctrldev = &caam_pdev->dev, *qidev;
 	struct caam_drv_private *ctrlpriv;
-	int err, i;
 	const cpumask_t *cpus = qman_affine_cpus();
-	struct cpumask old_cpumask = *tsk_cpus_allowed(current);
+	struct cpumask old_cpumask = current->cpus_allowed;
 	static struct platform_device_info qi_pdev_info = {
 		.name = "caam_qi",
 		.id = PLATFORM_DEVID_NONE
 	};
 
 	/*
-	 * QMAN requires that CGR must be removed from same CPU+portal from
-	 * where it was originally allocated. Hence we need to note down
-	 * the initialisation CPU and use the same CPU for module exit.
-	 * We select the first CPU to from the list of portal owning
-	 * CPUs. Then we pin module init to this CPU.
+	 * QMAN requires CGRs to be removed from same CPU+portal from where it
+	 * was originally allocated. Hence we need to note down the
+	 * initialisation CPU and use the same CPU for module exit.
+	 * We select the first CPU to from the list of portal owning CPUs.
+	 * Then we pin module init to this CPU.
 	 */
 	mod_init_cpu = cpumask_first(cpus);
 	set_cpus_allowed_ptr(current, get_cpu_mask(mod_init_cpu));
@@ -802,6 +730,7 @@ int caam_qi_init(struct platform_device *caam_pdev, struct device_node *np)
 	qi_pdev = platform_device_register_full(&qi_pdev_info);
 	if (IS_ERR(qi_pdev))
 		return PTR_ERR(qi_pdev);
+	arch_setup_dma_ops(&qi_pdev->dev, 0, 0, NULL, true);
 
 	ctrlpriv = dev_get_drvdata(ctrldev);
 	qidev = &qi_pdev->dev;
@@ -809,21 +738,10 @@ int caam_qi_init(struct platform_device *caam_pdev, struct device_node *np)
 	qipriv.qi_pdev = qi_pdev;
 	dev_set_drvdata(qidev, &qipriv);
 
-	/* Response path cannot be congested */
-	caam_congested = false;
-
-#ifdef CONFIG_DEBUG_FS
-	/* The response path was congested 0 times */
-	times_congested = 0;
-#endif
-
-	/* kmem_cache wasn't yet allocated */
-	qi_cache = NULL;
-
-	/* Initialise the CGRs congestion detection */
-	err = alloc_cgrs(qidev);
+	/* Initialize the congestion detection */
+	err = init_cgr(qidev);
 	if (err) {
-		dev_err(qidev, "Can't allocate CGRs\n");
+		dev_err(qidev, "CGR initialization failed: %d\n", err);
 		platform_device_unregister(qi_pdev);
 		return err;
 	}
@@ -831,13 +749,14 @@ int caam_qi_init(struct platform_device *caam_pdev, struct device_node *np)
 	/* Initialise response FQs */
 	err = alloc_rsp_fqs(qidev);
 	if (err) {
-		dev_err(qidev, "Can't allocate SEC response FQs\n");
+		dev_err(qidev, "Can't allocate CAAM response FQs: %d\n", err);
+		free_rsp_fqs();
 		platform_device_unregister(qi_pdev);
 		return err;
 	}
 
 	/*
-	 * Enable the NAPI contexts on each of the core which has a affine
+	 * Enable the NAPI contexts on each of the core which has an affine
 	 * portal.
 	 */
 	for_each_cpu(i, cpus) {
@@ -858,24 +777,21 @@ int caam_qi_init(struct platform_device *caam_pdev, struct device_node *np)
 	/* Hook up QI device to parent controlling caam device */
 	ctrlpriv->qidev = qidev;
 
-	qi_cache = kmem_cache_create("caamqicache", 512, 0,
+	qi_cache = kmem_cache_create("caamqicache", CAAM_QI_MEMCACHE_SIZE, 0,
 				     SLAB_CACHE_DMA, NULL);
 	if (!qi_cache) {
-		dev_err(qidev, "Can't allocate SEC cache\n");
+		dev_err(qidev, "Can't allocate CAAM cache\n");
+		free_rsp_fqs();
 		platform_device_unregister(qi_pdev);
-		return err;
+		return -ENOMEM;
 	}
 
 	/* Done with the CGRs; restore the cpus allowed mask */
 	set_cpus_allowed_ptr(current, &old_cpumask);
 #ifdef CONFIG_DEBUG_FS
-	ctrlpriv->qi_congested =
-			debugfs_create_file("qi_congested",
-					    S_IRUSR | S_IRGRP | S_IROTH,
-					    ctrlpriv->ctl, &times_congested,
-					    &caam_fops_u64_ro);
+	debugfs_create_file("qi_congested", 0444, ctrlpriv->ctl,
+			    &times_congested, &caam_fops_u64_ro);
 #endif
 	dev_info(qidev, "Linux CAAM Queue I/F driver initialised\n");
-
 	return 0;
 }

@@ -2,14 +2,14 @@
  * Freescale Management Complex (MC) restool driver
  *
  * Copyright (C) 2014 Freescale Semiconductor, Inc.
- * Author: German Rivera <German.Rivera@freescale.com>
- *	   Lijun Pan <Lijun.Pan@freescale.com>
+ * Author: Lijun Pan <Lijun.Pan@freescale.com>
+ *
  * This file is licensed under the terms of the GNU General Public
  * License version 2. This program is licensed "as is" without any
  * warranty of any kind, whether express or implied.
  */
 
-#include "../include/mc-private.h"
+#include "../include/mc.h"
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
@@ -17,8 +17,10 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/mutex.h>
+#include <linux/platform_device.h>
 #include "mc-ioctl.h"
 #include "../include/mc-sys.h"
+#include "../include/mc-bus.h"
 #include "../include/mc-cmd.h"
 #include "../include/dpmng.h"
 
@@ -28,195 +30,196 @@
 #define MAX_DPRC_HANDLES	    64
 
 /**
- * struct fsl_mc_restool - Management Complex (MC) resource manager object
- * @tool_mc_io: pointer to the MC I/O object used by the restool
+ * restool_misc - information associated with the newly added miscdevice
+ * @misc: newly created miscdevice associated with root dprc
+ * @miscdevt: device id of this miscdevice
+ * @list: a linked list node representing this miscdevcie
+ * @static_mc_io: pointer to the static MC I/O object used by the restool
+ * @dynamic_instance_count: number of dynamically created instances
+ * @static_instance_in_use: static instance is in use or not
+ * @mutex: mutex lock to serialze the open/release operations
+ * @dev: root dprc associated with this miscdevice
  */
-struct fsl_mc_restool {
-	struct fsl_mc_io *tool_mc_io;
+struct restool_misc {
+	struct miscdevice misc;
+	dev_t miscdevt;
+	struct list_head list;
+	struct fsl_mc_io *static_mc_io;
+	u32 dynamic_instance_count;
+	bool static_instance_in_use;
+	struct mutex mutex; /* serialze the open/release operations */
+	struct device *dev;
 };
 
 /**
- * struct global_state - indicating the number of static and dynamic instance
- * @dynamic_instance_count - number of dynamically created instances
- * @static_instance_in_use - static instance is in use or not
- * @mutex - mutex lock to serialze the operations
+ * struct fsl_mc - Private data of a "fsl,qoriq-mc" platform device
+ * @root_mc_bus_dev: fsl-mc device representing the root DPRC
+ * @num_translation_ranges: number of entries in addr_translation_ranges
+ * @translation_ranges: array of bus to system address translation ranges
  */
-struct global_state {
-	uint32_t dynamic_instance_count;
-	bool static_instance_in_use;
-	struct mutex mutex;
+struct fsl_mc {
+	struct fsl_mc_device *root_mc_bus_dev;
+	u8 num_translation_ranges;
+	struct fsl_mc_addr_translation_range *translation_ranges;
 };
 
-static struct fsl_mc_restool fsl_mc_restool = { 0 };
-static struct global_state global_state = { 0 };
+/*
+ * initialize a global list to link all
+ * the miscdevice nodes (struct restool_misc)
+ */
+static LIST_HEAD(misc_list);
+static DEFINE_MUTEX(misc_list_mutex);
 
 static int fsl_mc_restool_dev_open(struct inode *inode, struct file *filep)
 {
 	struct fsl_mc_device *root_mc_dev;
-	int error = 0;
-	struct fsl_mc_restool *fsl_mc_restool_new = NULL;
+	int error;
+	struct fsl_mc_io *dynamic_mc_io = NULL;
+	struct restool_misc *restool_misc = NULL;
+	struct restool_misc *restool_misc_cursor;
 
-	mutex_lock(&global_state.mutex);
+	mutex_lock(&misc_list_mutex);
 
-	if (WARN_ON(fsl_mc_bus_type.dev_root == NULL)) {
-		error = -EINVAL;
-		goto error;
+	list_for_each_entry(restool_misc_cursor, &misc_list, list) {
+		if (restool_misc_cursor->miscdevt == inode->i_rdev) {
+			restool_misc = restool_misc_cursor;
+			break;
+		}
 	}
 
-	if (!global_state.static_instance_in_use) {
-		global_state.static_instance_in_use = true;
-		filep->private_data = &fsl_mc_restool;
-	} else {
-		fsl_mc_restool_new = kmalloc(sizeof(struct fsl_mc_restool),
-						GFP_KERNEL);
-		if (fsl_mc_restool_new == NULL) {
-			error = -ENOMEM;
-			goto error;
-		}
-		memset(fsl_mc_restool_new, 0, sizeof(*fsl_mc_restool_new));
+	mutex_unlock(&misc_list_mutex);
 
-		root_mc_dev = to_fsl_mc_device(fsl_mc_bus_type.dev_root);
-		error = fsl_mc_portal_allocate(root_mc_dev, 0,
-				       &fsl_mc_restool_new->tool_mc_io);
+	if (!restool_misc)
+		return -EINVAL;
+
+	if (WARN_ON(!restool_misc->dev))
+		return -EINVAL;
+
+	mutex_lock(&restool_misc->mutex);
+
+	if (!restool_misc->static_instance_in_use) {
+		restool_misc->static_instance_in_use = true;
+		filep->private_data = restool_misc->static_mc_io;
+	} else {
+		dynamic_mc_io = kzalloc(sizeof(*dynamic_mc_io), GFP_KERNEL);
+		if (!dynamic_mc_io) {
+			error = -ENOMEM;
+			goto err_unlock;
+		}
+
+		root_mc_dev = to_fsl_mc_device(restool_misc->dev);
+		error = fsl_mc_portal_allocate(root_mc_dev, 0, &dynamic_mc_io);
 		if (error < 0) {
 			pr_err("Not able to allocate MC portal\n");
-			goto error;
+			goto free_dynamic_mc_io;
 		}
-		++global_state.dynamic_instance_count;
-		filep->private_data = fsl_mc_restool_new;
+		++restool_misc->dynamic_instance_count;
+		filep->private_data = dynamic_mc_io;
 	}
 
-	mutex_unlock(&global_state.mutex);
+	mutex_unlock(&restool_misc->mutex);
+
 	return 0;
-error:
-	if (fsl_mc_restool_new != NULL &&
-	    fsl_mc_restool_new->tool_mc_io != NULL) {
-		fsl_mc_portal_free(fsl_mc_restool_new->tool_mc_io);
-		fsl_mc_restool_new->tool_mc_io = NULL;
-	}
 
-	kfree(fsl_mc_restool_new);
-	mutex_unlock(&global_state.mutex);
+free_dynamic_mc_io:
+	kfree(dynamic_mc_io);
+err_unlock:
+	mutex_unlock(&restool_misc->mutex);
+
 	return error;
 }
 
 static int fsl_mc_restool_dev_release(struct inode *inode, struct file *filep)
 {
-	struct fsl_mc_restool *fsl_mc_restool_local = filep->private_data;
+	struct fsl_mc_io *local_mc_io = filep->private_data;
+	struct restool_misc *restool_misc = NULL;
+	struct restool_misc *restool_misc_cursor;
 
-	if (WARN_ON(filep->private_data == NULL))
+	if (WARN_ON(!filep->private_data))
 		return -EINVAL;
 
-	mutex_lock(&global_state.mutex);
+	mutex_lock(&misc_list_mutex);
 
-	if (WARN_ON(global_state.dynamic_instance_count == 0 &&
-	    !global_state.static_instance_in_use)) {
-		mutex_unlock(&global_state.mutex);
+	list_for_each_entry(restool_misc_cursor, &misc_list, list) {
+		if (restool_misc_cursor->miscdevt == inode->i_rdev) {
+			restool_misc = restool_misc_cursor;
+			break;
+		}
+	}
+
+	mutex_unlock(&misc_list_mutex);
+
+	if (!restool_misc)
+		return -EINVAL;
+
+	mutex_lock(&restool_misc->mutex);
+
+	if (WARN_ON(restool_misc->dynamic_instance_count == 0 &&
+		    !restool_misc->static_instance_in_use)) {
+		mutex_unlock(&restool_misc->mutex);
 		return -EINVAL;
 	}
 
 	/* Globally clean up opened/untracked handles */
-	fsl_mc_portal_reset(fsl_mc_restool_local->tool_mc_io);
-
-	pr_debug("dynamic instance count: %d\n",
-		global_state.dynamic_instance_count);
-	pr_debug("static instance count: %d\n",
-		global_state.static_instance_in_use);
+	fsl_mc_portal_reset(local_mc_io);
 
 	/*
 	 * must check
-	 * whether fsl_mc_restool_local is dynamic or global instance
+	 * whether local_mc_io is dynamic or static instance
 	 * Otherwise it will free up the reserved portal by accident
 	 * or even not free up the dynamic allocated portal
 	 * if 2 or more instances running concurrently
 	 */
-	if (fsl_mc_restool_local == &fsl_mc_restool) {
-		pr_debug("this is reserved portal");
-		pr_debug("reserved portal not in use\n");
-		global_state.static_instance_in_use = false;
+	if (local_mc_io == restool_misc->static_mc_io) {
+		restool_misc->static_instance_in_use = false;
 	} else {
-		pr_debug("this is dynamically allocated  portal");
-		pr_debug("free one dynamically allocated portal\n");
-		fsl_mc_portal_free(fsl_mc_restool_local->tool_mc_io);
+		fsl_mc_portal_free(local_mc_io);
 		kfree(filep->private_data);
-		--global_state.dynamic_instance_count;
+		--restool_misc->dynamic_instance_count;
 	}
 
 	filep->private_data = NULL;
-	mutex_unlock(&global_state.mutex);
-	return 0;
-}
-
-static int restool_get_root_dprc_info(unsigned long arg)
-{
-	int error = -EINVAL;
-	uint32_t root_dprc_id;
-	struct fsl_mc_device *root_mc_dev;
-
-	root_mc_dev = to_fsl_mc_device(fsl_mc_bus_type.dev_root);
-	root_dprc_id = root_mc_dev->obj_desc.id;
-	error = copy_to_user((void __user *)arg, &root_dprc_id,
-			     sizeof(root_dprc_id));
-	if (error < 0) {
-		pr_err("copy_to_user() failed with error %d\n", error);
-		goto error;
-	}
+	mutex_unlock(&restool_misc->mutex);
 
 	return 0;
-error:
-	return error;
 }
 
 static int restool_send_mc_command(unsigned long arg,
-				struct fsl_mc_restool *fsl_mc_restool)
+				   struct fsl_mc_io *local_mc_io)
 {
-	int error = -EINVAL;
+	int error;
 	struct mc_command mc_cmd;
 
-	error = copy_from_user(&mc_cmd, (void __user *)arg, sizeof(mc_cmd));
-	if (error < 0) {
-		pr_err("copy_to_user() failed with error %d\n", error);
-		goto error;
-	}
+	if (copy_from_user(&mc_cmd, (void __user *)arg, sizeof(mc_cmd)))
+		return -EFAULT;
 
 	/*
 	 * Send MC command to the MC:
 	 */
-	error = mc_send_command(fsl_mc_restool->tool_mc_io, &mc_cmd);
+	error = mc_send_command(local_mc_io, &mc_cmd);
 	if (error < 0)
-		goto error;
+		return error;
 
-	error = copy_to_user((void __user *)arg, &mc_cmd, sizeof(mc_cmd));
-	if (error < 0) {
-		pr_err("copy_to_user() failed with error %d\n", error);
-		goto error;
-	}
+	if (copy_to_user((void __user *)arg, &mc_cmd, sizeof(mc_cmd)))
+		return -EFAULT;
 
 	return 0;
-error:
-	return error;
 }
 
 static long
 fsl_mc_restool_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	int error = -EINVAL;
-
-	if (WARN_ON(fsl_mc_bus_type.dev_root == NULL))
-		goto out;
+	int error;
 
 	switch (cmd) {
-	case RESTOOL_GET_ROOT_DPRC_INFO:
-		error = restool_get_root_dprc_info(arg);
-		break;
-
 	case RESTOOL_SEND_MC_COMMAND:
 		error = restool_send_mc_command(arg, file->private_data);
 		break;
 	default:
+		pr_err("%s: unexpected ioctl call number\n", __func__);
 		error = -EINVAL;
 	}
-out:
+
 	return error;
 }
 
@@ -225,63 +228,135 @@ static const struct file_operations fsl_mc_restool_dev_fops = {
 	.open = fsl_mc_restool_dev_open,
 	.release = fsl_mc_restool_dev_release,
 	.unlocked_ioctl = fsl_mc_restool_dev_ioctl,
-	.compat_ioctl = fsl_mc_restool_dev_ioctl,
 };
 
-static struct miscdevice fsl_mc_restool_dev = {
-	.minor = MISC_DYNAMIC_MINOR,
-	.name = "mc_restool",
-	.fops = &fsl_mc_restool_dev_fops
-};
+static int restool_add_device_file(struct device *dev)
+{
+	u32 name1 = 0;
+	char name2[20] = {0};
+	int error;
+	struct fsl_mc_device *root_mc_dev;
+	struct restool_misc *restool_misc;
+
+	if (dev->bus == &platform_bus_type && dev->driver_data) {
+		if (sscanf(dev_name(dev), "%x.%s", &name1, name2) != 2)
+			return -EINVAL;
+
+		if (strcmp(name2, "fsl-mc") == 0)
+			pr_debug("platform's root dprc name is: %s\n",
+				 dev_name(&(((struct fsl_mc *)
+				 (dev->driver_data))->root_mc_bus_dev->dev)));
+	}
+
+	if (!fsl_mc_is_root_dprc(dev))
+		return 0;
+
+	restool_misc = kzalloc(sizeof(*restool_misc), GFP_KERNEL);
+	if (!restool_misc)
+		return -ENOMEM;
+
+	restool_misc->dev = dev;
+	root_mc_dev = to_fsl_mc_device(dev);
+	error = fsl_mc_portal_allocate(root_mc_dev, 0,
+				       &restool_misc->static_mc_io);
+	if (error < 0) {
+		pr_err("Not able to allocate MC portal\n");
+		goto free_restool_misc;
+	}
+
+	restool_misc->misc.minor = MISC_DYNAMIC_MINOR;
+	restool_misc->misc.name = dev_name(dev);
+	restool_misc->misc.fops = &fsl_mc_restool_dev_fops;
+
+	error = misc_register(&restool_misc->misc);
+	if (error < 0) {
+		pr_err("misc_register() failed: %d\n", error);
+		goto free_portal;
+	}
+
+	restool_misc->miscdevt = restool_misc->misc.this_device->devt;
+	mutex_init(&restool_misc->mutex);
+	mutex_lock(&misc_list_mutex);
+	list_add(&restool_misc->list, &misc_list);
+	mutex_unlock(&misc_list_mutex);
+
+	pr_info("/dev/%s driver registered\n", dev_name(dev));
+
+	return 0;
+
+free_portal:
+	fsl_mc_portal_free(restool_misc->static_mc_io);
+free_restool_misc:
+	kfree(restool_misc);
+
+	return error;
+}
+
+static int restool_bus_notifier(struct notifier_block *nb,
+				unsigned long action, void *data)
+{
+	int error;
+	struct device *dev = data;
+
+	switch (action) {
+	case BUS_NOTIFY_ADD_DEVICE:
+		error = restool_add_device_file(dev);
+		if (error)
+			return error;
+		break;
+	case BUS_NOTIFY_DEL_DEVICE:
+	case BUS_NOTIFY_REMOVED_DEVICE:
+	case BUS_NOTIFY_BIND_DRIVER:
+	case BUS_NOTIFY_BOUND_DRIVER:
+	case BUS_NOTIFY_UNBIND_DRIVER:
+	case BUS_NOTIFY_UNBOUND_DRIVER:
+		break;
+	default:
+		pr_err("%s: unrecognized device action from %s\n", __func__,
+		       dev_name(dev));
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int add_to_restool(struct device *dev, void *data)
+{
+	return restool_add_device_file(dev);
+}
 
 static int __init fsl_mc_restool_driver_init(void)
 {
-	struct fsl_mc_device *root_mc_dev;
-	int error = -EINVAL;
-	bool restool_dev_registered = false;
+	int error;
+	struct notifier_block *nb;
 
-	mutex_init(&global_state.mutex);
+	nb = kzalloc(sizeof(*nb), GFP_KERNEL);
+	if (!nb)
+		return -ENOMEM;
 
-	if (WARN_ON(fsl_mc_restool.tool_mc_io != NULL))
-		goto error;
+	nb->notifier_call = restool_bus_notifier;
+	error = bus_register_notifier(&fsl_mc_bus_type, nb);
+	if (error)
+		goto free_nb;
 
-	if (WARN_ON(global_state.dynamic_instance_count != 0))
-		goto error;
-
-	if (WARN_ON(global_state.static_instance_in_use))
-		goto error;
-
-	if (fsl_mc_bus_type.dev_root == NULL) {
-		pr_err("fsl-mc bus not found, restool driver registration failed\n");
-		goto error;
+	/*
+	 * This driver runs after fsl-mc bus driver runs.
+	 * Hence, many of the root dprcs are already attached to fsl-mc bus
+	 * In order to make sure we find all the root dprcs,
+	 * we need to scan the fsl_mc_bus_type.
+	 */
+	error  = bus_for_each_dev(&fsl_mc_bus_type, NULL, NULL, add_to_restool);
+	if (error) {
+		bus_unregister_notifier(&fsl_mc_bus_type, nb);
+		kfree(nb);
+		pr_err("restool driver registration failure\n");
+		return error;
 	}
 
-	root_mc_dev = to_fsl_mc_device(fsl_mc_bus_type.dev_root);
-	error = fsl_mc_portal_allocate(root_mc_dev, 0,
-				       &fsl_mc_restool.tool_mc_io);
-	if (error < 0) {
-		pr_err("Not able to allocate MC portal\n");
-		goto error;
-	}
-
-	error = misc_register(&fsl_mc_restool_dev);
-	if (error < 0) {
-		pr_err("misc_register() failed: %d\n", error);
-		goto error;
-	}
-
-	restool_dev_registered = true;
-	pr_info("%s driver registered\n", fsl_mc_restool_dev.name);
 	return 0;
-error:
-	if (restool_dev_registered)
-		misc_deregister(&fsl_mc_restool_dev);
 
-	if (fsl_mc_restool.tool_mc_io != NULL) {
-		fsl_mc_portal_free(fsl_mc_restool.tool_mc_io);
-		fsl_mc_restool.tool_mc_io = NULL;
-	}
-
+free_nb:
+	kfree(nb);
 	return error;
 }
 
@@ -289,19 +364,38 @@ module_init(fsl_mc_restool_driver_init);
 
 static void __exit fsl_mc_restool_driver_exit(void)
 {
-	if (WARN_ON(fsl_mc_restool.tool_mc_io == NULL))
-		return;
+	struct restool_misc *restool_misc;
+	struct restool_misc *restool_misc_tmp;
+	char name1[20] = {0};
+	u32 name2 = 0;
 
-	if (WARN_ON(global_state.dynamic_instance_count != 0))
-		return;
+	list_for_each_entry_safe(restool_misc, restool_misc_tmp,
+				 &misc_list, list) {
+		if (sscanf(restool_misc->misc.name, "%4s.%u", name1, &name2)
+		    != 2)
+			continue;
 
-	if (WARN_ON(global_state.static_instance_in_use))
-		return;
+		pr_debug("name1=%s,name2=%u\n", name1, name2);
+		pr_debug("misc-device: %s\n", restool_misc->misc.name);
+		if (strcmp(name1, "dprc") != 0)
+			continue;
 
-	misc_deregister(&fsl_mc_restool_dev);
-	fsl_mc_portal_free(fsl_mc_restool.tool_mc_io);
-	fsl_mc_restool.tool_mc_io = NULL;
-	pr_info("%s driver unregistered\n", fsl_mc_restool_dev.name);
+		if (WARN_ON(!restool_misc->static_mc_io))
+			return;
+
+		if (WARN_ON(restool_misc->dynamic_instance_count != 0))
+			return;
+
+		if (WARN_ON(restool_misc->static_instance_in_use))
+			return;
+
+		misc_deregister(&restool_misc->misc);
+		pr_info("/dev/%s driver unregistered\n",
+			restool_misc->misc.name);
+		fsl_mc_portal_free(restool_misc->static_mc_io);
+		list_del(&restool_misc->list);
+		kfree(restool_misc);
+	}
 }
 
 module_exit(fsl_mc_restool_driver_exit);
@@ -309,4 +403,3 @@ module_exit(fsl_mc_restool_driver_exit);
 MODULE_AUTHOR("Freescale Semiconductor Inc.");
 MODULE_DESCRIPTION("Freescale's MC restool driver");
 MODULE_LICENSE("GPL");
-

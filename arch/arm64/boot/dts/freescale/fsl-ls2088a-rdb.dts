@@ -1,7 +1,8 @@
 /*
  * Device Tree file for Freescale LS2088A RDB Board.
  *
- * Copyright (C) 2016-17, Freescale Semiconductor
+ * Copyright 2016 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP
  *
  * Abhimanyu Saini <abhimanyu.saini@nxp.com>
  *
@@ -50,19 +51,16 @@
 #include "fsl-ls208xa-rdb.dtsi"
 
 / {
-	model = "Freescale Layerscape 2088a RDB Board";
+	model = "Freescale Layerscape 2088A RDB Board";
 	compatible = "fsl,ls2088a-rdb", "fsl,ls2088a";
-};
 
-&esdhc {
-	sd-uhs-sdr104;
-	sd-uhs-sdr50;
-	sd-uhs-sdr25;
-	sd-uhs-sdr12;
-	status = "okay";
+	chosen {
+		stdout-path = "serial1:115200n8";
+	};
 };
 
 &emdio1 {
+	status = "disabled";
 	/* CS4340 PHYs */
 	mdio1_phy1: emdio1_phy@1 {
 		reg = <0x10>;
@@ -113,18 +111,21 @@
 /* Update DPMAC connections to external PHYs, under the assumption of
  * SerDes 0x2a_0x41. This is currently the only SerDes supported on the board.
  */
-&dpmac1 {
-	phy-handle = <&mdio1_phy1>;
-};
-&dpmac2 {
-	phy-handle = <&mdio1_phy2>;
-};
-&dpmac3 {
-	phy-handle = <&mdio1_phy3>;
-};
-&dpmac4 {
-	phy-handle = <&mdio1_phy4>;
-};
+/* Leave Cortina PHYs commented out until proper driver is integrated
+ *&dpmac1 {
+ *	phy-handle = <&mdio1_phy1>;
+ *};
+ *&dpmac2 {
+ *	phy-handle = <&mdio1_phy2>;
+ *};
+ *&dpmac3 {
+ *	phy-handle = <&mdio1_phy3>;
+ *};
+ *&dpmac4 {
+ *	phy-handle = <&mdio1_phy4>;
+ *};
+ */
+
 &dpmac5 {
 	phy-handle = <&mdio2_phy1>;
 };

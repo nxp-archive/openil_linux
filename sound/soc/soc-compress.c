@@ -121,7 +121,7 @@ static int soc_compr_open_fe(struct snd_compr_stream *cstream)
 
 		dpcm_be_disconnect(fe, stream);
 		fe->dpcm[stream].runtime = NULL;
-		goto fe_err;
+		goto path_err;
 	}
 
 	dpcm_clear_pending_state(fe, stream);
@@ -136,6 +136,8 @@ static int soc_compr_open_fe(struct snd_compr_stream *cstream)
 
 	return 0;
 
+path_err:
+	dpcm_path_put(&list);
 fe_err:
 	if (fe->dai_link->compr_ops && fe->dai_link->compr_ops->shutdown)
 		fe->dai_link->compr_ops->shutdown(cstream);
@@ -530,14 +532,15 @@ static int soc_compr_pointer(struct snd_compr_stream *cstream,
 {
 	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
 	struct snd_soc_platform *platform = rtd->platform;
+	int ret = 0;
 
 	mutex_lock_nested(&rtd->pcm_mutex, rtd->pcm_subclass);
 
 	if (platform->driver->compr_ops && platform->driver->compr_ops->pointer)
-		 platform->driver->compr_ops->pointer(cstream, tstamp);
+		ret = platform->driver->compr_ops->pointer(cstream, tstamp);
 
 	mutex_unlock(&rtd->pcm_mutex);
-	return 0;
+	return ret;
 }
 
 static int soc_compr_copy(struct snd_compr_stream *cstream,
@@ -612,8 +615,15 @@ static struct snd_compr_ops soc_compr_dyn_ops = {
 	.get_codec_caps = soc_compr_get_codec_caps
 };
 
-/* create a new compress */
-int soc_new_compress(struct snd_soc_pcm_runtime *rtd, int num)
+/**
+ * snd_soc_new_compress - create a new compress.
+ *
+ * @rtd: The runtime for which we will create compress
+ * @num: the device index number (zero based - shared with normal PCMs)
+ *
+ * Return: 0 for success, else error.
+ */
+int snd_soc_new_compress(struct snd_soc_pcm_runtime *rtd, int num)
 {
 	struct snd_soc_codec *codec = rtd->codec;
 	struct snd_soc_platform *platform = rtd->platform;
@@ -699,7 +709,13 @@ int soc_new_compress(struct snd_soc_pcm_runtime *rtd, int num)
 		compr->ops->copy = soc_compr_copy;
 
 	mutex_init(&compr->lock);
-	ret = snd_compress_new(rtd->card->snd_card, num, direction, compr);
+
+	snprintf(new_name, sizeof(new_name), "%s %s-%d",
+		 rtd->dai_link->stream_name,
+		 rtd->codec_dai->name, num);
+
+	ret = snd_compress_new(rtd->card->snd_card, num, direction,
+				new_name, compr);
 	if (ret < 0) {
 		pr_err("compress asoc: can't create compress for codec %s\n",
 			codec->component.name);
@@ -720,3 +736,4 @@ compr_err:
 	kfree(compr);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(snd_soc_new_compress);

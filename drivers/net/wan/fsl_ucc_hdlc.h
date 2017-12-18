@@ -8,8 +8,8 @@
  * option) any later version.
  */
 
-#ifndef CONFIG_UCC_HDLC_H
-#define CONFIG_UCC_HDLC_H
+#ifndef _UCC_HDLC_H_
+#define _UCC_HDLC_H_
 
 #include <linux/kernel.h>
 #include <linux/list.h>
@@ -64,7 +64,7 @@ struct ucc_hdlc_param {
 	__be16 haddr4;
 	__be16 ts_tmp;
 	__be16 tmp_mb;
-} __attribute__ ((__packed__));
+};
 
 struct ucc_hdlc_private {
 	struct ucc_tdm	*utdm;
@@ -77,12 +77,12 @@ struct ucc_hdlc_private {
 	struct ucc_hdlc_param __iomem *ucc_pram;
 	u16 tsa;
 	bool hdlc_busy;
-	u8 loopback;
+	bool loopback;
 
-	u8 *tx_buffer;		/* buffer used for Tx by the HDLC */
-	u8 *rx_buffer;		/* buffer used for Rx by the HDLC */
-	dma_addr_t dma_tx_addr;	/* dma mapped buffer for HDLC Tx */
-	dma_addr_t dma_rx_addr;	/* dma mapped buffer for HDLC Rx */
+	u8 *tx_buffer;
+	u8 *rx_buffer;
+	dma_addr_t dma_tx_addr;
+	dma_addr_t dma_rx_addr;
 
 	struct qe_bd *tx_bd_base;
 	struct qe_bd *rx_bd_base;
@@ -122,6 +122,7 @@ struct ucc_hdlc_private {
 #define RX_CLEAN_MAX	0x10
 #define NUM_OF_BUF	4
 #define MAX_RX_BUF_LENGTH	(48 * 0x20)
+#define MAX_FRAME_LENGTH	(MAX_RX_BUF_LENGTH + 8)
 #define ALIGNMENT_OF_UCC_HDLC_PRAM	64
 #define SI_BANK_SIZE	128
 #define MAX_HDLC_NUM	4
@@ -134,6 +135,12 @@ struct ucc_hdlc_private {
 #define DEFAULT_HDLC_HEAD	0xff44
 #define DEFAULT_ADDR_MASK	0x00ff
 #define DEFAULT_HDLC_ADDR	0x00ff
+
+#define BMR_GBL			0x20000000
+#define BMR_BIG_ENDIAN		0x10000000
+#define CRC_16BIT_MASK		0x0000F0B8
+#define CRC_16BIT_PRES		0x0000FFFF
+#define DEFAULT_RFTHR		1
 
 #define DEFAULT_PPP_HEAD    0xff03
 

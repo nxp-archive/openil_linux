@@ -115,21 +115,21 @@ static inline struct xnthread *xnsynch_owner(struct xnsynch *synch)
 #define xnsynch_owner_check(synch, thread) \
 	xnsynch_fast_owner_check((synch)->fastlock, thread->handle)
 
-#if XENO_DEBUG(MUTEX_RELAXED)
+#ifdef CONFIG_XENO_OPT_DEBUG_MUTEX_RELAXED
 
 void xnsynch_detect_relaxed_owner(struct xnsynch *synch,
 				  struct xnthread *sleeper);
 
 void xnsynch_detect_boosted_relax(struct xnthread *owner);
 
-#else /* !XENO_DEBUG(MUTEX_RELAXED) */
+#else /* !CONFIG_XENO_OPT_DEBUG_MUTEX_RELAXED */
 
 static inline void xnsynch_detect_relaxed_owner(struct xnsynch *synch,
 				  struct xnthread *sleeper) { }
 
 static inline void xnsynch_detect_boosted_relax(struct xnthread *owner) { }
 
-#endif /* !XENO_DEBUG(MUTEX_RELAXED) */
+#endif /* !CONFIG_XENO_OPT_DEBUG_MUTEX_RELAXED */
 
 void xnsynch_init(struct xnsynch *synch, int flags,
 		  atomic_t *fastlock);
@@ -147,9 +147,9 @@ static inline void xnsynch_register_cleanup(struct xnsynch *synch,
 	synch->cleanup = handler;
 }
 
-int xnsynch_sleep_on(struct xnsynch *synch,
-		     xnticks_t timeout,
-		     xntmode_t timeout_mode);
+int __must_check xnsynch_sleep_on(struct xnsynch *synch,
+				  xnticks_t timeout,
+				  xntmode_t timeout_mode);
 
 struct xnthread *xnsynch_wakeup_one_sleeper(struct xnsynch *synch);
 
@@ -158,11 +158,11 @@ int xnsynch_wakeup_many_sleepers(struct xnsynch *synch, int nr);
 void xnsynch_wakeup_this_sleeper(struct xnsynch *synch,
 				 struct xnthread *sleeper);
 
-int xnsynch_acquire(struct xnsynch *synch,
-		    xnticks_t timeout,
-		    xntmode_t timeout_mode);
+int __must_check xnsynch_acquire(struct xnsynch *synch,
+				 xnticks_t timeout,
+				 xntmode_t timeout_mode);
 
-int xnsynch_try_acquire(struct xnsynch *synch);
+int __must_check xnsynch_try_acquire(struct xnsynch *synch);
 
 bool xnsynch_release(struct xnsynch *synch, struct xnthread *thread);
 

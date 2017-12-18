@@ -268,7 +268,8 @@ int ucc_fast_init(struct ucc_fast_info * uf_info, struct ucc_fast_private ** ucc
 	/* Allocate memory for Tx Virtual Fifo */
 	uccf->ucc_fast_tx_virtual_fifo_base_offset =
 	    qe_muram_alloc(uf_info->utfs, UCC_FAST_VIRT_FIFO_REGS_ALIGNMENT);
-	if (IS_ERR_VALUE(uccf->ucc_fast_tx_virtual_fifo_base_offset)) {
+	if (IS_ERR_VALUE((unsigned long)uccf->
+			 ucc_fast_tx_virtual_fifo_base_offset)) {
 		printk(KERN_ERR "%s: cannot allocate MURAM for TX FIFO\n",
 			__func__);
 		uccf->ucc_fast_tx_virtual_fifo_base_offset = 0;
@@ -281,7 +282,8 @@ int ucc_fast_init(struct ucc_fast_info * uf_info, struct ucc_fast_private ** ucc
 		qe_muram_alloc(uf_info->urfs +
 			   UCC_FAST_RECEIVE_VIRTUAL_FIFO_SIZE_FUDGE_FACTOR,
 			   UCC_FAST_VIRT_FIFO_REGS_ALIGNMENT);
-	if (IS_ERR_VALUE(uccf->ucc_fast_rx_virtual_fifo_base_offset)) {
+	if (IS_ERR_VALUE((unsigned long)uccf->
+			 ucc_fast_rx_virtual_fifo_base_offset)) {
 		printk(KERN_ERR "%s: cannot allocate MURAM for RX FIFO\n",
 			__func__);
 		uccf->ucc_fast_rx_virtual_fifo_base_offset = 0;
@@ -330,8 +332,8 @@ int ucc_fast_init(struct ucc_fast_info * uf_info, struct ucc_fast_private ** ucc
 	} else {
 		/* tdm Rx clock routing */
 		if ((uf_info->rx_clock != QE_CLK_NONE) &&
-			ucc_set_tdm_rxtx_clk(uf_info->tdm_num,
-				uf_info->rx_clock, COMM_DIR_RX)) {
+		    ucc_set_tdm_rxtx_clk(uf_info->tdm_num, uf_info->rx_clock,
+					 COMM_DIR_RX)) {
 			pr_err("%s: illegal value for RX clock", __func__);
 			ucc_fast_free(uccf);
 			return -EINVAL;
@@ -339,27 +341,27 @@ int ucc_fast_init(struct ucc_fast_info * uf_info, struct ucc_fast_private ** ucc
 
 		/* tdm Tx clock routing */
 		if ((uf_info->tx_clock != QE_CLK_NONE) &&
-			ucc_set_tdm_rxtx_clk(uf_info->tdm_num,
-				uf_info->tx_clock, COMM_DIR_TX)) {
-			pr_err("%s:illegal value for TX clock", __func__);
+		    ucc_set_tdm_rxtx_clk(uf_info->tdm_num, uf_info->tx_clock,
+					 COMM_DIR_TX)) {
+			pr_err("%s: illegal value for TX clock", __func__);
 			ucc_fast_free(uccf);
 			return -EINVAL;
 		}
 
 		/* tdm Rx sync clock routing */
 		if ((uf_info->rx_sync != QE_CLK_NONE) &&
-			ucc_set_tdm_rxtx_sync(uf_info->tdm_num,
-				uf_info->rx_sync, COMM_DIR_RX)) {
-			pr_err("%s:illegal value for TX clock", __func__);
+		    ucc_set_tdm_rxtx_sync(uf_info->tdm_num, uf_info->rx_sync,
+					  COMM_DIR_RX)) {
+			pr_err("%s: illegal value for RX clock", __func__);
 			ucc_fast_free(uccf);
 			return -EINVAL;
 		}
 
 		/* tdm Tx sync clock routing */
 		if ((uf_info->tx_sync != QE_CLK_NONE) &&
-			ucc_set_tdm_rxtx_sync(uf_info->tdm_num,
-				uf_info->tx_sync, COMM_DIR_TX)) {
-			pr_err("%s:illegal value for TX clock", __func__);
+		    ucc_set_tdm_rxtx_sync(uf_info->tdm_num, uf_info->tx_sync,
+					  COMM_DIR_TX)) {
+			pr_err("%s: illegal value for TX clock", __func__);
 			ucc_fast_free(uccf);
 			return -EINVAL;
 		}

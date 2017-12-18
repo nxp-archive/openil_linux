@@ -1,4 +1,4 @@
-/* Copyright 2015 Freescale Semiconductor Inc.
+/* Copyright 2015-2016 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -38,9 +38,17 @@
 #include <linux/slab.h>
 #include <linux/io.h>
 
-/* MC and IOP character device to read from RAM */
+/* SoC address for the MC firmware base low/high registers */
+#define SOC_CCSR_MC_FW_BASE_ADDR_REGS 0x8340020
+#define SOC_CCSR_MC_FW_BASE_ADDR_REGS_SIZE 2
+/* MC firmware base low/high registers indexes */
+#define MCFBALR_OFFSET 0
+#define MCFBAHR_OFFSET 1
 
-#define MC_BASE_ADDR 0x83c0000000
+/* Bit mask used to obtain the most significant part of the MC base address */
+#define MC_FW_HIGH_ADDR_MASK 0x1FFFF
+/* Bit mask used to obtain the least significant part of the MC base address */
+#define MC_FW_LOW_ADDR_MASK 0xE0000000
 
 #define MC_BUFFER_OFFSET 0x01000000
 #define MC_BUFFER_SIZE (1024*1024*16)
@@ -53,11 +61,15 @@
 struct log_header {
 	char magic_word[8]; /* magic word */
 	uint32_t buf_start; /* holds the 32-bit little-endian
-		offset of the start of the buffer */
+			     * offset of the start of the buffer
+			     */
 	uint32_t buf_length; /* holds the 32-bit little-endian
-		length of the buffer */
+			      * length of the buffer
+			      */
 	uint32_t last_byte; /* holds the 32-bit little-endian offset
-		of the byte after the last byte that was written */
+			     * of the byte after the last byte that
+			     * was written
+			     */
 	char reserved[44];
 };
 
@@ -91,6 +103,19 @@ static inline void adjust_end(struct console_data *cd)
 	__adjust_end(cd);
 }
 
+static inline uint64_t get_mc_fw_base_address(void)
+{
+	u32 *mcfbaregs = (u32 *) ioremap(SOC_CCSR_MC_FW_BASE_ADDR_REGS,
+					 SOC_CCSR_MC_FW_BASE_ADDR_REGS_SIZE);
+	u64 mcfwbase = 0ULL;
+
+	mcfwbase  = readl(mcfbaregs + MCFBAHR_OFFSET) & MC_FW_HIGH_ADDR_MASK;
+	mcfwbase <<= 32;
+	mcfwbase |= readl(mcfbaregs + MCFBALR_OFFSET) & MC_FW_LOW_ADDR_MASK;
+	iounmap(mcfbaregs);
+	pr_info("fsl-ls2-console: MC base address at 0x%016llx\n", mcfwbase);
+	return mcfwbase;
+}
 
 static int fsl_ls2_generic_console_open(struct inode *node, struct file *fp,
 				u64 offset, u64 size,
@@ -105,7 +130,7 @@ static int fsl_ls2_generic_console_open(struct inode *node, struct file *fp,
 	if (cd == NULL)
 		return -ENOMEM;
 	fp->private_data = cd;
-	cd->map_addr = ioremap(MC_BASE_ADDR + offset, size);
+	cd->map_addr = ioremap(get_mc_fw_base_address() + offset, size);
 
 	cd->hdr = (struct log_header *) cd->map_addr;
 	invalidate(cd->hdr);
@@ -246,22 +271,9 @@ static int __init fsl_ls2_console_init(void)
 
 static void __exit fsl_ls2_console_exit(void)
 {
-	int err = misc_deregister(&fsl_ls2_mc_console_dev);
+	misc_deregister(&fsl_ls2_mc_console_dev);
 
-	if (err)
-		pr_err("Failed to deregister device %s code %d\n",
-		       fsl_ls2_mc_console_dev.name, err);
-	else
-		pr_info("device %s deregistered\n",
-			fsl_ls2_mc_console_dev.name);
-
-	err = misc_deregister(&fsl_ls2_aiop_console_dev);
-	if (err)
-		pr_err("Failed to deregister device %s code %d\n",
-		       fsl_ls2_aiop_console_dev.name, err);
-	else
-		pr_info("device %s deregistered\n",
-			fsl_ls2_aiop_console_dev.name);
+	misc_deregister(&fsl_ls2_aiop_console_dev);
 }
 
 module_init(fsl_ls2_console_init);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Freescale Semiconductor, Inc.
+ * Copyright 2016 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -18,62 +18,127 @@
 #include <linux/io.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
-#include <linux/regmap.h>
 #include <linux/thermal.h>
 
 #include "thermal_core.h"
 
-#define QORIQ_TMU_TMR		0x0	/* Mode Register */
-#define QORIQ_TMU_TMR_DISABLE	0x0
-#define QORIQ_TMU_TMR_ME	0x80000000
-#define QORIQ_TMU_TMR_ALPF	0x0c000000
+#define SITES_MAX	16
 
-#define QORIQ_TMU_TSR		0x4	/* Status Register */
+/*
+ * QorIQ TMU Registers
+ */
+struct qoriq_tmu_site_regs {
+	u32 tritsr;		/* Immediate Temperature Site Register */
+	u32 tratsr;		/* Average Temperature Site Register */
+	u8 res0[0x8];
+};
 
-#define QORIQ_TMU_TMTMIR	0x8	/* Temp Measurement interval Register */
-#define QORIQ_TMU_TMTMIR_DFT	0x0000000f
-
-#define QORIQ_TMU_TIER		0x20	/* Interrupt Enable Register */
-#define QORIQ_TMU_TIER_DISABLE	0x0
-
-#define QORIQ_TMU_TTCFGR	0x80	/* Temp Configuration Register */
-#define QORIQ_TMU_TSCFGR	0x84	/* Sensor Configuration Register */
-
-#define QORIQ_TMU_TRITSR_BASE	0x100	/* Report Immediate Temp Register */
-#define QORIQ_TMU_TRITSR_STEP	0x10
-
-#define QORIQ_TMU_IPBRR0	0xbf8	/* IP Block Revision Register 0 */
-#define QORIQ_TMU_IPBRR1	0xbfc	/* IP Block Revision Register 1 */
-
-#define QORIQ_TMU_TTR0CR	0xf10	/* Temp Range 0 Control Register */
-#define QORIQ_TMU_TTR1CR	0xf14	/* Temp Range 1 Control Register */
-#define QORIQ_TMU_TTR2CR	0xf18	/* Temp Range 2 Control Register */
-#define QORIQ_TMU_TTR3CR	0xf1c	/* Temp Range 3 Control Register */
+struct qoriq_tmu_regs {
+	u32 tmr;		/* Mode Register */
+#define TMR_DISABLE	0x0
+#define TMR_ME		0x80000000
+#define TMR_ALPF	0x0c000000
+	u32 tsr;		/* Status Register */
+	u32 tmtmir;		/* Temperature measurement interval Register */
+#define TMTMIR_DEFAULT	0x0000000f
+	u8 res0[0x14];
+	u32 tier;		/* Interrupt Enable Register */
+#define TIER_DISABLE	0x0
+	u32 tidr;		/* Interrupt Detect Register */
+	u32 tiscr;		/* Interrupt Site Capture Register */
+	u32 ticscr;		/* Interrupt Critical Site Capture Register */
+	u8 res1[0x10];
+	u32 tmhtcrh;		/* High Temperature Capture Register */
+	u32 tmhtcrl;		/* Low Temperature Capture Register */
+	u8 res2[0x8];
+	u32 tmhtitr;		/* High Temperature Immediate Threshold */
+	u32 tmhtatr;		/* High Temperature Average Threshold */
+	u32 tmhtactr;	/* High Temperature Average Crit Threshold */
+	u8 res3[0x24];
+	u32 ttcfgr;		/* Temperature Configuration Register */
+	u32 tscfgr;		/* Sensor Configuration Register */
+	u8 res4[0x78];
+	struct qoriq_tmu_site_regs site[SITES_MAX];
+	u8 res5[0x9f8];
+	u32 ipbrr0;		/* IP Block Revision Register 0 */
+	u32 ipbrr1;		/* IP Block Revision Register 1 */
+	u8 res6[0x310];
+	u32 ttr0cr;		/* Temperature Range 0 Control Register */
+	u32 ttr1cr;		/* Temperature Range 1 Control Register */
+	u32 ttr2cr;		/* Temperature Range 2 Control Register */
+	u32 ttr3cr;		/* Temperature Range 3 Control Register */
+};
 
 /*
  * Thermal zone data
  */
 struct qoriq_tmu_data {
-	void __iomem *base;
-	struct regmap *regmap;
-	struct mutex lock;
-	int sensor_id;
 	struct thermal_zone_device *tz;
+	struct qoriq_tmu_regs __iomem *regs;
+	int sensor_id;
+	bool little_endian;
 };
 
-static int tmu_get_temp(void *p, long *temp)
+static void tmu_write(struct qoriq_tmu_data *p, u32 val, void __iomem *addr)
+{
+	if (p->little_endian)
+		iowrite32(val, addr);
+	else
+		iowrite32be(val, addr);
+}
+
+static u32 tmu_read(struct qoriq_tmu_data *p, void __iomem *addr)
+{
+	if (p->little_endian)
+		return ioread32(addr);
+	else
+		return ioread32be(addr);
+}
+
+static int tmu_get_temp(void *p, int *temp)
 {
 	u32 val;
 	struct qoriq_tmu_data *data = p;
 
-	mutex_lock(&data->lock);
-	regmap_read(data->regmap, QORIQ_TMU_TRITSR_BASE +
-			QORIQ_TMU_TRITSR_STEP * data->sensor_id, &val);
-
+	val = tmu_read(data, &data->regs->site[data->sensor_id].tritsr);
 	*temp = (val & 0xff) * 1000;
-	mutex_unlock(&data->lock);
 
 	return 0;
+}
+
+static int qoriq_tmu_get_sensor_id(void)
+{
+	int ret, id;
+	struct of_phandle_args sensor_specs;
+	struct device_node *np, *sensor_np;
+
+	np = of_find_node_by_name(NULL, "thermal-zones");
+	if (!np)
+		return -ENODEV;
+
+	sensor_np = of_get_next_child(np, NULL);
+	ret = of_parse_phandle_with_args(sensor_np, "thermal-sensors",
+			"#thermal-sensor-cells",
+			0, &sensor_specs);
+	if (ret) {
+		of_node_put(np);
+		of_node_put(sensor_np);
+		return ret;
+	}
+
+	if (sensor_specs.args_count >= 1) {
+		id = sensor_specs.args[0];
+		WARN(sensor_specs.args_count > 1,
+				"%s: too many cells in sensor specifier %d\n",
+				sensor_specs.np->name, sensor_specs.args_count);
+	} else {
+		id = 0;
+	}
+
+	of_node_put(np);
+	of_node_put(sensor_np);
+
+	return id;
 }
 
 static int qoriq_tmu_calibration(struct platform_device *pdev)
@@ -81,34 +146,31 @@ static int qoriq_tmu_calibration(struct platform_device *pdev)
 	int i, val, len;
 	u32 range[4];
 	const u32 *calibration;
-	struct device_node *node = pdev->dev.of_node;
+	struct device_node *np = pdev->dev.of_node;
 	struct qoriq_tmu_data *data = platform_get_drvdata(pdev);
 
-	/* Disable monitoring before calibration */
-	regmap_write(data->regmap, QORIQ_TMU_TMR, QORIQ_TMU_TMR_DISABLE);
-
-	if (of_property_read_u32_array(node, "fsl,tmu-range", range, 4)) {
-		dev_err(&pdev->dev, "TMU: missing calibration range.\n");
+	if (of_property_read_u32_array(np, "fsl,tmu-range", range, 4)) {
+		dev_err(&pdev->dev, "missing calibration range.\n");
 		return -ENODEV;
 	}
 
 	/* Init temperature range registers */
-	regmap_write(data->regmap, QORIQ_TMU_TTR0CR, range[0]);
-	regmap_write(data->regmap, QORIQ_TMU_TTR1CR, range[1]);
-	regmap_write(data->regmap, QORIQ_TMU_TTR2CR, range[2]);
-	regmap_write(data->regmap, QORIQ_TMU_TTR3CR, range[3]);
+	tmu_write(data, range[0], &data->regs->ttr0cr);
+	tmu_write(data, range[1], &data->regs->ttr1cr);
+	tmu_write(data, range[2], &data->regs->ttr2cr);
+	tmu_write(data, range[3], &data->regs->ttr3cr);
 
-	calibration = of_get_property(node, "fsl,tmu-calibration", &len);
-	if (calibration == NULL) {
-		dev_err(&pdev->dev, "TMU: missing calibration data.\n");
+	calibration = of_get_property(np, "fsl,tmu-calibration", &len);
+	if (calibration == NULL || len % 8) {
+		dev_err(&pdev->dev, "invalid calibration data.\n");
 		return -ENODEV;
 	}
 
 	for (i = 0; i < len; i += 8, calibration += 2) {
 		val = of_read_number(calibration, 1);
-		regmap_write(data->regmap, QORIQ_TMU_TTCFGR, val);
+		tmu_write(data, val, &data->regs->ttcfgr);
 		val = of_read_number(calibration + 1, 1);
-		regmap_write(data->regmap, QORIQ_TMU_TSCFGR, val);
+		tmu_write(data, val, &data->regs->tscfgr);
 	}
 
 	return 0;
@@ -117,46 +179,17 @@ static int qoriq_tmu_calibration(struct platform_device *pdev)
 static void qoriq_tmu_init_device(struct qoriq_tmu_data *data)
 {
 	/* Disable interrupt, using polling instead */
-	regmap_write(data->regmap, QORIQ_TMU_TIER, QORIQ_TMU_TIER_DISABLE);
+	tmu_write(data, TIER_DISABLE, &data->regs->tier);
 
 	/* Set update_interval */
-	regmap_write(data->regmap, QORIQ_TMU_TMTMIR, QORIQ_TMU_TMTMIR_DFT);
+	tmu_write(data, TMTMIR_DEFAULT, &data->regs->tmtmir);
 
 	/* Disable monitoring */
-	regmap_write(data->regmap, QORIQ_TMU_TMR, QORIQ_TMU_TMR_DISABLE);
-}
-
-static int qoriq_of_get_sensor_id(struct platform_device *pdev)
-{
-	struct qoriq_tmu_data *data = platform_get_drvdata(pdev);
-	struct device_node *np = pdev->dev.of_node;
-
-	if (of_device_is_compatible(np, "fsl,t102x-tmu"))
-		data->sensor_id = 0;
-	else if (of_device_is_compatible(np, "fsl,t104x-tmu"))
-		data->sensor_id = 2;
-	else if (of_device_is_compatible(np, "fsl,ls1021a-tmu"))
-		data->sensor_id = 0;
-	else if (of_device_is_compatible(np, "fsl,ls1012a-tmu"))
-		data->sensor_id = 0;
-	else if (of_device_is_compatible(np, "fsl,ls1043a-tmu"))
-		data->sensor_id = 3;
-	else if (of_device_is_compatible(np, "fsl,ls2080a-tmu"))
-		data->sensor_id = 4;
-	else
-		return -EINVAL;
-
-	return 0;
+	tmu_write(data, TMR_DISABLE, &data->regs->tmr);
 }
 
 static struct thermal_zone_of_device_ops tmu_tz_ops = {
 	.get_temp = tmu_get_temp,
-};
-
-static const struct regmap_config qoriq_tmu_regmap_config = {
-	.reg_bits = 32,
-	.reg_stride = 4,
-	.val_bits = 32,
 };
 
 static int qoriq_tmu_probe(struct platform_device *pdev)
@@ -164,10 +197,10 @@ static int qoriq_tmu_probe(struct platform_device *pdev)
 	int ret;
 	const struct thermal_trip *trip;
 	struct qoriq_tmu_data *data;
-	void __iomem *base;
-	u32 tmr = 0;
+	struct device_node *np = pdev->dev.of_node;
+	u32 site = 0;
 
-	if (!pdev->dev.of_node) {
+	if (!np) {
 		dev_err(&pdev->dev, "Device OF-Node is NULL");
 		return -ENODEV;
 	}
@@ -177,33 +210,27 @@ static int qoriq_tmu_probe(struct platform_device *pdev)
 	if (!data)
 		return -ENOMEM;
 
-	mutex_init(&data->lock);
-
 	platform_set_drvdata(pdev, data);
 
-	base = of_iomap(pdev->dev.of_node, 0);
-	if (!base) {
+	data->little_endian = of_property_read_bool(np, "little-endian");
+
+	data->sensor_id = qoriq_tmu_get_sensor_id();
+	if (data->sensor_id < 0) {
+		dev_err(&pdev->dev, "Failed to get sensor id\n");
+		ret = -ENODEV;
+		goto err_iomap;
+	}
+
+	data->regs = of_iomap(np, 0);
+	if (!data->regs) {
 		dev_err(&pdev->dev, "Failed to get memory region\n");
 		ret = -ENODEV;
 		goto err_iomap;
 	}
 
-	data->base = base;
-	data->regmap = devm_regmap_init_mmio(&pdev->dev, base,
-						 &qoriq_tmu_regmap_config);
-	if (IS_ERR(data->regmap)) {
-		dev_err(&pdev->dev, "Regmap init failed\n");
-		ret = PTR_ERR(data->regmap);
-		goto err_tmu;
-	}
-
-	ret = qoriq_tmu_calibration(pdev);	/* TMU calibration */
-	if (ret < 0)
-		goto err_tmu;
-
 	qoriq_tmu_init_device(data);	/* TMU initialization */
 
-	ret = qoriq_of_get_sensor_id(pdev);
+	ret = qoriq_tmu_calibration(pdev);	/* TMU calibration */
 	if (ret < 0)
 		goto err_tmu;
 
@@ -219,18 +246,16 @@ static int qoriq_tmu_probe(struct platform_device *pdev)
 	trip = of_thermal_get_trip_points(data->tz);
 
 	/* Enable monitoring */
-	tmr |= 0x1 << (15 - data->sensor_id);
-	regmap_write(data->regmap, QORIQ_TMU_TMR, tmr | QORIQ_TMU_TMR_ME |
-			QORIQ_TMU_TMR_ALPF);
+	site |= 0x1 << (15 - data->sensor_id);
+	tmu_write(data, site | TMR_ME | TMR_ALPF, &data->regs->tmr);
 
 	return 0;
 
 err_tmu:
-	iounmap(base);
+	iounmap(data->regs);
 
 err_iomap:
 	platform_set_drvdata(pdev, NULL);
-	devm_kfree(&pdev->dev, data);
 
 	return ret;
 }
@@ -239,15 +264,13 @@ static int qoriq_tmu_remove(struct platform_device *pdev)
 {
 	struct qoriq_tmu_data *data = platform_get_drvdata(pdev);
 
-	/* Disable monitoring */
-	regmap_write(data->regmap, QORIQ_TMU_TMR, QORIQ_TMU_TMR_DISABLE);
-
 	thermal_zone_of_sensor_unregister(&pdev->dev, data->tz);
 
-	iounmap(data->base);
+	/* Disable monitoring */
+	tmu_write(data, TMR_DISABLE, &data->regs->tmr);
 
+	iounmap(data->regs);
 	platform_set_drvdata(pdev, NULL);
-	devm_kfree(&pdev->dev, data);
 
 	return 0;
 }
@@ -259,11 +282,9 @@ static int qoriq_tmu_suspend(struct device *dev)
 	struct qoriq_tmu_data *data = dev_get_drvdata(dev);
 
 	/* Disable monitoring */
-	regmap_read(data->regmap, QORIQ_TMU_TMR, &tmr);
-	tmr &= ~QORIQ_TMU_TMR_ME;
-	regmap_write(data->regmap, QORIQ_TMU_TMR, tmr);
-
-	data->tz->ops->set_mode(data->tz, THERMAL_DEVICE_DISABLED);
+	tmr = tmu_read(data, &data->regs->tmr);
+	tmr &= ~TMR_ME;
+	tmu_write(data, tmr, &data->regs->tmr);
 
 	return 0;
 }
@@ -274,23 +295,22 @@ static int qoriq_tmu_resume(struct device *dev)
 	struct qoriq_tmu_data *data = dev_get_drvdata(dev);
 
 	/* Enable monitoring */
-	regmap_read(data->regmap, QORIQ_TMU_TMR, &tmr);
-	tmr |= QORIQ_TMU_TMR_ME;
-	regmap_write(data->regmap, QORIQ_TMU_TMR, tmr);
-
-	data->tz->ops->set_mode(data->tz, THERMAL_DEVICE_ENABLED);
+	tmr = tmu_read(data, &data->regs->tmr);
+	tmr |= TMR_ME;
+	tmu_write(data, tmr, &data->regs->tmr);
 
 	return 0;
 }
 #endif
 
 static SIMPLE_DEV_PM_OPS(qoriq_tmu_pm_ops,
-			qoriq_tmu_suspend, qoriq_tmu_resume);
+			 qoriq_tmu_suspend, qoriq_tmu_resume);
 
 static const struct of_device_id qoriq_tmu_match[] = {
 	{ .compatible = "fsl,qoriq-tmu", },
 	{},
 };
+MODULE_DEVICE_TABLE(of, qoriq_tmu_match);
 
 static struct platform_driver qoriq_tmu = {
 	.driver	= {
@@ -303,6 +323,6 @@ static struct platform_driver qoriq_tmu = {
 };
 module_platform_driver(qoriq_tmu);
 
-MODULE_AUTHOR("Jia Hongtao <hongtao.jia@freescale.com>");
-MODULE_DESCRIPTION("Freescale QorIQ Thermal Monitoring Unit driver");
+MODULE_AUTHOR("Jia Hongtao <hongtao.jia@nxp.com>");
+MODULE_DESCRIPTION("QorIQ Thermal Monitoring Unit driver");
 MODULE_LICENSE("GPL v2");

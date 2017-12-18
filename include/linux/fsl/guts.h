@@ -31,21 +31,33 @@
 struct ccsr_guts {
 	u32	porpllsr;	/* 0x.0000 - POR PLL Ratio Status Register */
 	u32	porbmsr;	/* 0x.0004 - POR Boot Mode Status Register */
-	u32	porimpscr;	/* 0x.0008 - POR I/O Impedance Status and Control Register */
+	u32	porimpscr;	/* 0x.0008 - POR I/O Impedance Status and
+				 *           Control Register
+				 */
 	u32	pordevsr;	/* 0x.000c - POR I/O Device Status Register */
 	u32	pordbgmsr;	/* 0x.0010 - POR Debug Mode Status Register */
 	u32	pordevsr2;	/* 0x.0014 - POR device status register 2 */
 	u8	res018[0x20 - 0x18];
-	u32	porcir;		/* 0x.0020 - POR Configuration Information Register */
+	u32	porcir;		/* 0x.0020 - POR Configuration Information
+				 *           Register
+				 */
 	u8	res024[0x30 - 0x24];
 	u32	gpiocr;		/* 0x.0030 - GPIO Control Register */
 	u8	res034[0x40 - 0x34];
-	u32	gpoutdr;	/* 0x.0040 - General-Purpose Output Data Register */
+	u32	gpoutdr;	/* 0x.0040 - General-Purpose Output Data
+				 *           Register
+				 */
 	u8	res044[0x50 - 0x44];
-	u32	gpindr;		/* 0x.0050 - General-Purpose Input Data Register */
+	u32	gpindr;		/* 0x.0050 - General-Purpose Input Data
+				 *           Register
+				 */
 	u8	res054[0x60 - 0x54];
-	u32	pmuxcr;		/* 0x.0060 - Alternate Function Signal Multiplex Control */
-	u32	pmuxcr2;	/* 0x.0064 - Alternate function signal multiplex control 2 */
+	u32	pmuxcr;		/* 0x.0060 - Alternate Function Signal
+				 *           Multiplex Control
+				 */
+	u32	pmuxcr2;	/* 0x.0064 - Alternate function signal
+				 *           multiplex control 2
+				 */
 	u32	dmuxcr;		/* 0x.0068 - DMA Mux Control Register */
         u8	res06c[0x70 - 0x6c];
 	u32	devdisr;	/* 0x.0070 - Device Disable Control */
@@ -53,13 +65,25 @@ struct ccsr_guts {
 #define CCSR_GUTS_DEVDISR_TB0	0x00004000
 	u32	devdisr2;	/* 0x.0074 - Device Disable Control 2 */
 	u8	res078[0x7c - 0x78];
-	u32	pmjcr;		/* 0x.007c - 4 Power Management Jog Control Register */
-	u32	powmgtcsr;	/* 0x.0080 - Power Management Status and Control Register */
-	u32	pmrccr;		/* 0x.0084 - Power Management Reset Counter Configuration Register */
-	u32	pmpdccr;	/* 0x.0088 - Power Management Power Down Counter Configuration Register */
-	u32	pmcdr;		/* 0x.008c - 4Power management clock disable register */
+	u32	pmjcr;		/* 0x.007c - 4 Power Management Jog Control
+				 *           Register
+				 */
+	u32	powmgtcsr;	/* 0x.0080 - Power Management Status and
+				 *           Control Register
+				 */
+	u32	pmrccr;		/* 0x.0084 - Power Management Reset Counter
+				 *           Configuration Register
+				 */
+	u32	pmpdccr;	/* 0x.0088 - Power Management Power Down Counter
+				 *           Configuration Register
+				 */
+	u32	pmcdr;		/* 0x.008c - 4Power management clock disable
+				 *           register
+				 */
 	u32	mcpsumr;	/* 0x.0090 - Machine Check Summary Register */
-	u32	rstrscr;	/* 0x.0094 - Reset Request Status and Control Register */
+	u32	rstrscr;	/* 0x.0094 - Reset Request Status and
+				 *           Control Register
+				 */
 	u32	ectrstcr;	/* 0x.0098 - Exception reset control register */
 	u32	autorstsr;	/* 0x.009c - Automatic reset status register */
 	u32	pvr;		/* 0x.00a0 - Processor Version Register */
@@ -95,12 +119,16 @@ struct ccsr_guts {
 	u32	ddrdllcr;	/* 0x.0e10 - DDR DLL Control Register */
 	u8	rese14[0xe20 - 0xe14];
 	u32	lbcdllcr;	/* 0x.0e20 - LBC DLL Control Register */
-	u32	cpfor;		/* 0x.0e24 - L2 charge pump fuse override register */
+	u32	cpfor;		/* 0x.0e24 - L2 charge pump fuse override
+				 *           register
+				 */
 	u8	rese28[0xf04 - 0xe28];
 	u32	srds1cr0;	/* 0x.0f04 - SerDes1 Control Register 0 */
 	u32	srds1cr1;	/* 0x.0f08 - SerDes1 Control Register 0 */
 	u8	resf0c[0xf2c - 0xf0c];
-	u32	itcr;		/* 0x.0f2c - Internal transaction control register */
+	u32	itcr;		/* 0x.0f2c - Internal transaction control
+				 *           register
+				 */
 	u8	resf30[0xf40 - 0xf30];
 	u32	srds2cr0;	/* 0x.0f40 - SerDes2 Control Register 0 */
 	u32	srds2cr1;	/* 0x.0f44 - SerDes2 Control Register 0 */

@@ -48,6 +48,13 @@ void * __init early_init_dt_alloc_memory_arch(u64 size, u64 align)
 	return alloc_bootmem_align(size, align);
 }
 
+int __init early_init_dt_reserve_memory_arch(phys_addr_t base, phys_addr_t size,
+					     bool nomap)
+{
+	reserve_bootmem(base, size, BOOTMEM_DEFAULT);
+	return 0;
+}
+
 void __init early_init_devtree(void *params)
 {
 	__be32 *dtb = (u32 *)__dtb_start;
@@ -97,8 +104,7 @@ static int __init early_init_dt_scan_serial(unsigned long node,
 		return 0;
 #endif
 
-	*addr64 = fdt_translate_address((const void *)initial_boot_params,
-		node);
+	*addr64 = of_flat_dt_translate_address(node);
 
 	return *addr64 == OF_BAD_ADDR ? 0 : 1;
 }

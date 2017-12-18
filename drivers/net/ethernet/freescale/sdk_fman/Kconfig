@@ -2,7 +2,7 @@ menu "Frame Manager support"
 
 menuconfig FSL_SDK_FMAN
 	bool "Freescale Frame Manager (datapath) support - SDK driver"
-	depends on (FSL_SOC || ARM64 || ARM) && FSL_BMAN && FSL_QMAN
+	depends on (FSL_SOC || ARM64 || ARM) && FSL_SDK_BMAN && FSL_SDK_QMAN && !FSL_FMAN
 	default y
 	---help---
 		If unsure, say Y.
@@ -109,10 +109,10 @@ config FMAN_PFC
 	bool "FMan PFC support (EXPERIMENTAL)"
 	depends on ( FMAN_V3H || FMAN_V3L || FMAN_ARM) && FSL_SDK_FMAN
 	default n
-	---help---
-	  This option enables PFC support on FMan v3 ports.
-	  Data Center Bridging defines Classes of Service that are
-	  flow-controlled using PFC pause frames.
+	help
+		This option enables PFC support on FMan v3 ports.
+		Data Center Bridging defines Classes of Service that are
+		flow-controlled using PFC pause frames.
 
 if FMAN_PFC
 config FMAN_PFC_COS_COUNT
@@ -120,8 +120,8 @@ config FMAN_PFC_COS_COUNT
 	depends on FMAN_PFC && FSL_SDK_FMAN
 	range 1 4
 	default "3"
-	---help ---
-	  The number of Classes of Service controlled by PFC.
+	help
+		The number of Classes of Service controlled by PFC.
 
 config FMAN_PFC_QUANTA_0
 	int "The pause quanta for PFC CoS 0"

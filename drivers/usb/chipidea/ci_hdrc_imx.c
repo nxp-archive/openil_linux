@@ -28,35 +28,57 @@ struct ci_hdrc_imx_platform_flag {
 	bool runtime_pm;
 };
 
+static const struct ci_hdrc_imx_platform_flag imx23_usb_data = {
+	.flags = CI_HDRC_TURN_VBUS_EARLY_ON |
+		CI_HDRC_DISABLE_STREAMING,
+};
+
 static const struct ci_hdrc_imx_platform_flag imx27_usb_data = {
+		CI_HDRC_DISABLE_STREAMING,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx28_usb_data = {
 	.flags = CI_HDRC_IMX28_WRITE_FIX |
-		CI_HDRC_TURN_VBUS_EARLY_ON,
+		CI_HDRC_TURN_VBUS_EARLY_ON |
+		CI_HDRC_DISABLE_STREAMING,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx6q_usb_data = {
 	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM |
-		CI_HDRC_TURN_VBUS_EARLY_ON,
+		CI_HDRC_TURN_VBUS_EARLY_ON |
+		CI_HDRC_DISABLE_STREAMING,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx6sl_usb_data = {
 	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM |
-		CI_HDRC_TURN_VBUS_EARLY_ON,
+		CI_HDRC_TURN_VBUS_EARLY_ON |
+		CI_HDRC_DISABLE_HOST_STREAMING,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx6sx_usb_data = {
 	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM |
+		CI_HDRC_TURN_VBUS_EARLY_ON |
+		CI_HDRC_DISABLE_HOST_STREAMING,
+};
+
+static const struct ci_hdrc_imx_platform_flag imx6ul_usb_data = {
+	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM |
 		CI_HDRC_TURN_VBUS_EARLY_ON,
 };
 
+static const struct ci_hdrc_imx_platform_flag imx7d_usb_data = {
+	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM,
+};
+
 static const struct of_device_id ci_hdrc_imx_dt_ids[] = {
+	{ .compatible = "fsl,imx23-usb", .data = &imx23_usb_data},
 	{ .compatible = "fsl,imx28-usb", .data = &imx28_usb_data},
 	{ .compatible = "fsl,imx27-usb", .data = &imx27_usb_data},
 	{ .compatible = "fsl,imx6q-usb", .data = &imx6q_usb_data},
 	{ .compatible = "fsl,imx6sl-usb", .data = &imx6sl_usb_data},
 	{ .compatible = "fsl,imx6sx-usb", .data = &imx6sx_usb_data},
+	{ .compatible = "fsl,imx6ul-usb", .data = &imx6ul_usb_data},
+	{ .compatible = "fsl,imx7d-usb", .data = &imx7d_usb_data},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, ci_hdrc_imx_dt_ids);
@@ -110,13 +132,16 @@ static struct imx_usbmisc_data *usbmisc_get_init_data(struct device *dev)
 	misc_pdev = of_find_device_by_node(args.np);
 	of_node_put(args.np);
 
-	if (!misc_pdev)
+	if (!misc_pdev || !platform_get_drvdata(misc_pdev))
 		return ERR_PTR(-EPROBE_DEFER);
 
 	data->dev = &misc_pdev->dev;
 
 	if (of_find_property(np, "disable-over-current", NULL))
 		data->disable_oc = 1;
+
+	if (of_find_property(np, "over-current-active-high", NULL))
+		data->oc_polarity = 1;
 
 	if (of_find_property(np, "external-vbus-divider", NULL))
 		data->evdo = 1;
@@ -228,12 +253,16 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 	struct ci_hdrc_platform_data pdata = {
 		.name		= dev_name(&pdev->dev),
 		.capoffset	= DEF_CAPOFFSET,
-		.flags		= CI_HDRC_DISABLE_STREAMING,
 	};
 	int ret;
-	const struct of_device_id *of_id =
-			of_match_device(ci_hdrc_imx_dt_ids, &pdev->dev);
-	const struct ci_hdrc_imx_platform_flag *imx_platform_flag = of_id->data;
+	const struct of_device_id *of_id;
+	const struct ci_hdrc_imx_platform_flag *imx_platform_flag;
+
+	of_id = of_match_device(ci_hdrc_imx_dt_ids, &pdev->dev);
+	if (!of_id)
+		return -ENODEV;
+
+	imx_platform_flag = of_id->data;
 
 	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
 	if (!data)
@@ -266,10 +295,6 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 	if (pdata.flags & CI_HDRC_SUPPORTS_RUNTIME_PM)
 		data->supports_runtime_pm = true;
 
-	ret = dma_coerce_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
-	if (ret)
-		goto err_clk;
-
 	ret = imx_usbmisc_init(data->usbmisc_data);
 	if (ret) {
 		dev_err(&pdev->dev, "usbmisc init failed, ret=%d\n", ret);
@@ -281,9 +306,9 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 				&pdata);
 	if (IS_ERR(data->ci_pdev)) {
 		ret = PTR_ERR(data->ci_pdev);
-		dev_err(&pdev->dev,
-			"Can't register ci_hdrc platform device, err=%d\n",
-			ret);
+		if (ret != -EPROBE_DEFER)
+			dev_err(&pdev->dev,
+				"ci_hdrc_add_device failed, err=%d\n", ret);
 		goto err_clk;
 	}
 
@@ -322,6 +347,11 @@ static int ci_hdrc_imx_remove(struct platform_device *pdev)
 	imx_disable_unprepare_clks(&pdev->dev);
 
 	return 0;
+}
+
+static void ci_hdrc_imx_shutdown(struct platform_device *pdev)
+{
+	ci_hdrc_imx_remove(pdev);
 }
 
 #ifdef CONFIG_PM
@@ -441,6 +471,7 @@ static const struct dev_pm_ops ci_hdrc_imx_pm_ops = {
 static struct platform_driver ci_hdrc_imx_driver = {
 	.probe = ci_hdrc_imx_probe,
 	.remove = ci_hdrc_imx_remove,
+	.shutdown = ci_hdrc_imx_shutdown,
 	.driver = {
 		.name = "imx_usb",
 		.of_match_table = ci_hdrc_imx_dt_ids,

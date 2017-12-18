@@ -18,7 +18,6 @@
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/module.h>
-#include <linux/kconfig.h>
 #include <linux/platform_device.h>
 #include <linux/spinlock.h>
 #include <linux/of.h>
@@ -31,8 +30,6 @@
 #include <linux/irqdomain.h>
 #include <linux/irqchip.h>
 #include <linux/irqchip/chained_irq.h>
-
-#include "irqchip.h"
 
 /* Register offsets in the L2 interrupt controller */
 #define CPU_STATUS	0x00
@@ -51,11 +48,12 @@ struct brcmstb_l2_intc_data {
 	u32 saved_mask; /* for suspend/resume */
 };
 
-static void brcmstb_l2_intc_irq_handle(unsigned int irq, struct irq_desc *desc)
+static void brcmstb_l2_intc_irq_handle(struct irq_desc *desc)
 {
 	struct brcmstb_l2_intc_data *b = irq_desc_get_handler_data(desc);
 	struct irq_chip_generic *gc = irq_get_domain_generic_chip(b->domain, 0);
 	struct irq_chip *chip = irq_desc_get_chip(desc);
+	unsigned int irq;
 	u32 status;
 
 	chained_irq_enter(chip, desc);
@@ -65,7 +63,7 @@ static void brcmstb_l2_intc_irq_handle(unsigned int irq, struct irq_desc *desc)
 
 	if (status == 0) {
 		raw_spin_lock(&desc->lock);
-		handle_bad_irq(irq, desc);
+		handle_bad_irq(desc);
 		raw_spin_unlock(&desc->lock);
 		goto out;
 	}
@@ -85,9 +83,9 @@ static void brcmstb_l2_intc_suspend(struct irq_data *d)
 {
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
 	struct brcmstb_l2_intc_data *b = gc->private;
-	unsigned long flags;
+    unsigned int flags;
 
-	flags = irq_gc_lock(gc);
+	irq_gc_lock(gc);
 	/* Save the current mask */
 	b->saved_mask = irq_reg_readl(gc, CPU_MASK_STATUS);
 
@@ -96,27 +94,27 @@ static void brcmstb_l2_intc_suspend(struct irq_data *d)
 		irq_reg_writel(gc, ~gc->wake_active, CPU_MASK_SET);
 		irq_reg_writel(gc, gc->wake_active, CPU_MASK_CLEAR);
 	}
-	irq_gc_unlock(gc, flags);
+	irq_gc_unlock(gc,flags);
 }
 
 static void brcmstb_l2_intc_resume(struct irq_data *d)
 {
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
 	struct brcmstb_l2_intc_data *b = gc->private;
-	unsigned long flags;
+    unsigned int flags;
 
-	flags = irq_gc_lock(gc);
+	irq_gc_lock(gc);
 	/* Clear unmasked non-wakeup interrupts */
 	irq_reg_writel(gc, ~b->saved_mask & ~gc->wake_active, CPU_CLEAR);
 
 	/* Restore the saved mask */
 	irq_reg_writel(gc, b->saved_mask, CPU_MASK_SET);
 	irq_reg_writel(gc, ~b->saved_mask, CPU_MASK_CLEAR);
-	irq_gc_unlock(gc, flags);
+	irq_gc_unlock(gc,flags);
 }
 
-int __init brcmstb_l2_intc_of_init(struct device_node *np,
-					struct device_node *parent)
+static int __init brcmstb_l2_intc_of_init(struct device_node *np,
+					  struct device_node *parent)
 {
 	unsigned int clr = IRQ_NOREQUEST | IRQ_NOPROBE | IRQ_NOAUTOEN;
 	struct brcmstb_l2_intc_data *data;
@@ -174,8 +172,8 @@ int __init brcmstb_l2_intc_of_init(struct device_node *np,
 	}
 
 	/* Set the IRQ chaining logic */
-	irq_set_handler_data(data->parent_irq, data);
-	irq_set_chained_handler(data->parent_irq, brcmstb_l2_intc_irq_handle);
+	irq_set_chained_handler_and_data(data->parent_irq,
+					 brcmstb_l2_intc_irq_handle, data);
 
 	gc = irq_get_domain_generic_chip(data->domain, 0);
 	gc->reg_base = data->base;

@@ -2,16 +2,18 @@
 #include <linux/console.h>
 #include <linux/init.h>
 
-void printch(int);
+void __weak printascii(const char *s)
+{
+	/*
+	 * Allow building if CONFIG_DEBUG_LL is off but keep silent on
+	 * raw_printk().
+	 */
+}
 
 static void raw_console_write(struct console *co,
 			      const char *s, unsigned count)
 {
-	while (count-- > 0) {
-		if (*s == '\n')
-			printch('\r');
-		printch(*s++);
-	}
+	printascii(s);
 }
 
 static struct console raw_console = {

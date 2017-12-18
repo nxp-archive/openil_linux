@@ -41,8 +41,6 @@ struct sch_gpio {
 	unsigned short resume_base;
 };
 
-#define to_sch_gpio(gc)	container_of(gc, struct sch_gpio, chip)
-
 static unsigned sch_gpio_offset(struct sch_gpio *sch, unsigned gpio,
 				unsigned reg)
 {
@@ -95,7 +93,7 @@ static void sch_gpio_reg_set(struct sch_gpio *sch, unsigned gpio, unsigned reg,
 
 static int sch_gpio_direction_in(struct gpio_chip *gc, unsigned gpio_num)
 {
-	struct sch_gpio *sch = to_sch_gpio(gc);
+	struct sch_gpio *sch = gpiochip_get_data(gc);
 
 	spin_lock(&sch->lock);
 	sch_gpio_reg_set(sch, gpio_num, GIO, 1);
@@ -105,13 +103,13 @@ static int sch_gpio_direction_in(struct gpio_chip *gc, unsigned gpio_num)
 
 static int sch_gpio_get(struct gpio_chip *gc, unsigned gpio_num)
 {
-	struct sch_gpio *sch = to_sch_gpio(gc);
+	struct sch_gpio *sch = gpiochip_get_data(gc);
 	return sch_gpio_reg_get(sch, gpio_num, GLV);
 }
 
 static void sch_gpio_set(struct gpio_chip *gc, unsigned gpio_num, int val)
 {
-	struct sch_gpio *sch = to_sch_gpio(gc);
+	struct sch_gpio *sch = gpiochip_get_data(gc);
 
 	spin_lock(&sch->lock);
 	sch_gpio_reg_set(sch, gpio_num, GLV, val);
@@ -121,7 +119,7 @@ static void sch_gpio_set(struct gpio_chip *gc, unsigned gpio_num, int val)
 static int sch_gpio_direction_out(struct gpio_chip *gc, unsigned gpio_num,
 				  int val)
 {
-	struct sch_gpio *sch = to_sch_gpio(gc);
+	struct sch_gpio *sch = gpiochip_get_data(gc);
 
 	spin_lock(&sch->lock);
 	sch_gpio_reg_set(sch, gpio_num, GIO, 0);
@@ -140,7 +138,7 @@ static int sch_gpio_direction_out(struct gpio_chip *gc, unsigned gpio_num,
 	return 0;
 }
 
-static struct gpio_chip sch_gpio_chip = {
+static const struct gpio_chip sch_gpio_chip = {
 	.label			= "sch_gpio",
 	.owner			= THIS_MODULE,
 	.direction_input	= sch_gpio_direction_in,
@@ -170,7 +168,7 @@ static int sch_gpio_probe(struct platform_device *pdev)
 	sch->iobase = res->start;
 	sch->chip = sch_gpio_chip;
 	sch->chip.label = dev_name(&pdev->dev);
-	sch->chip.dev = &pdev->dev;
+	sch->chip.parent = &pdev->dev;
 
 	switch (pdev->id) {
 	case PCI_DEVICE_ID_INTEL_SCH_LPC:
@@ -216,15 +214,7 @@ static int sch_gpio_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, sch);
 
-	return gpiochip_add(&sch->chip);
-}
-
-static int sch_gpio_remove(struct platform_device *pdev)
-{
-	struct sch_gpio *sch = platform_get_drvdata(pdev);
-
-	gpiochip_remove(&sch->chip);
-	return 0;
+	return devm_gpiochip_add_data(&pdev->dev, &sch->chip, sch);
 }
 
 static struct platform_driver sch_gpio_driver = {
@@ -232,7 +222,6 @@ static struct platform_driver sch_gpio_driver = {
 		.name = "sch_gpio",
 	},
 	.probe		= sch_gpio_probe,
-	.remove		= sch_gpio_remove,
 };
 
 module_platform_driver(sch_gpio_driver);

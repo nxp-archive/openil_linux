@@ -32,6 +32,8 @@
 #define __BUILTIN_RETURN_ADDRESS1 ((unsigned long)__builtin_return_address(1))
 #endif /* !BUILTIN_RETURN_ADDRESS */
 
+struct pt_regs;
+
 void ipipe_trace_begin(unsigned long v);
 void ipipe_trace_end(unsigned long v);
 void ipipe_trace_freeze(unsigned long v);
@@ -40,6 +42,8 @@ void ipipe_trace_pid(pid_t pid, short prio);
 void ipipe_trace_event(unsigned char id, unsigned long delay_tsc);
 int ipipe_trace_max_reset(void);
 int ipipe_trace_frozen_reset(void);
+void ipipe_trace_irqbegin(int irq, struct pt_regs *regs);
+void ipipe_trace_irqend(int irq, struct pt_regs *regs);
 
 #else /* !CONFIG_IPIPE_TRACE */
 
@@ -51,6 +55,8 @@ int ipipe_trace_frozen_reset(void);
 #define ipipe_trace_event(id, delay_tsc)	do { (void)(id); (void)(delay_tsc); } while(0)
 #define ipipe_trace_max_reset()			({ 0; })
 #define ipipe_trace_frozen_reset()		({ 0; })
+#define ipipe_trace_irqbegin(irq, regs)		do { } while(0)
+#define ipipe_trace_irqend(irq, regs)		do { } while(0)
 
 #endif /* !CONFIG_IPIPE_TRACE */
 

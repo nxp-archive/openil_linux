@@ -1,18 +1,18 @@
 /*
  * P5020/5010 Silicon/SoC Device Tree Source (post include)
  *
- * Copyright 2011 - 2014 Freescale Semiconductor Inc.
+ * Copyright 2011 - 2015 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
- *	 notice, this list of conditions and the following disclaimer.
+ *       notice, this list of conditions and the following disclaimer.
  *     * Redistributions in binary form must reproduce the above copyright
- *	 notice, this list of conditions and the following disclaimer in the
- *	 documentation and/or other materials provided with the distribution.
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
  *     * Neither the name of Freescale Semiconductor nor the
- *	 names of its contributors may be used to endorse or promote products
- *	 derived from this software without specific prior written permission.
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
  *
  *
  * ALTERNATIVELY, this software may be distributed under the terms of the
@@ -441,9 +441,13 @@
 		fsl,iommu-parent = <&pamu1>;
 	};
 
-/include/ "qoriq-pme-0.dtsi"
 /include/ "qoriq-qman1.dtsi"
 /include/ "qoriq-bman1.dtsi"
+
+/include/ "qoriq-raid1.0-0.dtsi"
+	raideng@320000 {
+		fsl,iommu-parent = <&pamu1>;
+	};
 
 /include/ "qoriq-fman-0.dtsi"
 /include/ "qoriq-fman-0-1g-0.dtsi"
@@ -452,64 +456,23 @@
 /include/ "qoriq-fman-0-1g-3.dtsi"
 /include/ "qoriq-fman-0-1g-4.dtsi"
 /include/ "qoriq-fman-0-10g-0.dtsi"
-	fman0: fman@400000 {
-		/* tx - 1g - 0 */
-		port@a8000 {
-			fsl,qman-channel-id = <0x41>;
+	fman@400000 {
+		enet0: ethernet@e0000 {
 		};
-		/* tx - 1g - 1 */
-		port@a9000 {
-			fsl,qman-channel-id = <0x42>;
-		};
-		/* tx - 1g - 2 */
-		port@aa000 {
-			fsl,qman-channel-id = <0x43>;
-		};
-		/* tx - 1g - 3 */
-		port@ab000 {
-			fsl,qman-channel-id = <0x44>;
-		};
-		/* tx - 1g - 4 */
-		port@ac000 {
-			fsl,qman-channel-id = <0x45>;
-		};
-		/* tx - 10g - 0 */
-		port@b0000 {
-			fsl,qman-channel-id = <0x40>;
-		};
-		/* offline 0 */
-		port@81000 {
-			fsl,qman-channel-id = <0x46>;
-		};
-		/* offline 1 */
-		port@82000 {
-			fsl,qman-channel-id = <0x47>;
-		};
-		/* offline 2 */
-		port@83000 {
-			fsl,qman-channel-id = <0x48>;
-		};
-		/* offline 3 */
-		port@84000 {
-			fsl,qman-channel-id = <0x49>;
-		};
-		/* offline 4 */
-		port@85000 {
-			fsl,qman-channel-id = <0x4a>;
-		};
-		/* offline 5 */
-		port@86000 {
-			fsl,qman-channel-id = <0x4b>;
-		};
-	};
 
-/include/ "qoriq-raid1.0-0.dtsi"
-	raideng@320000 {
-		fsl,iommu-parent = <&pamu1>;
-	};
+		enet1: ethernet@e2000 {
+		};
 
-/include/ "qoriq-rman-0.dtsi"
-	rman: rman@1e0000 {
-		fsl,qman-channels-id = <0x62 0x63>;
+		enet2: ethernet@e4000 {
+		};
+
+		enet3: ethernet@e6000 {
+		};
+
+		enet4: ethernet@e8000 {
+		};
+
+		enet5: ethernet@f0000 {
+		};
 	};
 };

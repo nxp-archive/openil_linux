@@ -285,12 +285,13 @@ static int atmel_ssc_hw_rule_rate(struct snd_pcm_hw_params *params,
 static int atmel_ssc_startup(struct snd_pcm_substream *substream,
 			     struct snd_soc_dai *dai)
 {
-	struct atmel_ssc_info *ssc_p = &ssc_info[dai->id];
+	struct platform_device *pdev = to_platform_device(dai->dev);
+	struct atmel_ssc_info *ssc_p = &ssc_info[pdev->id];
 	struct atmel_pcm_dma_params *dma_params;
 	int dir, dir_mask;
 	int ret;
 
-	pr_debug("atmel_ssc_startup: SSC_SR=0x%u\n",
+	pr_debug("atmel_ssc_startup: SSC_SR=0x%x\n",
 		ssc_readl(ssc_p->ssc->regs, SR));
 
 	/* Enable PMC peripheral clock for this SSC */
@@ -321,7 +322,7 @@ static int atmel_ssc_startup(struct snd_pcm_substream *substream,
 		return ret;
 	}
 
-	dma_params = &ssc_dma_params[dai->id][dir];
+	dma_params = &ssc_dma_params[pdev->id][dir];
 	dma_params->ssc = ssc_p->ssc;
 	dma_params->substream = substream;
 
@@ -347,7 +348,8 @@ static int atmel_ssc_startup(struct snd_pcm_substream *substream,
 static void atmel_ssc_shutdown(struct snd_pcm_substream *substream,
 			       struct snd_soc_dai *dai)
 {
-	struct atmel_ssc_info *ssc_p = &ssc_info[dai->id];
+	struct platform_device *pdev = to_platform_device(dai->dev);
+	struct atmel_ssc_info *ssc_p = &ssc_info[pdev->id];
 	struct atmel_pcm_dma_params *dma_params;
 	int dir, dir_mask;
 
@@ -393,7 +395,8 @@ static void atmel_ssc_shutdown(struct snd_pcm_substream *substream,
 static int atmel_ssc_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 		unsigned int fmt)
 {
-	struct atmel_ssc_info *ssc_p = &ssc_info[cpu_dai->id];
+	struct platform_device *pdev = to_platform_device(cpu_dai->dev);
+	struct atmel_ssc_info *ssc_p = &ssc_info[pdev->id];
 
 	ssc_p->daifmt = fmt;
 	return 0;
@@ -405,7 +408,8 @@ static int atmel_ssc_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 static int atmel_ssc_set_dai_clkdiv(struct snd_soc_dai *cpu_dai,
 	int div_id, int div)
 {
-	struct atmel_ssc_info *ssc_p = &ssc_info[cpu_dai->id];
+	struct platform_device *pdev = to_platform_device(cpu_dai->dev);
+	struct atmel_ssc_info *ssc_p = &ssc_info[pdev->id];
 
 	switch (div_id) {
 	case ATMEL_SSC_CMR_DIV:
@@ -446,7 +450,8 @@ static int atmel_ssc_hw_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *params,
 	struct snd_soc_dai *dai)
 {
-	int id = dai->id;
+	struct platform_device *pdev = to_platform_device(dai->dev);
+	int id = pdev->id;
 	struct atmel_ssc_info *ssc_p = &ssc_info[id];
 	struct ssc_device *ssc = ssc_p->ssc;
 	struct atmel_pcm_dma_params *dma_params;
@@ -648,7 +653,7 @@ static int atmel_ssc_hw_params(struct snd_pcm_substream *substream,
 		rcmr =	  SSC_BF(RCMR_PERIOD, ssc_p->rcmr_period)
 			| SSC_BF(RCMR_STTDLY, 1)
 			| SSC_BF(RCMR_START, SSC_START_RISING_RF)
-			| SSC_BF(RCMR_CKI, SSC_CKI_FALLING)
+			| SSC_BF(RCMR_CKI, SSC_CKI_RISING)
 			| SSC_BF(RCMR_CKO, SSC_CKO_NONE)
 			| SSC_BF(RCMR_CKS, SSC_CKS_DIV);
 
@@ -688,7 +693,7 @@ static int atmel_ssc_hw_params(struct snd_pcm_substream *substream,
 		rcmr =	  SSC_BF(RCMR_PERIOD, 0)
 			| SSC_BF(RCMR_STTDLY, START_DELAY)
 			| SSC_BF(RCMR_START, SSC_START_RISING_RF)
-			| SSC_BF(RCMR_CKI, SSC_CKI_FALLING)
+			| SSC_BF(RCMR_CKI, SSC_CKI_RISING)
 			| SSC_BF(RCMR_CKO, SSC_CKO_NONE)
 			| SSC_BF(RCMR_CKS, ssc->clk_from_rk_pin ?
 					   SSC_CKS_PIN : SSC_CKS_CLOCK);
@@ -773,7 +778,8 @@ static int atmel_ssc_hw_params(struct snd_pcm_substream *substream,
 static int atmel_ssc_prepare(struct snd_pcm_substream *substream,
 			     struct snd_soc_dai *dai)
 {
-	struct atmel_ssc_info *ssc_p = &ssc_info[dai->id];
+	struct platform_device *pdev = to_platform_device(dai->dev);
+	struct atmel_ssc_info *ssc_p = &ssc_info[pdev->id];
 	struct atmel_pcm_dma_params *dma_params;
 	int dir;
 
@@ -796,7 +802,8 @@ static int atmel_ssc_prepare(struct snd_pcm_substream *substream,
 static int atmel_ssc_trigger(struct snd_pcm_substream *substream,
 			     int cmd, struct snd_soc_dai *dai)
 {
-	struct atmel_ssc_info *ssc_p = &ssc_info[dai->id];
+	struct platform_device *pdev = to_platform_device(dai->dev);
+	struct atmel_ssc_info *ssc_p = &ssc_info[pdev->id];
 	struct atmel_pcm_dma_params *dma_params;
 	int dir;
 
@@ -825,11 +832,12 @@ static int atmel_ssc_trigger(struct snd_pcm_substream *substream,
 static int atmel_ssc_suspend(struct snd_soc_dai *cpu_dai)
 {
 	struct atmel_ssc_info *ssc_p;
+	struct platform_device *pdev = to_platform_device(cpu_dai->dev);
 
 	if (!cpu_dai->active)
 		return 0;
 
-	ssc_p = &ssc_info[cpu_dai->id];
+	ssc_p = &ssc_info[pdev->id];
 
 	/* Save the status register before disabling transmit and receive */
 	ssc_p->ssc_state.ssc_sr = ssc_readl(ssc_p->ssc->regs, SR);
@@ -853,12 +861,13 @@ static int atmel_ssc_suspend(struct snd_soc_dai *cpu_dai)
 static int atmel_ssc_resume(struct snd_soc_dai *cpu_dai)
 {
 	struct atmel_ssc_info *ssc_p;
+	struct platform_device *pdev = to_platform_device(cpu_dai->dev);
 	u32 cr;
 
 	if (!cpu_dai->active)
 		return 0;
 
-	ssc_p = &ssc_info[cpu_dai->id];
+	ssc_p = &ssc_info[pdev->id];
 
 	/* restore SSC register settings */
 	ssc_writel(ssc_p->ssc->regs, TFMR, ssc_p->ssc_state.ssc_tfmr);

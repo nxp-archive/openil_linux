@@ -57,7 +57,9 @@
 #include <linux/percpu.h>
 #include <linux/dma-mapping.h>
 #include <linux/fsl_bman.h>
+#ifdef CONFIG_SOC_BUS
 #include <linux/sys_soc.h>      /* soc_device_match */
+#endif
 
 #include "fsl_fman.h"
 #include "fm_ext.h"
@@ -770,6 +772,9 @@ static int dpa_private_netdev_init(struct net_device *net_dev)
 	/* Advertise GRO support */
 	net_dev->features |= NETIF_F_GRO;
 
+	/* Advertise NETIF_F_HW_ACCEL_MQ to avoid Tx timeout warnings */
+	net_dev->features |= NETIF_F_HW_ACCEL_MQ;
+
 	return dpa_netdev_init(net_dev, mac_addr, tx_timeout);
 }
 
@@ -897,7 +902,6 @@ dpaa_eth_priv_probe(struct platform_device *_of_dev)
 	struct fm_port_fqs port_fqs;
 	struct dpa_buffer_layout_s *buf_layout = NULL;
 	struct mac_device *mac_dev;
-	struct task_struct *kth;
 
 	dev = &_of_dev->dev;
 
@@ -1003,17 +1007,7 @@ dpaa_eth_priv_probe(struct platform_device *_of_dev)
 	}
 
 	priv->channel = (uint16_t)channel;
-
-	/* Start a thread that will walk the cpus with affine portals
-	 * and add this pool channel to each's dequeue mask.
-	 */
-	kth = kthread_run(dpaa_eth_add_channel,
-			  (void *)(unsigned long)priv->channel,
-			  "dpaa_%p:%d", net_dev, priv->channel);
-	if (!kth) {
-		err = -ENOMEM;
-		goto add_channel_failed;
-	}
+	dpaa_eth_add_channel(priv->channel);
 
 	dpa_fq_setup(priv, &private_fq_cbs, priv->mac_dev->port_dev[TX]);
 
@@ -1105,7 +1099,6 @@ rx_cgr_init_failed:
 	qman_delete_cgr_safe(&priv->cgr_data.cgr);
 	qman_release_cgrid(priv->cgr_data.cgr.cgrid);
 tx_cgr_init_failed:
-add_channel_failed:
 get_channel_failed:
 	dpa_bp_free(priv);
 bp_create_failed:
@@ -1143,6 +1136,7 @@ static struct platform_driver dpa_driver = {
 #ifndef CONFIG_PPC
 static bool __init __cold soc_has_errata_a010022(void)
 {
+#ifdef CONFIG_SOC_BUS
 	const struct soc_device_attribute soc_msi_matches[] = {
 		{ .family = "QorIQ LS1043A",
 		  .data = NULL },
@@ -1153,6 +1147,9 @@ static bool __init __cold soc_has_errata_a010022(void)
 		return true;
 
 	return false;
+#else
+	return true; /* cannot identify SoC */
+#endif
 }
 #endif
 

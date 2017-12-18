@@ -318,7 +318,7 @@ static int __init parse_bportals(char *str)
 }
 __setup("bportals=", parse_bportals);
 
-static void bman_offline_cpu(unsigned int cpu)
+static int bman_offline_cpu(unsigned int cpu)
 {
 	struct bman_portal *p;
 	const struct bm_portal_config *pcfg;
@@ -328,10 +328,11 @@ static void bman_offline_cpu(unsigned int cpu)
 		if (pcfg)
 			irq_set_affinity(pcfg->public_cfg.irq, cpumask_of(0));
 	}
+	return 0;
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
-static void bman_online_cpu(unsigned int cpu)
+static int bman_online_cpu(unsigned int cpu)
 {
 	struct bman_portal *p;
 	const struct bm_portal_config *pcfg;
@@ -341,10 +342,10 @@ static void bman_online_cpu(unsigned int cpu)
 		if (pcfg)
 			irq_set_affinity(pcfg->public_cfg.irq, cpumask_of(cpu));
 	}
+	return 0;
 }
-
-static int __cpuinit bman_hotplug_cpu_callback(struct notifier_block *nfb,
-					unsigned long action, void *hcpu)
+static int bman_hotplug_cpu_callback(struct notifier_block *nfb,
+				     unsigned long action, void *hcpu)
 {
 	unsigned int cpu = (unsigned long)hcpu;
 

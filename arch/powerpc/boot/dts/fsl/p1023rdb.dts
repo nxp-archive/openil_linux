@@ -43,11 +43,6 @@
 	#size-cells = <2>;
 	interrupt-parent = <&mpic>;
 
-	aliases {
-		ethernet0 = &enet0;
-		ethernet1 = &enet1;
-	};
-
 	memory {
 		device_type = "memory";
 	};
@@ -62,8 +57,8 @@
 			alignment = <0 0x1000000>;
 		};
 		qman_fqd: qman-fqd {
-			size = <0 0x800000>;
-			alignment = <0 0x800000>;
+			size = <0 0x400000>;
+			alignment = <0 0x400000>;
 		};
 		qman_pfdr: qman-pfdr {
 			size = <0 0x2000000>;
@@ -71,12 +66,12 @@
 		};
 	};
 
-	bportals: bman-portals@ff200000 {
-		ranges = <0x0 0xf 0xff200000 0x200000>;
-	};
-
 	qportals: qman-portals@ff000000 {
 		ranges = <0x0 0xf 0xff000000 0x200000>;
+	};
+
+	bportals: bman-portals@ff200000 {
+		ranges = <0x0 0xf 0xff200000 0x200000>;
 	};
 
 	soc: soc@ff600000 {
@@ -97,25 +92,6 @@
 		usb@22000 {
 			dr_mode = "host";
 			phy_type = "ulpi";
-		};
-
-		fman0: fman@100000 {
-			enet0: ethernet@e0000 {
-				phy-handle = <&phy0>;
-				phy-connection-type = "rgmii";
-			};
-			enet1: ethernet@e2000 {
-				phy-handle = <&phy1>;
-				phy-connection-type = "rgmii";
-			};
-			mdio0: mdio@e1120 {
-				phy0: ethernet-phy@1 {
-					reg = <0x01>;
-				};
-				phy1: ethernet-phy@2 {
-					reg = <0x02>;
-				};
-			};
 		};
 	};
 
@@ -279,21 +255,6 @@
 				  0x0 0x100000>;
 		};
 	};
-
-	fsl,dpaa {
-		compatible = "fsl,p1023-dpaa", "fsl,dpaa";
-
-		ethernet@0 {
-			compatible = "fsl,p1023-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet0>;
-		};
-		ethernet@1 {
-			compatible = "fsl,p1023-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet1>;
-		};
-	};
 };
 
 /include/ "p1023si-post.dtsi"
-
-/include/ "qoriq-dpaa-res2.dtsi"

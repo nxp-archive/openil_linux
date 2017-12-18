@@ -5,14 +5,12 @@
 config NET_VENDOR_FREESCALE
 	bool "Freescale devices"
 	default y
-	depends on FSL_SOC || QUICC_ENGINE || CPM1 || CPM2 || PPC_MPC512x || \
+	depends on FSL_SOC || (QUICC_ENGINE && PPC32) || CPM1 || CPM2 || PPC_MPC512x || \
 		   M523x || M527x || M5272 || M528x || M520x || M532x || \
 		   ARCH_MXC || ARCH_MXS || (PPC_MPC52xx && PPC_BESTCOMM) || \
 		   ARCH_LAYERSCAPE
 	---help---
-	  If you have a network (Ethernet) card belonging to this class, say Y
-	  and read the Ethernet-HOWTO, available from
-	  <http://www.tldp.org/docs.html#howto>.
+	  If you have a network (Ethernet) card belonging to this class, say Y.
 
 	  Note that the answer to this question doesn't directly affect the
 	  kernel: saying N will just cause the configurator to skip all
@@ -56,6 +54,7 @@ config FEC_MPC52xx_MDIO
 	  If compiled as module, it will be called fec_mpc52xx_phy.
 
 source "drivers/net/ethernet/freescale/fs_enet/Kconfig"
+source "drivers/net/ethernet/freescale/fman/Kconfig"
 
 config FSL_PQ_MDIO
 	tristate "Freescale PQ MDIO"
@@ -68,8 +67,8 @@ config FSL_XGMAC_MDIO
 	select PHYLIB
 	select OF_MDIO
 	---help---
-	  This driver supports the MDIO bus on the Fman 10G Ethernet MACs and
-	  on mEMAC (which supports both Clauses 22 and 45)
+	  This driver supports the MDIO bus on the Fman 10G Ethernet MACs, and
+	  on the FMan mEMAC (which supports both Clauses 22 and 45)
 
 config UCC_GETH
 	tristate "Freescale QE Gigabit Ethernet"
@@ -96,5 +95,4 @@ config GIANFAR
 
 source "drivers/net/ethernet/freescale/sdk_fman/Kconfig"
 source "drivers/net/ethernet/freescale/sdk_dpaa/Kconfig"
-
 endif # NET_VENDOR_FREESCALE

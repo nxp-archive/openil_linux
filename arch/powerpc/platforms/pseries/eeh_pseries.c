@@ -2,7 +2,7 @@
  * The file intends to implement the platform dependent EEH operations on pseries.
  * Actually, the pseries platform is built based on RTAS heavily. That means the
  * pseries platform dependent EEH operations will be built on RTAS calls. The functions
- * are devired from arch/powerpc/platforms/pseries/eeh.c and necessary cleanup has
+ * are derived from arch/powerpc/platforms/pseries/eeh.c and necessary cleanup has
  * been done.
  *
  * Copyright Benjamin Herrenschmidt & Gavin Shan, IBM Corporation 2011.
@@ -53,7 +53,6 @@ static int ibm_read_slot_reset_state2;
 static int ibm_slot_error_detail;
 static int ibm_get_config_addr_info;
 static int ibm_get_config_addr_info2;
-static int ibm_configure_bridge;
 static int ibm_configure_pe;
 
 /*
@@ -81,7 +80,14 @@ static int pseries_eeh_init(void)
 	ibm_get_config_addr_info2	= rtas_token("ibm,get-config-addr-info2");
 	ibm_get_config_addr_info	= rtas_token("ibm,get-config-addr-info");
 	ibm_configure_pe		= rtas_token("ibm,configure-pe");
-	ibm_configure_bridge		= rtas_token("ibm,configure-bridge");
+
+	/*
+	 * ibm,configure-pe and ibm,configure-bridge have the same semantics,
+	 * however ibm,configure-pe can be faster.  If we can't find
+	 * ibm,configure-pe then fall back to using ibm,configure-bridge.
+	 */
+	if (ibm_configure_pe == RTAS_UNKNOWN_SERVICE)
+		ibm_configure_pe 	= rtas_token("ibm,configure-bridge");
 
 	/*
 	 * Necessary sanity check. We needn't check "get-config-addr-info"
@@ -93,8 +99,7 @@ static int pseries_eeh_init(void)
 	    (ibm_read_slot_reset_state2 == RTAS_UNKNOWN_SERVICE &&
 	     ibm_read_slot_reset_state == RTAS_UNKNOWN_SERVICE)	||
 	    ibm_slot_error_detail == RTAS_UNKNOWN_SERVICE	||
-	    (ibm_configure_pe == RTAS_UNKNOWN_SERVICE		&&
-	     ibm_configure_bridge == RTAS_UNKNOWN_SERVICE)) {
+	    ibm_configure_pe == RTAS_UNKNOWN_SERVICE) {
 		pr_info("EEH functionality not supported\n");
 		return -EINVAL;
 	}
@@ -433,42 +438,34 @@ static int pseries_eeh_get_state(struct eeh_pe *pe, int *state)
 		return ret;
 
 	/* Parse the result out */
-	result = 0;
-	if (rets[1]) {
-		switch(rets[0]) {
-		case 0:
-			result &= ~EEH_STATE_RESET_ACTIVE;
-			result |= EEH_STATE_MMIO_ACTIVE;
-			result |= EEH_STATE_DMA_ACTIVE;
-			break;
-		case 1:
-			result |= EEH_STATE_RESET_ACTIVE;
-			result |= EEH_STATE_MMIO_ACTIVE;
-			result |= EEH_STATE_DMA_ACTIVE;
-			break;
-		case 2:
-			result &= ~EEH_STATE_RESET_ACTIVE;
-			result &= ~EEH_STATE_MMIO_ACTIVE;
-			result &= ~EEH_STATE_DMA_ACTIVE;
-			break;
-		case 4:
-			result &= ~EEH_STATE_RESET_ACTIVE;
-			result &= ~EEH_STATE_MMIO_ACTIVE;
-			result &= ~EEH_STATE_DMA_ACTIVE;
-			result |= EEH_STATE_MMIO_ENABLED;
-			break;
-		case 5:
-			if (rets[2]) {
-				if (state) *state = rets[2];
-				result = EEH_STATE_UNAVAILABLE;
-			} else {
-				result = EEH_STATE_NOT_SUPPORT;
-			}
-			break;
-		default:
+	if (!rets[1])
+		return EEH_STATE_NOT_SUPPORT;
+
+	switch(rets[0]) {
+	case 0:
+		result = EEH_STATE_MMIO_ACTIVE |
+			 EEH_STATE_DMA_ACTIVE;
+		break;
+	case 1:
+		result = EEH_STATE_RESET_ACTIVE |
+			 EEH_STATE_MMIO_ACTIVE  |
+			 EEH_STATE_DMA_ACTIVE;
+		break;
+	case 2:
+		result = 0;
+		break;
+	case 4:
+		result = EEH_STATE_MMIO_ENABLED;
+		break;
+	case 5:
+		if (rets[2]) {
+			if (state) *state = rets[2];
+			result = EEH_STATE_UNAVAILABLE;
+		} else {
 			result = EEH_STATE_NOT_SUPPORT;
 		}
-	} else {
+		break;
+	default:
 		result = EEH_STATE_NOT_SUPPORT;
 	}
 
@@ -519,7 +516,7 @@ static int pseries_eeh_reset(struct eeh_pe *pe, int option)
 /**
  * pseries_eeh_wait_state - Wait for PE state
  * @pe: EEH PE
- * @max_wait: maximal period in microsecond
+ * @max_wait: maximal period in millisecond
  *
  * Wait for the state of associated PE. It might take some time
  * to retrieve the PE's state.
@@ -632,18 +629,9 @@ static int pseries_eeh_configure_bridge(struct eeh_pe *pe)
 		config_addr = pe->addr;
 
 	while (max_wait > 0) {
-		/* Use new configure-pe function, if supported */
-		if (ibm_configure_pe != RTAS_UNKNOWN_SERVICE) {
-			ret = rtas_call(ibm_configure_pe, 3, 1, NULL,
-					config_addr, BUID_HI(pe->phb->buid),
-					BUID_LO(pe->phb->buid));
-		} else if (ibm_configure_bridge != RTAS_UNKNOWN_SERVICE) {
-			ret = rtas_call(ibm_configure_bridge, 3, 1, NULL,
-					config_addr, BUID_HI(pe->phb->buid),
-					BUID_LO(pe->phb->buid));
-		} else {
-			return -EFAULT;
-		}
+		ret = rtas_call(ibm_configure_pe, 3, 1, NULL,
+				config_addr, BUID_HI(pe->phb->buid),
+				BUID_LO(pe->phb->buid));
 
 		if (!ret)
 			return ret;

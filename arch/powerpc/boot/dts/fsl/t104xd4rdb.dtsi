@@ -43,24 +43,12 @@
 			alignment = <0 0x1000000>;
 		};
 		qman_fqd: qman-fqd {
-			size = <0 0x800000>;
-			alignment = <0 0x800000>;
+			size = <0 0x400000>;
+			alignment = <0 0x400000>;
 		};
 		qman_pfdr: qman-pfdr {
 			size = <0 0x2000000>;
 			alignment = <0 0x2000000>;
-		};
-		pme_pdsr: pme-pdsr {
-			compatible = "fsl,pme-pdsr";
-			alloc-ranges = <0 0 0x10000 0>;
-			size = <0 0x1000000>;
-			alignment = <0 0x1000000>;
-		};
-		pme_sre: pme-sre {
-			 compatible = "fsl,pme-sre";
-			 alloc-ranges = <0 0 0x10000 0>;
-			 size = <0 0xa00000>;
-			 alignment = <0 0xa00000>;
 		};
 	};
 
@@ -105,7 +93,6 @@
 	};
 
 	qportals: qman-portals@ff6000000 {
-		#address-cells = <1>;
 		ranges = <0x0 0xf 0xf6000000 0x2000000>;
 	};
 
@@ -121,6 +108,16 @@
 				reg = <0>;
 				/* input clock */
 				spi-max-frequency = <10000000>;
+			};
+			slic@1 {
+				compatible = "maxim,ds26522";
+				reg = <1>;
+				spi-max-frequency = <2000000>; /* input clock */
+			};
+			slic@2 {
+				compatible = "maxim,ds26522";
+				reg = <2>;
+				spi-max-frequency = <2000000>; /* input clock */
 			};
 		};
 		i2c@118000 {
@@ -223,37 +220,31 @@
 		bus-frequency = <0>;
 
 		si1: si@700 {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			compatible = "fsl,qe-si";
+			compatible = "fsl,t1040-qe-si";
 			reg = <0x700 0x80>;
 		};
 
 		siram1: siram@1000 {
-			#address-cells = <1>;
-			#size-cells = <1>;
-			compatible = "fsl,qe-siram";
+			compatible = "fsl,t1040-qe-siram";
 			reg = <0x1000 0x800>;
 		};
 
 		ucc_hdlc: ucc@2000 {
-			compatible = "fsl,ucc_hdlc";
+			compatible = "fsl,ucc-hdlc";
 			rx-clock-name = "clk8";
 			tx-clock-name = "clk9";
 			fsl,rx-sync-clock = "rsync_pin";
 			fsl,tx-sync-clock = "tsync_pin";
-			fsl,tx-timeslot = <0xfffffffe>;
-			fsl,rx-timeslot = <0xfffffffe>;
+			fsl,tx-timeslot-mask = <0xfffffffe>;
+			fsl,rx-timeslot-mask = <0xfffffffe>;
 			fsl,tdm-framer-type = "e1";
-			fsl,tdm-mode = "normal";
 			fsl,tdm-id = <0>;
 			fsl,siram-entry-id = <0>;
 			fsl,tdm-interface;
 		};
 
 		ucc_serial: ucc@2200 {
-			device_type = "serial";
-			compatible = "ucc_uart";
+			compatible = "fsl,t1040-ucc-uart";
 			port-number = <0>;
 			rx-clock-name = "brg2";
 			tx-clock-name = "brg2";

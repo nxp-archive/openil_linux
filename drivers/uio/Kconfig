@@ -126,8 +126,8 @@ config UIO_FSL_ELBC_GPCM_NETX5152
 
 config UIO_PRUSS
 	tristate "Texas Instruments PRUSS driver"
-	depends on ARCH_DAVINCI_DA850
 	select GENERIC_ALLOCATOR
+	depends on HAS_IOMEM && HAS_DMA
 	help
 	  PRUSS driver for OMAPL138/DA850/AM18XX devices
 	  PRUSS driver requires user space components, examples and user space
@@ -142,17 +142,6 @@ config UIO_PRUSS
 	  To compile this driver as a module, choose M here: the module
 	  will be called uio_pruss.
 
-config UIO_FSL_SRAM
-	bool "Freescale L2CACHE for SRAM support"
-	depends on FSL_85XX_CACHE_SRAM=n
-	default n
-	help
-	  UIO driver for the Freescale SRAM space. This driver will obtain
-	  the SRAM nodes from DTB structure, and expose the SRAM space to
-	  user space.
-
-	  If you don't know what to do here, say N.
-
 config UIO_MF624
 	tristate "Humusoft MF624 DAQ PCI card driver"
 	depends on PCI
@@ -165,43 +154,5 @@ config UIO_MF624
 	    git clone git://rtime.felk.cvut.cz/mf6xx.git
 
 	  If you compile this as a module, it will be called uio_mf624.
-
-config UIO_FSL_DMA
-	tristate "Freescale DMA support"
-	depends on FSL_DMA=n
-	default n
-	help
-	  UIO driver for the Freescale DMA controller.
-	  This driver will obtain the DMA nodes from DTB structure, and
-	  expose the DMA regiter space to user space.
-
-	  If you don't know what to do here, say N.
-
-config UIO_FSL_SRIO
-	tristate "Freescale Serial RapidIO support"
-	depends on RAPIDIO=n
-	default n
-	help
-	  UIO driver for the Freescale RapidIO unit.
-	  This driver will obtain the RapidIO nodes from DTB structure, and
-	  expose the RapidIO regiter space to user space.
-
-	  If you don't know what to do here, say N.
-
-config UIO_FSL_RMU
-	tristate "Freescale RapidIO Message Unit support"
-	depends on RAPIDIO=n
-	default n
-	help
-	  UIO driver for the Freescale RapidIO Message Unit and Doorbell.
-	  This driver will obtain the RMU nodes from DTB structure, and
-	  expose the RMU regiter space to user space.
-
-	  If you don't know what to do here, say N.
-
-config UIO_FSL_SEC
-	tristate "Freescale SEC support"
-	depends on CRYPTO_DEV_FSL_CAAM=n
-	default n
 
 endif

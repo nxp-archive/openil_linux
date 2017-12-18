@@ -355,6 +355,32 @@ static const struct dmi_system_id acer_blacklist[] __initconst = {
 	{}
 };
 
+static const struct dmi_system_id amw0_whitelist[] __initconst = {
+	{
+		.ident = "Acer",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Acer"),
+		},
+	},
+	{
+		.ident = "Gateway",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Gateway"),
+		},
+	},
+	{
+		.ident = "Packard Bell",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Packard Bell"),
+		},
+	},
+	{}
+};
+
+/*
+ * This quirk table is only for Acer/Gateway/Packard Bell family
+ * that those machines are supported by acer-wmi driver.
+ */
 static const struct dmi_system_id acer_quirks[] __initconst = {
 	{
 		.callback = dmi_matched,
@@ -464,6 +490,17 @@ static const struct dmi_system_id acer_quirks[] __initconst = {
 		},
 		.driver_data = &quirk_acer_travelmate_2490,
 	},
+	{}
+};
+
+/*
+ * This quirk list is for those non-acer machines that have AMW0_GUID1
+ * but supported by acer-wmi in past days. Keeping this quirk list here
+ * is only for backward compatible. Please do not add new machine to
+ * here anymore. Those non-acer machines should be supported by
+ * appropriate wmi drivers.
+ */
+static const struct dmi_system_id non_acer_quirks[] __initconst = {
 	{
 		.callback = dmi_matched,
 		.ident = "Fujitsu Siemens Amilo Li 1718",
@@ -598,6 +635,7 @@ static void __init find_quirks(void)
 {
 	if (!force_series) {
 		dmi_check_system(acer_quirks);
+		dmi_check_system(non_acer_quirks);
 	} else if (force_series == 2490) {
 		quirks = &quirk_acer_travelmate_2490;
 	}
@@ -793,20 +831,12 @@ static acpi_status __init AMW0_find_mailled(void)
 	return AE_OK;
 }
 
-static int AMW0_set_cap_acpi_check_device_found __initdata;
-
-static acpi_status __init AMW0_set_cap_acpi_check_device_cb(acpi_handle handle,
-	u32 level, void *context, void **retval)
-{
-	AMW0_set_cap_acpi_check_device_found = 1;
-	return AE_OK;
-}
-
 static const struct acpi_device_id norfkill_ids[] __initconst = {
 	{ "VPC2004", 0},
 	{ "IBM0068", 0},
 	{ "LEN0068", 0},
 	{ "SNY5001", 0},	/* sony-laptop in charge */
+	{ "HPQ6601", 0},
 	{ "", 0},
 };
 
@@ -815,9 +845,10 @@ static int __init AMW0_set_cap_acpi_check_device(void)
 	const struct acpi_device_id *id;
 
 	for (id = norfkill_ids; id->id[0]; id++)
-		acpi_get_devices(id->id, AMW0_set_cap_acpi_check_device_cb,
-				NULL, NULL);
-	return AMW0_set_cap_acpi_check_device_found;
+		if (acpi_dev_found(id->id))
+			return true;
+
+	return false;
 }
 
 static acpi_status __init AMW0_set_capabilities(void)
@@ -1661,58 +1692,6 @@ static void acer_rfkill_exit(void)
 	return;
 }
 
-/*
- * sysfs interface
- */
-static ssize_t show_bool_threeg(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	u32 result; \
-	acpi_status status;
-
-	pr_info("This threeg sysfs will be removed in 2014 - used by: %s\n",
-		current->comm);
-	status = get_u32(&result, ACER_CAP_THREEG);
-	if (ACPI_SUCCESS(status))
-		return sprintf(buf, "%u\n", result);
-	return sprintf(buf, "Read error\n");
-}
-
-static ssize_t set_bool_threeg(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count)
-{
-	u32 tmp = simple_strtoul(buf, NULL, 10);
-	acpi_status status = set_u32(tmp, ACER_CAP_THREEG);
-	pr_info("This threeg sysfs will be removed in 2014 - used by: %s\n",
-		current->comm);
-	if (ACPI_FAILURE(status))
-		return -EINVAL;
-	return count;
-}
-static DEVICE_ATTR(threeg, S_IRUGO | S_IWUSR, show_bool_threeg,
-	set_bool_threeg);
-
-static ssize_t show_interface(struct device *dev, struct device_attribute *attr,
-	char *buf)
-{
-	pr_info("This interface sysfs will be removed in 2014 - used by: %s\n",
-		current->comm);
-	switch (interface->type) {
-	case ACER_AMW0:
-		return sprintf(buf, "AMW0\n");
-	case ACER_AMW0_V2:
-		return sprintf(buf, "AMW0 v2\n");
-	case ACER_WMID:
-		return sprintf(buf, "WMID\n");
-	case ACER_WMID_v2:
-		return sprintf(buf, "WMID v2\n");
-	default:
-		return sprintf(buf, "Error!\n");
-	}
-}
-
-static DEVICE_ATTR(interface, S_IRUGO, show_interface, NULL);
-
 static void acer_wmi_notify(u32 value, void *context)
 {
 	struct acpi_buffer response = { ACPI_ALLOCATE_BUFFER, NULL };
@@ -1867,11 +1846,24 @@ static int __init acer_wmi_enable_lm(void)
 	return status;
 }
 
+#define ACER_WMID_ACCEL_HID	"BST0001"
+
 static acpi_status __init acer_wmi_get_handle_cb(acpi_handle ah, u32 level,
 						void *ctx, void **retval)
 {
+	struct acpi_device *dev;
+
+	if (!strcmp(ctx, "SENR")) {
+		if (acpi_bus_get_device(ah, &dev))
+			return AE_OK;
+		if (!strcmp(ACER_WMID_ACCEL_HID, acpi_device_hid(dev)))
+			return AE_OK;
+	} else
+		return AE_OK;
+
 	*(acpi_handle *)retval = ah;
-	return AE_OK;
+
+	return AE_CTRL_TERMINATE;
 }
 
 static int __init acer_wmi_get_handle(const char *name, const char *prop,
@@ -1898,7 +1890,7 @@ static int __init acer_wmi_accel_setup(void)
 {
 	int err;
 
-	err = acer_wmi_get_handle("SENR", "BST0001", &gsensor_handle);
+	err = acer_wmi_get_handle("SENR", ACER_WMID_ACCEL_HID, &gsensor_handle);
 	if (err)
 		return err;
 
@@ -2126,39 +2118,6 @@ static struct platform_driver acer_platform_driver = {
 
 static struct platform_device *acer_platform_device;
 
-static int remove_sysfs(struct platform_device *device)
-{
-	if (has_cap(ACER_CAP_THREEG))
-		device_remove_file(&device->dev, &dev_attr_threeg);
-
-	device_remove_file(&device->dev, &dev_attr_interface);
-
-	return 0;
-}
-
-static int __init create_sysfs(void)
-{
-	int retval = -ENOMEM;
-
-	if (has_cap(ACER_CAP_THREEG)) {
-		retval = device_create_file(&acer_platform_device->dev,
-			&dev_attr_threeg);
-		if (retval)
-			goto error_sysfs;
-	}
-
-	retval = device_create_file(&acer_platform_device->dev,
-		&dev_attr_interface);
-	if (retval)
-		goto error_sysfs;
-
-	return 0;
-
-error_sysfs:
-		remove_sysfs(acer_platform_device);
-	return retval;
-}
-
 static void remove_debugfs(void)
 {
 	debugfs_remove(interface->debug.devices);
@@ -2198,6 +2157,24 @@ static int __init acer_wmi_init(void)
 	}
 
 	find_quirks();
+
+	/*
+	 * The AMW0_GUID1 wmi is not only found on Acer family but also other
+	 * machines like Lenovo, Fujitsu and Medion. In the past days,
+	 * acer-wmi driver handled those non-Acer machines by quirks list.
+	 * But actually acer-wmi driver was loaded on any machines that have
+	 * AMW0_GUID1. This behavior is strange because those machines should
+	 * be supported by appropriate wmi drivers. e.g. fujitsu-laptop,
+	 * ideapad-laptop. So, here checks the machine that has AMW0_GUID1
+	 * should be in Acer/Gateway/Packard Bell white list, or it's already
+	 * in the past quirk list.
+	 */
+	if (wmi_has_guid(AMW0_GUID1) &&
+	    !dmi_check_system(amw0_whitelist) &&
+	    quirks == &quirk_unknown) {
+		pr_err("Unsupported machine has AMW0_GUID1, unable to load\n");
+		return -ENODEV;
+	}
 
 	/*
 	 * Detect which ACPI-WMI interface we're using.
@@ -2246,14 +2223,10 @@ static int __init acer_wmi_init(void)
 	set_quirks();
 
 	if (dmi_check_system(video_vendor_dmi_table))
-		acpi_video_dmi_promote_vendor();
-	if (acpi_video_backlight_support()) {
+		acpi_video_set_dmi_backlight_type(acpi_backlight_vendor);
+
+	if (acpi_video_get_backlight_type() != acpi_backlight_vendor)
 		interface->capability &= ~ACER_CAP_BRIGHTNESS;
-		pr_info("Brightness must be controlled by acpi video driver\n");
-	} else {
-		pr_info("Disabling ACPI video driver\n");
-		acpi_video_unregister_backlight();
-	}
 
 	if (wmi_has_guid(WMID_GUID3)) {
 		if (ec_raw_mode) {
@@ -2273,9 +2246,10 @@ static int __init acer_wmi_init(void)
 		err = acer_wmi_input_setup();
 		if (err)
 			return err;
+		err = acer_wmi_accel_setup();
+		if (err)
+			return err;
 	}
-
-	acer_wmi_accel_setup();
 
 	err = platform_driver_register(&acer_platform_driver);
 	if (err) {
@@ -2293,10 +2267,6 @@ static int __init acer_wmi_init(void)
 	if (err)
 		goto error_device_add;
 
-	err = create_sysfs();
-	if (err)
-		goto error_create_sys;
-
 	if (wmi_has_guid(WMID_GUID2)) {
 		interface->debug.wmid_devices = get_wmid_devices();
 		err = create_debugfs();
@@ -2310,8 +2280,6 @@ static int __init acer_wmi_init(void)
 	return 0;
 
 error_create_debugfs:
-	remove_sysfs(acer_platform_device);
-error_create_sys:
 	platform_device_del(acer_platform_device);
 error_device_add:
 	platform_device_put(acer_platform_device);
@@ -2334,7 +2302,6 @@ static void __exit acer_wmi_exit(void)
 	if (has_cap(ACER_CAP_ACCEL))
 		acer_wmi_accel_destroy();
 
-	remove_sysfs(acer_platform_device);
 	remove_debugfs();
 	platform_device_unregister(acer_platform_device);
 	platform_driver_unregister(&acer_platform_driver);

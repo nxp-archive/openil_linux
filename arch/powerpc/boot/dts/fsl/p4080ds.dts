@@ -1,18 +1,18 @@
 /*
  * P4080DS Device Tree Source
  *
- * Copyright 2009 - 2016 Freescale Semiconductor Inc.
+ * Copyright 2009 - 2015 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
- *	 notice, this list of conditions and the following disclaimer.
+ *       notice, this list of conditions and the following disclaimer.
  *     * Redistributions in binary form must reproduce the above copyright
- *	 notice, this list of conditions and the following disclaimer in the
- *	 documentation and/or other materials provided with the distribution.
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
  *     * Neither the name of Freescale Semiconductor nor the
- *	 names of its contributors may be used to endorse or promote products
- *	 derived from this software without specific prior written permission.
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
  *
  *
  * ALTERNATIVELY, this software may be distributed under the terms of the
@@ -42,16 +42,6 @@
 	interrupt-parent = <&mpic>;
 
 	aliases {
-		ethernet0 = &enet0;
-		ethernet1 = &enet1;
-		ethernet2 = &enet2;
-		ethernet3 = &enet3;
-		ethernet4 = &enet4;
-		ethernet5 = &enet5;
-		ethernet6 = &enet6;
-		ethernet7 = &enet7;
-		ethernet8 = &enet8;
-		ethernet9 = &enet9;
 		phy_rgmii = &phyrgmii;
 		phy5_slot3 = &phy5slot3;
 		phy6_slot3 = &phy6slot3;
@@ -79,24 +69,12 @@
 			alignment = <0 0x1000000>;
 		};
 		qman_fqd: qman-fqd {
-			size = <0 0x800000>;
-			alignment = <0 0x800000>;
+			size = <0 0x400000>;
+			alignment = <0 0x400000>;
 		};
 		qman_pfdr: qman-pfdr {
 			size = <0 0x2000000>;
 			alignment = <0 0x2000000>;
-		};
-		pme_pdsr: pme-pdsr {
-			compatible = "fsl,pme-pdsr";
-			alloc-ranges = <0 0 0x10000 0>;
-			size = <0 0x1000000>;
-			alignment = <0 0x1000000>;
-		};
-		pme_sre: pme-sre {
-			 compatible = "fsl,pme-sre";
-			 alloc-ranges = <0 0 0x10000 0>;
-			 size = <0 0xa00000>;
-			 alignment = <0 0xa00000>;
 		};
 	};
 
@@ -174,120 +152,55 @@
 			phy_type = "ulpi";
 		};
 
-		fman0: fman@400000 {
-			enet0: ethernet@e0000 {
-				tbi-handle = <&tbi0>;
+		fman@400000 {
+			ethernet@e0000 {
 				phy-handle = <&phy0>;
 				phy-connection-type = "sgmii";
 			};
 
-			mdio0: mdio@e1120 {
-				tbi0: tbi-phy@8 {
-					reg = <0x8>;
-					device_type = "tbi-phy";
-				};
-			};
-
-			enet1: ethernet@e2000 {
-				tbi-handle = <&tbi1>;
+			ethernet@e2000 {
 				phy-handle = <&phy1>;
 				phy-connection-type = "sgmii";
 			};
 
-			mdio@e3120 {
-				tbi1: tbi-phy@8 {
-					reg = <8>;
-					device_type = "tbi-phy";
-				};
-			};
-
-			enet2: ethernet@e4000 {
-				tbi-handle = <&tbi2>;
+			ethernet@e4000 {
 				phy-handle = <&phy2>;
 				phy-connection-type = "sgmii";
 			};
 
-			mdio@e5120 {
-				tbi2: tbi-phy@8 {
-					reg = <8>;
-					device_type = "tbi-phy";
-				};
-			};
-
-			enet3: ethernet@e6000 {
-				tbi-handle = <&tbi3>;
+			ethernet@e6000 {
 				phy-handle = <&phy3>;
 				phy-connection-type = "sgmii";
 			};
 
-			mdio@e7120 {
-				tbi3: tbi-phy@8 {
-					reg = <8>;
-					device_type = "tbi-phy";
-				};
-			};
-			enet4: ethernet@f0000 {
+			ethernet@f0000 {
 				phy-handle = <&phy10>;
 				phy-connection-type = "xgmii";
 			};
-
-			xmdio0: mdio@f1000 {
-			};
 		};
 
-		fman1: fman@500000 {
-			enet5: ethernet@e0000 {
-				tbi-handle = <&tbi5>;
+		fman@500000 {
+			ethernet@e0000 {
 				phy-handle = <&phy5>;
 				phy-connection-type = "sgmii";
 			};
-			mdio@e1120 {
-				tbi5: tbi-phy@8 {
-					reg = <8>;
-					device_type = "tbi-phy";
-				};
-			};
 
-			enet6: ethernet@e2000 {
-				tbi-handle = <&tbi6>;
+			ethernet@e2000 {
 				phy-handle = <&phy6>;
 				phy-connection-type = "sgmii";
 			};
 
-			mdio@e3120 {
-				tbi6: tbi-phy@8 {
-					reg = <8>;
-					device_type = "tbi-phy";
-				};
-			};
-
-			enet7: ethernet@e4000 {
-				tbi-handle = <&tbi7>;
+			ethernet@e4000 {
 				phy-handle = <&phy7>;
 				phy-connection-type = "sgmii";
 			};
 
-			mdio@e5120 {
-				tbi7: tbi-phy@8 {
-					reg = <8>;
-					device_type = "tbi-phy";
-				};
-			};
-
-			enet8: ethernet@e6000 {
-				tbi-handle = <&tbi8>;
+			ethernet@e6000 {
 				phy-handle = <&phy8>;
 				phy-connection-type = "sgmii";
 			};
 
-			mdio@e7120 {
-				tbi8: tbi-phy@8 {
-					reg = <8>;
-					device_type = "tbi-phy";
-				};
-			};
-
-			enet9: ethernet@f0000 {
+			ethernet@f0000 {
 				phy-handle = <&phy11>;
 				phy-connection-type = "xgmii";
 			};
@@ -369,16 +282,16 @@
 	};
 
 	mdio-mux-emi1 {
-		compatible = "mdio-mux-gpio";
-		gpios = <&gpio0 1 0>, <&gpio0 0 0>;
-		mdio-parent-bus = <&mdio0>;
 		#address-cells = <1>;
 		#size-cells = <0>;
+		compatible = "mdio-mux-gpio", "mdio-mux";
+		mdio-parent-bus = <&mdio0>;
+		gpios = <&gpio0 1 0>, <&gpio0 0 0>;
 
 		p4080mdio0: mdio@0 {
-			reg = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			reg = <0>;
 
 			phyrgmii: ethernet-phy@0 {
 				reg = <0x0>;
@@ -386,74 +299,84 @@
 		};
 
 		p4080mdio1: mdio@1 {
-			reg = <1>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			reg = <1>;
 
 			phy5: ethernet-phy@1c {
 				reg = <0x1c>;
 			};
+
 			phy6: ethernet-phy@1d {
 				reg = <0x1d>;
 			};
+
 			phy7: ethernet-phy@1e {
 				reg = <0x1e>;
 			};
+
 			phy8: ethernet-phy@1f {
 				reg = <0x1f>;
 			};
 		};
 
 		p4080mdio2: mdio@2 {
-			reg = <2>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			reg = <2>;
 			status = "disabled";
 
 			phy5slot3: ethernet-phy@1c {
 				reg = <0x1c>;
 			};
+
 			phy6slot3: ethernet-phy@1d {
 				reg = <0x1d>;
 			};
+
 			phy7slot3: ethernet-phy@1e {
 				reg = <0x1e>;
 			};
+
 			phy8slot3: ethernet-phy@1f {
 				reg = <0x1f>;
 			};
 		};
 
 		p4080mdio3: mdio@3 {
-			reg = <3>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			reg = <3>;
 
 			phy0: ethernet-phy@1c {
 				reg = <0x1c>;
 			};
+
 			phy1: ethernet-phy@1d {
 				reg = <0x1d>;
 			};
+
 			phy2: ethernet-phy@1e {
 				reg = <0x1e>;
 			};
+
 			phy3: ethernet-phy@1f {
 				reg = <0x1f>;
 			};
 		};
 	};
+
 	mdio-mux-emi2 {
-		compatible = "mdio-mux-gpio";
-		gpios = <&gpio0 3 0>, <&gpio0 2 0>;
-		mdio-parent-bus = <&xmdio0>;
 		#address-cells = <1>;
 		#size-cells = <0>;
+		compatible = "mdio-mux-gpio", "mdio-mux";
+		mdio-parent-bus = <&xmdio0>;
+		gpios = <&gpio0 3 0>, <&gpio0 2 0>;
 
 		p4080xmdio1: mdio@1 {
-			reg = <1>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			reg = <1>;
 
 			phy11: ethernet-phy@0 {
 				compatible = "ethernet-phy-ieee802.3-c45";
@@ -462,9 +385,9 @@
 		};
 
 		p4080xmdio3: mdio@3 {
-			reg = <3>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			reg = <3>;
 
 			phy10: ethernet-phy@4 {
 				compatible = "ethernet-phy-ieee802.3-c45";
@@ -472,51 +395,6 @@
 			};
 		};
 	};
-	fsl,dpaa {
-		compatible = "fsl,p4080-dpaa", "fsl,dpaa";
-
-		ethernet@0 {
-			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet0>;
-		};
-		ethernet@1 {
-			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet1>;
-		};
-		ethernet@2 {
-			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet2>;
-		};
-		ethernet@3 {
-			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet3>;
-		};
-		ethernet@4 {
-			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet4>;
-		};
-		ethernet@5 {
-			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet5>;
-		};
-		ethernet@6 {
-			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet6>;
-		};
-		ethernet@7 {
-			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet7>;
-		};
-		ethernet@8 {
-			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet8>;
-		};
-		ethernet@9 {
-			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet9>;
-		};
-	};
 };
 
 /include/ "p4080si-post.dtsi"
-/include/ "qoriq-dpaa-res1.dtsi"

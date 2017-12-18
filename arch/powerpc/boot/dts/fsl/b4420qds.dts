@@ -45,21 +45,6 @@
 		};
 	};
 
-	fsl,dpaa {
-		compatible = "fsl,b4420-dpaa", "fsl,dpaa";
-		ethernet@0 {
-			compatible = "fsl,b4420-dpa-ethernet", "fsl,dpa-ethernet";
-		};
-		ethernet@1 {
-			compatible = "fsl,b4420-dpa-ethernet", "fsl,dpa-ethernet";
-		};
-		ethernet@2 {
-			compatible = "fsl,b4420-dpa-ethernet", "fsl,dpa-ethernet";
-		};
-		ethernet@3 {
-			compatible = "fsl,b4420-dpa-ethernet", "fsl,dpa-ethernet";
-		};
-	};
 };
 
 /include/ "b4420si-post.dtsi"

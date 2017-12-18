@@ -1,18 +1,18 @@
 /*
  * QorIQ FMan v3 10g port #1 device tree stub [ controller @ offset 0x400000 ]
  *
- * Copyright 2012 Freescale Semiconductor Inc.
+ * Copyright 2012 - 2015 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
+ *	 notice, this list of conditions and the following disclaimer.
  *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in the
- *       documentation and/or other materials provided with the distribution.
+ *	 notice, this list of conditions and the following disclaimer in the
+ *	 documentation and/or other materials provided with the distribution.
  *     * Neither the name of Freescale Semiconductor nor the
- *       names of its contributors may be used to endorse or promote products
- *       derived from this software without specific prior written permission.
+ *	 names of its contributors may be used to endorse or promote products
+ *	 derived from this software without specific prior written permission.
  *
  *
  * ALTERNATIVELY, this software may be distributed under the terms of the
@@ -33,30 +33,36 @@
  */
 
 fman@400000 {
-	fman0_10g_rx1: port@91000 {
-		cell-index = <1>;
-		compatible = "fsl,fman-port-10g-rx";
+	fman0_rx_0x11: port@91000 {
+		cell-index = <0x11>;
+		compatible = "fsl,fman-v3-port-rx", "fsl,fman-port-10g-rx";
 		reg = <0x91000 0x1000>;
+		fsl,fman-10g-port;
 	};
 
-	fman0_10g_tx1: port@b1000 {
-		cell-index = <1>;
-		compatible = "fsl,fman-port-10g-tx";
+	fman0_tx_0x31: port@b1000 {
+		cell-index = <0x31>;
+		compatible = "fsl,fman-v3-port-tx", "fsl,fman-port-10g-tx";
 		reg = <0xb1000 0x1000>;
-		fsl,qman-channel-id = <0x801>;
+		fsl,fman-10g-port;
 	};
 
 	ethernet@f2000 {
-		cell-index = <1>;
+		cell-index = <0x9>;
 		compatible = "fsl,fman-memac";
 		reg = <0xf2000 0x1000>;
-		fsl,port-handles = <&fman0_10g_rx1 &fman0_10g_tx1>;
+		fsl,fman-ports = <&fman0_rx_0x11 &fman0_tx_0x31>;
+		pcsphy-handle = <&pcsphy7>;
 	};
 
 	mdio@f3000 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		compatible = "fsl,fman-memac-mdio";
+		compatible = "fsl,fman-memac-mdio", "fsl,fman-xmdio";
 		reg = <0xf3000 0x1000>;
+
+		pcsphy7: ethernet-phy@0 {
+			reg = <0x0>;
+		};
 	};
 };

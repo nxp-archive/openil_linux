@@ -30,6 +30,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/msi.h>
 
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
@@ -43,8 +44,10 @@
 #include "dpsw.h"
 #include "dpsw-cmd.h"
 
+static const char ethsw_drv_version[] = "0.1";
+
 /* Minimal supported DPSE version */
-#define DPSW_MIN_VER_MAJOR	7
+#define DPSW_MIN_VER_MAJOR	8
 #define DPSW_MIN_VER_MINOR	0
 
 /* IRQ index */
@@ -55,6 +58,11 @@
 #define ETHSW_VLAN_PVID		4
 #define ETHSW_VLAN_GLOBAL	8
 
+/* Maximum Frame Length supported by HW (currently 10k) */
+#define DPAA2_MFL		(10 * 1024)
+#define ETHSW_MAX_FRAME_LENGTH	(DPAA2_MFL - VLAN_ETH_HLEN - ETH_FCS_LEN)
+#define ETHSW_L2_MAX_FRM(mtu)	((mtu) + VLAN_ETH_HLEN + ETH_FCS_LEN)
+
 struct ethsw_port_priv {
 	struct net_device	*netdev;
 	struct list_head	list;
@@ -62,14 +70,14 @@ struct ethsw_port_priv {
 	struct ethsw_dev_priv	*ethsw_priv;
 	u8			stp_state;
 
-	char			vlans[VLAN_VID_MASK+1];
+	char			vlans[VLAN_VID_MASK + 1];
 
 };
 
 struct ethsw_dev_priv {
 	struct net_device		*netdev;
 	struct fsl_mc_io		*mc_io;
-	uint16_t			dpsw_handle;
+	u16			dpsw_handle;
 	struct dpsw_attr		sw_attr;
 	int				dev_id;
 	/*TODO: redundant, we can use the slave dev list */
@@ -78,7 +86,7 @@ struct ethsw_dev_priv {
 	bool				flood;
 	bool				learning;
 
-	char				vlans[VLAN_VID_MASK+1];
+	char				vlans[VLAN_VID_MASK + 1];
 };
 
 static int ethsw_port_stop(struct net_device *netdev);
@@ -246,7 +254,7 @@ static int ethsw_port_add_vlan(struct net_device *netdev, u16 vid, u16 flags)
 	return 0;
 }
 
-static const struct nla_policy ifla_br_policy[IFLA_MAX+1] = {
+static const struct nla_policy ifla_br_policy[IFLA_MAX + 1] = {
 	[IFLA_BRIDGE_FLAGS]	= { .type = NLA_U16 },
 	[IFLA_BRIDGE_MODE]	= { .type = NLA_U16 },
 	[IFLA_BRIDGE_VLAN_INFO]	= { .type = NLA_BINARY,
@@ -439,7 +447,7 @@ static int ethsw_setlink(struct net_device *netdev,
 {
 	struct nlattr	*attr;
 	struct nlattr	*tb[(IFLA_BRIDGE_MAX > IFLA_BRPORT_MAX) ?
-				IFLA_BRIDGE_MAX : IFLA_BRPORT_MAX+1];
+				IFLA_BRIDGE_MAX : IFLA_BRPORT_MAX + 1];
 	int err = 0;
 
 	attr = nlmsg_find_attr(nlh, sizeof(struct ifinfomsg), IFLA_AF_SPEC);
@@ -593,7 +601,7 @@ static int __nla_put_vlan(struct sk_buff *skb,  struct net_device *netdev,
 	else
 		vlans = priv->vlans;
 
-	for (i = 0; i < VLAN_VID_MASK+1; i++) {
+	for (i = 0; i < VLAN_VID_MASK + 1; i++) {
 		vinfo.flags = 0;
 		vinfo.vid = i;
 
@@ -738,7 +746,7 @@ static int ethsw_dellink(struct net_device *netdev,
 			 struct nlmsghdr *nlh,
 			 u16 flags)
 {
-	struct nlattr		*tb[IFLA_BRIDGE_MAX+1];
+	struct nlattr		*tb[IFLA_BRIDGE_MAX + 1];
 	struct nlattr		*spec;
 	struct bridge_vlan_info	*vinfo;
 	struct ethsw_dev_priv	*priv;
@@ -815,10 +823,6 @@ static int ethsw_port_open(struct net_device *netdev)
 	struct ethsw_port_priv	*port_priv = netdev_priv(netdev);
 	int			err;
 
-	if (!netif_oper_up(netdev) ||
-	    port_priv->stp_state == BR_STATE_DISABLED)
-		return 0;
-
 	err = dpsw_if_enable(port_priv->ethsw_priv->mc_io, 0,
 			     port_priv->ethsw_priv->dpsw_handle,
 			     port_priv->port_index);
@@ -827,7 +831,21 @@ static int ethsw_port_open(struct net_device *netdev)
 		return err;
 	}
 
+	/* sync carrier state */
+	err = _ethsw_port_carrier_state_sync(netdev);
+	if (err) {
+		netdev_err(netdev, "_ethsw_port_carrier_state_sync err %d\n",
+			   err);
+		goto err_carrier_sync;
+	}
+
 	return 0;
+
+err_carrier_sync:
+	dpsw_if_disable(port_priv->ethsw_priv->mc_io, 0,
+			port_priv->ethsw_priv->dpsw_handle,
+			port_priv->port_index);
+	return err;
 }
 
 static int ethsw_port_stop(struct net_device *netdev)
@@ -1076,9 +1094,8 @@ static int ethsw_port_fdb_del(struct ndmsg *ndm, struct nlattr *tb[],
 	return 0;
 }
 
-static struct rtnl_link_stats64 *
-ethsw_port_get_stats(struct net_device *netdev,
-		     struct rtnl_link_stats64 *storage)
+void ethsw_port_get_stats(struct net_device *netdev,
+			  struct rtnl_link_stats64 *storage)
 {
 	struct ethsw_port_priv	*port_priv = netdev_priv(netdev);
 	u64			tmp;
@@ -1137,11 +1154,36 @@ ethsw_port_get_stats(struct net_device *netdev,
 	if (err)
 		goto error;
 
-	return storage;
+	return;
 
 error:
 	netdev_err(netdev, "dpsw_if_get_counter err %d\n", err);
-	return storage;
+}
+
+static int ethsw_port_change_mtu(struct net_device *netdev, int mtu)
+{
+	struct ethsw_port_priv	*port_priv = netdev_priv(netdev);
+	int			err;
+
+	if (mtu < ETH_ZLEN || mtu > ETHSW_MAX_FRAME_LENGTH) {
+		netdev_err(netdev, "Invalid MTU %d. Valid range is: %d..%d\n",
+			   mtu, ETH_ZLEN, ETHSW_MAX_FRAME_LENGTH);
+		return -EINVAL;
+	}
+
+	err = dpsw_if_set_max_frame_length(port_priv->ethsw_priv->mc_io,
+					   0,
+					   port_priv->ethsw_priv->dpsw_handle,
+					   port_priv->port_index,
+					   (u16)ETHSW_L2_MAX_FRM(mtu));
+	if (err) {
+		netdev_err(netdev,
+			   "dpsw_if_set_max_frame_length() err %d\n", err);
+		return err;
+	}
+
+	netdev->mtu = mtu;
+	return 0;
 }
 
 static const struct net_device_ops ethsw_port_ops = {
@@ -1153,9 +1195,118 @@ static const struct net_device_ops ethsw_port_ops = {
 	.ndo_fdb_dump		= &ndo_dflt_fdb_dump,
 
 	.ndo_get_stats64	= &ethsw_port_get_stats,
+	.ndo_change_mtu		= &ethsw_port_change_mtu,
 
 	.ndo_start_xmit		= &ethsw_dropframe,
 };
+
+static void ethsw_get_drvinfo(struct net_device *netdev,
+			      struct ethtool_drvinfo *drvinfo)
+{
+	struct ethsw_port_priv *port_priv = netdev_priv(netdev);
+	u16 version_major, version_minor;
+	int err;
+
+	strlcpy(drvinfo->driver, KBUILD_MODNAME, sizeof(drvinfo->driver));
+	strlcpy(drvinfo->version, ethsw_drv_version, sizeof(drvinfo->version));
+
+	err = dpsw_get_api_version(port_priv->ethsw_priv->mc_io, 0,
+				   &version_major,
+				   &version_minor);
+	if (err)
+		strlcpy(drvinfo->fw_version, "N/A",
+			sizeof(drvinfo->fw_version));
+	else
+		snprintf(drvinfo->fw_version, sizeof(drvinfo->fw_version),
+			 "%u.%u", version_major, version_minor);
+
+	strlcpy(drvinfo->bus_info, dev_name(netdev->dev.parent->parent),
+		sizeof(drvinfo->bus_info));
+}
+
+static int ethsw_get_settings(struct net_device *netdev,
+			      struct ethtool_cmd *cmd)
+{
+	struct ethsw_port_priv *port_priv = netdev_priv(netdev);
+	struct dpsw_link_state state = {0};
+	int err = 0;
+
+	err = dpsw_if_get_link_state(port_priv->ethsw_priv->mc_io, 0,
+				     port_priv->ethsw_priv->dpsw_handle,
+				     port_priv->port_index,
+				     &state);
+	if (err) {
+		netdev_err(netdev, "ERROR %d getting link state", err);
+		goto out;
+	}
+
+	/* At the moment, we have no way of interrogating the DPMAC
+	 * from the DPSW side or there may not exist a DPMAC at all.
+	 * Report only autoneg state, duplexity and speed.
+	 */
+	if (state.options & DPSW_LINK_OPT_AUTONEG)
+		cmd->autoneg = AUTONEG_ENABLE;
+	if (!(state.options & DPSW_LINK_OPT_HALF_DUPLEX))
+		cmd->autoneg = DUPLEX_FULL;
+	ethtool_cmd_speed_set(cmd, state.rate);
+
+out:
+	return err;
+}
+
+static int ethsw_set_settings(struct net_device *netdev,
+			      struct ethtool_cmd *cmd)
+{
+	struct ethsw_port_priv *port_priv = netdev_priv(netdev);
+	struct dpsw_link_state state = {0};
+	struct dpsw_link_cfg cfg = {0};
+	int err = 0;
+
+	netdev_dbg(netdev, "Setting link parameters...");
+
+	err = dpsw_if_get_link_state(port_priv->ethsw_priv->mc_io, 0,
+				     port_priv->ethsw_priv->dpsw_handle,
+				     port_priv->port_index,
+				     &state);
+	if (err) {
+		netdev_err(netdev, "ERROR %d getting link state", err);
+		goto out;
+	}
+
+	/* Due to a temporary MC limitation, the DPSW port must be down
+	 * in order to be able to change link settings. Taking steps to let
+	 * the user know that.
+	 */
+	if (netif_running(netdev)) {
+		netdev_info(netdev,
+			    "Sorry, interface must be brought down first.\n");
+		return -EACCES;
+	}
+
+	cfg.options = state.options;
+	cfg.rate = ethtool_cmd_speed(cmd);
+	if (cmd->autoneg == AUTONEG_ENABLE)
+		cfg.options |= DPSW_LINK_OPT_AUTONEG;
+	else
+		cfg.options &= ~DPSW_LINK_OPT_AUTONEG;
+	if (cmd->duplex == DUPLEX_HALF)
+		cfg.options |= DPSW_LINK_OPT_HALF_DUPLEX;
+	else
+		cfg.options &= ~DPSW_LINK_OPT_HALF_DUPLEX;
+
+	err = dpsw_if_set_link_cfg(port_priv->ethsw_priv->mc_io, 0,
+				   port_priv->ethsw_priv->dpsw_handle,
+				   port_priv->port_index,
+				   &cfg);
+	if (err)
+		/* ethtool will be loud enough if we return an error; no point
+		 * in putting our own error message on the console by default
+		 */
+		netdev_dbg(netdev, "ERROR %d setting link cfg", err);
+
+out:
+	return err;
+}
 
 static struct {
 	enum dpsw_counter id;
@@ -1188,7 +1339,7 @@ static int ethsw_ethtool_get_sset_count(struct net_device *dev, int sset)
 static void ethsw_ethtool_get_strings(struct net_device *netdev,
 				      u32 stringset, u8 *data)
 {
-	int i;
+	u32 i;
 
 	switch (stringset) {
 	case ETH_SS_STATS:
@@ -1204,7 +1355,7 @@ static void ethsw_ethtool_get_stats(struct net_device *netdev,
 				    u64 *data)
 {
 	struct ethsw_port_priv	*port_priv = netdev_priv(netdev);
-	int			i;
+	u32			i;
 	int			err;
 
 	for (i = 0; i < ARRAY_SIZE(ethsw_ethtool_counters); i++) {
@@ -1220,6 +1371,10 @@ static void ethsw_ethtool_get_stats(struct net_device *netdev,
 }
 
 static const struct ethtool_ops ethsw_port_ethtool_ops = {
+	.get_drvinfo		= &ethsw_get_drvinfo,
+	.get_link		= &ethtool_op_get_link,
+	.get_settings		= &ethsw_get_settings,
+	.set_settings		= &ethsw_set_settings,
 	.get_strings		= &ethsw_ethtool_get_strings,
 	.get_ethtool_stats	= &ethsw_ethtool_get_stats,
 	.get_sset_count		= &ethsw_ethtool_get_sset_count,
@@ -1256,23 +1411,16 @@ static irqreturn_t ethsw_irq0_handler(int irq_num, void *arg)
 static irqreturn_t _ethsw_irq0_handler_thread(int irq_num, void *arg)
 {
 	struct device		*dev = (struct device *)arg;
-	struct fsl_mc_device	*sw_dev = to_fsl_mc_device(dev);
 	struct net_device	*netdev = dev_get_drvdata(dev);
 	struct ethsw_dev_priv	*priv = netdev_priv(netdev);
 
 	struct fsl_mc_io *io = priv->mc_io;
-	uint16_t token = priv->dpsw_handle;
+	u16 token = priv->dpsw_handle;
 	int irq_index = DPSW_IRQ_INDEX_IF;
 
 	/* Mask the events and the if_id reserved bits to be cleared on read */
-	uint32_t status = DPSW_IRQ_EVENT_LINK_CHANGED | 0xFFFF0000;
+	u32 status = DPSW_IRQ_EVENT_LINK_CHANGED | 0xFFFF0000;
 	int err;
-
-	/* Sanity check */
-	if (WARN_ON(!sw_dev || !sw_dev->irqs || !sw_dev->irqs[irq_index]))
-		goto out;
-	if (WARN_ON(sw_dev->irqs[irq_index]->irq_number != irq_num))
-		goto out;
 
 	err = dpsw_get_irq_status(io, 0, token, irq_index, &status);
 	if (unlikely(err)) {
@@ -1304,7 +1452,7 @@ static int ethsw_setup_irqs(struct fsl_mc_device *sw_dev)
 	int err = 0;
 	struct fsl_mc_device_irq *irq;
 	const int irq_index = DPSW_IRQ_INDEX_IF;
-	uint32_t mask = DPSW_IRQ_EVENT_LINK_CHANGED;
+	u32 mask = DPSW_IRQ_EVENT_LINK_CHANGED;
 
 	err = fsl_mc_allocate_irqs(sw_dev);
 	if (unlikely(err)) {
@@ -1326,7 +1474,7 @@ static int ethsw_setup_irqs(struct fsl_mc_device *sw_dev)
 
 	irq = sw_dev->irqs[irq_index];
 
-	err = devm_request_threaded_irq(dev, irq->irq_number,
+	err = devm_request_threaded_irq(dev, irq->msi_desc->irq,
 					ethsw_irq0_handler,
 					_ethsw_irq0_handler_thread,
 					IRQF_NO_SUSPEND | IRQF_ONESHOT,
@@ -1353,7 +1501,7 @@ static int ethsw_setup_irqs(struct fsl_mc_device *sw_dev)
 	return 0;
 
 free_devm_irq:
-	devm_free_irq(dev, irq->irq_number, dev);
+	devm_free_irq(dev, irq->msi_desc->irq, dev);
 free_irq:
 	fsl_mc_free_irqs(sw_dev);
 	return err;
@@ -1366,9 +1514,9 @@ static void ethsw_teardown_irqs(struct fsl_mc_device *sw_dev)
 	struct ethsw_dev_priv	*priv = netdev_priv(netdev);
 
 	dpsw_set_irq_enable(priv->mc_io, 0, priv->dpsw_handle,
-			      DPSW_IRQ_INDEX_IF, 0);
+			    DPSW_IRQ_INDEX_IF, 0);
 	devm_free_irq(dev,
-		      sw_dev->irqs[DPSW_IRQ_INDEX_IF]->irq_number,
+		      sw_dev->irqs[DPSW_IRQ_INDEX_IF]->msi_desc->irq,
 		      dev);
 	fsl_mc_free_irqs(sw_dev);
 }
@@ -1381,6 +1529,7 @@ ethsw_init(struct fsl_mc_device *sw_dev)
 	struct net_device	*netdev;
 	int			err = 0;
 	u16			i;
+	u16			version_major, version_minor;
 	const struct dpsw_stp_cfg stp_cfg = {
 		.vlan_id = 1,
 		.state = DPSW_STP_STATE_FORWARDING,
@@ -1409,13 +1558,21 @@ ethsw_init(struct fsl_mc_device *sw_dev)
 		goto err_close;
 	}
 
+	err = dpsw_get_api_version(priv->mc_io, 0,
+				   &version_major,
+				   &version_minor);
+	if (err) {
+		dev_err(dev, "dpsw_get_api_version err %d\n", err);
+		goto err_close;
+	}
+
 	/* Minimum supported DPSW version check */
-	if (priv->sw_attr.version.major < DPSW_MIN_VER_MAJOR ||
-	    (priv->sw_attr.version.major == DPSW_MIN_VER_MAJOR &&
-	     priv->sw_attr.version.minor < DPSW_MIN_VER_MINOR)) {
+	if (version_major < DPSW_MIN_VER_MAJOR ||
+	    (version_major == DPSW_MIN_VER_MAJOR &&
+	     version_minor < DPSW_MIN_VER_MINOR)) {
 		dev_err(dev, "DPSW version %d:%d not supported. Use %d.%d or greater.\n",
-			priv->sw_attr.version.major,
-			priv->sw_attr.version.minor,
+			version_major,
+			version_minor,
 			DPSW_MIN_VER_MAJOR, DPSW_MIN_VER_MINOR);
 		err = -ENOTSUPP;
 		goto err_close;
@@ -1623,7 +1780,8 @@ ethsw_probe(struct fsl_mc_device *sw_dev)
 
 		rtnl_lock();
 
-		err = netdev_master_upper_dev_link(port_netdev, netdev);
+		err = netdev_master_upper_dev_link(port_netdev, netdev,
+						   NULL, NULL);
 		if (err) {
 			dev_err(dev, "netdev_master_upper_dev_link error %d\n",
 				err);
@@ -1644,14 +1802,6 @@ ethsw_probe(struct fsl_mc_device *sw_dev)
 		if (err)
 			dev_warn(&netdev->dev,
 				 "ethsw_port_fdb_add_mc err %d\n", err);
-
-
-		/* sync carrier state */
-		err = _ethsw_port_carrier_state_sync(port_netdev);
-		if (err)
-			netdev_err(netdev,
-				   "_ethsw_port_carrier_state_sync err %d\n",
-				   err);
 	}
 
 	/* the switch starts up enabled */
@@ -1683,12 +1833,10 @@ err_free_netdev:
 	return err;
 }
 
-static const struct fsl_mc_device_match_id ethsw_match_id_table[] = {
+static const struct fsl_mc_device_id ethsw_match_id_table[] = {
 	{
 		.vendor = FSL_MC_VENDOR_FREESCALE,
 		.obj_type = "dpsw",
-		.ver_major = DPSW_VER_MAJOR,
-		.ver_minor = DPSW_VER_MINOR,
 	},
 	{}
 };

@@ -41,29 +41,6 @@
 	#size-cells = <2>;
 	interrupt-parent = <&mpic>;
 
-	aliases {
-		sg_2500_aqr105_phy4 = &sg_2500_aqr105_phy4;
-	};
-
-	reserved-memory {
-		#address-cells = <2>;
-		#size-cells = <2>;
-		ranges;
-
-		bman_fbpr: bman-fbpr {
-			size = <0 0x1000000>;
-			alignment = <0 0x1000000>;
-		};
-		qman_fqd: qman-fqd {
-			size = <0 0x800000>;
-			alignment = <0 0x800000>;
-		};
-		qman_pfdr: qman-pfdr {
-			size = <0 0x2000000>;
-			alignment = <0 0x2000000>;
-		};
-	};
-
 	ifc: localbus@ffe124000 {
 		reg = <0xf 0xfe124000 0 0x2000>;
 		ranges = <0 0 0xf 0xe8000000 0x08000000
@@ -105,14 +82,6 @@
 		ranges = <0x00000000 0xf 0x00000000 0x01072000>;
 	};
 
-	bportals: bman-portals@ff4000000 {
-		ranges = <0x0 0xf 0xf4000000 0x2000000>;
-	};
-
-	qportals: qman-portals@ff6000000 {
-		ranges = <0x0 0xf 0xf6000000 0x2000000>;
-	};
-
 	soc: soc@ffe000000 {
 		ranges = <0x00000000 0xf 0xfe000000 0x1000000>;
 		reg = <0xf 0xfe000000 0 0x00001000>;
@@ -122,7 +91,7 @@
 				#size-cells = <1>;
 				compatible = "micron,n25q512ax3", "jedec,spi-nor";
 				reg = <0>;
-				spi-max-frequency = <10000000>; /* input clock */
+				spi-max-frequency = <10000000>; /* input clk */
 			};
 
 			slic@1 {
@@ -145,15 +114,14 @@
 				reg = <0x4c>;
 			};
 
-			/* INA220 Current Sense */
-			ina220@40 {
+			current-sensor@40 {
 				compatible = "ti,ina220";
 				reg = <0x40>;
 				shunt-resistor = <1000>;
 			};
 
 			eeprom@50 {
-				compatible = "at24,24c256";
+				compatible = "atmel,24c256";
 				reg = <0x50>;
 			};
 
@@ -173,30 +141,29 @@
 			};
 		};
 
-		fman0: fman@400000 {
-			rcpm-wakeup = <&rcpm 0x00000008>;
-
+		fman@400000 {
 			fm1mac1: ethernet@e0000 {
 				phy-handle = <&xg_aqr105_phy3>;
 				phy-connection-type = "xgmii";
-				rcpm-wakeup = <&rcpm 0x80000000>;
+				sleep = <&rcpm 0x80000000>;
 			};
 
 			fm1mac2: ethernet@e2000 {
-				rcpm-wakeup = <&rcpm 0x40000000>;
+				sleep = <&rcpm 0x40000000>;
 			};
 
 			fm1mac3: ethernet@e4000 {
 				phy-handle = <&rgmii_phy2>;
 				phy-connection-type = "rgmii";
-				rcpm-wakeup = <&rcpm 0x20000000>;
+				sleep = <&rcpm 0x20000000>;
 			};
 
 			fm1mac4: ethernet@e6000 {
 				phy-handle = <&rgmii_phy1>;
 				phy-connection-type = "rgmii";
-				rcpm-wakeup = <&rcpm 0x10000000>;
+				sleep = <&rcpm 0x10000000>;
 			};
+
 
 			mdio0: mdio@fc000 {
 				rgmii_phy1: ethernet-phy@2 {
@@ -210,86 +177,20 @@
 			xmdio0: mdio@fd000 {
 				xg_aqr105_phy3: ethernet-phy@1 {
 					compatible = "ethernet-phy-ieee802.3-c45";
-					interrupts = <0 1 0 0>;
 					reg = <0x1>;
 				};
 				sg_2500_aqr105_phy4: ethernet-phy@2 {
 					compatible = "ethernet-phy-ieee802.3-c45";
-					interrupts = <0 1 0 0>;
 					reg = <0x2>;
 				};
 			};
 		};
 	};
 
-	fsl,dpaa {
-		compatible = "fsl,t1024-dpaa", "fsl,dpaa";
-		ethernet@0 {
-			compatible = "fsl,t1024-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac1>;
-		};
-		ethernet@1 {
-			compatible = "fsl,t1024-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac2>;
-		};
-		ethernet@2 {
-			compatible = "fsl,t1024-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac3>;
-		};
-		ethernet@3 {
-			compatible = "fsl,t1024-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac4>;
-		};
-	};
-
-	qe: qe@ffe139999 {
-		ranges = <0x0 0xf 0xfe140000 0x40000>;
-		reg = <0xf 0xfe140000 0 0x480>;
-		brg-frequency = <0>;
-		bus-frequency = <0>;
-
-		si1: si@700 {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			compatible = "fsl,qe-si";
-			reg = <0x700 0x80>;
-		};
-
-		siram1: siram@1000 {
-			#address-cells = <1>;
-			#size-cells = <1>;
-			compatible = "fsl,qe-siram";
-			reg = <0x1000 0x800>;
-		};
-
-		ucc_hdlc: ucc@2000 {
-			compatible = "fsl,ucc_hdlc";
-			rx-clock-name = "clk8";
-			tx-clock-name = "clk9";
-			fsl,rx-sync-clock = "rsync_pin";
-			fsl,tx-sync-clock = "tsync_pin";
-			fsl,tx-timeslot = <0xfffffffe>;
-			fsl,rx-timeslot = <0xfffffffe>;
-			fsl,tdm-framer-type = "e1";
-			fsl,tdm-mode = "normal";
-			fsl,tdm-id = <0>;
-			fsl,siram-entry-id = <0>;
-			fsl,tdm-interface;
-		};
-
-		ucc_serial: ucc@2200 {
-			device_type = "serial";
-			compatible = "ucc_uart";
-			port-number = <0>;
-			rx-clock-name = "brg2";
-			tx-clock-name = "brg2";
-		};
-	};
-
 	pci0: pcie@ffe240000 {
 		reg = <0xf 0xfe240000 0 0x10000>;
-		ranges = <0x02000000 0 0xe0000000 0xc 0x00000000 0x0 0x10000000
-			  0x01000000 0 0x00000000 0xf 0xf8000000 0x0 0x00010000>;
+		ranges = <0x02000000 0 0xe0000000 0xc 0x00000000 0 0x10000000
+			  0x01000000 0 0x00000000 0xf 0xf8000000 0 0x00010000>;
 		pcie@0 {
 			ranges = <0x02000000 0 0xe0000000
 				  0x02000000 0 0xe0000000
@@ -303,8 +204,8 @@
 
 	pci1: pcie@ffe250000 {
 		reg = <0xf 0xfe250000 0 0x10000>;
-		ranges = <0x02000000 0x0 0xe0000000 0xc 0x10000000 0x0 0x10000000
-			  0x01000000 0x0 0x00000000 0xf 0xf8010000 0x0 0x00010000>;
+		ranges = <0x02000000 0 0xe0000000 0xc 0x10000000 0 0x10000000
+			  0x01000000 0 0x00000000 0xf 0xf8010000 0 0x00010000>;
 		pcie@0 {
 			ranges = <0x02000000 0 0xe0000000
 				  0x02000000 0 0xe0000000
@@ -333,4 +234,3 @@
 };
 
 #include "t1024si-post.dtsi"
-/include/ "qoriq-dpaa-res3.dtsi"

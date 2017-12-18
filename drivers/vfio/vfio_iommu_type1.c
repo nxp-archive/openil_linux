@@ -36,6 +36,8 @@
 #include <linux/uaccess.h>
 #include <linux/vfio.h>
 #include <linux/workqueue.h>
+#include <linux/dma-iommu.h>
+#include <linux/irqdomain.h>
 
 #define DRIVER_VERSION  "0.2"
 #define DRIVER_AUTHOR   "Alex Williamson <alex.williamson@redhat.com>"
@@ -130,57 +132,36 @@ static void vfio_unlink_dma(struct vfio_iommu *iommu, struct vfio_dma *old)
 	rb_erase(&old->node, &iommu->dma_list);
 }
 
-struct vwork {
-	struct mm_struct	*mm;
-	long			npage;
-	struct work_struct	work;
-};
-
-/* delayed decrement/increment for locked_vm */
-static void vfio_lock_acct_bg(struct work_struct *work)
+static int vfio_lock_acct(long npage, bool *lock_cap)
 {
-	struct vwork *vwork = container_of(work, struct vwork, work);
-	struct mm_struct *mm;
+	int ret;
 
-	mm = vwork->mm;
-	down_write(&mm->mmap_sem);
-	mm->locked_vm += vwork->npage;
-	up_write(&mm->mmap_sem);
-	mmput(mm);
-	kfree(vwork);
-}
+	if (!npage)
+		return 0;
 
-static void vfio_lock_acct(long npage)
-{
-	struct vwork *vwork;
-	struct mm_struct *mm;
+	if (!current->mm)
+		return -ESRCH; /* process exited */
 
-	if (!current->mm || !npage)
-		return; /* process exited or nothing to do */
+	ret = down_write_killable(&current->mm->mmap_sem);
+	if (!ret) {
+		if (npage > 0) {
+			if (lock_cap ? !*lock_cap : !capable(CAP_IPC_LOCK)) {
+				unsigned long limit;
 
-	if (down_write_trylock(&current->mm->mmap_sem)) {
-		current->mm->locked_vm += npage;
+				limit = rlimit(RLIMIT_MEMLOCK) >> PAGE_SHIFT;
+
+				if (current->mm->locked_vm + npage > limit)
+					ret = -ENOMEM;
+			}
+		}
+
+		if (!ret)
+			current->mm->locked_vm += npage;
+
 		up_write(&current->mm->mmap_sem);
-		return;
 	}
 
-	/*
-	 * Couldn't get mmap_sem lock, so must setup to update
-	 * mm->locked_vm later. If locked_vm were atomic, we
-	 * wouldn't need this silliness
-	 */
-	vwork = kmalloc(sizeof(struct vwork), GFP_KERNEL);
-	if (!vwork)
-		return;
-	mm = get_task_mm(current);
-	if (!mm) {
-		kfree(vwork);
-		return;
-	}
-	INIT_WORK(&vwork->work, vfio_lock_acct_bg);
-	vwork->mm = mm;
-	vwork->npage = npage;
-	schedule_work(&vwork->work);
+	return ret;
 }
 
 /*
@@ -262,9 +243,9 @@ static int vaddr_get_pfn(unsigned long vaddr, int prot, unsigned long *pfn)
 static long vfio_pin_pages(unsigned long vaddr, long npage,
 			   int prot, unsigned long *pfn_base)
 {
-	unsigned long limit = rlimit(RLIMIT_MEMLOCK) >> PAGE_SHIFT;
+	unsigned long pfn = 0, limit = rlimit(RLIMIT_MEMLOCK) >> PAGE_SHIFT;
 	bool lock_cap = capable(CAP_IPC_LOCK);
-	long ret, i;
+	long ret, i = 1;
 	bool rsvd;
 
 	if (!current->mm)
@@ -283,16 +264,11 @@ static long vfio_pin_pages(unsigned long vaddr, long npage,
 		return -ENOMEM;
 	}
 
-	if (unlikely(disable_hugepages)) {
-		if (!rsvd)
-			vfio_lock_acct(1);
-		return 1;
-	}
+	if (unlikely(disable_hugepages))
+		goto out;
 
 	/* Lock all the consecutive pages from pfn_base */
-	for (i = 1, vaddr += PAGE_SIZE; i < npage; i++, vaddr += PAGE_SIZE) {
-		unsigned long pfn = 0;
-
+	for (vaddr += PAGE_SIZE; i < npage; i++, vaddr += PAGE_SIZE) {
 		ret = vaddr_get_pfn(vaddr, prot, &pfn);
 		if (ret)
 			break;
@@ -308,12 +284,24 @@ static long vfio_pin_pages(unsigned long vaddr, long npage,
 			put_pfn(pfn, prot);
 			pr_warn("%s: RLIMIT_MEMLOCK (%ld) exceeded\n",
 				__func__, limit << PAGE_SHIFT);
-			break;
+			ret = -ENOMEM;
+			goto unpin_out;
 		}
 	}
 
+out:
 	if (!rsvd)
-		vfio_lock_acct(i);
+		ret = vfio_lock_acct(i, &lock_cap);
+
+unpin_out:
+	if (ret) {
+		if (!rsvd) {
+			for (pfn = *pfn_base ; i ; pfn++, i--)
+				put_pfn(pfn, prot);
+		}
+
+		return ret;
+	}
 
 	return i;
 }
@@ -328,7 +316,7 @@ static long vfio_unpin_pages(unsigned long pfn, long npage,
 		unlocked += put_pfn(pfn++, prot);
 
 	if (do_accounting)
-		vfio_lock_acct(-unlocked);
+		vfio_lock_acct(-unlocked, NULL);
 
 	return unlocked;
 }
@@ -390,7 +378,7 @@ static void vfio_unmap_unpin(struct vfio_iommu *iommu, struct vfio_dma *dma)
 		cond_resched();
 	}
 
-	vfio_lock_acct(-unlocked);
+	vfio_lock_acct(-unlocked, NULL);
 }
 
 static void vfio_remove_dma(struct vfio_iommu *iommu, struct vfio_dma *dma)
@@ -403,12 +391,25 @@ static void vfio_remove_dma(struct vfio_iommu *iommu, struct vfio_dma *dma)
 static unsigned long vfio_pgsize_bitmap(struct vfio_iommu *iommu)
 {
 	struct vfio_domain *domain;
-	unsigned long bitmap = PAGE_MASK;
+	unsigned long bitmap = ULONG_MAX;
 
 	mutex_lock(&iommu->lock);
 	list_for_each_entry(domain, &iommu->domain_list, next)
-		bitmap &= domain->domain->ops->pgsize_bitmap;
+		bitmap &= domain->domain->pgsize_bitmap;
 	mutex_unlock(&iommu->lock);
+
+	/*
+	 * In case the IOMMU supports page sizes smaller than PAGE_SIZE
+	 * we pretend PAGE_SIZE is supported and hide sub-PAGE_SIZE sizes.
+	 * That way the user will be able to map/unmap buffers whose size/
+	 * start address is aligned with PAGE_SIZE. Pinning code uses that
+	 * granularity while iommu driver can use the sub-PAGE_SIZE size
+	 * to map the buffer.
+	 */
+	if (bitmap & ~PAGE_MASK) {
+		bitmap &= PAGE_MASK;
+		bitmap |= PAGE_SIZE;
+	}
 
 	return bitmap;
 }
@@ -502,7 +503,7 @@ static int map_try_harder(struct vfio_domain *domain, dma_addr_t iova,
 			  unsigned long pfn, long npage, int prot)
 {
 	long i;
-	int ret;
+	int ret = 0;
 
 	for (i = 0; i < npage; i++, pfn++, iova += PAGE_SIZE) {
 		ret = iommu_map(domain->domain, iova,
@@ -570,8 +571,6 @@ static int vfio_dma_do_map(struct vfio_iommu *iommu,
 		prot |= IOMMU_WRITE;
 	if (map->flags & VFIO_DMA_MAP_FLAG_READ)
 		prot |= IOMMU_READ;
-	if (map->flags & VFIO_DMA_MAP_FLAG_MMIO)
-		prot |= IOMMU_MMIO;
 
 	if (!prot || !size || (size | iova | vaddr) & mask)
 		return -EINVAL;
@@ -723,6 +722,27 @@ static void vfio_test_domain_fgsp(struct vfio_domain *domain)
 	__free_pages(pages, order);
 }
 
+static bool vfio_iommu_has_sw_msi(struct iommu_group *group, phys_addr_t *base)
+{
+	struct list_head group_resv_regions;
+	struct iommu_resv_region *region, *next;
+	bool ret = false;
+
+	INIT_LIST_HEAD(&group_resv_regions);
+	iommu_get_group_resv_regions(group, &group_resv_regions);
+	list_for_each_entry(region, &group_resv_regions, list) {
+		if (region->type == IOMMU_RESV_SW_MSI) {
+			*base = region->start;
+			ret = true;
+			goto out;
+		}
+	}
+out:
+	list_for_each_entry_safe(region, next, &group_resv_regions, list)
+		kfree(region);
+	return ret;
+}
+
 static int vfio_iommu_type1_attach_group(void *iommu_data,
 					 struct iommu_group *iommu_group)
 {
@@ -731,6 +751,8 @@ static int vfio_iommu_type1_attach_group(void *iommu_data,
 	struct vfio_domain *domain, *d;
 	struct bus_type *bus = NULL;
 	int ret;
+	bool resv_msi, msi_remap;
+	phys_addr_t resv_msi_base;
 
 	mutex_lock(&iommu->lock);
 
@@ -777,11 +799,15 @@ static int vfio_iommu_type1_attach_group(void *iommu_data,
 	if (ret)
 		goto out_domain;
 
+	resv_msi = vfio_iommu_has_sw_msi(iommu_group, &resv_msi_base);
+
 	INIT_LIST_HEAD(&domain->group_list);
 	list_add(&group->next, &domain->group_list);
 
-	if (!allow_unsafe_interrupts &&
-	    !iommu_capable(bus, IOMMU_CAP_INTR_REMAP)) {
+	msi_remap = resv_msi ? irq_domain_check_msi_remap() :
+				iommu_capable(bus, IOMMU_CAP_INTR_REMAP);
+
+	if (!allow_unsafe_interrupts && !msi_remap) {
 		pr_warn("%s: No interrupt remapping support.  Use the module param \"allow_unsafe_interrupts\" to enable VFIO IOMMU support on this platform\n",
 		       __func__);
 		ret = -EPERM;
@@ -822,6 +848,12 @@ static int vfio_iommu_type1_attach_group(void *iommu_data,
 	ret = vfio_iommu_replay(iommu, domain);
 	if (ret)
 		goto out_detach;
+
+	if (resv_msi) {
+		ret = iommu_get_msi_cookie(domain->domain, resv_msi_base);
+		if (ret)
+			goto out_detach;
+	}
 
 	list_add(&domain->next, &iommu->domain_list);
 
@@ -984,7 +1016,7 @@ static long vfio_iommu_type1_ioctl(void *iommu_data,
 		if (info.argsz < minsz)
 			return -EINVAL;
 
-		info.flags = 0;
+		info.flags = VFIO_IOMMU_INFO_PGSIZES;
 
 		info.iova_pgsizes = vfio_pgsize_bitmap(iommu);
 
@@ -994,8 +1026,7 @@ static long vfio_iommu_type1_ioctl(void *iommu_data,
 	} else if (cmd == VFIO_IOMMU_MAP_DMA) {
 		struct vfio_iommu_type1_dma_map map;
 		uint32_t mask = VFIO_DMA_MAP_FLAG_READ |
-				VFIO_DMA_MAP_FLAG_WRITE |
-				VFIO_DMA_MAP_FLAG_MMIO;
+				VFIO_DMA_MAP_FLAG_WRITE;
 
 		minsz = offsetofend(struct vfio_iommu_type1_dma_map, size);
 

@@ -1,7 +1,6 @@
 config PPC64
 	bool "64-bit kernel"
 	default n
-	select HAVE_VIRT_CPU_ACCOUNTING
 	select ZLIB_DEFLATE
 	help
 	  This option selects whether a 32-bit or a 64-bit kernel
@@ -72,9 +71,10 @@ config PPC_BOOK3S_64
 	select PPC_FPU
 	select PPC_HAVE_PMU_SUPPORT
 	select SYS_SUPPORTS_HUGETLBFS
-	select HAVE_ARCH_TRANSPARENT_HUGEPAGE if PPC_64K_PAGES
+	select HAVE_ARCH_TRANSPARENT_HUGEPAGE
 	select ARCH_SUPPORTS_NUMA_BALANCING
 	select IRQ_WORK
+	select HAVE_KERNEL_XZ
 
 config PPC_BOOK3E_64
 	bool "Embedded processors"
@@ -87,6 +87,7 @@ endchoice
 choice
 	prompt "CPU selection"
 	depends on PPC64
+	default POWER8_CPU if CPU_LITTLE_ENDIAN
 	default GENERIC_CPU
 	help
 	  This will create a kernel which is optimised for a particular CPU.
@@ -147,17 +148,6 @@ config 6xx
 	depends on PPC32 && PPC_BOOK3S
 	select PPC_HAVE_PMU_SUPPORT
 
-config TUNE_CELL
-	bool "Optimize for Cell Broadband Engine"
-	depends on PPC64 && PPC_BOOK3S
-	help
-	  Cause the compiler to optimize for the PPE of the Cell Broadband
-	  Engine. This will make the code run considerably faster on Cell
-	  but somewhat slower on other machines. This option only changes
-	  the scheduling of instructions, not the selection of instructions
-	  itself, so the resulting kernel will keep running on all other
-	  machines.
-
 # this is temp to handle compat with arch=ppc
 config 8xx
 	bool
@@ -176,48 +166,6 @@ config PPC_E500MC
 	  This must be enabled for running on e500mc (and derivatives
 	  such as e5500/e6500), and must be disabled for running on
 	  e500v1 or e500v2.
-
-config FSL_ERRATUM_A_006184
-	bool "Work around erratum A-006184"
-	help
-	  Define this to work around erratum A-006184 ("Simultaneous
-	  Instruction L1 MMU miss (due to eviction) and interrupt
-	  servicing can cause a core hang").  This erratum affects
-	  e500v1, e500v2, e500mc, and e5500.  The workaround will
-	  cause a watchdog interrupt to occur periodically.  It will
-	  not avoid the hang described by the erratum, but it will
-	  recover from it when the next watchdog interrupt expires.
-
-	  The normal watchdog functionality cannot be used when this
-	  workaround is enabled.
-
-	  If you are running Linux as the guest of a hypervisor, you
-	  should enable this (or a similar workaround) in the host
-	  instead.
-
-	  Note that it is believed that it is unlikely that the hang
-	  will be encountered in normal Linux operation.  Running KVM
-	  or using hugetlbfs could increase the chance of seeing the
-	  hang.
-
-config FSL_ERRATUM_A_006184_PERIOD
-	int "Watchdog period for A-006184 workaround"
-	range 32 52
-	default 43
-	help
-	  This is the watchdog period to be used for the A-006184
-	  workaround.  The watchdog will fire whenever the bit selected
-	  transitions from 0 to 1 in the time base.  The bits are
-	  numbered with 0 starting at the most-signficant end --
-	  larger numbers give a more frequent period.
-
-	  The period must be set longer than the non-idle decrementer
-	  period, to ensure that the watchdog interrupt only actually
-	  happens when stuck -- but the longer the period, the worse the
-	  latency will be if a hang does occur.  Long decrementer
-	  timeouts when idle due to CONFIG_NO_HZ should not be a problem,
-	  since when idle we will always have just executed from the main
-	  kernel mapping, so it should not be absent from the L1 I-MMU.
 
 config PPC_FPU
 	bool
@@ -384,6 +332,15 @@ config PPC_STD_MMU_64
 	def_bool y
 	depends on PPC_STD_MMU && PPC64
 
+config PPC_RADIX_MMU
+	bool "Radix MMU Support"
+	depends on PPC_BOOK3S_64
+	default y
+	help
+	  Enable support for the Power ISA 3.0 Radix style MMU. Currently this
+	  is only implemented by IBM Power9 CPUs, if you don't have one of them
+	  you can probably disable this.
+
 config PPC_MMU_NOHASH
 	def_bool y
 	depends on !PPC_STD_MMU
@@ -447,6 +404,16 @@ config PPC_DOORBELL
 
 endmenu
 
+config VDSO32
+	def_bool y
+	depends on PPC32 || CPU_BIG_ENDIAN
+	help
+	  This symbol controls whether we build the 32-bit VDSO. We obviously
+	  want to do that if we're building a 32-bit kernel. If we're building
+	  a 64-bit kernel then we only want a 32-bit VDSO if we're building for
+	  big endian. That is because the only little endian configuration we
+	  support is ppc64le which is 64-bit only.
+
 choice
 	prompt "Endianness selection"
 	default CPU_BIG_ENDIAN
@@ -463,6 +430,7 @@ config CPU_BIG_ENDIAN
 
 config CPU_LITTLE_ENDIAN
 	bool "Build little endian kernel"
+	depends on PPC_BOOK3S_64
 	select PPC64_BOOT_WRAPPER
 	help
 	  Build a little endian kernel.

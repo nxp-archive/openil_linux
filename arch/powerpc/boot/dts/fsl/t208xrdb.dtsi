@@ -49,24 +49,12 @@
 			alignment = <0 0x1000000>;
 		};
 		qman_fqd: qman-fqd {
-			size = <0 0x800000>;
-			alignment = <0 0x800000>;
+			size = <0 0x400000>;
+			alignment = <0 0x400000>;
 		};
 		qman_pfdr: qman-pfdr {
 			size = <0 0x2000000>;
 			alignment = <0 0x2000000>;
-		};
-		pme_pdsr: pme-pdsr {
-			compatible = "fsl,pme-pdsr";
-			alloc-ranges = <0 0 0x10000 0>;
-			size = <0 0x1000000>;
-			alignment = <0 0x1000000>;
-		};
-		pme_sre: pme-sre {
-			 compatible = "fsl,pme-sre";
-			 alloc-ranges = <0 0 0x10000 0>;
-			 size = <0 0xa00000>;
-			 alignment = <0 0xa00000>;
 		};
 	};
 
@@ -115,7 +103,6 @@
 	};
 
 	qportals: qman-portals@ff6000000 {
-		#address-cells = <1>;
 		ranges = <0x0 0xf 0xf6000000 0x2000000>;
 	};
 
@@ -126,7 +113,7 @@
 			flash@0 {
 				#address-cells = <1>;
 				#size-cells = <1>;
-				compatible = "micron,n25q512a", "jedec,spi-nor";
+				compatible = "micron,n25q512ax3", "jedec,spi-nor";
 				reg = <0>;
 				spi-max-frequency = <10000000>; /* input clock */
 			};
@@ -141,7 +128,7 @@
 			rtc@68 {
 				compatible = "dallas,ds1339";
 				reg = <0x68>;
-				interrupts = <0x4 0x2 0 0>;
+				interrupts = <0x1 0x1 0 0>;
 			};
 
 			eeprom@50 {
@@ -219,42 +206,6 @@
 				  0x01000000 0 0x00000000
 				  0x01000000 0 0x00000000
 				  0 0x00010000>;
-		};
-	};
-
-	fsl,dpaa {
-		compatible = "fsl,t2080-dpaa", "fsl,dpaa";
-		ethernet@0 {
-			compatible = "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac1>;
-		};
-		ethernet@1 {
-			compatible = "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac2>;
-		};
-		ethernet@2 {
-			compatible = "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac3>;
-		};
-		ethernet@3 {
-			compatible = "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac4>;
-		};
-		ethernet@4 {
-			compatible = "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac5>;
-		};
-		ethernet@5 {
-			compatible = "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac6>;
-		};
-		ethernet@8 {
-			compatible = "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac9>;
-		};
-		ethernet@9 {
-			compatible = "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac10>;
 		};
 	};
 };

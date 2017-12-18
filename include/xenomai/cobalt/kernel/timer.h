@@ -47,16 +47,13 @@ typedef enum xntmode {
 #define XNTIMER_PERIODIC  0x00000004
 #define XNTIMER_REALTIME  0x00000008
 #define XNTIMER_FIRED     0x00000010
-#define XNTIMER_NOBLCK    0x00000020
-#define XNTIMER_RUNNING   0x00000040
-#define XNTIMER_KGRAVITY  0x00000080
-#define XNTIMER_UGRAVITY  0x00000100
+#define XNTIMER_RUNNING   0x00000020
+#define XNTIMER_KGRAVITY  0x00000040
+#define XNTIMER_UGRAVITY  0x00000080
 #define XNTIMER_IGRAVITY  0	     /* most conservative */
 
 #define XNTIMER_GRAVITY_MASK	(XNTIMER_KGRAVITY|XNTIMER_UGRAVITY)
-#define XNTIMER_INIT_MASK	(XNTIMER_GRAVITY_MASK|XNTIMER_NOBLCK)
-
-#define __XNTIMER_CORE    0x10000000
+#define XNTIMER_INIT_MASK	XNTIMER_GRAVITY_MASK
 
 /* These flags are available to the real-time interfaces */
 #define XNTIMER_SPARE0  0x01000000
@@ -163,7 +160,7 @@ typedef struct {
 	})
 
 #define xntimerq_destroy(q) do { } while (0)
-#define xntimerq_empty(q) ((q)->head != NULL)
+#define xntimerq_empty(q) ((q)->head == NULL)
 
 #define xntimerq_head(q) ((q)->head)
 
@@ -312,15 +309,6 @@ static inline struct xnsched *xntimer_sched(struct xntimer *timer)
 		tmd = xnclock_percpu_timerdata(xntimer_clock(__timer), cpu); \
 		&tmd->q;						\
 	})
-
-static inline xntimerq_t *xntimer_this_queue(struct xntimer *timer)
-{
-	struct xntimerdata *tmd;
-
-	tmd = xnclock_this_timerdata(xntimer_clock(timer));
-
-	return &tmd->q;
-}
 
 static inline unsigned long xntimer_gravity(struct xntimer *timer)
 {
@@ -516,7 +504,9 @@ static inline void xntimer_dequeue(struct xntimer *timer,
 
 /** @} */
 
-unsigned long long xntimer_get_overruns(struct xntimer *timer, xnticks_t now);
+unsigned long long xntimer_get_overruns(struct xntimer *timer,
+					struct xnthread *waiter,
+					xnticks_t now);
 
 #ifdef CONFIG_SMP
 
@@ -533,6 +523,9 @@ int xntimer_setup_ipi(void);
 
 void xntimer_release_ipi(void);
 
+bool xntimer_set_sched(struct xntimer *timer,
+		       struct xnsched *sched);
+
 #else /* ! CONFIG_SMP */
 
 static inline void xntimer_migrate(struct xntimer *timer,
@@ -546,13 +539,13 @@ static inline int xntimer_setup_ipi(void)
 
 static inline void xntimer_release_ipi(void) { }
 
-#endif /* CONFIG_SMP */
-
-static inline void xntimer_set_sched(struct xntimer *timer,
+static inline bool xntimer_set_sched(struct xntimer *timer,
 				     struct xnsched *sched)
 {
-	xntimer_migrate(timer, sched);
+	return true;
 }
+
+#endif /* CONFIG_SMP */
 
 char *xntimer_format_time(xnticks_t ns,
 			  char *buf, size_t bufsz);

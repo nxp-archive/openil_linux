@@ -18,7 +18,6 @@
 #include <linux/device.h>
 #include <linux/slab.h>
 #include <linux/tee_drv.h>
-#include <linux/sched.h>
 #include "optee_private.h"
 #include "optee_smc.h"
 

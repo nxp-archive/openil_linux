@@ -1,8 +1,10 @@
+#define _LINUX_STRING_H_
+
 #include <linux/compiler.h>	/* for inline */
 #include <linux/types.h>	/* for size_t */
 #include <linux/stddef.h>	/* for NULL */
 #include <linux/linkage.h>
-#include <linux/string.h>
+#include <asm/string.h>
 
 extern unsigned long free_mem_ptr;
 extern unsigned long free_mem_end_ptr;

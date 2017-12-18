@@ -206,6 +206,7 @@ int __xnthread_init(struct xnthread *thread,
 	thread->handle = XN_NO_HANDLE;
 	memset(&thread->stat, 0, sizeof(thread->stat));
 	thread->selector = NULL;
+	INIT_LIST_HEAD(&thread->glink);
 	INIT_LIST_HEAD(&thread->boosters);
 	/* These will be filled by xnthread_start() */
 	thread->entry = NULL;
@@ -213,8 +214,6 @@ int __xnthread_init(struct xnthread *thread,
 	init_completion(&thread->exited);
 
 	gravity = flags & XNUSER ? XNTIMER_UGRAVITY : XNTIMER_KGRAVITY;
-	if (flags & XNROOT)
-		gravity |= __XNTIMER_CORE;
 	xntimer_init(&thread->rtimer, &nkclock, timeout_handler,
 		     sched, gravity);
 	xntimer_set_name(&thread->rtimer, thread->name);
@@ -271,6 +270,8 @@ void xnthread_init_shadow_tcb(struct xnthread *thread)
 	tcb->core.user_fpu_owner = p;
 #endif /* CONFIG_XENO_ARCH_FPU */
 	xnarch_init_shadow_tcb(thread);
+
+	trace_cobalt_shadow_map(thread);
 }
 
 void xnthread_init_root_tcb(struct xnthread *thread)
@@ -339,6 +340,16 @@ char *xnthread_format_status(unsigned long status, char *buf, int size)
 	*wp = '\0';
 
 	return buf;
+}
+
+pid_t xnthread_host_pid(struct xnthread *thread)
+{
+	if (xnthread_test_state(thread, XNROOT))
+		return 0;
+	if (!xnthread_host_task(thread))
+		return -1;
+
+	return task_pid_nr(xnthread_host_task(thread));
 }
 
 int xnthread_set_clock(struct xnthread *thread, struct xnclock *newclock)
@@ -549,9 +560,11 @@ void __xnthread_discard(struct xnthread *thread)
 	xntimer_destroy(&thread->ptimer);
 
 	xnlock_get_irqsave(&nklock, s);
-	list_del(&thread->glink);
-	cobalt_nrthreads--;
-	xnvfile_touch_tag(&nkthreadlist_tag);
+	if (!list_empty(&thread->glink)) {
+		list_del(&thread->glink);
+		cobalt_nrthreads--;
+		xnvfile_touch_tag(&nkthreadlist_tag);
+	}
 	xnthread_deregister(thread);
 	xnlock_put_irqrestore(&nklock, s);
 }
@@ -915,8 +928,13 @@ void xnthread_suspend(struct xnthread *thread, int mask,
 			    (oldstate & XNTRAPLB) != 0)
 				goto lock_break;
 		}
-		xnthread_clear_info(thread,
-				    XNRMID|XNTIMEO|XNBREAK|XNWAKEN|XNROBBED|XNKICKED);
+		/*
+		 * Do not destroy the info left behind by yet unprocessed
+		 * wakeups when suspending a remote thread.
+		 */
+		if (thread == sched->curr)
+			xnthread_clear_info(thread, XNRMID|XNTIMEO|XNBREAK|
+						    XNWAKEN|XNROBBED|XNKICKED);
 	}
 
 	/*
@@ -1427,7 +1445,7 @@ int xnthread_wait_period(unsigned long *overruns_r)
 		now = xnclock_read_raw(clock);
 	}
 
-	overruns = xntimer_get_overruns(&thread->ptimer, now);
+	overruns = xntimer_get_overruns(&thread->ptimer, thread, now);
 	if (overruns) {
 		ret = -ETIMEDOUT;
 		trace_cobalt_thread_missed_period(thread);
@@ -1766,82 +1784,6 @@ EXPORT_SYMBOL_GPL(xnthread_join);
 
 #ifdef CONFIG_SMP
 
-/**
- * @fn int xnthread_migrate(int cpu)
- * @brief Migrate the current thread.
- *
- * This call makes the current thread migrate to another (real-time)
- * CPU if its affinity allows it. This call is available from
- * primary mode only.
- *
- * @param cpu The destination CPU.
- *
- * @retval 0 if the thread could migrate ;
- * @retval -EPERM if the calling context is invalid, or the
- * scheduler is locked.
- * @retval -EINVAL if the current thread affinity forbids this
- * migration.
- *
- * @coretags{primary-only, might-switch}
- */
-int xnthread_migrate(int cpu)
-{
-	struct xnthread *curr;
-	struct xnsched *sched;
-	int ret = 0;
-	spl_t s;
-
-	xnlock_get_irqsave(&nklock, s);
-
-	curr = xnthread_current();
-	if (!xnsched_primary_p() || curr->lock_count > 0) {
-		ret = -EPERM;
-		goto unlock_and_exit;
-	}
-
-	if (!cpumask_test_cpu(cpu, &curr->affinity)) {
-		ret = -EINVAL;
-		goto unlock_and_exit;
-	}
-
-	sched = xnsched_struct(cpu);
-	if (sched == curr->sched)
-		goto unlock_and_exit;
-
-	trace_cobalt_thread_migrate(curr, cpu);
-
-	/* Move to remote scheduler. */
-	xnsched_migrate(curr, sched);
-
-	/*
-	 * Migrate the thread's periodic timer. We don't have to care
-	 * about the resource timer, since we can only deal with the
-	 * current thread, which is, well, running, so it can't be
-	 * sleeping on any timed wait at the moment.
-	 */
-	__xntimer_migrate(&curr->ptimer, sched);
-
-	/*
-	 * Reset execution time measurement period so that we don't
-	 * mess up per-CPU statistics.
-	 */
-	xnstat_exectime_reset_stats(&curr->stat.lastperiod);
-
-	/*
-	 * So that xnthread_relax() will pin the linux mate on the
-	 * same CPU next time the thread switches to secondary mode.
-	 */
-	xnthread_set_localinfo(curr, XNMOVED);
-
-	xnsched_run();
-
- unlock_and_exit:
-	xnlock_put_irqrestore(&nklock, s);
-
-	return ret;
-}
-EXPORT_SYMBOL_GPL(xnthread_migrate);
-
 void xnthread_migrate_passive(struct xnthread *thread, struct xnsched *sched)
 {				/* nklocked, IRQs off */
 	if (thread->sched == sched)
@@ -2161,7 +2103,7 @@ void xnthread_relax(int notify, int reason)
 	 * domain to the Linux domain.  This will cause the Linux task
 	 * to resume using the register state of the shadow thread.
 	 */
-	trace_cobalt_shadow_gorelax(thread, reason);
+	trace_cobalt_shadow_gorelax(reason);
 
 	/*
 	 * If you intend to change the following interrupt-free
@@ -2181,7 +2123,7 @@ void xnthread_relax(int notify, int reason)
 	 * dropped by xnthread_suspend().
 	 */
 	xnlock_get(&nklock);
-	set_task_state(p, p->state & ~TASK_NOWAKEUP);
+	set_current_state(p->state & ~TASK_NOWAKEUP);
 	xnthread_run_handler_stack(thread, relax_thread);
 	xnthread_suspend(thread, XNRELAX, XN_INFINITE, XN_RELATIVE, NULL);
 	splnone();
@@ -2591,8 +2533,6 @@ int xnthread_map(struct xnthread *thread, struct completion *done)
 
 	thread->u_window = NULL;
 	xnthread_pin_initial(thread);
-
-	trace_cobalt_shadow_map(thread);
 
 	xnthread_init_shadow_tcb(thread);
 	xnthread_suspend(thread, XNRELAX, XN_INFINITE, XN_RELATIVE, NULL);

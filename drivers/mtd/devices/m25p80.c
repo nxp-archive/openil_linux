@@ -138,6 +138,28 @@ static ssize_t m25p80_read(struct spi_nor *nor, loff_t from, size_t len,
 	/* convert the dummy cycles to the number of bytes */
 	dummy /= 8;
 
+	if (spi_flash_read_supported(spi)) {
+		struct spi_flash_read_message msg;
+
+		memset(&msg, 0, sizeof(msg));
+
+		msg.buf = buf;
+		msg.from = from;
+		msg.len = len;
+		msg.read_opcode = nor->read_opcode;
+		msg.addr_width = nor->addr_width;
+		msg.dummy_bytes = dummy;
+		/* TODO: Support other combinations */
+		msg.opcode_nbits = SPI_NBITS_SINGLE;
+		msg.addr_nbits = SPI_NBITS_SINGLE;
+		msg.data_nbits = m25p80_rx_nbits(nor);
+
+		ret = spi_flash_read(spi, &msg);
+		if (ret < 0)
+			return ret;
+		return msg.retlen;
+	}
+
 	spi_message_init(&m);
 	memset(t, 0, (sizeof t));
 
@@ -150,7 +172,7 @@ static ssize_t m25p80_read(struct spi_nor *nor, loff_t from, size_t len,
 
 	t[1].rx_buf = buf;
 	t[1].rx_nbits = m25p80_rx_nbits(nor);
-	t[1].len = min_t(size_t, len, spi_max_transfer_size(spi));
+	t[1].len = min(len, spi_max_transfer_size(spi));
 	spi_message_add_tail(&t[1], &m);
 
 	ret = spi_sync(spi, &m);
@@ -235,26 +257,6 @@ static int m25p_remove(struct spi_device *spi)
 	return mtd_device_unregister(&flash->spi_nor.mtd);
 }
 
-#ifdef CONFIG_PM_SLEEP
-static int m25p_suspend(struct device *dev)
-{
-	struct m25p *flash = dev_get_drvdata(dev);
-	struct spi_nor *nor = &flash->spi_nor;
-
-	return spi_nor_suspend(nor);
-}
-
-static int m25p_resume(struct device *dev)
-{
-	struct m25p *flash = dev_get_drvdata(dev);
-	struct spi_nor *nor = &flash->spi_nor;
-
-	return spi_nor_resume(nor);
-}
-#endif /* CONFIG_PM_SLEEP */
-
-static SIMPLE_DEV_PM_OPS(m25p_pm_ops, m25p_suspend, m25p_resume);
-
 /*
  * Do NOT add to this array without reading the following:
  *
@@ -320,9 +322,7 @@ MODULE_DEVICE_TABLE(of, m25p_of_table);
 static struct spi_driver m25p80_driver = {
 	.driver = {
 		.name	= "m25p80",
-		.owner	= THIS_MODULE,
 		.of_match_table = m25p_of_table,
-		.pm	= &m25p_pm_ops,
 	},
 	.id_table	= m25p_ids,
 	.probe	= m25p_probe,

@@ -1,7 +1,7 @@
 /*
  * T4240RDB Device Tree Source
  *
- * Copyright 2014 Freescale Semiconductor Inc.
+ * Copyright 2014 - 2015 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -50,22 +50,6 @@
 		sgmii_phy42 = &sgmiiphy42;
 		sgmii_phy43 = &sgmiiphy43;
 		sgmii_phy44 = &sgmiiphy44;
-		ethernet0 = &enet0;
-		ethernet1 = &enet1;
-		ethernet2 = &enet2;
-		ethernet3 = &enet3;
-		ethernet4 = &enet6;
-		ethernet5 = &enet7;
-		ethernet6 = &enet8;
-		ethernet7 = &enet9;
-		ethernet8 = &enet10;
-		ethernet9 = &enet11;
-		ethernet10 = &enet14;
-		ethernet11 = &enet15;
-		ethernet12 = &enet4;
-		ethernet13 = &enet5;
-		ethernet14 = &enet12;
-		ethernet15 = &enet13;
 	};
 
 	ifc: localbus@ffe124000 {
@@ -106,24 +90,12 @@
 			alignment = <0 0x1000000>;
 		};
 		qman_fqd: qman-fqd {
-			size = <0 0x800000>;
-			alignment = <0 0x800000>;
+			size = <0 0x400000>;
+			alignment = <0 0x400000>;
 		};
 		qman_pfdr: qman-pfdr {
 			size = <0 0x2000000>;
 			alignment = <0 0x2000000>;
-		};
-		pme_pdsr: pme-pdsr {
-			compatible = "fsl,pme-pdsr";
-			alloc-ranges = <0 0 0x10000 0>;
-			size = <0 0x1000000>;
-			alignment = <0 0x1000000>;
-		};
-		pme_sre: pme-sre {
-			 compatible = "fsl,pme-sre";
-			 alloc-ranges = <0 0 0x10000 0>;
-			 size = <0 0xa00000>;
-			 alignment = <0 0xa00000>;
 		};
 	};
 
@@ -137,10 +109,6 @@
 
 	qportals: qman-portals@ff6000000 {
 		ranges = <0x0 0xf 0xf6000000 0x2000000>;
-	};
-
-	lportals: lac-portals@ff8000000 {
-		ranges = <0x0 0xf 0xf8000000 0x20000>;
 	};
 
 	soc: soc@ffe000000 {
@@ -174,116 +142,92 @@
 				reg = <0x68>;
 				interrupts = <0x1 0x1 0 0>;
 			};
-			monitor@2f {
-				compatible = "w83793";
-				reg = <0x2f>;
-			};
 		};
 
-		fman0: fman@400000 {
-			enet0: ethernet@e0000 {
+		sdhc@114000 {
+			voltage-ranges = <1800 1800 3300 3300>;
+		};
+
+		fman@400000 {
+			ethernet@e0000 {
 				phy-handle = <&sgmiiphy21>;
 				phy-connection-type = "sgmii";
 			};
 
-			enet1: ethernet@e2000 {
+			ethernet@e2000 {
 				phy-handle = <&sgmiiphy22>;
 				phy-connection-type = "sgmii";
 			};
 
-			enet2: ethernet@e4000 {
+			ethernet@e4000 {
 				phy-handle = <&sgmiiphy23>;
 				phy-connection-type = "sgmii";
 			};
 
-			enet3: ethernet@e6000 {
+			ethernet@e6000 {
 				phy-handle = <&sgmiiphy24>;
 				phy-connection-type = "sgmii";
 			};
 
-			enet4: ethernet@e8000 {
+			ethernet@e8000 {
 				status = "disabled";
 			};
 
-			enet5: ethernet@ea000 {
+			ethernet@ea000 {
 				status = "disabled";
 			};
 
-			enet6: ethernet@f0000 { /* FM1@TSEC9/FM1@TGEC1 */
+			ethernet@f0000 {
 				phy-handle = <&xfiphy1>;
 				phy-connection-type = "xgmii";
 			};
 
-			enet7: ethernet@f2000 { /* FM1@TSEC10/FM1@TGEC2 */
+			ethernet@f2000 {
 				phy-handle = <&xfiphy2>;
 				phy-connection-type = "xgmii";
 			};
-
-			mdio@fc000 {
-				status = "disabled";
-			};
-
-			mdio@fd000 {
-				status = "disabled";
-			};
-
-			fman0_oh2 {
-				status = "disabled";
-			};
-			fman0_oh3 {
-				status = "disabled";
-			};
-			fman0_oh4 {
-				status = "disabled";
-			};
-			fman0_oh5 {
-				status = "disabled";
-			};
-			fman0_oh6 {
-				status = "disabled";
-			};
 		};
 
-		fman1: fman@500000 {
-			enet8: ethernet@e0000 {
+		fman@500000 {
+			ethernet@e0000 {
 				phy-handle = <&sgmiiphy41>;
 				phy-connection-type = "sgmii";
 			};
 
-			enet9: ethernet@e2000 {
+			ethernet@e2000 {
 				phy-handle = <&sgmiiphy42>;
 				phy-connection-type = "sgmii";
 			};
 
-			enet10: ethernet@e4000 {
+			ethernet@e4000 {
 				phy-handle = <&sgmiiphy43>;
 				phy-connection-type = "sgmii";
 			};
 
-			enet11: ethernet@e6000 {
+			ethernet@e6000 {
 				phy-handle = <&sgmiiphy44>;
 				phy-connection-type = "sgmii";
 			};
 
-			enet12: ethernet@e8000 {
+			ethernet@e8000 {
 				status = "disabled";
 			};
 
-			enet13: ethernet@ea000 {
+			ethernet@ea000 {
 				status = "disabled";
 			};
 
-			enet14: ethernet@f0000 { /* FM2@TSEC9/FM2@TGEC1 */
+			ethernet@f0000 {
 				phy-handle = <&xfiphy3>;
 				phy-connection-type = "xgmii";
 			};
 
-			enet15: ethernet@f2000 { /* FM2@TSEC10/FM2@TGEC2 */
+			ethernet@f2000 {
 				phy-handle = <&xfiphy4>;
 				phy-connection-type = "xgmii";
 			};
 
-			mdio0: mdio@fc000 {
+			mdio@fc000 {
 				sgmiiphy21: ethernet-phy@0 {
 					reg = <0x0>;
 				};
@@ -317,7 +261,7 @@
 				};
 			};
 
-			xmdio0: mdio@fd000 {
+			mdio@fd000 {
 				xfiphy1: ethernet-phy@10 {
 					compatible = "ethernet-phy-ieee802.3-c45";
 					reg = <0x10>;
@@ -338,23 +282,6 @@
 					reg = <0x12>;
 				};
 			};
-
-			fman1_oh3 {
-				status = "disabled";
-			};
-			fman1_oh4 {
-				status = "disabled";
-			};
-			fman1_oh5 {
-				status = "disabled";
-			};
-			fman1_oh6 {
-				status = "disabled";
-			};
-		};
-
-		sdhc@114000 {
-			voltage-ranges = <1800 1800 3300 3300>;
 		};
 	};
 
@@ -417,6 +344,7 @@
 				  0 0x00010000>;
 		};
 	};
+
 	rio: rapidio@ffe0c0000 {
 		reg = <0xf 0xfe0c0000 0 0x11000>;
 
@@ -427,81 +355,6 @@
 			ranges = <0 0 0xc 0x30000000 0 0x10000000>;
 		};
 	};
-
-	fsl,dpaa {
-		compatible = "fsl,t4240-dpaa", "fsl,dpaa";
-		ethernet@0 {
-			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet0>;
-		};
-		ethernet@1 {
-			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet1>;
-		};
-		ethernet@2 {
-			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet2>;
-		};
-		ethernet@3 {
-			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet3>;
-		};
-		ethernet@4 {
-			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet4>;
-			status = "disabled";
-		};
-		ethernet@5 {
-			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet5>;
-			status = "disabled";
-		};
-		ethernet@6 {
-			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet6>;
-		};
-		ethernet@7 {
-			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet7>;
-		};
-		ethernet@8 {
-			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet8>;
-		};
-		ethernet@9 {
-			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet9>;
-		};
-		ethernet@10 {
-			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet10>;
-		};
-		ethernet@11 {
-			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet11>;
-		};
-		ethernet@12 {
-			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet12>;
-			status = "disabled";
-		};
-		ethernet@13 {
-			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet13>;
-			status = "disabled";
-		};
-		ethernet@14 {
-			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet14>;
-		};
-		ethernet@15 {
-			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet15>;
-		};
-	};
 };
 
 /include/ "t4240si-post.dtsi"
-/include/ "qoriq-dpaa-res3.dtsi"
-/include/ "qoriq-qman-ceetm0.dtsi"
-/include/ "qoriq-qman-ceetm1.dtsi"

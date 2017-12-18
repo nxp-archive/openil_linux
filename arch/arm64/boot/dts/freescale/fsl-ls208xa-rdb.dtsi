@@ -1,7 +1,8 @@
 /*
  * Device Tree file for Freescale LS2080A RDB Board.
  *
- * Copyright (C) 2016-17, Freescale Semiconductor
+ * Copyright 2016 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP
  *
  * Abhimanyu Saini <abhimanyu.saini@nxp.com>
  *
@@ -84,6 +85,7 @@
 		reg = <0x75>;
 		#address-cells = <1>;
 		#size-cells = <0>;
+		i2c-mux-never-disable;
 		i2c@1 {
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -131,7 +133,15 @@
 };
 
 &qspi {
-	status = "disabled";
+	status = "okay";
+	flash0: s25fs512s@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "spansion,m25p80";
+		m25p,fast-read;
+		spi-max-frequency = <20000000>;
+		reg = <0>;
+	};
 };
 
 &sata0 {

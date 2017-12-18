@@ -42,7 +42,6 @@
 #include <linux/highmem.h>
 #include <linux/memblock.h>
 
-#include <asm/cputable.h>
 #include <asm/pgalloc.h>
 #include <asm/prom.h>
 #include <asm/io.h>
@@ -73,10 +72,11 @@ unsigned long tlbcam_sz(int idx)
 	return tlbcam_addrs[idx].limit - tlbcam_addrs[idx].start + 1;
 }
 
+#ifdef CONFIG_FSL_BOOKE
 /*
  * Return PA for this VA if it is mapped by a CAM, or 0
  */
-phys_addr_t v_mapped_by_tlbcam(unsigned long va)
+phys_addr_t v_block_mapped(unsigned long va)
 {
 	int b;
 	for (b = 0; b < tlbcam_index; ++b)
@@ -88,7 +88,7 @@ phys_addr_t v_mapped_by_tlbcam(unsigned long va)
 /*
  * Return VA for a given PA or 0 if not mapped
  */
-unsigned long p_mapped_by_tlbcam(phys_addr_t pa)
+unsigned long p_block_mapped(phys_addr_t pa)
 {
 	int b;
 	for (b = 0; b < tlbcam_index; ++b)
@@ -98,6 +98,7 @@ unsigned long p_mapped_by_tlbcam(phys_addr_t pa)
 			return tlbcam_addrs[b].start+(pa-tlbcam_addrs[b].phys);
 	return 0;
 }
+#endif
 
 /*
  * Set up a variable-size TLB entry (tlbcam). The parameters are not checked;
@@ -106,7 +107,7 @@ unsigned long p_mapped_by_tlbcam(phys_addr_t pa)
  * an unsigned long (for example, 32-bit implementations cannot support a 4GB
  * size).
  */
-void settlbcam(int index, unsigned long virt, phys_addr_t phys,
+static void settlbcam(int index, unsigned long virt, phys_addr_t phys,
 		unsigned long size, unsigned long flags, unsigned int pid)
 {
 	unsigned int tsize;
@@ -134,7 +135,7 @@ void settlbcam(int index, unsigned long virt, phys_addr_t phys,
 		TLBCAM[index].MAS7 = (u64)phys >> 32;
 
 	/* Below is unlikely -- only for large user pages or similar */
-	if (pte_user(flags)) {
+	if (pte_user(__pte(flags))) {
 	   TLBCAM[index].MAS3 |= MAS3_UX | MAS3_UR;
 	   TLBCAM[index].MAS3 |= ((flags & _PAGE_RW) ? MAS3_UW : 0);
 	}
@@ -142,18 +143,6 @@ void settlbcam(int index, unsigned long virt, phys_addr_t phys,
 	tlbcam_addrs[index].start = virt;
 	tlbcam_addrs[index].limit = virt + size - 1;
 	tlbcam_addrs[index].phys = phys;
-}
-
-void cleartlbcam(unsigned long virt, unsigned int pid)
-{
-        int i = 0;
-        for (i = 0; i < NUM_TLBCAMS; i++) {
-                if (tlbcam_addrs[i].start == virt) {
-                        TLBCAM[i].MAS1 = 0;
-                        loadcam_entry(i);
-                        return;
-                }
-        }
 }
 
 unsigned long calc_cam_sz(unsigned long ram, unsigned long virt,
@@ -206,27 +195,13 @@ static unsigned long map_mem_in_cams_addr(phys_addr_t phys, unsigned long virt,
 	if (dryrun)
 		return amount_mapped;
 
-	/* CAM loading below must happen in AS1 */
-	WARN_ON(!(mfmsr() & (MSR_IS | MSR_DS)));
-
+	loadcam_multi(0, i, max_cam_idx);
 	tlbcam_index = i;
-	for (i = 0; i < tlbcam_index; i++)
-		loadcam_entry(i);
 
 #ifdef CONFIG_PPC64
 	get_paca()->tcd.esel_next = i;
 	get_paca()->tcd.esel_max = mfspr(SPRN_TLB1CFG) & TLBnCFG_N_ENTRY;
 	get_paca()->tcd.esel_first = i;
-
-#ifdef CONFIG_KVM_BOOKE_HV
-	get_paca()->tcd.lrat_next = 0;
-	if (((mfspr(SPRN_MMUCFG) & MMUCFG_MAVN) == MMUCFG_MAVN_V2) &&
-	    (mfspr(SPRN_MMUCFG) & MMUCFG_LRAT)) {
-		get_paca()->tcd.lrat_max = mfspr(SPRN_LRATCFG) & LRATCFG_NENTRY;
-	} else {
-		get_paca()->tcd.lrat_max = 0;
-	}
-#endif
 #endif
 
 	return amount_mapped;
@@ -236,20 +211,8 @@ unsigned long map_mem_in_cams(unsigned long ram, int max_cam_idx, bool dryrun)
 {
 	unsigned long virt = PAGE_OFFSET;
 	phys_addr_t phys = memstart_addr;
-	unsigned long amount_mapped;
-	int n = -1;
 
-	/*
-	 * We might already be running in AS1. If so, avoid creating a
-	 * duplicate AS1 entry
-	 */
-	if (!(mfmsr() & (MSR_IS | MSR_DS)))
-		n = switch_to_as1();
-	amount_mapped = map_mem_in_cams_addr(phys, virt, ram, max_cam_idx, dryrun);
-	if (n >= 0)
-		restore_to_as0(n, 0, 0, 1);
-
-	return amount_mapped;
+	return map_mem_in_cams_addr(phys, virt, ram, max_cam_idx, dryrun);
 }
 
 #ifdef CONFIG_PPC32
@@ -279,7 +242,9 @@ void __init adjust_total_lowmem(void)
 	/* adjust lowmem size to __max_low_memory */
 	ram = min((phys_addr_t)__max_low_memory, (phys_addr_t)total_lowmem);
 
+	i = switch_to_as1();
 	__max_low_memory = map_mem_in_cams(ram, CONFIG_LOWMEM_CAM_NUM, false);
+	restore_to_as0(i, 0, 0, 1);
 
 	pr_info("Memory CAM mapping: ");
 	for (i = 0; i < tlbcam_index - 1; i++)
@@ -358,47 +323,4 @@ notrace void __init relocate_init(u64 dt_ptr, phys_addr_t start)
 	}
 }
 #endif
-#endif
-
-#if defined(CONFIG_PPC64)
-void book3e_tlb_lock(void)
-{
-	struct paca_struct *paca = get_paca();
-	unsigned long tmp;
-	int token = smp_processor_id() + 1;
-
-	/*
-	 * Besides being unnecessary in the absence of SMT, this
-	 * check prevents trying to do lbarx/stbcx. on e5500 which
-	 * doesn't implement either feature.
-	 */
-	if (!cpu_has_feature(CPU_FTR_SMT))
-		return;
-
-	asm volatile("1: lbarx %0, 0, %1;"
-		     "cmpwi %0, 0;"
-		     "bne 2f;"
-		     "stbcx. %2, 0, %1;"
-		     "bne 1b;"
-		     "b 3f;"
-		     "2: lbzx %0, 0, %1;"
-		     "cmpwi %0, 0;"
-		     "bne 2b;"
-		     "b 1b;"
-		     "3:"
-		     : "=&r" (tmp)
-		     : "r" (&paca->tcd_ptr->lock), "r" (token)
-		     : "memory");
-}
-
-void book3e_tlb_unlock(void)
-{
-	struct paca_struct *paca = get_paca();
-
-	if (!cpu_has_feature(CPU_FTR_SMT))
-		return;
-
-	isync();
-	paca->tcd_ptr->lock = 0;
-}
 #endif

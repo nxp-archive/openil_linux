@@ -33,9 +33,8 @@
 #define DPAA2_ETH_DEBUGFS_H
 
 #include <linux/dcache.h>
-#include "dpaa2-eth.h"
 
-extern struct dpaa2_eth_priv *priv;
+struct dpaa2_eth_priv;
 
 struct dpaa2_debugfs {
 	struct dentry *dir;
@@ -43,6 +42,7 @@ struct dpaa2_debugfs {
 	struct dentry *ch_stats;
 	struct dentry *cpu_stats;
 	struct dentry *reset_stats;
+	struct dentry *reset_mc_stats;
 };
 
 #ifdef CONFIG_FSL_DPAA2_ETH_DEBUGFS
@@ -58,4 +58,3 @@ static inline void dpaa2_dbg_remove(struct dpaa2_eth_priv *priv) {}
 #endif /* CONFIG_FSL_DPAA2_ETH_DEBUGFS */
 
 #endif /* DPAA2_ETH_DEBUGFS_H */
-

@@ -70,11 +70,11 @@ struct seq_oss_synth {
 static int max_synth_devs;
 static struct seq_oss_synth *synth_devs[SNDRV_SEQ_OSS_MAX_SYNTH_DEVS];
 static struct seq_oss_synth midi_synth_dev = {
-	-1, /* seq_device */
-	SYNTH_TYPE_MIDI, /* synth_type */
-	0, /* synth_subtype */
-	16, /* nr_voices */
-	"MIDI", /* name */
+	.seq_device = -1,
+	.synth_type = SYNTH_TYPE_MIDI,
+	.synth_subtype = 0,
+	.nr_voices = 16,
+	.name = "MIDI",
 };
 
 static DEFINE_SPINLOCK(register_lock);
@@ -630,7 +630,7 @@ snd_seq_oss_synth_make_info(struct seq_oss_devinfo *dp, int dev, struct synth_in
 }
 
 
-#ifdef CONFIG_PROC_FS
+#ifdef CONFIG_SND_PROC_FS
 /*
  * proc interface
  */
@@ -658,4 +658,4 @@ snd_seq_oss_synth_info_read(struct snd_info_buffer *buf)
 		snd_use_lock_free(&rec->use_lock);
 	}
 }
-#endif /* CONFIG_PROC_FS */
+#endif /* CONFIG_SND_PROC_FS */

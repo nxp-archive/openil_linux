@@ -39,9 +39,6 @@ struct platform_device;
 #define PME_DISR_EN_ENL23D	0x00002000
 #define PME_DISR_EN_EXL23D	0x00001000
 
-#define ENL23_DETECT_BIT	0x00002000
-#define EXL23_DETECT_BIT	0x00001000
-
 /* PCI/PCI Express outbound window reg */
 struct pci_outbound_window_regs {
 	__be32	potar;	/* 0x.0 - Outbound translation address register */
@@ -131,19 +128,6 @@ extern struct device_node *fsl_pci_primary;
 void fsl_pci_assign_primary(void);
 #else
 static inline void fsl_pci_assign_primary(void) {}
-#endif
-
-#ifdef CONFIG_P1022_DS
-void p1022ds_reset_pcie_slot(void);
-#endif
-
-#ifdef CONFIG_EDAC_MPC85XX
-int mpc85xx_pci_err_probe(struct platform_device *op);
-#else
-static inline int mpc85xx_pci_err_probe(struct platform_device *op)
-{
-	return -ENOTSUPP;
-}
 #endif
 
 #ifdef CONFIG_FSL_PCI

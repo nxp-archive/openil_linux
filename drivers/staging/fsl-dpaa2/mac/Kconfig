@@ -21,4 +21,3 @@ config FSL_DPAA2_MAC_NETDEVS
 	PHYs.
 	.
 	Leave disabled if unsure.
-

@@ -1,18 +1,18 @@
 /*
  * P5040 Silicon/SoC Device Tree Source (post include)
  *
- * Copyright 2012 - 2014 Freescale Semiconductor Inc.
+ * Copyright 2012 - 2015 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
- *	 notice, this list of conditions and the following disclaimer.
+ *       notice, this list of conditions and the following disclaimer.
  *     * Redistributions in binary form must reproduce the above copyright
- *	 notice, this list of conditions and the following disclaimer in the
- *	 documentation and/or other materials provided with the distribution.
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
  *     * Neither the name of Freescale Semiconductor nor the
- *	 names of its contributors may be used to endorse or promote products
- *	 derived from this software without specific prior written permission.
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
  *
  *
  * ALTERNATIVELY, this software may be distributed under the terms of the
@@ -319,6 +319,24 @@
 /include/ "qoriq-clockgen1.dtsi"
 	global-utilities@e1000 {
 		compatible = "fsl,p5040-clockgen", "fsl,qoriq-clockgen-1.0";
+
+		mux2: mux2@40 {
+			#clock-cells = <0>;
+			reg = <0x40 0x4>;
+			compatible = "fsl,qoriq-core-mux-1.0";
+			clocks = <&pll0 0>, <&pll0 1>, <&pll1 0>, <&pll1 1>;
+			clock-names = "pll0", "pll0-div2", "pll1", "pll1-div2";
+			clock-output-names = "cmux2";
+		};
+
+		mux3: mux3@60 {
+			#clock-cells = <0>;
+			reg = <0x60 0x4>;
+			compatible = "fsl,qoriq-core-mux-1.0";
+			clocks = <&pll0 0>, <&pll0 1>, <&pll1 0>, <&pll1 1>;
+			clock-names = "pll0", "pll0-div2", "pll1", "pll1-div2";
+			clock-output-names = "cmux3";
+		};
 	};
 
 	rcpm: global-utilities@e2000 {
@@ -405,6 +423,7 @@
 /include/ "qoriq-raid1.0-0.dtsi"
 /include/ "qoriq-qman1.dtsi"
 /include/ "qoriq-bman1.dtsi"
+
 /include/ "qoriq-fman-0.dtsi"
 /include/ "qoriq-fman-0-1g-0.dtsi"
 /include/ "qoriq-fman-0-1g-1.dtsi"
@@ -412,56 +431,26 @@
 /include/ "qoriq-fman-0-1g-3.dtsi"
 /include/ "qoriq-fman-0-1g-4.dtsi"
 /include/ "qoriq-fman-0-10g-0.dtsi"
-	fman0: fman@400000 {
-		/* tx - 1g - 0 */
-		port@a8000 {
-			fsl,qman-channel-id = <0x41>;
+	fman@400000 {
+		enet0: ethernet@e0000 {
 		};
-		/* tx - 1g - 1 */
-		port@a9000 {
-			fsl,qman-channel-id = <0x42>;
+
+		enet1: ethernet@e2000 {
 		};
-		/* tx - 1g - 2 */
-		port@aa000 {
-			fsl,qman-channel-id = <0x43>;
+
+		enet2: ethernet@e4000 {
 		};
-		/* tx - 1g - 3 */
-		port@ab000 {
-			fsl,qman-channel-id = <0x44>;
+
+		enet3: ethernet@e6000 {
 		};
-		/* tx - 1g - 4 */
-		port@ac000 {
-			fsl,qman-channel-id = <0x45>;
+
+		enet4: ethernet@e8000 {
 		};
-		/* tx - 10g - 0 */
-		port@b0000 {
-			fsl,qman-channel-id = <0x40>;
-		};
-		/* offline 0 */
-		port@81000 {
-			fsl,qman-channel-id = <0x46>;
-		};
-		/* offline 1 */
-		port@82000 {
-			fsl,qman-channel-id = <0x47>;
-		};
-		/* offline 2 */
-		port@83000 {
-			fsl,qman-channel-id = <0x48>;
-		};
-		/* offline 3 */
-		port@84000 {
-			fsl,qman-channel-id = <0x49>;
-		};
-		/* offline 4 */
-		port@85000 {
-			fsl,qman-channel-id = <0x4a>;
-		};
-		/* offline 5 */
-		port@86000 {
-			fsl,qman-channel-id = <0x4b>;
+
+		enet5: ethernet@f0000 {
 		};
 	};
+
 /include/ "qoriq-fman-1.dtsi"
 /include/ "qoriq-fman-1-1g-0.dtsi"
 /include/ "qoriq-fman-1-1g-1.dtsi"
@@ -469,54 +458,23 @@
 /include/ "qoriq-fman-1-1g-3.dtsi"
 /include/ "qoriq-fman-1-1g-4.dtsi"
 /include/ "qoriq-fman-1-10g-0.dtsi"
-	fman1: fman@500000 {
-		/* tx - 1g - 0 */
-		port@a8000 {
-			fsl,qman-channel-id = <0x61>;
+	fman@500000 {
+		enet6: ethernet@e0000 {
 		};
-		/* tx - 1g - 1 */
-		port@a9000 {
-			fsl,qman-channel-id = <0x62>;
+
+		enet7: ethernet@e2000 {
 		};
-		/* tx - 1g - 2 */
-		port@aa000 {
-			fsl,qman-channel-id = <0x63>;
+
+		enet8: ethernet@e4000 {
 		};
-		/* tx - 1g - 3 */
-		port@ab000 {
-			fsl,qman-channel-id = <0x64>;
+
+		enet9: ethernet@e6000 {
 		};
-		/* tx - 1g - 4 */
-		port@ac000 {
-			fsl,qman-channel-id = <0x65>;
+
+		enet10: ethernet@e8000 {
 		};
-		/* tx - 10g - 0 */
-		port@b0000 {
-			fsl,qman-channel-id = <0x60>;
-		};
-		/* offline 0 */
-		port@81000 {
-			fsl,qman-channel-id = <0x66>;
-		};
-		/* offline 1 */
-		port@82000 {
-			fsl,qman-channel-id = <0x67>;
-		};
-		/* offline 2 */
-		port@83000 {
-			fsl,qman-channel-id = <0x68>;
-		};
-		/* offline 3 */
-		port@84000 {
-			fsl,qman-channel-id = <0x69>;
-		};
-		/* offline 4 */
-		port@85000 {
-			fsl,qman-channel-id = <0x6a>;
-		};
-		/* offline 5 */
-		port@86000 {
-			fsl,qman-channel-id = <0x6b>;
+
+		enet11: ethernet@f0000 {
 		};
 	};
 };

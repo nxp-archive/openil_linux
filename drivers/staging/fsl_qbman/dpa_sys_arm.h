@@ -91,5 +91,5 @@ static inline void flush_dcache_range(unsigned long start, unsigned long stop)
 	__cpuc_flush_dcache_area((void *) start, stop - start);
 }
 
-#define hard_smp_processor_id() raw_smp_processor_id()
+//#define hard_smp_processor_id() raw_smp_processor_id()
 #endif

@@ -139,7 +139,7 @@ struct l2tp_session {
 	void (*session_close)(struct l2tp_session *session);
 	void (*ref)(struct l2tp_session *session);
 	void (*deref)(struct l2tp_session *session);
-#if defined(CONFIG_L2TP_DEBUGFS) || defined(CONFIG_L2TP_DEBUGFS_MODULE)
+#if IS_ENABLED(CONFIG_L2TP_DEBUGFS)
 	void (*show)(struct seq_file *m, void *priv);
 #endif
 	uint8_t			priv[0];	/* private data */
@@ -243,7 +243,8 @@ out:
 struct l2tp_session *l2tp_session_find(struct net *net,
 				       struct l2tp_tunnel *tunnel,
 				       u32 session_id);
-struct l2tp_session *l2tp_session_find_nth(struct l2tp_tunnel *tunnel, int nth);
+struct l2tp_session *l2tp_session_get_nth(struct l2tp_tunnel *tunnel, int nth,
+					  bool do_ref);
 struct l2tp_session *l2tp_session_find_by_ifname(struct net *net, char *ifname);
 struct l2tp_tunnel *l2tp_tunnel_find(struct net *net, u32 tunnel_id);
 struct l2tp_tunnel *l2tp_tunnel_find_nth(struct net *net, int nth);
@@ -273,6 +274,7 @@ int l2tp_xmit_skb(struct l2tp_session *session, struct sk_buff *skb,
 int l2tp_nl_register_ops(enum l2tp_pwtype pw_type,
 			 const struct l2tp_nl_cmd_ops *ops);
 void l2tp_nl_unregister_ops(enum l2tp_pwtype pw_type);
+int l2tp_ioctl(struct sock *sk, int cmd, unsigned long arg);
 
 /* Session reference counts. Incremented when code obtains a reference
  * to a session.
@@ -320,5 +322,8 @@ do {									\
 	l2tp_printk(ptr, type, pr_info, fmt, ##__VA_ARGS__)
 #define l2tp_dbg(ptr, type, fmt, ...)					\
 	l2tp_printk(ptr, type, pr_debug, fmt, ##__VA_ARGS__)
+
+#define MODULE_ALIAS_L2TP_PWTYPE(type) \
+	MODULE_ALIAS("net-l2tp-type-" __stringify(type))
 
 #endif /* _L2TP_CORE_H_ */

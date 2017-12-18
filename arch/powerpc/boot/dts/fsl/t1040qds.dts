@@ -44,4 +44,3 @@
 };
 
 #include "t1040si-post.dtsi"
-/include/ "qoriq-dpaa-res3.dtsi"

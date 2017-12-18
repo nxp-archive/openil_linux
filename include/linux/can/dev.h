@@ -14,9 +14,10 @@
 #define _CAN_DEV_H
 
 #include <linux/can.h>
-#include <linux/can/netlink.h>
 #include <linux/can/error.h>
 #include <linux/can/led.h>
+#include <linux/can/netlink.h>
+#include <linux/netdevice.h>
 
 /*
  * CAN mode
@@ -31,6 +32,7 @@ enum can_mode {
  * CAN common private data
  */
 struct can_priv {
+	struct net_device *dev;
 	struct can_device_stats can_stats;
 
 	struct can_bittiming bittiming, data_bittiming;
@@ -46,7 +48,7 @@ struct can_priv {
 	u32 ctrlmode_static;	/* static enabled options for driver/hardware */
 
 	int restart_ms;
-	struct timer_list restart_timer;
+	struct delayed_work restart_work;
 
 	int (*do_set_bittiming)(struct net_device *dev);
 	int (*do_set_data_bittiming)(struct net_device *dev);
@@ -80,7 +82,7 @@ struct can_priv {
 #define get_canfd_dlc(i)	(min_t(__u8, (i), CANFD_MAX_DLC))
 
 /* Drop a given socketbuffer if it does not contain a valid CAN frame. */
-static inline int can_dropped_invalid_skb(struct net_device *dev,
+static inline bool can_dropped_invalid_skb(struct net_device *dev,
 					  struct sk_buff *skb)
 {
 	const struct canfd_frame *cfd = (struct canfd_frame *)skb->data;
@@ -96,12 +98,12 @@ static inline int can_dropped_invalid_skb(struct net_device *dev,
 	} else
 		goto inval_skb;
 
-	return 0;
+	return false;
 
 inval_skb:
 	kfree_skb(skb);
 	dev->stats.tx_dropped++;
-	return 1;
+	return true;
 }
 
 static inline bool can_is_canfd_skb(const struct sk_buff *skb)

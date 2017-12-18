@@ -9,6 +9,6 @@
 struct ipipe_threadinfo {
 };
 
-static inline void __ipipe_init_threadinfo(struct ipipe_threadinfo *p) { }
+#define __ipipe_init_threadinfo(__p) do { } while (0)
 
 #endif /* !_IPIPE_THREAD_INFO_H */

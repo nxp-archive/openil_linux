@@ -78,6 +78,8 @@
 #define XNMOVED   0x00000001 /**< CPU migration in primary mode occurred */
 #define XNLBALERT 0x00000002 /**< Scheduler lock break alert (SIGDEBUG sent) */
 #define XNDESCENT 0x00000004 /**< Adaptive transitioning to secondary mode */
+#define XNSYSRST  0x00000008 /**< Thread awaiting syscall restart after signal */
+#define XNHICCUP  0x00000010 /**< Just left from ptracing */
 
 /** @} */
 

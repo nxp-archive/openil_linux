@@ -683,8 +683,6 @@ int cobalt_map_user(struct xnthread *thread, __u32 __user *u_winoff)
 	__xn_put_user(cobalt_umm_offset(umm, u_window), u_winoff);
 	xnthread_pin_initial(thread);
 
-	trace_cobalt_shadow_map(thread);
-
 	/*
 	 * CAUTION: we enable the pipeline notifier only when our
 	 * shadow TCB is consistent, so that we won't trigger false
@@ -734,7 +732,7 @@ static inline int handle_exception(struct ipipe_trap_data *d)
 	if (xnthread_test_state(thread, XNROOT))
 		return 0;
 
-	trace_cobalt_thread_fault(thread, d);
+	trace_cobalt_thread_fault(d);
 
 	if (xnarch_fault_fpu_p(d)) {
 #ifdef CONFIG_XENO_ARCH_FPU
@@ -758,7 +756,7 @@ static inline int handle_exception(struct ipipe_trap_data *d)
 	 * running in primary mode, move it to the Linux domain,
 	 * leaving the kernel process the exception.
 	 */
-#if XENO_DEBUG(COBALT) || XENO_DEBUG(USER)
+#if defined(CONFIG_XENO_OPT_DEBUG_COBALT) || defined(CONFIG_XENO_OPT_DEBUG_USER)
 	if (!user_mode(d->regs)) {
 		xntrace_panic_freeze();
 		printk(XENO_WARNING
@@ -835,7 +833,6 @@ static int handle_setaffinity_event(struct ipipe_cpu_migration_data *d)
 {
 	struct task_struct *p = d->task;
 	struct xnthread *thread;
-	struct xnsched *sched;
 	spl_t s;
 
 	thread = xnthread_from_task(p);
@@ -843,46 +840,27 @@ static int handle_setaffinity_event(struct ipipe_cpu_migration_data *d)
 		return KEVENT_PROPAGATE;
 
 	/*
-	 * The CPU affinity mask is always controlled from secondary
-	 * mode, therefore we progagate any change to the real-time
-	 * affinity mask accordingly.
+	 * Detect a Cobalt thread sleeping in primary mode which is
+	 * required to migrate to another CPU by the host kernel.
+	 *
+	 * We may NOT fix up thread->sched immediately using the
+	 * passive migration call, because that latter always has to
+	 * take place on behalf of the target thread itself while
+	 * running in secondary mode. Therefore, that thread needs to
+	 * go through secondary mode first, then move back to primary
+	 * mode, so that check_affinity() does the fixup work.
+	 *
+	 * We force this by sending a SIGSHADOW signal to the migrated
+	 * thread, asking it to switch back to primary mode from the
+	 * handler, at which point the interrupted syscall may be
+	 * restarted.
 	 */
 	xnlock_get_irqsave(&nklock, s);
-	cpumask_and(&thread->affinity, &p->cpus_allowed, &cobalt_cpu_affinity);
-	xnthread_run_handler_stack(thread, move_thread, d->dest_cpu);
-	xnlock_put_irqrestore(&nklock, s);
 
-	/*
-	 * If kernel and real-time CPU affinity sets are disjoints,
-	 * there might be problems ahead for this thread next time it
-	 * moves back to primary mode, if it ends up switching to an
-	 * unsupported CPU.
-	 *
-	 * Otherwise, check_affinity() will extend the CPU affinity if
-	 * possible, fixing up the thread's affinity mask. This means
-	 * that a thread might be allowed to run with a broken
-	 * (i.e. fully cleared) affinity mask until it leaves primary
-	 * mode then switches back to it, in SMP configurations.
-	 */
-	if (cpumask_empty(&thread->affinity))
-		printk(XENO_WARNING "thread %s[%d] changed CPU affinity inconsistently\n",
-		       thread->name, xnthread_host_pid(thread));
-	else {
-		xnlock_get_irqsave(&nklock, s);
-		/*
-		 * Threads running in primary mode may NOT be forcibly
-		 * migrated by the regular kernel to another CPU. Such
-		 * migration would have to wait until the thread
-		 * switches back from secondary mode at some point
-		 * later, or issues a call to xnthread_migrate().
-		 */
-		if (!xnthread_test_state(thread, XNMIGRATE) &&
-		    xnthread_test_state(thread, XNTHREAD_BLOCK_BITS)) {
-			sched = xnsched_struct(d->dest_cpu);
-			xnthread_migrate_passive(thread, sched);
-		}
-		xnlock_put_irqrestore(&nklock, s);
-	}
+	if (xnthread_test_state(thread, XNTHREAD_BLOCK_BITS & ~XNRELAX))
+		xnthread_signal(thread, SIGSHADOW, SIGSHADOW_ACTION_HARDEN);
+
+	xnlock_put_irqrestore(&nklock, s);
 
 	return KEVENT_PROPAGATE;
 }
@@ -894,15 +872,29 @@ static inline void check_affinity(struct task_struct *p) /* nklocked, IRQs off *
 	int cpu = task_cpu(p);
 
 	/*
-	 * If the task moved to another CPU while in secondary mode,
-	 * migrate the companion Xenomai shadow to reflect the new
-	 * situation.
+	 * To maintain consistency between both Cobalt and host
+	 * schedulers, reflecting a thread migration to another CPU
+	 * into the Cobalt scheduler state must happen from secondary
+	 * mode only, on behalf of the migrated thread itself once it
+	 * runs on the target CPU.
 	 *
-	 * In the weirdest case, the thread is about to switch to
-	 * primary mode on a CPU Xenomai shall not use. This is
-	 * hopeless, whine and kill that thread asap.
+	 * This means that the Cobalt scheduler state regarding the
+	 * CPU information lags behind the host scheduler state until
+	 * the migrated thread switches back to primary mode
+	 * (i.e. task_cpu(p) != xnsched_cpu(xnthread_from_task(p)->sched)).
+	 * This is ok since Cobalt does not schedule such thread until then.
+	 *
+	 * check_affinity() detects when a Cobalt thread switching
+	 * back to primary mode did move to another CPU earlier while
+	 * in secondary mode. If so, do the fixups to reflect the
+	 * change.
 	 */
 	if (!xnsched_supported_cpu(cpu)) {
+		/*
+		 * The thread is about to switch to primary mode on a
+		 * non-rt CPU, which is damn wrong and hopeless.
+		 * Whine and cancel that thread.
+		 */
 		printk(XENO_WARNING "thread %s[%d] switched to non-rt CPU%d, aborted.\n",
 		       thread->name, xnthread_host_pid(thread), cpu);
 		/*
@@ -927,6 +919,7 @@ static inline void check_affinity(struct task_struct *p) /* nklocked, IRQs off *
 	if (!cpumask_test_cpu(cpu, &thread->affinity))
 		cpumask_set_cpu(cpu, &thread->affinity);
 
+	xnthread_run_handler_stack(thread, move_thread, cpu);
 	xnthread_migrate_passive(thread, sched);
 }
 
@@ -1014,28 +1007,6 @@ static inline void init_hostrt(void) { }
 
 #endif /* !CONFIG_XENO_OPT_HOSTRT */
 
-/* called with nklock held */
-static void register_debugged_thread(struct xnthread *thread)
-{
-	nkclock_lock++;
-
-	xnthread_set_state(thread, XNSSTEP);
-}
-
-static void unregister_debugged_thread(struct xnthread *thread)
-{
-	spl_t s;
-
-	xnlock_get_irqsave(&nklock, s);
-
-	xnthread_clear_state(thread, XNSSTEP);
-
-	XENO_BUG_ON(COBALT, nkclock_lock == 0);
-	nkclock_lock--;
-
-	xnlock_put_irqrestore(&nklock, s);
-}
-
 static void __handle_taskexit_event(struct task_struct *p)
 {
 	struct cobalt_ppd *sys_ppd;
@@ -1050,9 +1021,6 @@ static void __handle_taskexit_event(struct task_struct *p)
 	thread = xnthread_current();
 	XENO_BUG_ON(COBALT, thread == NULL);
 	trace_cobalt_shadow_unmap(thread);
-
-	if (xnthread_test_state(thread, XNSSTEP))
-		unregister_debugged_thread(thread);
 
 	xnthread_run_handler_stack(thread, exit_thread);
 	xnsched_run();
@@ -1102,6 +1070,7 @@ static int handle_schedule_event(struct task_struct *next_task)
 	struct task_struct *prev_task;
 	struct xnthread *next;
 	sigset_t pending;
+	spl_t s;
 
 	signal_yield();
 
@@ -1111,12 +1080,9 @@ static int handle_schedule_event(struct task_struct *next_task)
 		goto out;
 
 	/*
-	 * Check whether we need to unlock the timers, each time a
-	 * Linux task resumes from a stopped state, excluding tasks
-	 * resuming shortly for entering a stopped state asap due to
-	 * ptracing. To identify the latter, we need to check for
-	 * SIGSTOP and SIGINT in order to encompass both the NPTL and
-	 * LinuxThreads behaviours.
+	 * Track tasks leaving the ptraced state.  Check both SIGSTOP
+	 * (NPTL) and SIGINT (LinuxThreads) to detect ptrace
+	 * continuation.
 	 */
 	if (xnthread_test_state(next, XNSSTEP)) {
 		if (signal_pending(next_task)) {
@@ -1131,12 +1097,15 @@ static int handle_schedule_event(struct task_struct *next_task)
 				  &next_task->signal->shared_pending.signal);
 			if (sigismember(&pending, SIGSTOP) ||
 			    sigismember(&pending, SIGINT))
-				goto no_ptrace;
+				goto check;
 		}
-		unregister_debugged_thread(next);
+		xnlock_get_irqsave(&nklock, s);
+		xnthread_clear_state(next, XNSSTEP);
+		xnlock_put_irqrestore(&nklock, s);
+		xnthread_set_localinfo(next, XNHICCUP);
 	}
 
-no_ptrace:
+check:
 	/*
 	 * Do basic sanity checks on the incoming thread state.
 	 * NOTE: we allow ptraced threads to run shortly in order to
@@ -1189,7 +1158,7 @@ static int handle_sigwake_event(struct task_struct *p)
 		if (sigismember(&pending, SIGTRAP) ||
 		    sigismember(&pending, SIGSTOP)
 		    || sigismember(&pending, SIGINT))
-			register_debugged_thread(thread);
+			xnthread_set_state(thread, XNSSTEP);
 	}
 
 	if (xnthread_test_state(thread, XNRELAX)) {
@@ -1207,7 +1176,7 @@ static int handle_sigwake_event(struct task_struct *p)
 	 * we don't break any undergoing ptrace.
 	 */
 	if (p->state & (TASK_INTERRUPTIBLE|TASK_UNINTERRUPTIBLE))
-		set_task_state(p, p->state | TASK_NOWAKEUP);
+		cobalt_set_task_state(p, p->state | TASK_NOWAKEUP);
 
 	__xnthread_kick(thread);
 

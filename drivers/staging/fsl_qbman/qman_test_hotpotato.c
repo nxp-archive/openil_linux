@@ -229,8 +229,11 @@ static inline void process_frame_data(struct hp_handler *handler,
 	u32 *p = handler->frame_ptr;
 	u32 lfsr = HP_FIRST_WORD;
 	int loop;
-	if (qm_fd_addr_get64(fd) != handler->addr)
+	if (qm_fd_addr_get64(fd) != (handler->addr & 0xffffffffff)) {
+		pr_err("Got 0x%llx expected 0x%llx\n",
+		       qm_fd_addr_get64(fd), handler->addr);
 		panic("bad frame address");
+	}
 	for (loop = 0; loop < HP_NUM_WORDS; loop++, p++) {
 		*p ^= handler->rx_mixer;
 		if (*p != lfsr)

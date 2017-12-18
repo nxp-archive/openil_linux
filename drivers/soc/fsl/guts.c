@@ -17,7 +17,6 @@
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
 #include <linux/fsl/guts.h>
-#include <linux/fsl/svr.h>
 
 struct guts {
 	struct ccsr_guts __iomem *regs;
@@ -37,7 +36,6 @@ static struct soc_device *soc_dev;
 
 /* SoC die attribute definition for QorIQ platform */
 static const struct fsl_soc_die_attr fsl_soc_die[] = {
-#ifdef CONFIG_PPC
 	/*
 	 * Power Architecture-based SoCs T Series
 	 */
@@ -62,8 +60,7 @@ static const struct fsl_soc_die_attr fsl_soc_die[] = {
 	  .svr		= 0x85400000,
 	  .mask		= 0xfff00000,
 	},
-#endif /* CONFIG_PPC */
-#if defined(CONFIG_ARCH_MXC) || defined(CONFIG_ARCH_LAYERSCAPE)
+
 	/*
 	 * ARM-based SoCs LS Series
 	 */
@@ -98,14 +95,11 @@ static const struct fsl_soc_die_attr fsl_soc_die[] = {
 	  .svr		= 0x87090000,
 	  .mask		= 0xff3f0000,
 	},
-	/* Die: LS1021A, SoC: LS1021A/LS1020A/LS1022A
-	 * Note: Put this die at the end in cause of incorrect identification
-	 */
+	/* Die: LS1021A, SoC: LS1021A/LS1020A/LS1022A */
 	{ .die		= "LS1021A",
 	  .svr		= 0x87000000,
-	  .mask		= 0xfff00000,
+	  .mask		= 0xfff70000,
 	},
-#endif /* CONFIG_ARCH_MXC || CONFIG_ARCH_LAYERSCAPE */
 	{ },
 };
 
@@ -139,71 +133,56 @@ EXPORT_SYMBOL(fsl_guts_get_svr);
 static int fsl_guts_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
+	struct device *dev = &pdev->dev;
+	struct resource *res;
 	const struct fsl_soc_die_attr *soc_die;
 	const char *machine;
 	u32 svr;
-	int ret = 0;
 
 	/* Initialize guts */
-	guts = kzalloc(sizeof(*guts), GFP_KERNEL);
+	guts = devm_kzalloc(dev, sizeof(*guts), GFP_KERNEL);
 	if (!guts)
 		return -ENOMEM;
 
 	guts->little_endian = of_property_read_bool(np, "little-endian");
 
-	guts->regs = of_iomap(np, 0);
-	if (!guts->regs) {
-		ret = -ENOMEM;
-		goto out_free;
-	}
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	guts->regs = devm_ioremap_resource(dev, res);
+	if (IS_ERR(guts->regs))
+		return PTR_ERR(guts->regs);
 
 	/* Register soc device */
 	machine = of_flat_dt_get_machine_name();
 	if (machine)
-		soc_dev_attr.machine = kstrdup(machine, GFP_KERNEL);
+		soc_dev_attr.machine = devm_kstrdup(dev, machine, GFP_KERNEL);
 
 	svr = fsl_guts_get_svr();
 	soc_die = fsl_soc_die_match(svr, fsl_soc_die);
 	if (soc_die) {
-		soc_dev_attr.family = kasprintf(GFP_KERNEL, "QorIQ %s",
-						soc_die->die);
+		soc_dev_attr.family = devm_kasprintf(dev, GFP_KERNEL,
+						     "QorIQ %s", soc_die->die);
 	} else {
-		soc_dev_attr.family = kasprintf(GFP_KERNEL, "QorIQ");
+		soc_dev_attr.family = devm_kasprintf(dev, GFP_KERNEL, "QorIQ");
 	}
-	soc_dev_attr.soc_id = kasprintf(GFP_KERNEL, "svr:0x%08x", svr);
-	soc_dev_attr.revision = kasprintf(GFP_KERNEL, "%d.%d",
-					   SVR_MAJ(svr), SVR_MIN(svr));
+	soc_dev_attr.soc_id = devm_kasprintf(dev, GFP_KERNEL,
+					     "svr:0x%08x", svr);
+	soc_dev_attr.revision = devm_kasprintf(dev, GFP_KERNEL, "%d.%d",
+					       (svr >>  4) & 0xf, svr & 0xf);
 
 	soc_dev = soc_device_register(&soc_dev_attr);
-	if (IS_ERR(soc_dev)) {
-		ret = PTR_ERR(soc_dev);
-		goto out;
-	}
+	if (IS_ERR(soc_dev))
+		return PTR_ERR(soc_dev);
+
 	pr_info("Machine: %s\n", soc_dev_attr.machine);
 	pr_info("SoC family: %s\n", soc_dev_attr.family);
 	pr_info("SoC ID: %s, Revision: %s\n",
 		soc_dev_attr.soc_id, soc_dev_attr.revision);
 	return 0;
-out:
-	kfree(soc_dev_attr.machine);
-	kfree(soc_dev_attr.family);
-	kfree(soc_dev_attr.soc_id);
-	kfree(soc_dev_attr.revision);
-	iounmap(guts->regs);
-out_free:
-	kfree(guts);
-	return ret;
 }
 
 static int fsl_guts_remove(struct platform_device *dev)
 {
 	soc_device_unregister(soc_dev);
-	kfree(soc_dev_attr.machine);
-	kfree(soc_dev_attr.family);
-	kfree(soc_dev_attr.soc_id);
-	kfree(soc_dev_attr.revision);
-	iounmap(guts->regs);
-	kfree(guts);
 	return 0;
 }
 
@@ -222,11 +201,17 @@ static const struct of_device_id fsl_guts_of_match[] = {
 	{ .compatible = "fsl,p2020-guts", },
 	{ .compatible = "fsl,bsc9131-guts", },
 	{ .compatible = "fsl,bsc9132-guts", },
+	{ .compatible = "fsl,mpc8536-guts", },
+	{ .compatible = "fsl,mpc8544-guts", },
+	{ .compatible = "fsl,mpc8548-guts", },
+	{ .compatible = "fsl,mpc8568-guts", },
+	{ .compatible = "fsl,mpc8569-guts", },
+	{ .compatible = "fsl,mpc8572-guts", },
 	{ .compatible = "fsl,ls1021a-dcfg", },
-	{ .compatible = "fsl,ls1012a-dcfg", },
 	{ .compatible = "fsl,ls1043a-dcfg", },
 	{ .compatible = "fsl,ls1046a-dcfg", },
 	{ .compatible = "fsl,ls2080a-dcfg", },
+	{ .compatible = "fsl,ls1088a-dcfg", },
 	{}
 };
 MODULE_DEVICE_TABLE(of, fsl_guts_of_match);

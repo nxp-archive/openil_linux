@@ -1,7 +1,7 @@
 /*
  * Internal header file for QE TDM mode routines.
  *
- * Copyright (C) 2015 Freescale Semiconductor, Inc. All rights reserved.
+ * Copyright (C) 2016 Freescale Semiconductor, Inc. All rights reserved.
  *
  * Authors:	Zhao Qiang <qiang.zhao@nxp.com>
  *
@@ -11,8 +11,8 @@
  * option) any later version
  */
 
-#ifndef CONFIG_QE_TDM_H
-#define CONFIG_QE_TDM_H
+#ifndef _QE_TDM_H_
+#define _QE_TDM_H_
 
 #include <linux/kernel.h>
 #include <linux/list.h>
@@ -51,7 +51,6 @@ enum tdm_ts_t {
 	TDM_RX_TS
 };
 
-
 enum tdm_framer_t {
 	TDM_FRAMER_T1,
 	TDM_FRAMER_E1
@@ -89,7 +88,7 @@ struct ucc_tdm {
 	u32 rx_ts_mask;		/* rx time slot mask */
 };
 
-int of_parse_tdm(struct device_node *np,
-		struct ucc_tdm *utdm, struct ucc_tdm_info *ut_info);
-void init_si(struct ucc_tdm *utdm, struct ucc_tdm_info *ut_info);
+int ucc_of_parse_tdm(struct device_node *np, struct ucc_tdm *utdm,
+		     struct ucc_tdm_info *ut_info);
+void ucc_tdm_init(struct ucc_tdm *utdm, struct ucc_tdm_info *ut_info);
 #endif

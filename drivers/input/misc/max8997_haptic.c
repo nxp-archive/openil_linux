@@ -306,6 +306,12 @@ static int max8997_haptic_probe(struct platform_device *pdev)
 				error);
 			goto err_free_mem;
 		}
+
+		/*
+		 * FIXME: pwm_apply_args() should be removed when switching to
+		 * the atomic PWM API.
+		 */
+		pwm_apply_args(chip->pwm);
 		break;
 
 	default:
@@ -396,7 +402,7 @@ static const struct platform_device_id max8997_haptic_id[] = {
 	{ "max8997-haptic", 0 },
 	{ },
 };
-MODULE_DEVICE_TABLE(i2c, max8997_haptic_id);
+MODULE_DEVICE_TABLE(platform, max8997_haptic_id);
 
 static struct platform_driver max8997_haptic_driver = {
 	.driver	= {
@@ -409,7 +415,6 @@ static struct platform_driver max8997_haptic_driver = {
 };
 module_platform_driver(max8997_haptic_driver);
 
-MODULE_ALIAS("platform:max8997-haptic");
 MODULE_AUTHOR("Donggeun Kim <dg77.kim@samsung.com>");
 MODULE_DESCRIPTION("max8997_haptic driver");
 MODULE_LICENSE("GPL");

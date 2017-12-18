@@ -328,8 +328,8 @@ out:
 	spin_unlock_irqrestore(&ehea_bcmc_regs.lock, flags);
 }
 
-static struct rtnl_link_stats64 *ehea_get_stats64(struct net_device *dev,
-					struct rtnl_link_stats64 *stats)
+static void ehea_get_stats64(struct net_device *dev,
+			     struct rtnl_link_stats64 *stats)
 {
 	struct ehea_port *port = netdev_priv(dev);
 	u64 rx_packets = 0, tx_packets = 0, rx_bytes = 0, tx_bytes = 0;
@@ -352,7 +352,6 @@ static struct rtnl_link_stats64 *ehea_get_stats64(struct net_device *dev,
 
 	stats->multicast = port->stats.multicast;
 	stats->rx_errors = port->stats.rx_errors;
-	return stats;
 }
 
 static void ehea_update_stats(struct work_struct *work)
@@ -1169,15 +1168,14 @@ static void ehea_parse_eqe(struct ehea_adapter *adapter, u64 eqe)
 	ec = EHEA_BMASK_GET(NEQE_EVENT_CODE, eqe);
 	portnum = EHEA_BMASK_GET(NEQE_PORTNUM, eqe);
 	port = ehea_get_port(adapter, portnum);
+	if (!port) {
+		netdev_err(NULL, "unknown portnum %x\n", portnum);
+		return;
+	}
 	dev = port->netdev;
 
 	switch (ec) {
 	case EHEA_EC_PORTSTATE_CHG:	/* port state change */
-
-		if (!port) {
-			netdev_err(dev, "unknown portnum %x\n", portnum);
-			break;
-		}
 
 		if (EHEA_BMASK_GET(NEQE_PORT_UP, eqe)) {
 			if (!netif_carrier_ok(dev)) {
@@ -2446,6 +2444,8 @@ static int ehea_open(struct net_device *dev)
 	mutex_lock(&port->port_lock);
 
 	netif_info(port, ifup, dev, "enabling port\n");
+
+	netif_carrier_off(dev);
 
 	ret = ehea_up(dev);
 	if (!ret) {

@@ -173,19 +173,15 @@
 &mdio0 {
 	phy0: ethernet-phy@0 {
 		reg = <0x0>;
-		interrupts = <GIC_SPI 165 IRQ_TYPE_LEVEL_LOW>;
 	};
 	phy1: ethernet-phy@1 {
 		reg = <0x1>;
-		interrupts = <GIC_SPI 165 IRQ_TYPE_LEVEL_LOW>;
 	};
 	phy2: ethernet-phy@2 {
 		reg = <0x2>;
-		interrupts = <GIC_SPI 165 IRQ_TYPE_LEVEL_LOW>;
 	};
 	phy3: ethernet-phy@3 {
 		reg = <0x3>;
-		interrupts = <GIC_SPI 165 IRQ_TYPE_LEVEL_LOW>;
 	};
 	tbi1: tbi-phy@1f {
 		reg = <0x1f>;
@@ -218,7 +214,7 @@
 	status = "okay";
 };
 
-&dcu0 {
+&dcu {
 	display = <&display>;
 	status = "okay";
 

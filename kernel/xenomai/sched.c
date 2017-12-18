@@ -194,11 +194,11 @@ void xnsched_init(struct xnsched *sched, int cpu)
 	 * exit code.
 	 */
 	xntimer_init(&sched->htimer, &nkclock, NULL,
-		     sched, XNTIMER_IGRAVITY|__XNTIMER_CORE);
+		     sched, XNTIMER_IGRAVITY);
 	xntimer_set_priority(&sched->htimer, XNTIMER_LOPRIO);
 	xntimer_set_name(&sched->htimer, htimer_name);
 	xntimer_init(&sched->rrbtimer, &nkclock, roundrobin_handler,
-		     sched, XNTIMER_IGRAVITY|__XNTIMER_CORE);
+		     sched, XNTIMER_IGRAVITY);
 	xntimer_set_name(&sched->rrbtimer, rrbtimer_name);
 	xntimer_set_priority(&sched->rrbtimer, XNTIMER_LOPRIO);
 
@@ -213,7 +213,7 @@ void xnsched_init(struct xnsched *sched, int cpu)
 
 #ifdef CONFIG_XENO_OPT_WATCHDOG
 	xntimer_init(&sched->wdtimer, &nkclock, watchdog_handler,
-		     sched, XNTIMER_NOBLCK|XNTIMER_IGRAVITY|__XNTIMER_CORE);
+		     sched, XNTIMER_IGRAVITY);
 	xntimer_set_name(&sched->wdtimer, "[watchdog]");
 	xntimer_set_priority(&sched->wdtimer, XNTIMER_LOPRIO);
 #endif /* CONFIG_XENO_OPT_WATCHDOG */
@@ -310,7 +310,7 @@ struct xnsched *xnsched_finish_unlocked_switch(struct xnsched *sched)
 	last = sched->last;
 	sched->status &= ~XNINSW;
 
-	/* Detect a thread which called xnthread_migrate() */
+	/* Detect a thread which has migrated. */
 	if (last->sched != sched) {
 		xnsched_putback(last);
 		xnthread_clear_state(last, XNMIGRATE);
@@ -326,6 +326,8 @@ void xnsched_lock(void)
 	struct xnsched *sched = xnsched_current();
 	struct xnthread *curr = sched->curr;
 
+	if (sched->lflags & XNINIRQ)
+		return;
 	/*
 	 * CAUTION: The fast xnthread_current() accessor carries the
 	 * relevant lock nesting count only if current runs in primary
@@ -334,19 +336,8 @@ void xnsched_lock(void)
 	 * current scheduler, which must be done with IRQs off.
 	 * Either way, we don't need to grab the super lock.
 	 */
-	if (unlikely(curr == NULL || xnthread_test_state(curr, XNRELAX))) {
-		/*
-		 * In IRQ: scheduler already locked, and we may have
-		 * interrupted xnthread_relax() where the BUG_ON condition is
-		 * temporarily false.
-		 */
-		if (sched->lflags & XNINIRQ)
-			return;
-
-		irqoff_only();
-		curr = &sched->rootcb;
-		XENO_BUG_ON(COBALT, xnsched_current()->curr != curr);
-	}
+	XENO_WARN_ON_ONCE(COBALT, (curr->state & XNROOT) &&
+			  !hard_irqs_disabled());
 
 	curr->lock_count++;
 }
@@ -357,17 +348,9 @@ void xnsched_unlock(void)
 	struct xnsched *sched = xnsched_current();
 	struct xnthread *curr = sched->curr;
 
-	if (unlikely(curr == NULL || xnthread_test_state(curr, XNRELAX))) {
-		/*
-		 * In IRQ
-		 */
-		if (sched->lflags & XNINIRQ)
-			return;
-
-		irqoff_only();
-		curr = &xnsched_current()->rootcb;
-	}
-
+	if (sched->lflags & XNINIRQ)
+		return;
+	
 	if (!XENO_ASSERT(COBALT, curr->lock_count > 0))
 		return;
 	
@@ -483,6 +466,8 @@ bool xnsched_set_effective_priority(struct xnthread *thread, int prio)
 
 	thread->cprio = prio;
 
+	trace_cobalt_thread_set_current_prio(thread);
+
 	return true;
 }
 
@@ -524,6 +509,8 @@ void xnsched_track_policy(struct xnthread *thread,
 			xnsched_enqueue(thread);
 	}
 
+	trace_cobalt_thread_set_current_prio(thread);
+
 	xnsched_set_resched(thread->sched);
 }
 
@@ -549,6 +536,8 @@ void xnsched_protect_priority(struct xnthread *thread, int prio)
 
 	if (xnthread_test_state(thread, XNREADY))
 		xnsched_enqueue(thread);
+
+	trace_cobalt_thread_set_current_prio(thread);
 
 	xnsched_set_resched(thread->sched);
 }

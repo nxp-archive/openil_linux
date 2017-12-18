@@ -12,15 +12,8 @@ Required properites:
 	string. Chip-specific strings are of the form "fsl,<chip>-rcpm",
 	such as:
 	* "fsl,p2041-rcpm"
-	* "fsl,p3041-rcpm"
-	* "fsl,p4080-rcpm"
 	* "fsl,p5020-rcpm"
-	* "fsl,p5040-rcpm"
 	* "fsl,t4240-rcpm"
-	* "fsl,ls1012a-rcpm"
-	* "fsl,ls1021a-rcpm"
-	* "fsl,ls1043a-rcpm"
-	* "fsl,ls1046a-rcpm"
 
 	Chassis-version strings are of the form "fsl,qoriq-rcpm-<version>",
 	such as:
@@ -34,7 +27,7 @@ Chassis Version		Example Chips
 ---------------		-------------------------------
 1.0				p4080, p5020, p5040, p2041, p3041
 2.0				t4240, b4860, b4420
-2.1				t1040, ls1012, ls1021, ls1043, ls1046
+2.1				t1040, ls1021
 
 Example:
 The RCPM node for T4240:

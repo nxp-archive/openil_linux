@@ -1,7 +1,6 @@
 # Generic Trusted Execution Environment Configuration
 config TEE
 	tristate "Trusted Execution Environment support"
-	depends on HAVE_ARM_SMCCC || COMPILE_TEST
 	select DMA_SHARED_BUFFER
 	select GENERIC_ALLOCATOR
 	help

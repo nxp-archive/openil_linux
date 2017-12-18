@@ -503,7 +503,7 @@ static void mxuport_process_read_urb_demux_data(struct urb *urb)
 			return;
 		}
 
-		if (test_bit(ASYNCB_INITIALIZED, &demux_port->port.flags)) {
+		if (tty_port_initialized(&demux_port->port)) {
 			ch = data + HEADER_SIZE;
 			mxuport_process_read_urb_data(demux_port, ch, rcv_len);
 		} else {
@@ -544,7 +544,7 @@ static void mxuport_process_read_urb_demux_event(struct urb *urb)
 		}
 
 		demux_port = serial->port[rcv_port];
-		if (test_bit(ASYNCB_INITIALIZED, &demux_port->port.flags)) {
+		if (tty_port_initialized(&demux_port->port)) {
 			ch = data + HEADER_SIZE;
 			rcv_event = get_unaligned_be16(data + 2);
 			mxuport_process_read_urb_event(demux_port, ch,
@@ -1137,13 +1137,9 @@ static int mxuport_port_probe(struct usb_serial_port *port)
 		return err;
 
 	/* Set interface (RS-232) */
-	err = mxuport_send_ctrl_urb(serial, RQ_VENDOR_SET_INTERFACE,
-				    MX_INT_RS232,
-				    port->port_number);
-	if (err)
-		return err;
-
-	return 0;
+	return mxuport_send_ctrl_urb(serial, RQ_VENDOR_SET_INTERFACE,
+				     MX_INT_RS232,
+				     port->port_number);
 }
 
 static int mxuport_alloc_write_urb(struct usb_serial *serial,
@@ -1352,7 +1348,7 @@ static int mxuport_resume(struct usb_serial *serial)
 
 	for (i = 0; i < serial->num_ports; i++) {
 		port = serial->port[i];
-		if (!test_bit(ASYNCB_INITIALIZED, &port->port.flags))
+		if (!tty_port_initialized(&port->port))
 			continue;
 
 		r = usb_serial_generic_write_start(port, GFP_NOIO);

@@ -24,11 +24,12 @@
 #include <linux/slab.h>
 #include <linux/hardirq.h>
 #include <linux/preempt.h>
-#include <linux/module.h>
+#include <linux/extable.h>
 #include <linux/kdebug.h>
 #include <linux/kallsyms.h>
 #include <linux/ftrace.h>
 
+#include <asm/text-patching.h>
 #include <asm/cacheflush.h>
 #include <asm/desc.h>
 #include <asm/pgtable.h>
@@ -177,7 +178,7 @@ static int copy_optimized_instructions(u8 *dest, u8 *src)
 
 	while (len < RELATIVEJUMP_SIZE) {
 		ret = __copy_instruction(dest + len, src + len);
-		if (!ret || !can_boost(dest + len))
+		if (!ret || !can_boost(dest + len, src + len))
 			return -EINVAL;
 		len += ret;
 	}

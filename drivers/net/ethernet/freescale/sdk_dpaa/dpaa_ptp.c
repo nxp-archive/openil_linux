@@ -27,8 +27,6 @@
 #include "dpaa_eth.h"
 #include "mac.h"
 
-struct ptp_clock *clock;
-
 static struct mac_device *mac_dev;
 static u32 freqCompensation;
 
@@ -251,7 +249,6 @@ static struct ptp_clock_info ptp_dpa_caps = {
 	.settime64	= ptp_dpa_settime,
 	.enable		= ptp_dpa_enable,
 };
-
 int dpa_phc_index = -1;
 EXPORT_SYMBOL(dpa_phc_index);
 
@@ -259,6 +256,7 @@ static int __init __cold dpa_ptp_load(void)
 {
 	struct device *ptp_dev;
 	struct timespec64 now;
+	struct ptp_clock *clock = ptp_priv.clock;
 	int err;
 
 	if (!(ptp_priv.of_dev && ptp_priv.mac_dev))
@@ -285,6 +283,8 @@ module_init(dpa_ptp_load);
 
 static void __exit __cold dpa_ptp_unload(void)
 {
+	struct ptp_clock *clock = ptp_priv.clock;
+
 	if (mac_dev->fm_rtc_disable_interrupt)
 		mac_dev->fm_rtc_disable_interrupt(mac_dev->fm_dev, 0xffffffff);
 	ptp_clock_unregister(clock);

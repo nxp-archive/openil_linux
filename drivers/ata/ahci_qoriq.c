@@ -1,7 +1,7 @@
 /*
  * Freescale QorIQ AHCI SATA platform driver
  *
- * Copyright 2015 Freescale, Inc.
+ * Copyright (C) 2015 Freescale Semiconductor, Inc.
  *   Tang Yuantian <Yuantian.Tang@freescale.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -43,18 +43,19 @@
 #define LS1021A_PORT_PHY3	0x0e080e06
 #define LS1021A_PORT_PHY4	0x064a080b
 #define LS1021A_PORT_PHY5	0x2aa86470
+#define LS1021A_AXICC_ADDR	0xC0
 
 #define SATA_ECC_DISABLE	0x00020000
-
-/* for ls1043a */
-#define LS1043A_PORT_PHY2	0x28184d1f
-#define LS1043A_PORT_PHY3	0x0e081509
+#define ECC_DIS_ARMV8_CH2	0x80000000
+#define ECC_DIS_LS1088A		0x40000000
 
 enum ahci_qoriq_type {
 	AHCI_LS1021A,
 	AHCI_LS1043A,
-	AHCI_LS1046A,
 	AHCI_LS2080A,
+	AHCI_LS1046A,
+	AHCI_LS1088A,
+	AHCI_LS2088A,
 };
 
 struct ahci_qoriq_priv {
@@ -67,8 +68,10 @@ struct ahci_qoriq_priv {
 static const struct of_device_id ahci_qoriq_of_match[] = {
 	{ .compatible = "fsl,ls1021a-ahci", .data = (void *)AHCI_LS1021A},
 	{ .compatible = "fsl,ls1043a-ahci", .data = (void *)AHCI_LS1043A},
-	{ .compatible = "fsl,ls1046a-ahci", .data = (void *)AHCI_LS1046A},
 	{ .compatible = "fsl,ls2080a-ahci", .data = (void *)AHCI_LS2080A},
+	{ .compatible = "fsl,ls1046a-ahci", .data = (void *)AHCI_LS1046A},
+	{ .compatible = "fsl,ls1088a-ahci", .data = (void *)AHCI_LS1088A},
+	{ .compatible = "fsl,ls2088a-ahci", .data = (void *)AHCI_LS2088A},
 	{},
 };
 MODULE_DEVICE_TABLE(of, ahci_qoriq_of_match);
@@ -142,7 +145,7 @@ static struct ata_port_operations ahci_qoriq_ops = {
 	.hardreset	= ahci_qoriq_hardreset,
 };
 
-static struct ata_port_info ahci_qoriq_port_info = {
+static const struct ata_port_info ahci_qoriq_port_info = {
 	.flags		= AHCI_FLAG_COMMON | ATA_FLAG_NCQ,
 	.pio_mask	= ATA_PIO4,
 	.udma_mask	= ATA_UDMA6,
@@ -169,15 +172,24 @@ static int ahci_qoriq_phy_init(struct ahci_host_priv *hpriv)
 		writel(LS1021A_PORT_PHY4, reg_base + PORT_PHY4);
 		writel(LS1021A_PORT_PHY5, reg_base + PORT_PHY5);
 		writel(AHCI_PORT_TRANS_CFG, reg_base + PORT_TRANS);
+		if (qpriv->is_dmacoherent)
+			writel(AHCI_PORT_AXICC_CFG,
+					reg_base + LS1021A_AXICC_ADDR);
 		break;
 
 	case AHCI_LS1043A:
 		if (!qpriv->ecc_addr)
 			return -EINVAL;
-		writel(0x80000000, qpriv->ecc_addr);
+		writel(readl(qpriv->ecc_addr) | ECC_DIS_ARMV8_CH2,
+				qpriv->ecc_addr);
 		writel(AHCI_PORT_PHY_1_CFG, reg_base + PORT_PHY1);
-		writel(LS1043A_PORT_PHY2, reg_base + PORT_PHY2);
-		writel(LS1043A_PORT_PHY3, reg_base + PORT_PHY3);
+		writel(AHCI_PORT_TRANS_CFG, reg_base + PORT_TRANS);
+		if (qpriv->is_dmacoherent)
+			writel(AHCI_PORT_AXICC_CFG, reg_base + PORT_AXICC);
+		break;
+
+	case AHCI_LS2080A:
+		writel(AHCI_PORT_PHY_1_CFG, reg_base + PORT_PHY1);
 		writel(AHCI_PORT_TRANS_CFG, reg_base + PORT_TRANS);
 		if (qpriv->is_dmacoherent)
 			writel(AHCI_PORT_AXICC_CFG, reg_base + PORT_AXICC);
@@ -186,14 +198,30 @@ static int ahci_qoriq_phy_init(struct ahci_host_priv *hpriv)
 	case AHCI_LS1046A:
 		if (!qpriv->ecc_addr)
 			return -EINVAL;
-		writel(0x80000000, qpriv->ecc_addr);
+		writel(readl(qpriv->ecc_addr) | ECC_DIS_ARMV8_CH2,
+				qpriv->ecc_addr);
 		writel(AHCI_PORT_PHY_1_CFG, reg_base + PORT_PHY1);
 		writel(AHCI_PORT_TRANS_CFG, reg_base + PORT_TRANS);
+		if (qpriv->is_dmacoherent)
+			writel(AHCI_PORT_AXICC_CFG, reg_base + PORT_AXICC);
 		break;
 
-	case AHCI_LS2080A:
+	case AHCI_LS1088A:
+		if (!qpriv->ecc_addr)
+			return -EINVAL;
+		writel(readl(qpriv->ecc_addr) | ECC_DIS_LS1088A,
+		       qpriv->ecc_addr);
 		writel(AHCI_PORT_PHY_1_CFG, reg_base + PORT_PHY1);
 		writel(AHCI_PORT_TRANS_CFG, reg_base + PORT_TRANS);
+		if (qpriv->is_dmacoherent)
+			writel(AHCI_PORT_AXICC_CFG, reg_base + PORT_AXICC);
+		break;
+
+	case AHCI_LS2088A:
+		writel(AHCI_PORT_PHY_1_CFG, reg_base + PORT_PHY1);
+		writel(AHCI_PORT_TRANS_CFG, reg_base + PORT_TRANS);
+		if (qpriv->is_dmacoherent)
+			writel(AHCI_PORT_AXICC_CFG, reg_base + PORT_AXICC);
 		break;
 	}
 
@@ -231,23 +259,16 @@ static int ahci_qoriq_probe(struct platform_device *pdev)
 		if (IS_ERR(qoriq_priv->ecc_addr))
 			return PTR_ERR(qoriq_priv->ecc_addr);
 	}
+	qoriq_priv->is_dmacoherent = of_dma_is_coherent(np);
 
 	rc = ahci_platform_enable_resources(hpriv);
 	if (rc)
 		return rc;
 
-	qoriq_priv->is_dmacoherent = of_property_read_bool(np, "dma-coherent");
-
 	hpriv->plat_data = qoriq_priv;
 	rc = ahci_qoriq_phy_init(hpriv);
 	if (rc)
 		goto disable_resources;
-
-	/* Workaround for ls2080a */
-	if (qoriq_priv->type == AHCI_LS2080A) {
-		hpriv->flags |= AHCI_HFLAG_NO_NCQ;
-		ahci_qoriq_port_info.flags &= ~ATA_FLAG_NCQ;
-	}
 
 	rc = ahci_platform_init_host(pdev, hpriv, &ahci_qoriq_port_info,
 				     &ahci_qoriq_sht);

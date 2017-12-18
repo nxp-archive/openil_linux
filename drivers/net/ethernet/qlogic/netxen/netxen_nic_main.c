@@ -90,8 +90,8 @@ static irqreturn_t netxen_msix_intr(int irq, void *data);
 
 static void netxen_free_ip_list(struct netxen_adapter *, bool);
 static void netxen_restore_indev_addr(struct net_device *dev, unsigned long);
-static struct rtnl_link_stats64 *netxen_nic_get_stats(struct net_device *dev,
-						      struct rtnl_link_stats64 *stats);
+static void netxen_nic_get_stats(struct net_device *dev,
+				 struct rtnl_link_stats64 *stats);
 static int netxen_nic_set_mac(struct net_device *netdev, void *p);
 
 /*  PCI Device ID Table  */
@@ -852,7 +852,8 @@ netxen_check_options(struct netxen_adapter *adapter)
 	ptr32 = (__le32 *)&serial_num;
 	offset = NX_FW_SERIAL_NUM_OFFSET;
 	for (i = 0; i < 8; i++) {
-		if (netxen_rom_fast_read(adapter, offset, &val) == -1) {
+		err = netxen_rom_fast_read(adapter, offset, &val);
+		if (err) {
 			dev_err(&pdev->dev, "error reading board info\n");
 			adapter->driver_mismatch = 1;
 			return;
@@ -2285,7 +2286,7 @@ static void netxen_tx_timeout_task(struct work_struct *work)
 			goto request_reset;
 		}
 	}
-	adapter->netdev->trans_start = jiffies;
+	netif_trans_update(adapter->netdev);
 	rtnl_unlock();
 	return;
 
@@ -2294,8 +2295,8 @@ request_reset:
 	clear_bit(__NX_RESETTING, &adapter->state);
 }
 
-static struct rtnl_link_stats64 *netxen_nic_get_stats(struct net_device *netdev,
-						      struct rtnl_link_stats64 *stats)
+static void netxen_nic_get_stats(struct net_device *netdev,
+				 struct rtnl_link_stats64 *stats)
 {
 	struct netxen_adapter *adapter = netdev_priv(netdev);
 
@@ -2305,8 +2306,6 @@ static struct rtnl_link_stats64 *netxen_nic_get_stats(struct net_device *netdev,
 	stats->tx_bytes = adapter->stats.txbytes;
 	stats->rx_dropped = adapter->stats.rxdropped;
 	stats->tx_dropped = adapter->stats.txdropped;
-
-	return stats;
 }
 
 static irqreturn_t netxen_intr(int irq, void *data)
@@ -2891,7 +2890,7 @@ netxen_sysfs_read_crb(struct file *filp, struct kobject *kobj,
 		struct bin_attribute *attr,
 		char *buf, loff_t offset, size_t size)
 {
-	struct device *dev = container_of(kobj, struct device, kobj);
+	struct device *dev = kobj_to_dev(kobj);
 	struct netxen_adapter *adapter = dev_get_drvdata(dev);
 	u32 data;
 	u64 qmdata;
@@ -2919,7 +2918,7 @@ netxen_sysfs_write_crb(struct file *filp, struct kobject *kobj,
 		struct bin_attribute *attr,
 		char *buf, loff_t offset, size_t size)
 {
-	struct device *dev = container_of(kobj, struct device, kobj);
+	struct device *dev = kobj_to_dev(kobj);
 	struct netxen_adapter *adapter = dev_get_drvdata(dev);
 	u32 data;
 	u64 qmdata;
@@ -2960,7 +2959,7 @@ netxen_sysfs_read_mem(struct file *filp, struct kobject *kobj,
 		struct bin_attribute *attr,
 		char *buf, loff_t offset, size_t size)
 {
-	struct device *dev = container_of(kobj, struct device, kobj);
+	struct device *dev = kobj_to_dev(kobj);
 	struct netxen_adapter *adapter = dev_get_drvdata(dev);
 	u64 data;
 	int ret;
@@ -2981,7 +2980,7 @@ static ssize_t netxen_sysfs_write_mem(struct file *filp, struct kobject *kobj,
 		struct bin_attribute *attr, char *buf,
 		loff_t offset, size_t size)
 {
-	struct device *dev = container_of(kobj, struct device, kobj);
+	struct device *dev = kobj_to_dev(kobj);
 	struct netxen_adapter *adapter = dev_get_drvdata(dev);
 	u64 data;
 	int ret;
@@ -3018,7 +3017,7 @@ netxen_sysfs_read_dimm(struct file *filp, struct kobject *kobj,
 		struct bin_attribute *attr,
 		char *buf, loff_t offset, size_t size)
 {
-	struct device *dev = container_of(kobj, struct device, kobj);
+	struct device *dev = kobj_to_dev(kobj);
 	struct netxen_adapter *adapter = dev_get_drvdata(dev);
 	struct net_device *netdev = adapter->netdev;
 	struct netxen_dimm_cfg dimm;

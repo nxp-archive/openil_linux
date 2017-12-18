@@ -79,13 +79,10 @@ typedef int64_t nanosecs_rel_t;
 #define RTDM_CLASS_COBALT		8
 #define RTDM_CLASS_UDD			9
 #define RTDM_CLASS_MEMORY		10
-/*
-#define RTDM_CLASS_USB			?
-#define RTDM_CLASS_FIREWIRE		?
-#define RTDM_CLASS_INTERBUS		?
-#define RTDM_CLASS_PROFIBUS		?
-#define ...
-*/
+#define RTDM_CLASS_GPIO			11
+#define RTDM_CLASS_SPI			12
+#define RTDM_CLASS_PWM			13
+
 #define RTDM_CLASS_MISC			223
 #define RTDM_CLASS_EXPERIMENTAL		224
 #define RTDM_CLASS_MAX			255

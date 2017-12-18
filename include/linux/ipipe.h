@@ -180,6 +180,9 @@ void ipipe_free_irq(struct ipipe_domain *ipd,
 
 void ipipe_raise_irq(unsigned int irq);
 
+int ipipe_handle_syscall(struct thread_info *ti,
+			 unsigned long nr, struct pt_regs *regs);
+
 void ipipe_set_hooks(struct ipipe_domain *ipd,
 		     int enables);
 
@@ -323,12 +326,12 @@ static inline void ipipe_end_irq(unsigned int irq)
 	struct irq_desc *desc = irq_to_desc(irq);
 
 	if (desc)
-		desc->ipipe_end(irq, desc);
+		desc->ipipe_end(desc);
 }
 
 static inline int ipipe_chained_irq_p(struct irq_desc *desc)
 {
-	void __ipipe_chained_irq(unsigned irq, struct irq_desc *desc);
+	void __ipipe_chained_irq(struct irq_desc *desc);
 
 	return desc->handle_irq == __ipipe_chained_irq;
 }
@@ -455,6 +458,12 @@ static inline void ipipe_unlock_irq(unsigned int irq) { }
 #define ipipe_probe_kernel_read(d, s, sz)	probe_kernel_read(d, s, sz)
 #define ipipe_probe_kernel_write(d, s, sz)	probe_kernel_write(d, s, sz)
 #define __ipipe_uaccess_might_fault()		might_fault()
+
+static inline int ipipe_handle_syscall(struct thread_info *ti,
+				       unsigned long nr, struct pt_regs *regs)
+{
+	return 0;
+}
 
 #endif	/* !CONFIG_IPIPE */
 

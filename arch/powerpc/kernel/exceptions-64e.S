@@ -386,7 +386,7 @@ exc_##n##_common:							    \
 	std	r10,_NIP(r1);		/* save SRR0 to stackframe */	    \
 	std	r11,_MSR(r1);		/* save SRR1 to stackframe */	    \
 	beq	2f;			/* if from kernel mode */	    \
-	ACCOUNT_CPU_USER_ENTRY(r10,r11);/* accounting (uses cr0+eq) */	    \
+	ACCOUNT_CPU_USER_ENTRY(r13,r10,r11);/* accounting (uses cr0+eq) */  \
 2:	ld	r3,excf+EX_R10(r13);	/* get back r10 */		    \
 	ld	r4,excf+EX_R11(r13);	/* get back r11 */		    \
 	mfspr	r5,scratch;		/* get back r13 */		    \
@@ -453,7 +453,7 @@ exc_##n##_bad_stack:							    \
 	sth	r1,PACA_TRAP_SAVE(r13);	/* store trap */		    \
 	b	bad_stack_book3e;	/* bad stack error */
 
-/* WARNING: If you change the layout of this stub, make sure you chcek
+/* WARNING: If you change the layout of this stub, make sure you check
 	*   the debug exception handler which handles single stepping
 	*   into exceptions from userspace, and the MM code in
 	*   arch/powerpc/mm/tlb_nohash.c which patches the branch here
@@ -683,14 +683,6 @@ END_FTR_SECTION_IFSET(CPU_FTR_ALTIVEC)
 			   fixed_interval, unknown_exception, ACK_FIT)
 
 /* Watchdog Timer Interrupt */
-#ifdef CONFIG_FSL_ERRATUM_A_006184
-	START_EXCEPTION(watchdog)
-	mtspr	SPRN_SPRG_CRIT_SCRATCH, r3
-	lis	r3, TSR_WIS@h
-	mtspr	SPRN_TSR, r3
-	mfspr	r3, SPRN_SPRG_CRIT_SCRATCH
-	rfci
-#else
 	START_EXCEPTION(watchdog);
 	CRIT_EXCEPTION_PROLOG(0x9f0, BOOKE_INTERRUPT_WATCHDOG,
 			      PROLOG_ADDITION_NONE)
@@ -705,7 +697,6 @@ END_FTR_SECTION_IFSET(CPU_FTR_ALTIVEC)
 	bl	unknown_exception
 #endif
 	b	ret_from_crit_except
-#endif
 
 /* System Call Interrupt */
 	START_EXCEPTION(system_call)
@@ -744,8 +735,14 @@ END_FTR_SECTION_IFSET(CPU_FTR_ALTIVEC)
 	andis.	r15,r14,(DBSR_IC|DBSR_BT)@h
 	beq+	1f
 
+#ifdef CONFIG_RELOCATABLE
+	ld	r15,PACATOC(r13)
+	ld	r14,interrupt_base_book3e@got(r15)
+	ld	r15,__end_interrupts@got(r15)
+#else
 	LOAD_REG_IMMEDIATE(r14,interrupt_base_book3e)
 	LOAD_REG_IMMEDIATE(r15,__end_interrupts)
+#endif
 	cmpld	cr0,r10,r14
 	cmpld	cr1,r10,r15
 	blt+	cr0,1f
@@ -808,8 +805,14 @@ kernel_dbg_exc:
 	andis.	r15,r14,(DBSR_IC|DBSR_BT)@h
 	beq+	1f
 
+#ifdef CONFIG_RELOCATABLE
+	ld	r15,PACATOC(r13)
+	ld	r14,interrupt_base_book3e@got(r15)
+	ld	r15,__end_interrupts@got(r15)
+#else
 	LOAD_REG_IMMEDIATE(r14,interrupt_base_book3e)
 	LOAD_REG_IMMEDIATE(r15,__end_interrupts)
+#endif
 	cmpld	cr0,r10,r14
 	cmpld	cr1,r10,r15
 	blt+	cr0,1f
@@ -1068,7 +1071,7 @@ fast_exception_return:
 	andi.	r6,r10,MSR_PR
 	REST_2GPRS(6, r1)
 	beq	1f
-	ACCOUNT_CPU_USER_EXIT(r10, r11)
+	ACCOUNT_CPU_USER_EXIT(r13, r10, r11)
 	ld	r0,GPR13(r1)
 
 1:	stdcx.	r0,0,r1		/* to clear the reservation */

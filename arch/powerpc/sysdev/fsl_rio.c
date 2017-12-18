@@ -23,7 +23,7 @@
  */
 
 #include <linux/init.h>
-#include <linux/module.h>
+#include <linux/extable.h>
 #include <linux/types.h>
 #include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
@@ -37,8 +37,6 @@
 #include <linux/io.h>
 #include <linux/uaccess.h>
 #include <asm/machdep.h>
-#include <linux/fsl/svr.h>
-#include <sysdev/fsl_soc.h>
 
 #include "fsl_rio.h"
 
@@ -291,7 +289,7 @@ static void fsl_rio_inbound_mem_init(struct rio_priv *priv)
 }
 
 int fsl_map_inb_mem(struct rio_mport *mport, dma_addr_t lstart,
-	u64 rstart, u32 size, u32 flags)
+	u64 rstart, u64 size, u32 flags)
 {
 	struct rio_priv *priv = mport->priv;
 	u32 base_size;
@@ -300,7 +298,7 @@ int fsl_map_inb_mem(struct rio_mport *mport, dma_addr_t lstart,
 	u32 riwar;
 	int i;
 
-	if ((size & (size - 1)) != 0)
+	if ((size & (size - 1)) != 0 || size > 0x400000000ULL)
 		return -EINVAL;
 
 	base_size_log = ilog2(size);
@@ -421,37 +419,6 @@ static inline void fsl_rio_info(struct device *dev, u32 ccsr)
 	}
 }
 
-#define CCSR_ECM_EEBPCR_OFF 0x10
-/*
- * fixup_erratum_srio135 - Fix Serial RapidIO atomic operation erratum
- */
-static int fixup_erratum_srio135(struct device *dev)
-{
-	struct device_node *np;
-	void __iomem *ecm;
-
-	np = of_find_compatible_node(NULL, NULL, "fsl,mpc8548-ecm");
-	if (!np) {
-		dev_err(dev, "no ECM node found.\n");
-		return -ENODEV;
-	}
-
-	ecm = of_iomap(np, 0);
-	of_node_put(np);
-	if (!ecm) {
-		dev_err(dev, "failed to map ECM register base.\n");
-		return -ENODEV;
-	}
-	/*
-	 * Set bits 13 and 29 of the EEBPCR register in the ECM
-	 * during initialization and leave them set indefinitely.
-	 */
-	setbits32(ecm + CCSR_ECM_EEBPCR_OFF, 0x00040004);
-	iounmap(ecm);
-
-	return 0;
-}
-
 /**
  * fsl_rio_setup - Setup Freescale PowerPC RapidIO interface
  * @dev: platform_device pointer
@@ -477,7 +444,6 @@ int fsl_rio_setup(struct platform_device *dev)
 	u32 i;
 	static int tmp;
 	struct device_node *rmu_np[MAX_MSG_UNIT_NUM] = {NULL};
-	u32 svr = mfspr(SPRN_SVR);
 
 	if (!dev->dev.of_node) {
 		dev_err(&dev->dev, "Device OF-Node is NULL");
@@ -490,17 +456,6 @@ int fsl_rio_setup(struct platform_device *dev)
 				dev->dev.of_node->full_name);
 		return -EFAULT;
 	}
-
-	/* Fix erratum NMG_SRIO135 */
-	if (SVR_SOC_VER(svr) == SVR_8548) {
-		rc = fixup_erratum_srio135(&dev->dev);
-		if (rc) {
-			dev_err(&dev->dev,
-				"failed to fix the erratum NMG_SRIO135.");
-			return rc;
-		}
-	}
-
 	dev_info(&dev->dev, "Of-device full name %s\n",
 			dev->dev.of_node->full_name);
 	dev_info(&dev->dev, "Regs: %pR\n", &regs);
@@ -536,6 +491,7 @@ int fsl_rio_setup(struct platform_device *dev)
 	rmu_node = of_parse_phandle(dev->dev.of_node, "fsl,srio-rmu-handle", 0);
 	if (!rmu_node) {
 		dev_err(&dev->dev, "No valid fsl,srio-rmu-handle property\n");
+		rc = -ENOENT;
 		goto err_rmu;
 	}
 	rc = of_address_to_resource(rmu_node, 0, &rmu_regs);
@@ -651,6 +607,12 @@ int fsl_rio_setup(struct platform_device *dev)
 		if (!port)
 			continue;
 
+		rc = rio_mport_initialize(port);
+		if (rc) {
+			kfree(port);
+			continue;
+		}
+
 		i = *port_index - 1;
 		port->index = (unsigned char)i;
 
@@ -682,19 +644,11 @@ int fsl_rio_setup(struct platform_device *dev)
 		port->ops = ops;
 		port->priv = priv;
 		port->phys_efptr = 0x100;
+		port->phys_rmap = 1;
 		priv->regs_win = rio_regs_win;
 
-		/* Probe the master port phy type */
 		ccsr = in_be32(priv->regs_win + RIO_CCSR + i*0x20);
-		port->phy_type = (ccsr & 1) ? RIO_PHY_SERIAL : RIO_PHY_PARALLEL;
-		if (port->phy_type == RIO_PHY_PARALLEL) {
-			dev_err(&dev->dev, "RIO: Parallel PHY type, unsupported port type!\n");
-			release_resource(&port->iores);
-			kfree(priv);
-			kfree(port);
-			continue;
-		}
-		dev_info(&dev->dev, "RapidIO PHY type: Serial\n");
+
 		/* Checking the port training status */
 		if (in_be32((priv->regs_win + RIO_ESCSR + i*0x20)) & 1) {
 			dev_err(&dev->dev, "Port %d is not ready. "
@@ -727,12 +681,6 @@ int fsl_rio_setup(struct platform_device *dev)
 		dev_info(&dev->dev, "RapidIO Common Transport System size: %d\n",
 				port->sys_size ? 65536 : 256);
 
-		if (rio_register_mport(port)) {
-			release_resource(&port->iores);
-			kfree(priv);
-			kfree(port);
-			continue;
-		}
 		if (port->host_deviceid >= 0)
 			out_be32(priv->regs_win + RIO_GCCSR, RIO_PORT_GEN_HOST |
 				RIO_PORT_GEN_MASTER | RIO_PORT_GEN_DISCOVERED);
@@ -750,11 +698,9 @@ int fsl_rio_setup(struct platform_device *dev)
 			((i == 0) ? RIO_INB_ATMU_REGS_PORT1_OFFSET :
 			RIO_INB_ATMU_REGS_PORT2_OFFSET));
 
-
-		/* Set to receive any dist ID for serial RapidIO controller. */
-		if (port->phy_type == RIO_PHY_SERIAL)
-			out_be32((priv->regs_win
-				+ RIO_ISR_AACR + i*0x80), RIO_ISR_AACR_AA);
+		/* Set to receive packets with any dest ID */
+		out_be32((priv->regs_win + RIO_ISR_AACR + i*0x80),
+			 RIO_ISR_AACR_AA);
 
 		/* Configure maintenance transaction window */
 		out_be32(&priv->maint_atmu_regs->rowbar,
@@ -771,7 +717,14 @@ int fsl_rio_setup(struct platform_device *dev)
 		fsl_rio_inbound_mem_init(priv);
 
 		dbell->mport[i] = port;
+		pw->mport[i] = port;
 
+		if (rio_register_mport(port)) {
+			release_resource(&port->iores);
+			kfree(priv);
+			kfree(port);
+			continue;
+		}
 		active_ports++;
 	}
 

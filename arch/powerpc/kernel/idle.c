@@ -75,9 +75,6 @@ void arch_cpu_idle(void)
 		HMT_very_low();
 	}
 
-#ifdef CONFIG_FSL_ERRATUM_A_006184
-	mtspr(SPRN_TSR, TSR_ENW);
-#endif
 	HMT_medium();
 	ppc64_runlatch_on();
 }

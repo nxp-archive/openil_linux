@@ -29,6 +29,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include <linux/module.h>
+#include <linux/msi.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/rtnetlink.h>
@@ -42,8 +43,10 @@
 #include "dpdmux.h"
 #include "dpdmux-cmd.h"
 
+static const char evb_drv_version[] = "0.1";
+
 /* Minimal supported DPDMUX version */
-#define DPDMUX_MIN_VER_MAJOR			5
+#define DPDMUX_MIN_VER_MAJOR			6
 #define DPDMUX_MIN_VER_MINOR			0
 
 /* IRQ index */
@@ -59,7 +62,7 @@ struct evb_port_priv {
 	struct list_head	list;
 	u16			port_index;
 	struct evb_priv		*evb_priv;
-	u8			vlans[VLAN_VID_MASK+1];
+	u8			vlans[VLAN_VID_MASK + 1];
 };
 
 struct evb_priv {
@@ -69,7 +72,7 @@ struct evb_priv {
 	struct fsl_mc_io	*mc_io;
 	struct list_head	port_list;
 	struct dpdmux_attr	attr;
-	uint16_t		mux_handle;
+	u16			mux_handle;
 	int			dev_id;
 };
 
@@ -150,18 +153,18 @@ static irqreturn_t _evb_irq0_handler_thread(int irq_num, void *arg)
 	struct fsl_mc_device	*evb_dev = to_fsl_mc_device(dev);
 	struct net_device	*netdev = dev_get_drvdata(dev);
 	struct evb_priv		*priv = netdev_priv(netdev);
-	struct fsl_mc_io *io = priv->mc_io;
-	uint16_t token = priv->mux_handle;
+	struct fsl_mc_io	*io = priv->mc_io;
+	u16 token = priv->mux_handle;
 	int irq_index = DPDMUX_IRQ_INDEX_IF;
 
 	/* Mask the events and the if_id reserved bits to be cleared on read */
-	uint32_t status = DPDMUX_IRQ_EVENT_LINK_CHANGED | 0xFFFF0000;
+	u32 status = DPDMUX_IRQ_EVENT_LINK_CHANGED | 0xFFFF0000;
 	int err;
 
 	/* Sanity check */
 	if (WARN_ON(!evb_dev || !evb_dev->irqs || !evb_dev->irqs[irq_index]))
 		goto out;
-	if (WARN_ON(evb_dev->irqs[irq_index]->irq_number != irq_num))
+	if (WARN_ON(evb_dev->irqs[irq_index]->msi_desc->irq != (u32)irq_num))
 		goto out;
 
 	err = dpdmux_get_irq_status(io, 0, token, irq_index, &status);
@@ -193,7 +196,7 @@ static int evb_setup_irqs(struct fsl_mc_device *evb_dev)
 	int err = 0;
 	struct fsl_mc_device_irq *irq;
 	const int irq_index = DPDMUX_IRQ_INDEX_IF;
-	uint32_t mask = DPDMUX_IRQ_EVENT_LINK_CHANGED;
+	u32 mask = DPDMUX_IRQ_EVENT_LINK_CHANGED;
 
 	err = fsl_mc_allocate_irqs(evb_dev);
 	if (unlikely(err)) {
@@ -215,7 +218,7 @@ static int evb_setup_irqs(struct fsl_mc_device *evb_dev)
 
 	irq = evb_dev->irqs[irq_index];
 
-	err = devm_request_threaded_irq(dev, irq->irq_number,
+	err = devm_request_threaded_irq(dev, irq->msi_desc->irq,
 					evb_irq0_handler,
 					_evb_irq0_handler_thread,
 					IRQF_NO_SUSPEND | IRQF_ONESHOT,
@@ -242,7 +245,7 @@ static int evb_setup_irqs(struct fsl_mc_device *evb_dev)
 	return 0;
 
 free_devm_irq:
-	devm_free_irq(dev, irq->irq_number, dev);
+	devm_free_irq(dev, irq->msi_desc->irq, dev);
 free_irq:
 	fsl_mc_free_irqs(evb_dev);
 	return err;
@@ -258,7 +261,7 @@ static void evb_teardown_irqs(struct fsl_mc_device *evb_dev)
 			      DPDMUX_IRQ_INDEX_IF, 0);
 
 	devm_free_irq(dev,
-		      evb_dev->irqs[DPDMUX_IRQ_INDEX_IF]->irq_number,
+		      evb_dev->irqs[DPDMUX_IRQ_INDEX_IF]->msi_desc->irq,
 		      dev);
 	fsl_mc_free_irqs(evb_dev);
 }
@@ -388,7 +391,6 @@ static int evb_port_fdb_add(struct ndmsg *ndm, struct nlattr *tb[],
 	if (unlikely(err))
 		return err;
 
-
 	err = evb_port_add_rule(netdev, addr, _vid);
 	if (unlikely(err))
 		return err;
@@ -460,10 +462,10 @@ static int evb_change_mtu(struct net_device *netdev,
 		return -EINVAL;
 	}
 
-	err = dpdmux_ul_set_max_frame_length(evb_priv->mc_io,
-					    0,
-					    evb_priv->mux_handle,
-					    (uint16_t)mtu);
+	err = dpdmux_set_max_frame_length(evb_priv->mc_io,
+					  0,
+					  evb_priv->mux_handle,
+					  (uint16_t)mtu);
 
 	if (unlikely(err)) {
 		netdev_err(netdev, "dpdmux_ul_set_max_frame_length err %d\n",
@@ -481,7 +483,7 @@ static int evb_change_mtu(struct net_device *netdev,
 	return 0;
 }
 
-static const struct nla_policy ifla_br_policy[IFLA_MAX+1] = {
+static const struct nla_policy ifla_br_policy[IFLA_MAX + 1] = {
 	[IFLA_BRIDGE_FLAGS]	= { .type = NLA_U16 },
 	[IFLA_BRIDGE_MODE]	= { .type = NLA_U16 },
 	[IFLA_BRIDGE_VLAN_INFO]	= { .type = NLA_BINARY,
@@ -522,7 +524,7 @@ static int evb_setlink(struct net_device *netdev,
 	struct evb_priv		*evb_priv = port_priv->evb_priv;
 	struct nlattr		*attr;
 	struct nlattr		*tb[(IFLA_BRIDGE_MAX > IFLA_BRPORT_MAX) ?
-					IFLA_BRIDGE_MAX : IFLA_BRPORT_MAX+1];
+					IFLA_BRIDGE_MAX : IFLA_BRPORT_MAX + 1];
 	int			err = 0;
 
 	if (evb_priv->attr.method != DPDMUX_METHOD_C_VLAN &&
@@ -656,7 +658,7 @@ static int __nla_put_vlan(struct sk_buff *skb,  struct net_device *netdev)
 		return -ENOMEM;
 	}
 
-	for (i = 0; i < VLAN_VID_MASK+1; i++) {
+	for (i = 0; i < VLAN_VID_MASK + 1; i++) {
 		if (!vlans[i])
 			continue;
 
@@ -731,7 +733,7 @@ static int evb_dellink(struct net_device *netdev,
 		       struct nlmsghdr *nlh,
 		       u16 flags)
 {
-	struct nlattr		*tb[IFLA_BRIDGE_MAX+1];
+	struct nlattr		*tb[IFLA_BRIDGE_MAX + 1];
 	struct nlattr		*spec;
 	struct bridge_vlan_info	*vinfo;
 	struct evb_port_priv	*port_priv = netdev_priv(netdev);
@@ -763,9 +765,8 @@ static int evb_dellink(struct net_device *netdev,
 	return 0;
 }
 
-static struct rtnl_link_stats64 *
-evb_port_get_stats(struct net_device *netdev,
-		   struct rtnl_link_stats64 *storage)
+void evb_port_get_stats(struct net_device *netdev,
+			struct rtnl_link_stats64 *storage)
 {
 	struct evb_port_priv	*port_priv = netdev_priv(netdev);
 	u64			tmp;
@@ -841,11 +842,10 @@ evb_port_get_stats(struct net_device *netdev,
 	if (unlikely(err))
 		goto error;
 
-	return storage;
+	return;
 
 error:
 	netdev_err(netdev, "dpdmux_if_get_counter err %d\n", err);
-	return storage;
 }
 
 static const struct net_device_ops evb_port_ops = {
@@ -859,6 +859,114 @@ static const struct net_device_ops evb_port_ops = {
 	.ndo_get_stats64	= &evb_port_get_stats,
 	.ndo_change_mtu		= &evb_change_mtu,
 };
+
+static void evb_get_drvinfo(struct net_device *netdev,
+			    struct ethtool_drvinfo *drvinfo)
+{
+	struct evb_port_priv *port_priv = netdev_priv(netdev);
+	u16 version_major, version_minor;
+	int err;
+
+	strlcpy(drvinfo->driver, KBUILD_MODNAME, sizeof(drvinfo->driver));
+	strlcpy(drvinfo->version, evb_drv_version, sizeof(drvinfo->version));
+
+	err = dpdmux_get_api_version(port_priv->evb_priv->mc_io, 0,
+				     &version_major,
+				     &version_minor);
+	if (err)
+		strlcpy(drvinfo->fw_version, "N/A",
+			sizeof(drvinfo->fw_version));
+	else
+		snprintf(drvinfo->fw_version, sizeof(drvinfo->fw_version),
+			 "%u.%u", version_major, version_minor);
+
+	strlcpy(drvinfo->bus_info, dev_name(netdev->dev.parent->parent),
+		sizeof(drvinfo->bus_info));
+}
+
+static int evb_get_settings(struct net_device *netdev,
+			    struct ethtool_cmd *cmd)
+{
+	struct evb_port_priv *port_priv = netdev_priv(netdev);
+	struct dpdmux_link_state state = {0};
+	int err = 0;
+
+	err = dpdmux_if_get_link_state(port_priv->evb_priv->mc_io, 0,
+				       port_priv->evb_priv->mux_handle,
+				       port_priv->port_index,
+				       &state);
+	if (err) {
+		netdev_err(netdev, "ERROR %d getting link state", err);
+		goto out;
+	}
+
+	/* At the moment, we have no way of interrogating the DPMAC
+	 * from the DPDMUX side or there may not exist a DPMAC at all.
+	 * Report only autoneg state, duplexity and speed.
+	 */
+	if (state.options & DPDMUX_LINK_OPT_AUTONEG)
+		cmd->autoneg = AUTONEG_ENABLE;
+	if (!(state.options & DPDMUX_LINK_OPT_HALF_DUPLEX))
+		cmd->duplex = DUPLEX_FULL;
+	ethtool_cmd_speed_set(cmd, state.rate);
+
+out:
+	return err;
+}
+
+static int evb_set_settings(struct net_device *netdev,
+			    struct ethtool_cmd *cmd)
+{
+	struct evb_port_priv *port_priv = netdev_priv(netdev);
+	struct dpdmux_link_state state = {0};
+	struct dpdmux_link_cfg cfg = {0};
+	int err = 0;
+
+	netdev_dbg(netdev, "Setting link parameters...");
+
+	err = dpdmux_if_get_link_state(port_priv->evb_priv->mc_io, 0,
+				       port_priv->evb_priv->mux_handle,
+				       port_priv->port_index,
+				       &state);
+	if (err) {
+		netdev_err(netdev, "ERROR %d getting link state", err);
+		goto out;
+	}
+
+	/* Due to a temporary MC limitation, the DPDMUX port must be down
+	 * in order to be able to change link settings. Taking steps to let
+	 * the user know that.
+	 */
+	if (netif_running(netdev)) {
+		netdev_info(netdev,
+			    "Sorry, interface must be brought down first.\n");
+		return -EACCES;
+	}
+
+	cfg.options = state.options;
+	cfg.rate = ethtool_cmd_speed(cmd);
+	if (cmd->autoneg == AUTONEG_ENABLE)
+		cfg.options |= DPDMUX_LINK_OPT_AUTONEG;
+	else
+		cfg.options &= ~DPDMUX_LINK_OPT_AUTONEG;
+	if (cmd->duplex == DUPLEX_HALF)
+		cfg.options |= DPDMUX_LINK_OPT_HALF_DUPLEX;
+	else
+		cfg.options &= ~DPDMUX_LINK_OPT_HALF_DUPLEX;
+
+	err = dpdmux_if_set_link_cfg(port_priv->evb_priv->mc_io, 0,
+				     port_priv->evb_priv->mux_handle,
+				     port_priv->port_index,
+				     &cfg);
+	if (err)
+		/* ethtool will be loud enough if we return an error; no point
+		 * in putting our own error message on the console by default
+		 */
+		netdev_dbg(netdev, "ERROR %d setting link cfg", err);
+
+out:
+	return err;
+}
 
 static struct {
 	enum dpdmux_counter_type id;
@@ -890,7 +998,7 @@ static int evb_ethtool_get_sset_count(struct net_device *dev, int sset)
 static void evb_ethtool_get_strings(struct net_device *netdev,
 				    u32 stringset, u8 *data)
 {
-	int i;
+	u32 i;
 
 	switch (stringset) {
 	case ETH_SS_STATS:
@@ -906,7 +1014,7 @@ static void evb_ethtool_get_stats(struct net_device *netdev,
 				  u64 *data)
 {
 	struct evb_port_priv	*port_priv = netdev_priv(netdev);
-	int			i;
+	u32			i;
 	int			err;
 
 	for (i = 0; i < ARRAY_SIZE(evb_ethtool_counters); i++) {
@@ -923,6 +1031,10 @@ static void evb_ethtool_get_stats(struct net_device *netdev,
 }
 
 static const struct ethtool_ops evb_port_ethtool_ops = {
+	.get_drvinfo		= &evb_get_drvinfo,
+	.get_link		= &ethtool_op_get_link,
+	.get_settings		= &evb_get_settings,
+	.set_settings		= &evb_set_settings,
 	.get_strings		= &evb_ethtool_get_strings,
 	.get_ethtool_stats	= &evb_ethtool_get_stats,
 	.get_sset_count		= &evb_ethtool_get_sset_count,
@@ -984,6 +1096,8 @@ static int evb_init(struct fsl_mc_device *evb_dev)
 	struct device		*dev = &evb_dev->dev;
 	struct net_device	*netdev = dev_get_drvdata(dev);
 	struct evb_priv		*priv = netdev_priv(netdev);
+	u16			version_major;
+	u16			version_minor;
 	int			err = 0;
 
 	priv->dev_id = evb_dev->obj_desc.id;
@@ -1006,12 +1120,20 @@ static int evb_init(struct fsl_mc_device *evb_dev)
 		goto err_close;
 	}
 
+	err = dpdmux_get_api_version(priv->mc_io, 0,
+				     &version_major,
+				     &version_minor);
+	if (unlikely(err)) {
+		dev_err(dev, "dpdmux_get_api_version err %d\n", err);
+		goto err_close;
+	}
+
 	/* Minimum supported DPDMUX version check */
-	if (priv->attr.version.major < DPDMUX_MIN_VER_MAJOR ||
-	    (priv->attr.version.major == DPDMUX_MIN_VER_MAJOR &&
-	     priv->attr.version.minor < DPDMUX_MIN_VER_MINOR)) {
+	if (version_major < DPDMUX_MIN_VER_MAJOR ||
+	    (version_major == DPDMUX_MIN_VER_MAJOR &&
+	     version_minor < DPDMUX_MIN_VER_MINOR)) {
 		dev_err(dev, "DPDMUX version %d.%d not supported. Use %d.%d or greater.\n",
-			priv->attr.version.major, priv->attr.version.minor,
+			version_major, version_minor,
 			DPDMUX_MIN_VER_MAJOR, DPDMUX_MIN_VER_MAJOR);
 		err = -ENOTSUPP;
 		goto err_close;
@@ -1151,7 +1273,8 @@ static int evb_probe(struct fsl_mc_device *evb_dev)
 			}
 
 			rtnl_lock();
-			err = netdev_master_upper_dev_link(port_netdev, netdev);
+			err = netdev_master_upper_dev_link(port_netdev, netdev,
+							   NULL, NULL);
 			if (unlikely(err)) {
 				dev_err(dev, "netdev_master_upper_dev_link err %d\n",
 					err);
@@ -1164,7 +1287,7 @@ static int evb_probe(struct fsl_mc_device *evb_dev)
 				     IFF_SLAVE, GFP_KERNEL);
 			rtnl_unlock();
 
-			list_add(&(port_priv->list), &(priv->port_list));
+			list_add(&port_priv->list, &priv->port_list);
 		} else {
 			err = register_netdev(netdev);
 
@@ -1203,12 +1326,10 @@ err_free_netdev:
 	return err;
 }
 
-static const struct fsl_mc_device_match_id evb_match_id_table[] = {
+static const struct fsl_mc_device_id evb_match_id_table[] = {
 	{
 		.vendor = FSL_MC_VENDOR_FREESCALE,
 		.obj_type = "dpdmux",
-		.ver_major = DPDMUX_VER_MAJOR,
-		.ver_minor = DPDMUX_VER_MINOR,
 	},
 	{}
 };

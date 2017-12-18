@@ -1,7 +1,7 @@
 /*
  * Device Tree Include file for Freescale Layerscape-1043A family SoC.
  *
- * Copyright 2014-2015, Freescale Semiconductor
+ * Copyright 2014-2015 Freescale Semiconductor, Inc.
  *
  * Mingkai Hu <Mingkai.hu@freescale.com>
  *
@@ -49,10 +49,17 @@
 
 / {
 	model = "LS1043A RDB Board";
-	compatible = "fsl,ls1043a-rdb", "fsl,ls1043a";
 
 	aliases {
 		crypto = &crypto;
+		serial0 = &duart0;
+		serial1 = &duart1;
+		serial2 = &duart2;
+		serial3 = &duart3;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
 	};
 };
 
@@ -67,17 +74,21 @@
 		compatible = "adi,adt7461";
 		reg = <0x4c>;
 	};
-	eeprom@56 {
+	eeprom@52 {
 		compatible = "at24,24c512";
 		reg = <0x52>;
 	};
-	eeprom@57 {
+	eeprom@53 {
 		compatible = "at24,24c512";
 		reg = <0x53>;
 	};
 	rtc@68 {
 		compatible = "pericom,pt7c4338";
 		reg = <0x68>;
+	};
+	rtc@51 {
+		compatible = "nxp,pcf85263";
+		reg = <0x51>;
 	};
 };
 
@@ -141,6 +152,22 @@
 	};
 };
 
+&uqe {
+	ucc_hdlc: ucc@2000 {
+		compatible = "fsl,ucc-hdlc";
+		rx-clock-name = "clk8";
+		tx-clock-name = "clk9";
+		fsl,rx-sync-clock = "rsync_pin";
+		fsl,tx-sync-clock = "tsync_pin";
+		fsl,tx-timeslot-mask = <0xfffffffe>;
+		fsl,rx-timeslot-mask = <0xfffffffe>;
+		fsl,tdm-framer-type = "e1";
+		fsl,tdm-id = <0>;
+		fsl,siram-entry-id = <0>;
+		fsl,tdm-interface;
+	};
+};
+
 &duart0 {
 	status = "okay";
 };
@@ -148,6 +175,8 @@
 &duart1 {
 	status = "okay";
 };
+
+#include "fsl-ls1043-post.dtsi"
 
 &fman0 {
 	ethernet@e0000 {
@@ -162,12 +191,12 @@
 
 	ethernet@e4000 {
 		phy-handle = <&rgmii_phy1>;
-		phy-connection-type = "rgmii";
+		phy-connection-type = "rgmii-txid";
 	};
 
 	ethernet@e6000 {
 		phy-handle = <&rgmii_phy2>;
-		phy-connection-type = "rgmii";
+		phy-connection-type = "rgmii-txid";
 	};
 
 	ethernet@e8000 {
@@ -189,53 +218,33 @@
 		rgmii_phy1: ethernet-phy@1 {
 			reg = <0x1>;
 		};
+
 		rgmii_phy2: ethernet-phy@2 {
 			reg = <0x2>;
 		};
-		qsgmii_phy1: ethernet-phy@3 {
+
+		qsgmii_phy1: ethernet-phy@4 {
 			reg = <0x4>;
 		};
-		qsgmii_phy2: ethernet-phy@4 {
+
+		qsgmii_phy2: ethernet-phy@5 {
 			reg = <0x5>;
 		};
-		qsgmii_phy3: ethernet-phy@5 {
+
+		qsgmii_phy3: ethernet-phy@6 {
 			reg = <0x6>;
 		};
-		qsgmii_phy4: ethernet-phy@6 {
+
+		qsgmii_phy4: ethernet-phy@7 {
 			reg = <0x7>;
 		};
 	};
 
 	mdio@fd000 {
-		aqr105_phy: ethernet-phy@c {
+		aqr105_phy: ethernet-phy@1 {
 			compatible = "ethernet-phy-ieee802.3-c45";
 			interrupts = <0 132 4>;
 			reg = <0x1>;
 		};
-	};
-};
-
-&uqe {
-	ucc_hdlc: ucc@2000 {
-		compatible = "fsl,ucc_hdlc";
-		rx-clock-name = "clk8";
-		tx-clock-name = "clk9";
-		fsl,rx-sync-clock = "rsync_pin";
-		fsl,tx-sync-clock = "tsync_pin";
-		fsl,tx-timeslot = <0xfffffffe>;
-		fsl,rx-timeslot = <0xfffffffe>;
-		fsl,tdm-framer-type = "e1";
-		fsl,tdm-mode = "normal";
-		fsl,tdm-id = <0>;
-		fsl,siram-entry-id = <0>;
-		fsl,tdm-interface;
-	};
-
-	ucc_serial: ucc@2200 {
-		device_type = "serial";
-		compatible = "ucc_uart";
-		port-number = <0>;
-		rx-clock-name = "brg2";
-		tx-clock-name = "brg2";
 	};
 };

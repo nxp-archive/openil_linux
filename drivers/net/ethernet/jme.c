@@ -222,7 +222,7 @@ jme_clear_ghc_reset(struct jme_adapter *jme)
 	jwrite32f(jme, JME_GHC, jme->reg_ghc);
 }
 
-static inline void
+static void
 jme_reset_mac_processor(struct jme_adapter *jme)
 {
 	static const u32 mask[WAKEUP_FRAME_MASK_DWNR] = {0, 0, 0, 0};
@@ -589,7 +589,7 @@ jme_setup_tx_resources(struct jme_adapter *jme)
 	atomic_set(&txring->next_to_clean, 0);
 	atomic_set(&txring->nr_free, jme->tx_ring_size);
 
-	txring->bufinf		= kmalloc(sizeof(struct jme_buffer_info) *
+	txring->bufinf		= kzalloc(sizeof(struct jme_buffer_info) *
 					jme->tx_ring_size, GFP_ATOMIC);
 	if (unlikely(!(txring->bufinf)))
 		goto err_free_txring;
@@ -598,8 +598,6 @@ jme_setup_tx_resources(struct jme_adapter *jme)
 	 * Initialize Transmit Descriptors
 	 */
 	memset(txring->alloc, 0, TX_RING_ALLOC_SIZE(jme->tx_ring_size));
-	memset(txring->bufinf, 0,
-		sizeof(struct jme_buffer_info) * jme->tx_ring_size);
 
 	return 0;
 
@@ -851,7 +849,7 @@ jme_setup_rx_resources(struct jme_adapter *jme)
 	rxring->next_to_use	= 0;
 	atomic_set(&rxring->next_to_clean, 0);
 
-	rxring->bufinf		= kmalloc(sizeof(struct jme_buffer_info) *
+	rxring->bufinf		= kzalloc(sizeof(struct jme_buffer_info) *
 					jme->rx_ring_size, GFP_ATOMIC);
 	if (unlikely(!(rxring->bufinf)))
 		goto err_free_rxring;
@@ -859,8 +857,6 @@ jme_setup_rx_resources(struct jme_adapter *jme)
 	/*
 	 * Initiallize Receive Descriptors
 	 */
-	memset(rxring->bufinf, 0,
-		sizeof(struct jme_buffer_info) * jme->rx_ring_size);
 	for (i = 0 ; i < jme->rx_ring_size ; ++i) {
 		if (unlikely(jme_make_new_rx_buf(jme, i))) {
 			jme_free_rx_resources(jme);
@@ -2760,7 +2756,7 @@ static netdev_features_t
 jme_fix_features(struct net_device *netdev, netdev_features_t features)
 {
 	if (netdev->mtu > 1900)
-		features &= ~(NETIF_F_ALL_TSO | NETIF_F_ALL_CSUM);
+		features &= ~(NETIF_F_ALL_TSO | NETIF_F_CSUM_MASK);
 	return features;
 }
 

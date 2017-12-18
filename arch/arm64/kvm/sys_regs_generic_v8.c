@@ -26,27 +26,25 @@
 #include <asm/kvm_host.h>
 #include <asm/kvm_emulate.h>
 #include <asm/kvm_coproc.h>
+#include <asm/sysreg.h>
 #include <linux/init.h>
 
 #include "sys_regs.h"
 
 static bool access_actlr(struct kvm_vcpu *vcpu,
-			 const struct sys_reg_params *p,
+			 struct sys_reg_params *p,
 			 const struct sys_reg_desc *r)
 {
 	if (p->is_write)
 		return ignore_write(vcpu, p);
 
-	*vcpu_reg(vcpu, p->Rt) = vcpu_sys_reg(vcpu, ACTLR_EL1);
+	p->regval = vcpu_sys_reg(vcpu, ACTLR_EL1);
 	return true;
 }
 
 static void reset_actlr(struct kvm_vcpu *vcpu, const struct sys_reg_desc *r)
 {
-	u64 actlr;
-
-	asm volatile("mrs %0, actlr_el1\n" : "=r" (actlr));
-	vcpu_sys_reg(vcpu, ACTLR_EL1) = actlr;
+	vcpu_sys_reg(vcpu, ACTLR_EL1) = read_sysreg(actlr_el1);
 }
 
 /*

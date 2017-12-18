@@ -27,6 +27,8 @@
 #include <linux/time.h>
 #include <linux/atomic.h>
 
+#include <uapi/asm/eeh.h>
+
 struct pci_dev;
 struct pci_bus;
 struct pci_dn;
@@ -55,7 +57,7 @@ struct pci_dn;
 /*
  * The struct is used to trace PE related EEH functionality.
  * In theory, there will have one instance of the struct to
- * be created against particular PE. In nature, PEs corelate
+ * be created against particular PE. In nature, PEs correlate
  * to each other. the struct has to reflect that hierarchy in
  * order to easily pick up those affected PEs when one particular
  * PE has EEH errors.
@@ -70,6 +72,7 @@ struct pci_dn;
 #define EEH_PE_PHB	(1 << 1)	/* PHB PE    */
 #define EEH_PE_DEVICE 	(1 << 2)	/* Device PE */
 #define EEH_PE_BUS	(1 << 3)	/* Bus PE    */
+#define EEH_PE_VF	(1 << 4)	/* VF PE     */
 
 #define EEH_PE_ISOLATED		(1 << 0)	/* Isolated PE		*/
 #define EEH_PE_RECOVERING	(1 << 1)	/* Recovering PE	*/
@@ -134,11 +137,15 @@ struct eeh_dev {
 	int pcix_cap;			/* Saved PCIx capability	*/
 	int pcie_cap;			/* Saved PCIe capability	*/
 	int aer_cap;			/* Saved AER capability		*/
+	int af_cap;			/* Saved AF capability		*/
 	struct eeh_pe *pe;		/* Associated PE		*/
 	struct list_head list;		/* Form link list in the PE	*/
+	struct list_head rmv_list;	/* Record the removed edevs	*/
 	struct pci_controller *phb;	/* Associated PHB		*/
 	struct pci_dn *pdn;		/* Associated PCI device node	*/
 	struct pci_dev *pdev;		/* Associated PCI device	*/
+	bool in_error;			/* Error flag for edev		*/
+	struct pci_dev *physfn;		/* Associated SRIOV PF		*/
 	struct pci_bus *bus;		/* PCI bus for partial hotplug	*/
 };
 
@@ -186,11 +193,6 @@ enum {
 #define EEH_STATE_DMA_ACTIVE	(1 << 4)	/* Active DMA		*/
 #define EEH_STATE_MMIO_ENABLED	(1 << 5)	/* MMIO enabled		*/
 #define EEH_STATE_DMA_ENABLED	(1 << 6)	/* DMA enabled		*/
-#define EEH_PE_STATE_NORMAL		0	/* Normal state		*/
-#define EEH_PE_STATE_RESET		1	/* PE reset asserted	*/
-#define EEH_PE_STATE_STOPPED_IO_DMA	2	/* Frozen PE		*/
-#define EEH_PE_STATE_STOPPED_DMA	4	/* Stopped DMA, Enabled IO */
-#define EEH_PE_STATE_UNAVAIL		5	/* Unavailable		*/
 #define EEH_RESET_DEACTIVATE	0	/* Deactivate the PE reset	*/
 #define EEH_RESET_HOT		1	/* Hot reset			*/
 #define EEH_RESET_FUNDAMENTAL	3	/* Fundamental reset		*/
@@ -272,7 +274,7 @@ void eeh_pe_restore_bars(struct eeh_pe *pe);
 const char *eeh_pe_loc_get(struct eeh_pe *pe);
 struct pci_bus *eeh_pe_bus_get(struct eeh_pe *pe);
 
-void *eeh_dev_init(struct pci_dn *pdn, void *data);
+struct eeh_dev *eeh_dev_init(struct pci_dn *pdn);
 void eeh_dev_phb_init_dynamic(struct pci_controller *phb);
 int eeh_init(void);
 int __init eeh_ops_register(struct eeh_ops *ops);
@@ -295,6 +297,8 @@ int eeh_pe_set_option(struct eeh_pe *pe, int option);
 int eeh_pe_get_state(struct eeh_pe *pe);
 int eeh_pe_reset(struct eeh_pe *pe, int option);
 int eeh_pe_configure(struct eeh_pe *pe);
+int eeh_pe_inject_err(struct eeh_pe *pe, int type, int func,
+		      unsigned long addr, unsigned long mask);
 
 /**
  * EEH_POSSIBLE_ERROR() -- test for possible MMIO failure.
@@ -337,13 +341,19 @@ static inline int eeh_check_failure(const volatile void __iomem *token)
 
 #define eeh_dev_check_failure(x) (0)
 
-#define eeh_addr_cache_build()
-#define eeh_add_device_early(pdn)
-#define eeh_add_device_tree_early(pdn)
-#define eeh_add_device_late(pdev)
-#define eeh_add_device_tree_late(pbus)
-#define eeh_add_sysfs_files(pbus)
-#define eeh_remove_device(pdev)
+static inline void eeh_addr_cache_build(void) { }
+
+static inline void eeh_add_device_early(struct pci_dn *pdn) { }
+
+static inline void eeh_add_device_tree_early(struct pci_dn *pdn) { }
+
+static inline void eeh_add_device_late(struct pci_dev *dev) { }
+
+static inline void eeh_add_device_tree_late(struct pci_bus *bus) { }
+
+static inline void eeh_add_sysfs_files(struct pci_bus *bus) { }
+
+static inline void eeh_remove_device(struct pci_dev *dev) { }
 
 #define EEH_POSSIBLE_ERROR(val, type) (0)
 #define EEH_IO_ERROR_VALUE(size) (-1UL)

@@ -6,6 +6,7 @@
 #include <linux/export.h>
 #include <linux/kallsyms.h>
 #include <linux/sched.h>
+#include <linux/ipipe.h>
 
 notrace static unsigned int check_preemption_disabled(const char *what1,
 							const char *what2)

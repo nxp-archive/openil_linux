@@ -146,9 +146,9 @@ void __ipipe_unlock_irq(unsigned int irq);
 
 void __ipipe_do_critical_sync(unsigned int irq, void *cookie);
 
-void __ipipe_ack_edge_irq(unsigned int irq, struct irq_desc *desc);
+void __ipipe_ack_edge_irq(struct irq_desc *desc);
 
-void __ipipe_nop_irq(unsigned int irq, struct irq_desc *desc);
+void __ipipe_nop_irq(struct irq_desc *desc);
 
 static inline void __ipipe_idle(void)
 {
@@ -164,15 +164,6 @@ static inline void __ipipe_sync_stage(void)
 	if (likely(__ipipe_sync_check))
 		__ipipe_do_sync_stage();
 }
-
-#ifndef __ipipe_check_root_resched
-#ifdef CONFIG_PREEMPT
-#define __ipipe_check_root_resched()	\
-	(preempt_count() == 0 && need_resched())
-#else
-#define __ipipe_check_root_resched()	0
-#endif
-#endif
 
 #ifndef __ipipe_run_irqtail
 #define __ipipe_run_irqtail(irq) do { } while(0)

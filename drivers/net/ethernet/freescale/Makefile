@@ -4,6 +4,9 @@
 
 obj-$(CONFIG_FEC) += fec.o
 fec-objs :=fec_main.o fec_ptp.o
+CFLAGS_fec_main.o := -D__CHECK_ENDIAN__
+CFLAGS_fec_ptp.o := -D__CHECK_ENDIAN__
+
 obj-$(CONFIG_FEC_MPC52xx) += fec_mpc52xx.o
 ifeq ($(CONFIG_FEC_MPC52xx_MDIO),y)
 	obj-$(CONFIG_FEC_MPC52xx) += fec_mpc52xx_phy.o
@@ -17,5 +20,7 @@ gianfar_driver-objs := gianfar.o \
 		gianfar_ethtool.o
 obj-$(CONFIG_UCC_GETH) += ucc_geth_driver.o
 ucc_geth_driver-objs := ucc_geth.o ucc_geth_ethtool.o
+
 obj-$(if $(CONFIG_FSL_SDK_FMAN),y) += sdk_fman/
 obj-$(if $(CONFIG_FSL_SDK_DPAA_ETH),y) += sdk_dpaa/
+obj-$(CONFIG_FSL_FMAN) += fman/

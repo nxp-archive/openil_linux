@@ -305,14 +305,9 @@ EXPORT_SYMBOL_GPL(__xntimer_get_timeout);
  * @a sched is bound to, otherwise it will fire either on the current
  * CPU if real-time, or on the first real-time CPU.
  *
- * @param flags A set of flags describing the timer. The valid flags are:
- *
- * - XNTIMER_NOBLCK, the timer won't be frozen while GDB takes over
- * control of the application.
- *
- * A set of clock gravity hints can be passed via the @a flags
- * argument, used for optimizing the built-in heuristics aimed at
- * latency reduction:
+ * @param flags A set of flags describing the timer. A set of clock
+ * gravity hints can be passed via the @a flags argument, used for
+ * optimizing the built-in heuristics aimed at latency reduction:
  *
  * - XNTIMER_IGRAVITY, the timer activates a leaf timer handler.
  * - XNTIMER_KGRAVITY, the timer activates a kernel thread.
@@ -349,29 +344,18 @@ void __xntimer_init(struct xntimer *timer,
 	timer->handler = handler;
 	timer->interval_ns = 0;
 	/*
-	 * Timers are affine to a real-time CPU. If no affinity was
-	 * specified, assign the timer to the first possible CPU which
-	 * can receive interrupt events from the clock device attached
-	 * to the reference clock for this timer.
+	 * If the CPU the caller is affine to does not receive timer
+	 * events, or no affinity was specified (i.e. sched == NULL),
+	 * assign the timer to the first possible CPU which can
+	 * receive interrupt events from the clock device backing this
+	 * timer.
+	 *
+	 * If the clock device has no percpu semantics,
+	 * xnclock_get_default_cpu() makes the timer always affine to
+	 * CPU0 unconditionally.
 	 */
-	if (sched) {
-		/*
-		 * Complain loudly if no tick is expected from the
-		 * clock device on the CPU served by the specified
-		 * scheduler slot. This reveals a CPU affinity
-		 * mismatch between the clock hardware and the client
-		 * code initializing the timer. This check excludes
-		 * core timers which may have their own reason to bind
-		 * to a passive CPU (e.g. host timer).
-		 */
-		XENO_WARN_ON_SMP(COBALT, !(flags & __XNTIMER_CORE) &&
-				 !cpumask_test_cpu(xnsched_cpu(sched),
-						   &clock->affinity));
-		timer->sched = sched;
-	} else {
-		cpu = xnclock_get_default_cpu(clock, 0);
-		timer->sched = xnsched_struct(cpu);
-	}
+	cpu = xnclock_get_default_cpu(clock, sched ? xnsched_cpu(sched) : 0);
+	timer->sched = xnsched_struct(cpu);
 
 #ifdef CONFIG_XENO_OPT_STATS
 #ifdef CONFIG_XENO_OPT_EXTCLOCK
@@ -536,11 +520,15 @@ void __xntimer_migrate(struct xntimer *timer, struct xnsched *sched)
 	 * This assertion triggers when the timer is migrated to a CPU
 	 * for which we do not expect any clock events/IRQs from the
 	 * associated clock device. If so, the timer would never fire
-	 * since clock ticks would never happen on that CPU (timer
-	 * queues are per-CPU constructs).
+	 * since clock ticks would never happen on that CPU.
+	 *
+	 * A clock device with an empty affinity mask has no percpu
+	 * semantics, which disables the check.
 	 */
-	XENO_WARN_ON_SMP(COBALT, !cpumask_test_cpu(xnsched_cpu(sched),
-		       &xntimer_clock(timer)->affinity));
+	XENO_WARN_ON_SMP(COBALT,
+			 !cpumask_empty(&xntimer_clock(timer)->affinity) &&
+			 !cpumask_test_cpu(xnsched_cpu(sched),
+					   &xntimer_clock(timer)->affinity));
 
 	if (timer->status & XNTIMER_RUNNING) {
 		xntimer_stop(timer);
@@ -554,6 +542,24 @@ void __xntimer_migrate(struct xntimer *timer, struct xnsched *sched)
 		timer->sched = sched;
 }
 EXPORT_SYMBOL_GPL(__xntimer_migrate);
+
+bool xntimer_set_sched(struct xntimer *timer,
+		       struct xnsched *sched)
+{
+	/*
+	 * We may deny the request if the target CPU does not receive
+	 * any event from the clock device backing the timer, or the
+	 * clock device has no percpu semantics.
+	 */
+	if (cpumask_test_cpu(xnsched_cpu(sched),
+			     &xntimer_clock(timer)->affinity)) {
+		xntimer_migrate(timer, sched);
+		return true;
+	}
+
+	return false;
+}
+EXPORT_SYMBOL_GPL(xntimer_set_sched);
 
 int xntimer_setup_ipi(void)
 {
@@ -587,26 +593,26 @@ void xntimer_release_ipi(void)
  *
  * @coretags{unrestricted, atomic-entry}
  */
-unsigned long long xntimer_get_overruns(struct xntimer *timer, xnticks_t now)
+unsigned long long xntimer_get_overruns(struct xntimer *timer,
+					struct xnthread *waiter,
+					xnticks_t now)
 {
 	xnticks_t period = timer->interval;
-	xnsticks_t delta;
 	unsigned long long overruns = 0;
+	xnsticks_t delta;
+	xntimerq_t *q;
 
-	XENO_BUG_ON(COBALT, (timer->status &
-	     (XNTIMER_DEQUEUED|XNTIMER_PERIODIC)) != XNTIMER_PERIODIC);
-	
 	delta = now - xntimer_pexpect(timer);
 	if (unlikely(delta >= (xnsticks_t) period)) {
-		xntimerq_t *q;
-
 		period = timer->interval_ns;
 		delta = xnclock_ticks_to_ns(xntimer_clock(timer), delta);
 		overruns = xnarch_div64(delta, period);
 		timer->pexpect_ticks += overruns;
-
 		if (xntimer_running_p(timer)) {
-			q = xntimer_percpu_queue(timer);
+			XENO_BUG_ON(COBALT, (timer->status &
+				    (XNTIMER_DEQUEUED|XNTIMER_PERIODIC))
+				    != XNTIMER_PERIODIC);
+				q = xntimer_percpu_queue(timer);
 			xntimer_dequeue(timer, q);
 			while (xntimerh_date(&timer->aplink) < now) {
 				timer->periodic_ticks++;
@@ -617,6 +623,11 @@ unsigned long long xntimer_get_overruns(struct xntimer *timer, xnticks_t now)
 	}
 
 	timer->pexpect_ticks++;
+
+	/* Hide overruns due to the most recent ptracing session. */
+	if (xnthread_test_localinfo(waiter, XNHICCUP))
+		return 0;
+
 	return overruns;
 }
 EXPORT_SYMBOL_GPL(xntimer_get_overruns);

@@ -23,6 +23,8 @@
 #include <linux/ipipe_tickdev.h>
 #include <linux/ipipe.h>
 
+#include <clocksource/pxa.h>
+
 #include <asm/div64.h>
 
 #define OSMR0		0x00	/* OS Timer 0 Match Register */
@@ -97,26 +99,12 @@ pxa_osmr0_set_next_event(unsigned long delta, struct clock_event_device *dev)
 	return (signed)(next - oscr) <= MIN_OSCR_DELTA ? -ETIME : 0;
 }
 
-static void
-pxa_osmr0_set_mode(enum clock_event_mode mode, struct clock_event_device *dev)
+static int pxa_osmr0_shutdown(struct clock_event_device *evt)
 {
-	switch (mode) {
-	case CLOCK_EVT_MODE_ONESHOT:
-		timer_writel(timer_readl(OIER) & ~OIER_E0, OIER);
-		timer_writel(OSSR_M0, OSSR);
-		break;
-
-	case CLOCK_EVT_MODE_UNUSED:
-	case CLOCK_EVT_MODE_SHUTDOWN:
-		/* initializing, released, or preparing for suspend */
-		timer_writel(timer_readl(OIER) & ~OIER_E0, OIER);
-		timer_writel(OSSR_M0, OSSR);
-		break;
-
-	case CLOCK_EVT_MODE_RESUME:
-	case CLOCK_EVT_MODE_PERIODIC:
-		break;
-	}
+	/* initializing, released, or preparing for suspend */
+	timer_writel(timer_readl(OIER) & ~OIER_E0, OIER);
+	timer_writel(OSSR_M0, OSSR);
+	return 0;
 }
 
 #ifdef CONFIG_PM
@@ -163,15 +151,16 @@ static struct ipipe_timer pxa_osmr0_itimer = {
 #endif /* CONFIG_IPIPE */
 
 static struct clock_event_device ckevt_pxa_osmr0 = {
-	.name		= "osmr0",
-	.features	= CLOCK_EVT_FEAT_ONESHOT,
-	.rating		= 200,
-	.set_next_event	= pxa_osmr0_set_next_event,
-	.set_mode	= pxa_osmr0_set_mode,
-	.suspend	= pxa_timer_suspend,
-	.resume		= pxa_timer_resume,
+	.name			= "osmr0",
+	.features		= CLOCK_EVT_FEAT_ONESHOT,
+	.rating			= 200,
+	.set_next_event		= pxa_osmr0_set_next_event,
+	.set_state_shutdown	= pxa_osmr0_shutdown,
+	.set_state_oneshot	= pxa_osmr0_shutdown,
+	.suspend		= pxa_timer_suspend,
+	.resume			= pxa_timer_resume,
 #ifdef CONFIG_IPIPE
-	.ipipe_timer    = &pxa_osmr0_itimer,
+	.ipipe_timer		= &pxa_osmr0_itimer,
 #endif /* CONFIG_IPIPE */
 };
 
@@ -194,8 +183,10 @@ static struct __ipipe_tscinfo tsc_info = {
 };
 #endif /* CONFIG_IPIPE */
 
-static void __init pxa_timer_common_init(int irq, unsigned long clock_tick_rate)
+static int __init pxa_timer_common_init(int irq, unsigned long clock_tick_rate)
 {
+	int ret;
+
 	timer_writel(0, OIER);
 	timer_writel(OSSR_M0 | OSSR_M1 | OSSR_M2 | OSSR_M3, OSSR);
 
@@ -203,49 +194,64 @@ static void __init pxa_timer_common_init(int irq, unsigned long clock_tick_rate)
 
 	ckevt_pxa_osmr0.cpumask = cpumask_of(0);
 
-	setup_irq(irq, &pxa_ost0_irq);
+	ret = setup_irq(irq, &pxa_ost0_irq);
+	if (ret) {
+		pr_err("Failed to setup irq");
+		return ret;
+	}
 
-	clocksource_mmio_init(timer_base + OSCR, "oscr0", clock_tick_rate, 200,
-			32, clocksource_mmio_readl_up);
+	ret = clocksource_mmio_init(timer_base + OSCR, "oscr0", clock_tick_rate, 200,
+				    32, clocksource_mmio_readl_up);
+	if (ret) {
+		pr_err("Failed to init clocksource");
+		return ret;
+	}
 
 #ifdef CONFIG_IPIPE
 	tsc_info.freq = clock_tick_rate;
 	tsc_info.counter_vaddr = (unsigned long)timer_base + OSCR;
-
 	__ipipe_tsc_register(&tsc_info);
-
 	pxa_osmr0_itimer.irq = irq;
 #endif /* CONFIG_IPIPE */
 
 	clockevents_config_and_register(&ckevt_pxa_osmr0, clock_tick_rate,
 					MIN_OSCR_DELTA * 2, 0x7fffffff);
+
+	return 0;
 }
 
-static void __init pxa_timer_dt_init(struct device_node *np)
+static int __init pxa_timer_dt_init(struct device_node *np)
 {
 	struct clk *clk;
-	int irq;
+	int irq, ret;
 
 	/* timer registers are shared with watchdog timer */
 	timer_base = of_iomap(np, 0);
-	if (!timer_base)
-		panic("%s: unable to map resource\n", np->name);
+	if (!timer_base) {
+		pr_err("%s: unable to map resource\n", np->name);
+		return -ENXIO;
+	}
 
 	clk = of_clk_get(np, 0);
 	if (IS_ERR(clk)) {
 		pr_crit("%s: unable to get clk\n", np->name);
-		return;
+		return PTR_ERR(clk);
 	}
-	clk_prepare_enable(clk);
+
+	ret = clk_prepare_enable(clk);
+	if (ret) {
+		pr_crit("Failed to prepare clock");
+		return ret;
+	}
 
 	/* we are only interested in OS-timer0 irq */
 	irq = irq_of_parse_and_map(np, 0);
 	if (irq <= 0) {
 		pr_crit("%s: unable to parse OS-timer0 irq\n", np->name);
-		return;
+		return -EINVAL;
 	}
 
-	pxa_timer_common_init(irq, clk_get_rate(clk));
+	return pxa_timer_common_init(irq, clk_get_rate(clk));
 }
 CLOCKSOURCE_OF_DECLARE(pxa_timer, "marvell,pxa-timer", pxa_timer_dt_init);
 

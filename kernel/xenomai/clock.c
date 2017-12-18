@@ -35,8 +35,6 @@
  */
 unsigned long nktimerlat;
 
-unsigned int nkclock_lock;
-
 static unsigned long long clockfreq;
 
 #ifdef XNARCH_HAVE_LLMULSHFT
@@ -137,6 +135,10 @@ void xnclock_core_local_shot(struct xnsched *sched)
 	if (sched->status & XNINTCK)
 		return;
 
+	/*
+	 * Assume the core clock device always has percpu semantics in
+	 * SMP.
+	 */
 	tmd = xnclock_this_timerdata(&nkclock);
 	h = xntimerq_head(&tmd->q);
 	if (h == NULL)
@@ -334,7 +336,13 @@ int xnclock_get_default_cpu(struct xnclock *clock, int cpu)
 	 * suggested CPU does not receive events from this device,
 	 * return the first one which does.  We also account for the
 	 * dynamic set of real-time CPUs.
+	 *
+	 * A clock device with no percpu semantics causes this routine
+	 * to return CPU0 unconditionally.
 	 */
+	if (cpumask_empty(&clock->affinity))
+		return 0;
+	
 	cpumask_and(&set, &clock->affinity, &cobalt_cpu_affinity);
 	if (!cpumask_empty(&set) && !cpumask_test_cpu(cpu, &set))
 		cpu = cpumask_first(&set);
@@ -491,23 +499,23 @@ static struct xnvfile_directory clock_vfroot;
 void print_core_clock_status(struct xnclock *clock,
 			     struct xnvfile_regular_iterator *it)
 {
-	const char *tm_status, *wd_status = "";
+	const char *wd_status = "off";
 
-	tm_status = nkclock_lock > 0 ? "locked" : "on";
 #ifdef CONFIG_XENO_OPT_WATCHDOG
-	wd_status = "+watchdog";
+	wd_status = "on";
 #endif /* CONFIG_XENO_OPT_WATCHDOG */
 
-	xnvfile_printf(it, "%7s: timer=%s, clock=%s\n",
+	xnvfile_printf(it, "%8s: timer=%s, clock=%s\n",
 		       "devices", ipipe_timer_name(), ipipe_clock_name());
-	xnvfile_printf(it, "%7s: %s%s\n", "status", tm_status, wd_status);
-	xnvfile_printf(it, "%7s: %Lu\n", "setup",
+	xnvfile_printf(it, "%8s: %s\n", "watchdog", wd_status);
+	xnvfile_printf(it, "%8s: %Lu\n", "setup",
 		       xnclock_ticks_to_ns(&nkclock, nktimerlat));
 }
 
 static int clock_show(struct xnvfile_regular_iterator *it, void *data)
 {
 	struct xnclock *clock = xnvfile_priv(it->vfile);
+	xnticks_t now = xnclock_read_raw(clock);
 
 	if (clock->id >= 0)	/* External clock, print id. */
 		xnvfile_printf(it, "%7s: %d\n", "id", __COBALT_CLOCK_EXT(clock->id));
@@ -519,7 +527,8 @@ static int clock_show(struct xnvfile_regular_iterator *it, void *data)
 
 	xnclock_print_status(clock, it);
 
-	xnvfile_printf(it, "%7s: %Lu\n", "ticks", xnclock_read_raw(clock));
+	xnvfile_printf(it, "%7s: %Lu (%.4Lx %.4x)\n", "ticks",
+		       now, now >> 32, (u32)(now & -1U));
 
 	return 0;
 }
@@ -618,7 +627,10 @@ static inline void cleanup_clock_proc(struct xnclock *clock) { }
  * @param clock The new clock to register.
  *
  * @param affinity The set of CPUs we may expect the backing clock
- * device to tick on.
+ * device to tick on. As a special case, passing a NULL affinity mask
+ * means that timer IRQs cannot be seen as percpu events, in which
+ * case all outstanding timers will be maintained into a single global
+ * queue instead of percpu timer queues.
  *
  * @coretags{secondary-only}
  */
@@ -631,14 +643,17 @@ int xnclock_register(struct xnclock *clock, const cpumask_t *affinity)
 
 #ifdef CONFIG_SMP
 	/*
-	 * A CPU affinity set is defined for each clock, enumerating
-	 * the CPUs which can receive ticks from the backing clock
-	 * device.  This set must be a subset of the real-time CPU
-	 * set.
+	 * A CPU affinity set may be defined for each clock,
+	 * enumerating the CPUs which can receive ticks from the
+	 * backing clock device.  When given, this set must be a
+	 * subset of the real-time CPU set.
 	 */
-	cpumask_and(&clock->affinity, affinity, &xnsched_realtime_cpus);
-	if (cpumask_empty(&clock->affinity))
-		return -EINVAL;
+	if (affinity) {
+		cpumask_and(&clock->affinity, affinity, &xnsched_realtime_cpus);
+		if (cpumask_empty(&clock->affinity))
+			return -EINVAL;
+	} else	/* No percpu semantics. */
+		cpumask_clear(&clock->affinity);
 #endif
 
 	/* Allocate the percpu timer queue slot. */
@@ -649,7 +664,8 @@ int xnclock_register(struct xnclock *clock, const cpumask_t *affinity)
 	/*
 	 * POLA: init all timer slots for the new clock, although some
 	 * of them might remain unused depending on the CPU affinity
-	 * of the event source(s).
+	 * of the event source(s). If the clock device has no percpu
+	 * semantics, all timers will be queued to slot #0.
 	 */
 	for_each_online_cpu(cpu) {
 		tmd = xnclock_percpu_timerdata(clock, cpu);
@@ -710,18 +726,34 @@ EXPORT_SYMBOL_GPL(xnclock_deregister);
  *
  * @coretags{coreirq-only, atomic-entry}
  *
- * @note The current CPU must be part of the real-time affinity set,
- * otherwise weird things may happen.
+ * @note The current CPU must be part of the real-time affinity set
+ * unless the clock device has no percpu semantics, otherwise weird
+ * things may happen.
  */
 void xnclock_tick(struct xnclock *clock)
 {
-	xntimerq_t *timerq = &xnclock_this_timerdata(clock)->q;
 	struct xnsched *sched = xnsched_current();
 	struct xntimer *timer;
 	xnsticks_t delta;
+	xntimerq_t *tmq;
 	xnticks_t now;
 	xntimerh_t *h;
 
+	atomic_only();
+
+#ifdef CONFIG_SMP
+	/*
+	 * Some external clock devices may have no percpu semantics,
+	 * in which case all timers are queued to slot #0.
+	 */
+	if (IS_ENABLED(CONFIG_XENO_OPT_EXTCLOCK) &&
+	    clock != &nkclock &&
+	    !cpumask_test_cpu(xnsched_cpu(sched), &clock->affinity))
+		tmq = &xnclock_percpu_timerdata(clock, 0)->q;
+	else
+#endif
+		tmq = &xnclock_this_timerdata(clock)->q;
+	
 	/*
 	 * Optimisation: any local timer reprogramming triggered by
 	 * invoked timer handlers can wait until we leave the tick
@@ -730,7 +762,7 @@ void xnclock_tick(struct xnclock *clock)
 	sched->status |= XNINTCK;
 
 	now = xnclock_read_raw(clock);
-	while ((h = xntimerq_head(timerq)) != NULL) {
+	while ((h = xntimerq_head(tmq)) != NULL) {
 		timer = container_of(h, struct xntimer, aplink);
 		delta = (xnsticks_t)(xntimerh_date(&timer->aplink) - now);
 		if (delta > 0)
@@ -738,7 +770,7 @@ void xnclock_tick(struct xnclock *clock)
 
 		trace_cobalt_timer_expire(timer);
 
-		xntimer_dequeue(timer, timerq);
+		xntimer_dequeue(timer, tmq);
 		xntimer_account_fired(timer);
 
 		/*
@@ -755,28 +787,6 @@ void xnclock_tick(struct xnclock *clock)
 			continue;
 		}
 
-		/* Check for a locked clock state (i.e. ptracing). */
-		if (unlikely(nkclock_lock > 0)) {
-			if (timer->status & XNTIMER_NOBLCK)
-				goto fire;
-			if (timer->status & XNTIMER_PERIODIC)
-				goto advance;
-			/*
-			 * We have no period for this blocked timer,
-			 * so have it tick again at a reasonably close
-			 * date in the future, waiting for the clock
-			 * to be unlocked at some point. Since clocks
-			 * are blocked when single-stepping into an
-			 * application using a debugger, it is fine to
-			 * wait for 250 ms for the user to continue
-			 * program execution.
-			 */
-			xntimerh_date(&timer->aplink) +=
-				xnclock_ns_to_ticks(xntimer_clock(timer),
-						250000000);
-			goto requeue;
-		}
-	fire:
 		timer->handler(timer);
 		now = xnclock_read_raw(clock);
 		timer->status |= XNTIMER_FIRED;
@@ -793,24 +803,16 @@ void xnclock_tick(struct xnclock *clock)
 			timer->periodic_ticks++;
 			xntimer_update_date(timer);
 		} while (xntimerh_date(&timer->aplink) < now);
-	requeue:
+
 #ifdef CONFIG_SMP
 		/*
-		 * Make sure to pick the right percpu queue, in case
-		 * the timer was migrated over its timeout
-		 * handler. Since this timer was dequeued,
-		 * xntimer_migrate() did not kick the remote CPU, so
-		 * we have to do this now if required.
+		 * If the timer was migrated over its timeout handler,
+		 * xntimer_migrate() re-queued it already.
 		 */
-		if (unlikely(timer->sched != sched)) {
-			timerq = xntimer_percpu_queue(timer);
-			xntimer_enqueue(timer, timerq);
-			if (xntimer_heading_p(timer))
-				xnclock_remote_shot(clock, timer->sched);
+		if (unlikely(timer->sched != sched))
 			continue;
-		}
 #endif
-		xntimer_enqueue(timer, timerq);
+		xntimer_enqueue(timer, tmq);
 	}
 
 	sched->status &= ~XNINTCK;

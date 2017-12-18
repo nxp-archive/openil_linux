@@ -23,10 +23,6 @@
 #include <linux/slab.h>
 #include <linux/smp.h>
 
-#if !defined(CONFIG_ARM)
-#include <asm/smp.h>	/* for get_hard_smp_processor_id() in UP configs */
-#endif
-
 /**
  * struct cpu_data
  * @pclk: the parent clock of cpu
@@ -54,16 +50,29 @@ struct soc_data {
 
 static u32 get_bus_freq(void)
 {
-	struct clk *clk;
+	struct device_node *soc;
+	u32 sysfreq;
+	struct clk *pltclk;
+	int ret;
 
-	clk = clk_get(NULL, "cg-pll0-div1");
-	if (IS_ERR(clk)) {
-		pr_err("%s: can't get bus frequency %ld\n",
-			__func__, PTR_ERR(clk));
-		return PTR_ERR(clk);
+	/* get platform freq by searching bus-frequency property */
+	soc = of_find_node_by_type(NULL, "soc");
+	if (soc) {
+		ret = of_property_read_u32(soc, "bus-frequency", &sysfreq);
+		of_node_put(soc);
+		if (!ret)
+			return sysfreq;
 	}
 
-	return clk_get_rate(clk);
+	/* get platform freq by its clock name */
+	pltclk = clk_get(NULL, "cg-pll0-div1");
+	if (IS_ERR(pltclk)) {
+		pr_err("%s: can't get bus frequency %ld\n",
+		       __func__, PTR_ERR(pltclk));
+		return PTR_ERR(pltclk);
+	}
+
+	return clk_get_rate(pltclk);
 }
 
 static struct clk *cpu_to_clk(int cpu)
@@ -155,10 +164,11 @@ static void freq_table_sort(struct cpufreq_frequency_table *freq_table,
 
 static int qoriq_cpufreq_cpu_init(struct cpufreq_policy *policy)
 {
-	struct device_node *np, *pnode;
+	struct device_node *np;
 	int i, count, ret;
 	u32 freq;
 	struct clk *clk;
+	const struct clk_hw *hwclk;
 	struct cpufreq_frequency_table *table;
 	struct cpu_data *data;
 	unsigned int cpu = policy->cpu;
@@ -178,7 +188,8 @@ static int qoriq_cpufreq_cpu_init(struct cpufreq_policy *policy)
 		goto err_nomem2;
 	}
 
-	count = clk_get_num_parents(policy->clk);
+	hwclk = __clk_get_hw(policy->clk);
+	count = clk_hw_get_num_parents(hwclk);
 
 	data->pclk = kcalloc(count, sizeof(struct clk *), GFP_KERNEL);
 	if (!data->pclk) {
@@ -193,7 +204,7 @@ static int qoriq_cpufreq_cpu_init(struct cpufreq_policy *policy)
 	}
 
 	for (i = 0; i < count; i++) {
-		clk = clk_get_parent_by_index(policy->clk, i);
+		clk = clk_hw_get_parent_by_index(hwclk, i)->clk;
 		data->pclk[i] = clk;
 		freq = clk_get_rate(clk);
 		table[i].frequency = freq / 1000;
@@ -222,7 +233,6 @@ static int qoriq_cpufreq_cpu_init(struct cpufreq_policy *policy)
 	policy->cpuinfo.transition_latency = u64temp + 1;
 
 	of_node_put(np);
-	of_node_put(pnode);
 
 	return 0;
 
@@ -238,7 +248,7 @@ err_np:
 	return -ENODEV;
 }
 
-static int __exit qoriq_cpufreq_cpu_exit(struct cpufreq_policy *policy)
+static int qoriq_cpufreq_cpu_exit(struct cpufreq_policy *policy)
 {
 	struct cpu_data *data = policy->driver_data;
 
@@ -261,12 +271,6 @@ static int qoriq_cpufreq_target(struct cpufreq_policy *policy,
 	return clk_set_parent(policy->clk, parent);
 }
 
-static void qoriq_cpufreq_stop_cpu(struct cpufreq_policy *policy)
-{
-	struct cpu_data *cpud = policy->driver_data;
-
-	cpufreq_cooling_unregister(cpud->cdev);
-}
 
 static void qoriq_cpufreq_ready(struct cpufreq_policy *policy)
 {
@@ -292,11 +296,10 @@ static struct cpufreq_driver qoriq_cpufreq_driver = {
 	.name		= "qoriq_cpufreq",
 	.flags		= CPUFREQ_CONST_LOOPS,
 	.init		= qoriq_cpufreq_cpu_init,
-	.exit		= __exit_p(qoriq_cpufreq_cpu_exit),
+	.exit		= qoriq_cpufreq_cpu_exit,
 	.verify		= cpufreq_generic_frequency_table_verify,
 	.target_index	= qoriq_cpufreq_target,
 	.get		= cpufreq_generic_get,
-	.stop_cpu	= qoriq_cpufreq_stop_cpu,
 	.ready		= qoriq_cpufreq_ready,
 	.attr		= cpufreq_generic_attr,
 };
@@ -312,14 +315,15 @@ static const struct of_device_id node_matches[] __initconst = {
 	{ .compatible = "fsl,t2080-clockgen", &blacklist },
 	{ .compatible = "fsl,t4240-clockgen", &blacklist },
 
+	{ .compatible = "fsl,ls1012a-clockgen", },
 	{ .compatible = "fsl,ls1021a-clockgen", },
+	{ .compatible = "fsl,ls1043a-clockgen", },
+	{ .compatible = "fsl,ls1046a-clockgen", },
+	{ .compatible = "fsl,ls1088a-clockgen", },
+	{ .compatible = "fsl,ls2080a-clockgen", },
 	{ .compatible = "fsl,p4080-clockgen", },
 	{ .compatible = "fsl,qoriq-clockgen-1.0", },
 	{ .compatible = "fsl,qoriq-clockgen-2.0", },
-	{ .compatible = "fsl,ls2080a-clockgen", },
-	{ .compatible = "fsl,ls1043a-clockgen", },
-	{ .compatible = "fsl,ls1046a-clockgen", },
-	{ .compatible = "fsl,ls1012a-clockgen", },
 	{}
 };
 

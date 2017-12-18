@@ -233,7 +233,7 @@ struct fsl_qspi_devtype_data {
 	int driver_data;
 };
 
-static struct fsl_qspi_devtype_data vybrid_data = {
+static const struct fsl_qspi_devtype_data vybrid_data = {
 	.devtype = FSL_QUADSPI_VYBRID,
 	.rxfifo = 128,
 	.txfifo = 64,
@@ -241,7 +241,7 @@ static struct fsl_qspi_devtype_data vybrid_data = {
 	.driver_data = QUADSPI_QUIRK_SWAP_ENDIAN,
 };
 
-static struct fsl_qspi_devtype_data imx6sx_data = {
+static const struct fsl_qspi_devtype_data imx6sx_data = {
 	.devtype = FSL_QUADSPI_IMX6SX,
 	.rxfifo = 128,
 	.txfifo = 512,
@@ -250,7 +250,7 @@ static struct fsl_qspi_devtype_data imx6sx_data = {
 		       | QUADSPI_QUIRK_TKT245618,
 };
 
-static struct fsl_qspi_devtype_data imx7d_data = {
+static const struct fsl_qspi_devtype_data imx7d_data = {
 	.devtype = FSL_QUADSPI_IMX7D,
 	.rxfifo = 512,
 	.txfifo = 512,
@@ -259,7 +259,7 @@ static struct fsl_qspi_devtype_data imx7d_data = {
 		       | QUADSPI_QUIRK_4X_INT_CLK,
 };
 
-static struct fsl_qspi_devtype_data imx6ul_data = {
+static const struct fsl_qspi_devtype_data imx6ul_data = {
 	.devtype = FSL_QUADSPI_IMX6UL,
 	.rxfifo = 128,
 	.txfifo = 512,
@@ -281,7 +281,7 @@ static struct fsl_qspi_devtype_data ls2080a_data = {
 	.rxfifo = 128,
 	.txfifo = 64,
 	.ahb_buf_size = 1024,
-	.driver_data = QUADSPI_AMBA_BASE_INTERNAL,
+	.driver_data = QUADSPI_AMBA_BASE_INTERNAL | QUADSPI_QUIRK_TKT253890,
 };
 
 #define FSL_QSPI_MAX_CHIP	4
@@ -474,10 +474,10 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 		} else {
 			qspi_writel(q, LUT0(CMD, PAD1, read_op) |
 				    LUT1(ADDR, PAD1, addrlen),
-					base + QUADSPI_LUT(lut_base));
+				    base + QUADSPI_LUT(lut_base));
 			qspi_writel(q, LUT0(DUMMY, PAD1, read_dm) |
 				    LUT1(FSL_READ, PAD4, rxfifo),
-					base + QUADSPI_LUT(lut_base + 1));
+				    base + QUADSPI_LUT(lut_base + 1));
 		}
 	} else if (nor->flash_read == SPI_NOR_DDR_QUAD) {
 		/* read mode : 1-4-4, such as Spansion s25fl128s. */
@@ -767,6 +767,7 @@ static ssize_t fsl_qspi_nor_write(struct fsl_qspi *q, struct spi_nor *nor,
 {
 	int ret, i, j;
 	u32 tmp;
+	u8 byts;
 
 	dev_dbg(q->dev, "to 0x%.8x:0x%.8x, len : %d\n",
 		q->chip_base_addr, to, count);
@@ -776,11 +777,13 @@ static ssize_t fsl_qspi_nor_write(struct fsl_qspi *q, struct spi_nor *nor,
 	qspi_writel(q, tmp | QUADSPI_MCR_CLR_TXF_MASK, q->iobase + QUADSPI_MCR);
 
 	/* fill the TX data to the FIFO */
+	byts = count;
 	for (j = 0, i = ((count + 3) / 4); j < i; j++) {
-		u8tou32(&tmp, txbuf, 4);
+		u8tou32(&tmp, txbuf, byts);
 		tmp = fsl_qspi_endian_xchg(q, tmp);
 		qspi_writel(q, tmp, q->iobase + QUADSPI_TBDR);
 		txbuf += 4;
+		byts -= 4;
 	}
 
 	/* fill the TXFIFO upto 16 bytes for i.MX7d */
@@ -857,36 +860,19 @@ static void fsl_qspi_init_abh_read(struct fsl_qspi *q)
 {
 	void __iomem *base = q->iobase;
 	int seqid;
-	const struct fsl_qspi_devtype_data *devtype_data = q->devtype_data;
 
 	/* AHB configuration for access buffer 0/1/2 .*/
 	qspi_writel(q, QUADSPI_BUFXCR_INVALID_MSTRID, base + QUADSPI_BUF0CR);
 	qspi_writel(q, QUADSPI_BUFXCR_INVALID_MSTRID, base + QUADSPI_BUF1CR);
 	qspi_writel(q, QUADSPI_BUFXCR_INVALID_MSTRID, base + QUADSPI_BUF2CR);
-
 	/*
-	 * Errata: A-009282: QuadSPI data prefetch may result in incorrect data
-	 * Workaround: Keep the read data size to 64 bits (8 bytes).
-	 * This disables the prefetch on the AHB buffer and
-	 * prevents this issue from occurring.
+	 * Set ADATSZ with the maximum AHB buffer size to improve the
+	 * read performance.
 	 */
-	if (devtype_data->devtype == FSL_QUADSPI_LS2080A ||
-	    devtype_data->devtype == FSL_QUADSPI_LS1021A) {
-
-		qspi_writel(q, QUADSPI_BUF3CR_ALLMST_MASK |
-				(1 << QUADSPI_BUF3CR_ADATSZ_SHIFT),
-				base + QUADSPI_BUF3CR);
-
-	} else {
-		/*
-		 * Set ADATSZ with the maximum AHB buffer size to improve the
-		 * read performance.
-		*/
-		qspi_writel(q, QUADSPI_BUF3CR_ALLMST_MASK |
-				((q->devtype_data->ahb_buf_size / 8)
-				<< QUADSPI_BUF3CR_ADATSZ_SHIFT),
-				base + QUADSPI_BUF3CR);
-	}
+	qspi_writel(q, QUADSPI_BUF3CR_ALLMST_MASK |
+			((q->devtype_data->ahb_buf_size / 8)
+			<< QUADSPI_BUF3CR_ADATSZ_SHIFT),
+			base + QUADSPI_BUF3CR);
 
 	/* We only use the buffer3 */
 	qspi_writel(q, 0, base + QUADSPI_BUF0IND);

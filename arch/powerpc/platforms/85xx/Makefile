@@ -3,8 +3,6 @@
 #
 obj-$(CONFIG_SMP) += smp.o
 obj-$(CONFIG_FSL_PMC)		  += mpc85xx_pm_ops.o
-obj-$(CONFIG_FSL_QORIQ_PM)	  += qoriq_pm.o sleep_fsm.o
-obj-$(CONFIG_FSL_QORIQ_PM)	  += deepsleep.o t104x_deepsleep.o
 
 obj-y += common.o
 
@@ -23,7 +21,7 @@ obj-$(CONFIG_P1022_DS)    += p1022_ds.o
 obj-$(CONFIG_P1022_RDK)   += p1022_rdk.o
 obj-$(CONFIG_P1023_RDB)   += p1023_rdb.o
 obj-$(CONFIG_TWR_P102x)   += twr_p102x.o
-obj-$(CONFIG_CORENET_GENERIC)   += corenet_generic.o corenet_diu.o
+obj-$(CONFIG_CORENET_GENERIC)   += corenet_generic.o
 obj-$(CONFIG_STX_GP3)	  += stx_gp3.o
 obj-$(CONFIG_TQM85xx)	  += tqm85xx.o
 obj-$(CONFIG_SBC8548)     += sbc8548.o

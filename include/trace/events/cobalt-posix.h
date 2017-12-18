@@ -19,13 +19,12 @@
  */
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM cobalt_posix
-#undef TRACE_INCLUDE_FILE
-#define TRACE_INCLUDE_FILE cobalt-posix
 
 #if !defined(_TRACE_COBALT_POSIX_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_COBALT_POSIX_H
 
 #include <linux/tracepoint.h>
+#include <linux/trace_seq.h>
 #include <xenomai/posix/cond.h>
 #include <xenomai/posix/mqueue.h>
 #include <xenomai/posix/event.h>
@@ -43,42 +42,152 @@
 #define __timespec_args(__name)					\
 	__entry->tv_sec_##__name, __entry->tv_nsec_##__name
 
+#ifdef CONFIG_X86_64
+#ifdef CONFIG_X86_X32
+#define __cobalt_symbolic_syscall(name)					\
+	{sc_cobalt_##name, #name},					\
+	{sc_cobalt_##name + __COBALT_IA32_BASE, "compat-" #name},	\
+	{sc_cobalt_##name + __COBALT_X32_BASE, "x32-" #name}
+#else /* !CONFIG_X86_X32 */
+#define __cobalt_symbolic_syscall(name)					\
+	{sc_cobalt_##name, #name},					\
+	{sc_cobalt_##name + __COBALT_IA32_BASE, "compat-" #name}
+#endif
+#else /* !CONFIG_X86_64 */
+#define __cobalt_symbolic_syscall(name)					\
+	{sc_cobalt_##name, #name}
+#endif
+
+#define __cobalt_syscall_name(__nr)					\
+	__print_symbolic((__nr),					\
+		__cobalt_symbolic_syscall(bind),			\
+		__cobalt_symbolic_syscall(thread_create),		\
+		__cobalt_symbolic_syscall(thread_getpid),		\
+		__cobalt_symbolic_syscall(thread_setmode),		\
+		__cobalt_symbolic_syscall(thread_setname),		\
+		__cobalt_symbolic_syscall(thread_join),			\
+		__cobalt_symbolic_syscall(thread_kill),			\
+		__cobalt_symbolic_syscall(thread_setschedparam_ex),	\
+		__cobalt_symbolic_syscall(thread_getschedparam_ex),	\
+		__cobalt_symbolic_syscall(thread_getstat),		\
+		__cobalt_symbolic_syscall(sem_init),			\
+		__cobalt_symbolic_syscall(sem_destroy),			\
+		__cobalt_symbolic_syscall(sem_post),			\
+		__cobalt_symbolic_syscall(sem_wait),			\
+		__cobalt_symbolic_syscall(sem_trywait),			\
+		__cobalt_symbolic_syscall(sem_getvalue),		\
+		__cobalt_symbolic_syscall(sem_open),			\
+		__cobalt_symbolic_syscall(sem_close),			\
+		__cobalt_symbolic_syscall(sem_unlink),			\
+		__cobalt_symbolic_syscall(sem_timedwait),		\
+		__cobalt_symbolic_syscall(sem_inquire),			\
+		__cobalt_symbolic_syscall(sem_broadcast_np),		\
+		__cobalt_symbolic_syscall(clock_getres),		\
+		__cobalt_symbolic_syscall(clock_gettime),		\
+		__cobalt_symbolic_syscall(clock_settime),		\
+		__cobalt_symbolic_syscall(clock_nanosleep),		\
+		__cobalt_symbolic_syscall(mutex_init),			\
+		__cobalt_symbolic_syscall(mutex_check_init),		\
+		__cobalt_symbolic_syscall(mutex_destroy),		\
+		__cobalt_symbolic_syscall(mutex_lock),			\
+		__cobalt_symbolic_syscall(mutex_timedlock),		\
+		__cobalt_symbolic_syscall(mutex_trylock),		\
+		__cobalt_symbolic_syscall(mutex_unlock),		\
+		__cobalt_symbolic_syscall(cond_init),			\
+		__cobalt_symbolic_syscall(cond_destroy),		\
+		__cobalt_symbolic_syscall(cond_wait_prologue),		\
+		__cobalt_symbolic_syscall(cond_wait_epilogue),		\
+		__cobalt_symbolic_syscall(mq_open),			\
+		__cobalt_symbolic_syscall(mq_close),			\
+		__cobalt_symbolic_syscall(mq_unlink),			\
+		__cobalt_symbolic_syscall(mq_getattr),			\
+		__cobalt_symbolic_syscall(mq_timedsend),		\
+		__cobalt_symbolic_syscall(mq_timedreceive),		\
+		__cobalt_symbolic_syscall(mq_notify),			\
+		__cobalt_symbolic_syscall(sched_minprio),		\
+		__cobalt_symbolic_syscall(sched_maxprio),		\
+		__cobalt_symbolic_syscall(sched_weightprio),		\
+		__cobalt_symbolic_syscall(sched_yield),			\
+		__cobalt_symbolic_syscall(sched_setscheduler_ex),	\
+		__cobalt_symbolic_syscall(sched_getscheduler_ex),	\
+		__cobalt_symbolic_syscall(sched_setconfig_np),		\
+		__cobalt_symbolic_syscall(sched_getconfig_np),		\
+		__cobalt_symbolic_syscall(timer_create),		\
+		__cobalt_symbolic_syscall(timer_delete),		\
+		__cobalt_symbolic_syscall(timer_settime),		\
+		__cobalt_symbolic_syscall(timer_gettime),		\
+		__cobalt_symbolic_syscall(timer_getoverrun),		\
+		__cobalt_symbolic_syscall(timerfd_create),		\
+		__cobalt_symbolic_syscall(timerfd_settime),		\
+		__cobalt_symbolic_syscall(timerfd_gettime),		\
+		__cobalt_symbolic_syscall(sigwait),			\
+		__cobalt_symbolic_syscall(sigwaitinfo),			\
+		__cobalt_symbolic_syscall(sigtimedwait),		\
+		__cobalt_symbolic_syscall(sigpending),			\
+		__cobalt_symbolic_syscall(kill),			\
+		__cobalt_symbolic_syscall(sigqueue),			\
+		__cobalt_symbolic_syscall(monitor_init),		\
+		__cobalt_symbolic_syscall(monitor_destroy),		\
+		__cobalt_symbolic_syscall(monitor_enter),		\
+		__cobalt_symbolic_syscall(monitor_wait),		\
+		__cobalt_symbolic_syscall(monitor_sync),		\
+		__cobalt_symbolic_syscall(monitor_exit),		\
+		__cobalt_symbolic_syscall(event_init),			\
+		__cobalt_symbolic_syscall(event_wait),			\
+		__cobalt_symbolic_syscall(event_sync),			\
+		__cobalt_symbolic_syscall(event_destroy),		\
+		__cobalt_symbolic_syscall(event_inquire),		\
+		__cobalt_symbolic_syscall(open),			\
+		__cobalt_symbolic_syscall(socket),			\
+		__cobalt_symbolic_syscall(close),			\
+		__cobalt_symbolic_syscall(ioctl),			\
+		__cobalt_symbolic_syscall(read),			\
+		__cobalt_symbolic_syscall(write),			\
+		__cobalt_symbolic_syscall(recvmsg),			\
+		__cobalt_symbolic_syscall(sendmsg),			\
+		__cobalt_symbolic_syscall(mmap),			\
+		__cobalt_symbolic_syscall(select),			\
+		__cobalt_symbolic_syscall(fcntl),			\
+		__cobalt_symbolic_syscall(migrate),			\
+		__cobalt_symbolic_syscall(archcall),			\
+		__cobalt_symbolic_syscall(trace),			\
+		__cobalt_symbolic_syscall(corectl),			\
+		__cobalt_symbolic_syscall(get_current),			\
+		__cobalt_symbolic_syscall(mayday),			\
+		__cobalt_symbolic_syscall(backtrace),			\
+		__cobalt_symbolic_syscall(serialdbg),			\
+		__cobalt_symbolic_syscall(extend),			\
+		__cobalt_symbolic_syscall(ftrace_puts))
+
+
 DECLARE_EVENT_CLASS(syscall_entry,
-	TP_PROTO(struct xnthread *thread, unsigned int nr),
-	TP_ARGS(thread, nr),
+	TP_PROTO(unsigned int nr),
+	TP_ARGS(nr),
 
 	TP_STRUCT__entry(
-		__field(struct xnthread *, thread)
-		__string(name, thread ? thread->name : "(anon)")
 		__field(unsigned int, nr)
 	),
 
 	TP_fast_assign(
-		__entry->thread	= thread;
-		__assign_str(name, thread ? thread->name : "(anon)");
 		__entry->nr = nr;
 	),
 
-	TP_printk("thread=%p(%s) syscall=%u",
-		  __entry->thread, __get_str(name), __entry->nr)
+	TP_printk("syscall=%s", __cobalt_syscall_name(__entry->nr))
 );
 
 DECLARE_EVENT_CLASS(syscall_exit,
-	TP_PROTO(struct xnthread *thread, long result),
-	TP_ARGS(thread, result),
+	TP_PROTO(long result),
+	TP_ARGS(result),
 
 	TP_STRUCT__entry(
-		__field(struct xnthread *, thread)
 		__field(long, result)
 	),
 
 	TP_fast_assign(
-		__entry->thread = thread;
 		__entry->result = result;
 	),
 
-	TP_printk("thread=%p result=%ld",
-		  __entry->thread, __entry->result)
+	TP_printk("result=%ld", __entry->result)
 );
 
 #define cobalt_print_sched_policy(__policy)			\
@@ -93,46 +202,12 @@ DECLARE_EVENT_CLASS(syscall_exit,
 			 {SCHED_WEAK, "weak"},			\
 			 {__SCHED_CURRENT, "<current>"})
 
-#define cobalt_print_sched_params(__policy, __p_ex)			\
-({									\
-	const unsigned char *__ret = trace_seq_buffer_ptr(p);		\
-	switch (__policy) {						\
-	case SCHED_QUOTA:						\
-		trace_seq_printf(p, "priority=%d, group=%d",		\
-				 (__p_ex)->sched_priority,		\
-				 (__p_ex)->sched_quota_group);		\
-		break;							\
-	case SCHED_TP:							\
-		trace_seq_printf(p, "priority=%d, partition=%d",	\
-				 (__p_ex)->sched_priority,		\
-				 (__p_ex)->sched_tp_partition);		\
-		break;							\
-	case SCHED_NORMAL:						\
-		break;							\
-	case SCHED_SPORADIC:						\
-		trace_seq_printf(p, "priority=%d, low_priority=%d, "	\
-				 "budget=(%ld.%09ld), period=(%ld.%09ld), "\
-				 "maxrepl=%d",				\
-				 (__p_ex)->sched_priority,		\
-				 (__p_ex)->sched_ss_low_priority,	\
-				 (__p_ex)->sched_ss_init_budget.tv_sec,	\
-				 (__p_ex)->sched_ss_init_budget.tv_nsec, \
-				 (__p_ex)->sched_ss_repl_period.tv_sec,	\
-				 (__p_ex)->sched_ss_repl_period.tv_nsec, \
-				 (__p_ex)->sched_ss_max_repl);		\
-		break;							\
-	case SCHED_RR:							\
-	case SCHED_FIFO:						\
-	case SCHED_COBALT:						\
-	case SCHED_WEAK:						\
-	default:							\
-		trace_seq_printf(p, "priority=%d",			\
-				 (__p_ex)->sched_priority);		\
-		break;							\
-	}								\
-	trace_seq_putc(p, '\0');					\
-	__ret;								\
-})
+const char *cobalt_trace_parse_sched_params(struct trace_seq *, int,
+					    struct sched_param_ex *);
+
+#define __parse_sched_params(policy, params)			\
+	cobalt_trace_parse_sched_params(p, policy,		\
+					(struct sched_param_ex *)(params))
 
 DECLARE_EVENT_CLASS(cobalt_posix_schedparam,
 	TP_PROTO(unsigned long pth, int policy,
@@ -151,12 +226,11 @@ DECLARE_EVENT_CLASS(cobalt_posix_schedparam,
 		memcpy(__get_dynamic_array(param_ex), param_ex, sizeof(*param_ex));
 	),
 
-	TP_printk("pth=%p policy=%d(%s) param={ %s }",
-		  (void *)__entry->pth, __entry->policy,
+	TP_printk("pth=%p policy=%s param={ %s }",
+		  (void *)__entry->pth,
 		  cobalt_print_sched_policy(__entry->policy),
-		  cobalt_print_sched_params(__entry->policy,
-					    (struct sched_param_ex *)
-					    __get_dynamic_array(param_ex))
+		  __parse_sched_params(__entry->policy,
+				       __get_dynamic_array(param_ex))
 	)
 );
 
@@ -177,12 +251,11 @@ DECLARE_EVENT_CLASS(cobalt_posix_scheduler,
 		memcpy(__get_dynamic_array(param_ex), param_ex, sizeof(*param_ex));
 	),
 
-	TP_printk("pid=%d policy=%d(%s) param={ %s }",
-		  __entry->pid, __entry->policy,
+	TP_printk("pid=%d policy=%s param={ %s }",
+		  __entry->pid,
 		  cobalt_print_sched_policy(__entry->policy),
-		  cobalt_print_sched_params(__entry->policy,
-					    (struct sched_param_ex *)
-					    __get_dynamic_array(param_ex))
+		  __parse_sched_params(__entry->policy,
+				       __get_dynamic_array(param_ex))
 	)
 );
 
@@ -199,23 +272,23 @@ DECLARE_EVENT_CLASS(cobalt_void,
 );
 
 DEFINE_EVENT(syscall_entry, cobalt_head_sysentry,
-	TP_PROTO(struct xnthread *thread, unsigned int nr),
-	TP_ARGS(thread, nr)
+	TP_PROTO(unsigned int nr),
+	TP_ARGS(nr)
 );
 
 DEFINE_EVENT(syscall_exit, cobalt_head_sysexit,
-	TP_PROTO(struct xnthread *thread, long result),
-	TP_ARGS(thread, result)
+	TP_PROTO(long result),
+	TP_ARGS(result)
 );
 
 DEFINE_EVENT(syscall_entry, cobalt_root_sysentry,
-	TP_PROTO(struct xnthread *thread, unsigned int nr),
-	TP_ARGS(thread, nr)
+	TP_PROTO(unsigned int nr),
+	TP_ARGS(nr)
 );
 
 DEFINE_EVENT(syscall_exit, cobalt_root_sysexit,
-	TP_PROTO(struct xnthread *thread, long result),
-	TP_ARGS(thread, result)
+	TP_PROTO(long result),
+	TP_ARGS(result)
 );
 
 DEFINE_EVENT(cobalt_posix_schedparam, cobalt_pthread_create,
@@ -373,7 +446,7 @@ TRACE_EVENT(cobalt_sched_setconfig,
 		__entry->policy = policy;
 		__entry->len = len;
 	),
-	TP_printk("cpu=%d policy=%d(%s) len=%Zu",
+	TP_printk("cpu=%d policy=%d(%s) len=%zu",
 		  __entry->cpu, __entry->policy,
 		  cobalt_print_sched_policy(__entry->policy),
 		  __entry->len)
@@ -885,7 +958,7 @@ TRACE_EVENT(cobalt_mq_send,
 		__entry->len = len;
 		__entry->prio = prio;
 	),
-	TP_printk("mqd=%d buf=%p len=%Zu prio=%u",
+	TP_printk("mqd=%d buf=%p len=%zu prio=%u",
 		  __entry->mqd, __entry->u_buf, __entry->len,
 		  __entry->prio)
 );
@@ -906,7 +979,7 @@ TRACE_EVENT(cobalt_mq_timedreceive,
 		__entry->len = len;
 		__assign_timespec(timeout, timeout);
 	),
-	TP_printk("mqd=%d buf=%p len=%Zu timeout=(%ld.%09ld)",
+	TP_printk("mqd=%d buf=%p len=%zu timeout=(%ld.%09ld)",
 		  __entry->mqd, __entry->u_buf, __entry->len,
 		  __timespec_args(timeout))
 );
@@ -924,7 +997,7 @@ TRACE_EVENT(cobalt_mq_receive,
 		__entry->u_buf = u_buf;
 		__entry->len = len;
 	),
-	TP_printk("mqd=%d buf=%p len=%Zu",
+	TP_printk("mqd=%d buf=%p len=%zu",
 		  __entry->mqd, __entry->u_buf, __entry->len)
 );
 
@@ -1065,4 +1138,7 @@ DEFINE_EVENT(cobalt_event_ident, cobalt_event_inquire,
 #endif /* _TRACE_COBALT_POSIX_H */
 
 /* This part must be outside protection */
+#undef TRACE_INCLUDE_PATH
+#undef TRACE_INCLUDE_FILE
+#define TRACE_INCLUDE_FILE cobalt-posix
 #include <trace/define_trace.h>

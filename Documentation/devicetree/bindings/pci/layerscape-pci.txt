@@ -1,26 +1,31 @@
 Freescale Layerscape PCIe controller
 
-This PCIe host controller is based on the Synopsys Designware PCIe IP
+This PCIe host controller is based on the Synopsys DesignWare PCIe IP
 and thus inherits all the common properties defined in designware-pcie.txt.
 
-Note that since this controller derives its clocks from the Reset
-Configuration Word (RCW) which is used to describe the PLL settings at
-the time of chip-reset, the 'clocks' and 'clock-names' properties from
-'designware-pcie.txt' are optional for this controller.
+This controller derives its clocks from the Reset Configuration Word (RCW)
+which is used to describe the PLL settings at the time of chip-reset.
 
 Also as per the available Reference Manuals, there is no specific 'version'
 register available in the Freescale PCIe controller register set,
-which can allow determining the underlying Designware PCIe controller version
+which can allow determining the underlying DesignWare PCIe controller version
 information.
 
 Required properties:
-- compatible: should contain the platform identifier such as "fsl,<soc-name>-pcie",
-  "snps,dw-pcie".
+- compatible: should contain the platform identifier such as:
+        "fsl,ls1021a-pcie", "snps,dw-pcie"
+        "fsl,ls2080a-pcie", "fsl,ls2085a-pcie", "snps,dw-pcie"
+        "fsl,ls2088a-pcie", "fsl,ls1088a-pcie"
+        "fsl,ls1046a-pcie"
 - reg: base addresses and lengths of the PCIe controller
 - interrupts: A list of interrupt outputs of the controller. Must contain an
   entry for each entry in the interrupt-names property.
-- interrupt-names: Must include the following entries:
-  "aer": The interrupt that is asserted for aer interrupt
+- interrupt-names: It could include the following entries:
+  "aer": Asserted for aer interrupt when chip support the aer interrupt with
+		 none MSI/MSI-X/INTx mode,but there is interrupt line for aer.
+  "pme": Asserted for pme interrupt when chip support the pme interrupt with
+		 none MSI/MSI-X/INTx mode,but there is interrupt line for pme.
+  ......
 - fsl,pcie-scfg: Must include two entries.
   The first entry must be a link to the SCFG device node
   The second entry must be '0' or '1' based on physical PCIe controller index.
@@ -36,8 +41,9 @@ Example:
 		reg = <0x00 0x03400000 0x0 0x00010000   /* controller registers */
 		       0x40 0x00000000 0x0 0x00002000>; /* configuration space */
 		reg-names = "regs", "config";
-		interrupts = <GIC_SPI 177 IRQ_TYPE_LEVEL_HIGH>; /* controller interrupt */
-		interrupt-names = "aer";
+		interrupts = <GIC_SPI 176 IRQ_TYPE_LEVEL_HIGH>, /* aer interrupt */
+			<GIC_SPI 177 IRQ_TYPE_LEVEL_HIGH>; /* pme interrupt */
+		interrupt-names = "aer", "pme";
 		fsl,pcie-scfg = <&scfg 0>;
 		#address-cells = <3>;
 		#size-cells = <2>;

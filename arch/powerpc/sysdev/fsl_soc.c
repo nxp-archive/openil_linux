@@ -23,13 +23,13 @@
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
-#include <linux/of_address.h>
 #include <linux/of_platform.h>
 #include <linux/phy.h>
 #include <linux/spi/spi.h>
 #include <linux/fsl_devices.h>
 #include <linux/fs_enet_pd.h>
 #include <linux/fs_uart_pd.h>
+#include <linux/reboot.h>
 
 #include <linux/atomic.h>
 #include <asm/io.h>
@@ -181,22 +181,37 @@ EXPORT_SYMBOL(get_baudrate);
 #if defined(CONFIG_FSL_SOC_BOOKE) || defined(CONFIG_PPC_86xx)
 static __be32 __iomem *rstcr;
 
+static int fsl_rstcr_restart(struct notifier_block *this,
+			     unsigned long mode, void *cmd)
+{
+	local_irq_disable();
+	/* set reset control register */
+	out_be32(rstcr, 0x2);	/* HRESET_REQ */
+
+	return NOTIFY_DONE;
+}
+
 static int __init setup_rstcr(void)
 {
 	struct device_node *np;
 
+	static struct notifier_block restart_handler = {
+		.notifier_call = fsl_rstcr_restart,
+		.priority = 128,
+	};
+
 	for_each_node_by_name(np, "global-utilities") {
 		if ((of_get_property(np, "fsl,has-rstcr", NULL))) {
 			rstcr = of_iomap(np, 0) + 0xb0;
-			if (!rstcr)
+			if (!rstcr) {
 				printk (KERN_ERR "Error: reset control "
 						"register not mapped!\n");
+			} else {
+				register_restart_handler(&restart_handler);
+			}
 			break;
 		}
 	}
-
-	if (!rstcr && ppc_md.restart == fsl_rstcr_restart)
-		printk(KERN_ERR "No RSTCR register, warm reboot won't work\n");
 
 	of_node_put(np);
 
@@ -205,19 +220,12 @@ static int __init setup_rstcr(void)
 
 arch_initcall(setup_rstcr);
 
-void fsl_rstcr_restart(char *cmd)
-{
-	local_irq_disable();
-	if (rstcr)
-		/* set reset control register */
-		out_be32(rstcr, 0x2);	/* HRESET_REQ */
-
-	while (1) ;
-}
 #endif
 
+#if defined(CONFIG_FB_FSL_DIU) || defined(CONFIG_FB_FSL_DIU_MODULE)
 struct platform_diu_data_ops diu_ops;
 EXPORT_SYMBOL(diu_ops);
+#endif
 
 #ifdef CONFIG_EPAPR_PARAVIRT
 /*
@@ -227,10 +235,11 @@ EXPORT_SYMBOL(diu_ops);
  * to initiate a partition restart when we're running under the Freescale
  * hypervisor.
  */
-void fsl_hv_restart(char *cmd)
+void __noreturn fsl_hv_restart(char *cmd)
 {
 	pr_info("hv restart\n");
 	fh_partition_restart(-1);
+	while (1) ;
 }
 
 /*
@@ -240,52 +249,10 @@ void fsl_hv_restart(char *cmd)
  * function pointers, to shut down the partition when we're running under
  * the Freescale hypervisor.
  */
-void fsl_hv_halt(void)
+void __noreturn fsl_hv_halt(void)
 {
 	pr_info("hv exit\n");
 	fh_partition_stop(-1);
+	while (1) ;
 }
-#endif
-
-#ifdef CONFIG_KVM
-static const struct of_device_id cpc_matches[] = {
-	{ .compatible = "fsl,b4-l3-cache-controller" },
-	{ .compatible = "fsl,b4420-l3-cache-controller" },
-	{ .compatible = "fsl,b4860-l3-cache-controller" },
-	{ .compatible = "fsl,t2080-l3-cache-controller" },
-	{ .compatible = "fsl,t4240-l3-cache-controller" },
-	{}
-};
-
-static int __init cpc_disable_sole_data(void)
-{
-	struct device_node *node;
-	u32 __iomem *regs;
-	int i;
-
-	for_each_matching_node(node, cpc_matches) {
-		i = 0;
-
-		for (;;) {
-			regs = of_iomap(node, i++);
-			if (!regs)
-				break;
-
-			/*
-			 * Set undocumented bit to disable CPC sole data
-			 * mode, making it safe to use the LRAT with KVM
-			 * guests, which could otherwise hang the host (under
-			 * certain usage patterns) by accessing memory with
-			 * the M bit unset.  The guest still needs to set the
-			 * M bit to operate properly, but this removes a DoS
-			 * vector.
-			 */
-			setbits32(regs + 0xf00 / 4, 0x4000);
-			iounmap(regs);
-		}
-	}
-
-	return 0;
-}
-arch_initcall(cpc_disable_sole_data);
 #endif

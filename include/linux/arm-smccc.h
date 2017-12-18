@@ -82,16 +82,17 @@ struct arm_smccc_res {
  * @a6: Qualcomm quirk entry for returning post-smc call contents of a6
  */
 struct arm_smccc_quirk {
-	int     id;
+	int	id;
 	union {
 		unsigned long a6;
 	} state;
 };
+
 /**
  * __arm_smccc_smc() - make SMC calls
  * @a0-a7: arguments passed in registers 0 to 7
  * @res: result values from registers 0 to 3
- *@quirk: points to an arm_smccc_quirk, or NULL when no quirks are required.
+ * @quirk: points to an arm_smccc_quirk, or NULL when no quirks are required.
  *
  * This function is used to make SMC calls following SMC Calling Convention.
  * The content of the supplied param are copied to registers 0 to 7 prior

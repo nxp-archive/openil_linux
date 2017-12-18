@@ -60,11 +60,12 @@ int of_device_add(struct platform_device *ofdev)
 	ofdev->name = dev_name(&ofdev->dev);
 	ofdev->id = -1;
 
-	/* device_add will assume that this device is on the same node as
-	 * the parent. If there is no parent defined, set the node
-	 * explicitly */
-	if (!ofdev->dev.parent)
-		set_dev_node(&ofdev->dev, of_node_to_nid(ofdev->dev.of_node));
+	/*
+	 * If this device has not binding numa node in devicetree, that is
+	 * of_node_to_nid returns NUMA_NO_NODE. device_add will assume that this
+	 * device is on the same node as the parent.
+	 */
+	set_dev_node(&ofdev->dev, of_node_to_nid(ofdev->dev.of_node));
 
 	return device_add(&ofdev->dev);
 }
@@ -87,7 +88,7 @@ void of_dma_configure(struct device *dev, struct device_node *np)
 	int ret;
 	bool coherent;
 	unsigned long offset;
-	struct iommu_ops *iommu;
+	const struct iommu_ops *iommu;
 
 	/*
 	 * Set default coherent_dma_mask to 32 bit.  Drivers are expected to

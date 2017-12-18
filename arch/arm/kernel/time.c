@@ -12,7 +12,6 @@
  *  reading the RTC at bootup, etc...
  */
 #include <linux/clk-provider.h>
-#include <linux/clockchips.h>
 #include <linux/clocksource.h>
 #include <linux/errno.h>
 #include <linux/export.h>
@@ -121,8 +120,6 @@ void __init time_init(void)
 #ifdef CONFIG_COMMON_CLK
 		of_clk_init(NULL);
 #endif
-		clocksource_of_init();
-
-		tick_setup_hrtimer_broadcast();
+		clocksource_probe();
 	}
 }

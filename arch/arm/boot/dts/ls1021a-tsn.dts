@@ -70,7 +70,6 @@
 			bitclock-master;
 		};
 	};
-
 	firmware {
 		optee {
 			compatible = "linaro,optee-tz";
@@ -79,7 +78,7 @@
 		};
 };
 
-&dcu0 {
+&dcu {
 	display = <&display>;
 	status = "okay";
 
@@ -287,10 +286,6 @@
 };
 
 &sai2 {
-	status = "okay";
-};
-
-&can2 {
 	status = "okay";
 };
 

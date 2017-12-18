@@ -156,7 +156,7 @@ mext_page_double_lock(struct inode *inode1, struct inode *inode2,
 	page[1] = grab_cache_page_write_begin(mapping[1], index2, fl);
 	if (!page[1]) {
 		unlock_page(page[0]);
-		page_cache_release(page[0]);
+		put_page(page[0]);
 		return -ENOMEM;
 	}
 	/*
@@ -166,12 +166,9 @@ mext_page_double_lock(struct inode *inode1, struct inode *inode2,
 	 */
 	wait_on_page_writeback(page[0]);
 	wait_on_page_writeback(page[1]);
-	if (inode1 > inode2) {
-		struct page *tmp;
-		tmp = page[0];
-		page[0] = page[1];
-		page[1] = tmp;
-	}
+	if (inode1 > inode2)
+		swap(page[0], page[1]);
+
 	return 0;
 }
 
@@ -190,12 +187,12 @@ mext_page_mkuptodate(struct page *page, unsigned from, unsigned to)
 	if (PageUptodate(page))
 		return 0;
 
-	blocksize = 1 << inode->i_blkbits;
+	blocksize = i_blocksize(inode);
 	if (!page_has_buffers(page))
 		create_empty_buffers(page, blocksize, 0);
 
 	head = page_buffers(page);
-	block = (sector_t)page->index << (PAGE_CACHE_SHIFT - inode->i_blkbits);
+	block = (sector_t)page->index << (PAGE_SHIFT - inode->i_blkbits);
 	for (bh = head, block_start = 0; bh != head || !block_start;
 	     block++, block_start = block_end, bh = bh->b_this_page) {
 		block_end = block_start + blocksize;
@@ -271,7 +268,7 @@ move_extent_per_page(struct file *o_filp, struct inode *donor_inode,
 	int i, err2, jblocks, retries = 0;
 	int replaced_count = 0;
 	int from = data_offset_in_page << orig_inode->i_blkbits;
-	int blocks_per_page = PAGE_CACHE_SIZE >> orig_inode->i_blkbits;
+	int blocks_per_page = PAGE_SIZE >> orig_inode->i_blkbits;
 	struct super_block *sb = orig_inode->i_sb;
 	struct buffer_head *bh = NULL;
 
@@ -403,13 +400,13 @@ data_copy:
 
 	/* Even in case of data=writeback it is reasonable to pin
 	 * inode to transaction, to prevent unexpected data loss */
-	*err = ext4_jbd2_file_inode(handle, orig_inode);
+	*err = ext4_jbd2_inode_add_write(handle, orig_inode);
 
 unlock_pages:
 	unlock_page(pagep[0]);
-	page_cache_release(pagep[0]);
+	put_page(pagep[0]);
 	unlock_page(pagep[1]);
-	page_cache_release(pagep[1]);
+	put_page(pagep[1]);
 stop_journal:
 	ext4_journal_stop(handle);
 	if (*err == -ENOSPC &&
@@ -564,7 +561,7 @@ ext4_move_extents(struct file *o_filp, struct file *d_filp, __u64 orig_blk,
 	struct inode *orig_inode = file_inode(o_filp);
 	struct inode *donor_inode = file_inode(d_filp);
 	struct ext4_ext_path *path = NULL;
-	int blocks_per_page = PAGE_CACHE_SIZE >> orig_inode->i_blkbits;
+	int blocks_per_page = PAGE_SIZE >> orig_inode->i_blkbits;
 	ext4_lblk_t o_end, o_start = orig_blk;
 	ext4_lblk_t d_start = donor_blk;
 	int ret;
@@ -591,12 +588,23 @@ ext4_move_extents(struct file *o_filp, struct file *d_filp, __u64 orig_blk,
 			orig_inode->i_ino, donor_inode->i_ino);
 		return -EINVAL;
 	}
-	/* TODO: This is non obvious task to swap blocks for inodes with full
-	   jornaling enabled */
+
+	/* TODO: it's not obvious how to swap blocks for inodes with full
+	   journaling enabled */
 	if (ext4_should_journal_data(orig_inode) ||
 	    ext4_should_journal_data(donor_inode)) {
-		return -EINVAL;
+		ext4_msg(orig_inode->i_sb, KERN_ERR,
+			 "Online defrag not supported with data journaling");
+		return -EOPNOTSUPP;
 	}
+
+	if (ext4_encrypted_inode(orig_inode) ||
+	    ext4_encrypted_inode(donor_inode)) {
+		ext4_msg(orig_inode->i_sb, KERN_ERR,
+			 "Online defrag not supported for encrypted files");
+		return -EOPNOTSUPP;
+	}
+
 	/* Protect orig and donor inodes against a truncate */
 	lock_two_nondirectories(orig_inode, donor_inode);
 
@@ -654,9 +662,9 @@ ext4_move_extents(struct file *o_filp, struct file *d_filp, __u64 orig_blk,
 		if (o_end - o_start < cur_len)
 			cur_len = o_end - o_start;
 
-		orig_page_index = o_start >> (PAGE_CACHE_SHIFT -
+		orig_page_index = o_start >> (PAGE_SHIFT -
 					       orig_inode->i_blkbits);
-		donor_page_index = d_start >> (PAGE_CACHE_SHIFT -
+		donor_page_index = d_start >> (PAGE_SHIFT -
 					       donor_inode->i_blkbits);
 		offset_in_page = o_start % blocks_per_page;
 		if (cur_len > blocks_per_page- offset_in_page)

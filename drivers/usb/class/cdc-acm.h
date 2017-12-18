@@ -19,7 +19,7 @@
  */
 
 #define ACM_TTY_MAJOR		166
-#define ACM_TTY_MINORS		32
+#define ACM_TTY_MINORS		256
 
 /*
  * Requests.
@@ -94,6 +94,7 @@ struct acm {
 	unsigned long read_urbs_free;
 	struct urb *read_urbs[ACM_NR];
 	struct acm_rb read_buffers[ACM_NR];
+	struct acm_wb *putbuffer;			/* for acm_tty_put_char() */
 	int rx_buflimit;
 	spinlock_t read_lock;
 	int write_used;					/* number of non-empty write buffers */

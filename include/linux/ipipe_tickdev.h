@@ -32,7 +32,6 @@
 
 #ifdef CONFIG_IPIPE
 
-enum clock_event_mode;
 struct clock_event_device;
 
 struct ipipe_hostrt_data {
@@ -45,6 +44,13 @@ struct ipipe_hostrt_data {
 	cycle_t mask;
 	u32 mult;
 	u32 shift;
+};
+
+enum clock_event_mode {
+	CLOCK_EVT_MODE_PERIODIC,
+	CLOCK_EVT_MODE_ONESHOT,
+	CLOCK_EVT_MODE_UNUSED,
+	CLOCK_EVT_MODE_SHUTDOWN,
 };
 
 struct ipipe_timer {
@@ -73,9 +79,14 @@ struct ipipe_timer {
 	/* For clockevent interception */
 	u32 real_mult;
 	u32 real_shift;
-	void (*real_set_mode)(enum clock_event_mode mode,
-			      struct clock_event_device *cdev);
-	int (*real_set_next_event)(unsigned long evt,
+	void (*mode_handler)(enum clock_event_mode mode,
+			     struct clock_event_device *);
+	int orig_mode;
+	int (*orig_set_state_periodic)(struct clock_event_device *);
+	int (*orig_set_state_oneshot)(struct clock_event_device *);
+	int (*orig_set_state_oneshot_stopped)(struct clock_event_device *);
+	int (*orig_set_state_shutdown)(struct clock_event_device *);
+	int (*orig_set_next_event)(unsigned long evt,
 				   struct clock_event_device *cdev);
 	unsigned int (*refresh_freq)(void);
 };

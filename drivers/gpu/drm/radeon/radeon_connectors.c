@@ -34,6 +34,7 @@
 #include "atom.h"
 
 #include <linux/pm_runtime.h>
+#include <linux/vga_switcheroo.h>
 
 static int radeon_dp_handle_hpd(struct drm_connector *connector)
 {
@@ -197,12 +198,12 @@ int radeon_get_monitor_bpc(struct drm_connector *connector)
 		}
 
 		/* Any defined maximum tmds clock limit we must not exceed? */
-		if (connector->max_tmds_clock > 0) {
+		if (connector->display_info.max_tmds_clock > 0) {
 			/* mode_clock is clock in kHz for mode to be modeset on this connector */
 			mode_clock = radeon_connector->pixelclock_for_modeset;
 
 			/* Maximum allowable input clock in kHz */
-			max_tmds_clock = connector->max_tmds_clock * 1000;
+			max_tmds_clock = connector->display_info.max_tmds_clock;
 
 			DRM_DEBUG("%s: hdmi mode dotclock %d kHz, max tmds input clock %d kHz.\n",
 					  connector->name, mode_clock, max_tmds_clock);
@@ -344,6 +345,11 @@ static void radeon_connector_get_edid(struct drm_connector *connector)
 		else if (radeon_connector->ddc_bus)
 			radeon_connector->edid = drm_get_edid(&radeon_connector->base,
 							      &radeon_connector->ddc_bus->adapter);
+	} else if (vga_switcheroo_handler_flags() & VGA_SWITCHEROO_CAN_SWITCH_DDC &&
+		   connector->connector_type == DRM_MODE_CONNECTOR_LVDS &&
+		   radeon_connector->ddc_bus) {
+		radeon_connector->edid = drm_get_edid_switcheroo(&radeon_connector->base,
+								 &radeon_connector->ddc_bus->adapter);
 	} else if (radeon_connector->ddc_bus) {
 		radeon_connector->edid = drm_get_edid(&radeon_connector->base,
 						      &radeon_connector->ddc_bus->adapter);
@@ -921,6 +927,16 @@ radeon_lvds_detect(struct drm_connector *connector, bool force)
 	return ret;
 }
 
+static void radeon_connector_unregister(struct drm_connector *connector)
+{
+	struct radeon_connector *radeon_connector = to_radeon_connector(connector);
+
+	if (radeon_connector->ddc_bus && radeon_connector->ddc_bus->has_aux) {
+		drm_dp_aux_unregister(&radeon_connector->ddc_bus->aux);
+		radeon_connector->ddc_bus->has_aux = false;
+	}
+}
+
 static void radeon_connector_destroy(struct drm_connector *connector)
 {
 	struct radeon_connector *radeon_connector = to_radeon_connector(connector);
@@ -978,6 +994,7 @@ static const struct drm_connector_funcs radeon_lvds_connector_funcs = {
 	.dpms = drm_helper_connector_dpms,
 	.detect = radeon_lvds_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
+	.early_unregister = radeon_connector_unregister,
 	.destroy = radeon_connector_destroy,
 	.set_property = radeon_lvds_set_property,
 };
@@ -1105,6 +1122,7 @@ static const struct drm_connector_funcs radeon_vga_connector_funcs = {
 	.dpms = drm_helper_connector_dpms,
 	.detect = radeon_vga_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
+	.early_unregister = radeon_connector_unregister,
 	.destroy = radeon_connector_destroy,
 	.set_property = radeon_connector_set_property,
 };
@@ -1182,6 +1200,7 @@ static const struct drm_connector_funcs radeon_tv_connector_funcs = {
 	.dpms = drm_helper_connector_dpms,
 	.detect = radeon_tv_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
+	.early_unregister = radeon_connector_unregister,
 	.destroy = radeon_connector_destroy,
 	.set_property = radeon_connector_set_property,
 };
@@ -1234,13 +1253,32 @@ radeon_dvi_detect(struct drm_connector *connector, bool force)
 	if (r < 0)
 		return connector_status_disconnected;
 
+	if (radeon_connector->detected_hpd_without_ddc) {
+		force = true;
+		radeon_connector->detected_hpd_without_ddc = false;
+	}
+
 	if (!force && radeon_check_hpd_status_unchanged(connector)) {
 		ret = connector->status;
 		goto exit;
 	}
 
-	if (radeon_connector->ddc_bus)
+	if (radeon_connector->ddc_bus) {
 		dret = radeon_ddc_probe(radeon_connector, false);
+
+		/* Sometimes the pins required for the DDC probe on DVI
+		 * connectors don't make contact at the same time that the ones
+		 * for HPD do. If the DDC probe fails even though we had an HPD
+		 * signal, try again later */
+		if (!dret && !force &&
+		    connector->status != connector_status_connected) {
+			DRM_DEBUG_KMS("hpd detected without ddc, retrying in 1 second\n");
+			radeon_connector->detected_hpd_without_ddc = true;
+			schedule_delayed_work(&rdev->hotplug_work,
+					      msecs_to_jiffies(1000));
+			goto exit;
+		}
+	}
 	if (dret) {
 		radeon_connector->detected_by_load = false;
 		radeon_connector_free_edid(connector);
@@ -1494,6 +1532,7 @@ static const struct drm_connector_funcs radeon_dvi_connector_funcs = {
 	.detect = radeon_dvi_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.set_property = radeon_connector_set_property,
+	.early_unregister = radeon_connector_unregister,
 	.destroy = radeon_connector_destroy,
 	.force = radeon_dvi_force,
 };
@@ -1807,6 +1846,7 @@ static const struct drm_connector_funcs radeon_dp_connector_funcs = {
 	.detect = radeon_dp_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.set_property = radeon_connector_set_property,
+	.early_unregister = radeon_connector_unregister,
 	.destroy = radeon_connector_destroy,
 	.force = radeon_dvi_force,
 };
@@ -1816,6 +1856,7 @@ static const struct drm_connector_funcs radeon_edp_connector_funcs = {
 	.detect = radeon_dp_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.set_property = radeon_lvds_set_property,
+	.early_unregister = radeon_connector_unregister,
 	.destroy = radeon_connector_destroy,
 	.force = radeon_dvi_force,
 };
@@ -1825,6 +1866,7 @@ static const struct drm_connector_funcs radeon_lvds_bridge_connector_funcs = {
 	.detect = radeon_dp_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.set_property = radeon_lvds_set_property,
+	.early_unregister = radeon_connector_unregister,
 	.destroy = radeon_connector_destroy,
 	.force = radeon_dvi_force,
 };

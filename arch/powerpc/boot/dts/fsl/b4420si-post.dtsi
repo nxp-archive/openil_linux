@@ -34,198 +34,6 @@
 
 /include/ "b4si-post.dtsi"
 
-&bportals {
-	#address-cells = <0x1>;
-	#size-cells = <0x1>;
-	compatible = "simple-bus";
-	bman-portal@0 {
-		cell-index = <0x0>;
-		compatible = "fsl,bman-portal";
-		reg = <0x0 0x4000 0x1000000 0x1000>;
-		interrupts = <105 2 0 0>;
-	};
-	bman-portal@4000 {
-		cell-index = <0x1>;
-		compatible = "fsl,bman-portal";
-		reg = <0x4000 0x4000 0x1001000 0x1000>;
-		interrupts = <107 2 0 0>;
-	};
-	bman-portal@8000 {
-		cell-index = <2>;
-		compatible = "fsl,bman-portal";
-		reg = <0x8000 0x4000 0x1002000 0x1000>;
-		interrupts = <109 2 0 0>;
-	};
-	bman-portal@c000 {
-		cell-index = <0x3>;
-		compatible = "fsl,bman-portal";
-		reg = <0xc000 0x4000 0x1003000 0x1000>;
-		interrupts = <111 2 0 0>;
-	};
-	bman-portal@10000 {
-		cell-index = <0x4>;
-		compatible = "fsl,bman-portal";
-		reg = <0x10000 0x4000 0x1004000 0x1000>;
-		interrupts = <113 2 0 0>;
-	};
-	bman-portal@14000 {
-		cell-index = <0x5>;
-		compatible = "fsl,bman-portal";
-		reg = <0x14000 0x4000 0x1005000 0x1000>;
-		interrupts = <115 2 0 0>;
-	};
-	bman-portal@18000 {
-		cell-index = <0x6>;
-		compatible = "fsl,bman-portal";
-		reg = <0x18000 0x4000 0x1006000 0x1000>;
-		interrupts = <117 2 0 0>;
-	};
-	bman-portal@1c000 {
-		cell-index = <0x7>;
-		compatible = "fsl,bman-portal";
-		reg = <0x1c000 0x4000 0x1007000 0x1000>;
-		interrupts = <119 2 0 0>;
-	};
-	bman-portal@20000 {
-		cell-index = <0x8>;
-		compatible = "fsl,bman-portal";
-		reg = <0x20000 0x4000 0x1008000 0x1000>;
-		interrupts = <121 2 0 0>;
-	};
-	bman-portal@24000 {
-		cell-index = <0x9>;
-		compatible = "fsl,bman-portal";
-		reg = <0x24000 0x4000 0x1009000 0x1000>;
-		interrupts = <123 2 0 0>;
-	};
-	bman-portal@28000 {
-		cell-index = <0xa>;
-		compatible = "fsl,bman-portal";
-		reg = <0x28000 0x4000 0x100a000 0x1000>;
-		interrupts = <125 2 0 0>;
-	};
-	bman-portal@2c000 {
-		cell-index = <0xb>;
-		compatible = "fsl,bman-portal";
-		reg = <0x2c000 0x4000 0x100b000 0x1000>;
-		interrupts = <127 2 0 0>;
-	};
-	bman-portal@30000 {
-		cell-index = <0xc>;
-		compatible = "fsl,bman-portal";
-		reg = <0x30000 0x4000 0x100c000 0x1000>;
-		interrupts = <129 2 0 0>;
-	};
-	bman-portal@34000 {
-		cell-index = <0xd>;
-		compatible = "fsl,bman-portal";
-		reg = <0x34000 0x4000 0x100d000 0x1000>;
-		interrupts = <131 2 0 0>;
-	};
-};
-&qportals {
-	#address-cells = <0x1>;
-	#size-cells = <0x1>;
-	compatible = "simple-bus";
-	qportal0: qman-portal@0 {
-		cell-index = <0x0>;
-		compatible = "fsl,qman-portal";
-		reg = <0x0 0x4000 0x1000000 0x1000>;
-		interrupts = <104 0x2 0 0>;
-		fsl,qman-channel-id = <0x0>;
-	};
-	qportal1: qman-portal@4000 {
-		cell-index = <0x1>;
-		compatible = "fsl,qman-portal";
-		reg = <0x4000 0x4000 0x1001000 0x1000>;
-		interrupts = <106 0x2 0 0>;
-		fsl,qman-channel-id = <0x1>;
-	};
-	qportal2: qman-portal@8000 {
-		cell-index = <0x2>;
-		compatible = "fsl,qman-portal";
-		reg = <0x8000 0x4000 0x1002000 0x1000>;
-		interrupts = <108 0x2 0 0>;
-		fsl,qman-channel-id = <0x2>;
-	};
-	qportal3: qman-portal@c000 {
-		cell-index = <0x3>;
-		compatible = "fsl,qman-portal";
-		reg = <0xc000 0x4000 0x1003000 0x1000>;
-		interrupts = <110 0x2 0 0>;
-		fsl,qman-channel-id = <0x3>;
-	};
-	qportal4: qman-portal@10000 {
-		cell-index = <0x4>;
-		compatible = "fsl,qman-portal";
-		reg = <0x10000 0x4000 0x1004000 0x1000>;
-		interrupts = <112 0x2 0 0>;
-		fsl,qman-channel-id = <0x4>;
-	};
-	qportal5: qman-portal@14000 {
-		cell-index = <0x5>;
-		compatible = "fsl,qman-portal";
-		reg = <0x14000 0x4000 0x1005000 0x1000>;
-		interrupts = <114 0x2 0 0>;
-		fsl,qman-channel-id = <0x5>;
-	};
-	qportal6: qman-portal@18000 {
-		cell-index = <0x6>;
-		compatible = "fsl,qman-portal";
-		reg = <0x18000 0x4000 0x1006000 0x1000>;
-		interrupts = <116 0x2 0 0>;
-		fsl,qman-channel-id = <0x6>;
-	};
-	qportal7: qman-portal@1c000 {
-		cell-index = <0x7>;
-		compatible = "fsl,qman-portal";
-		reg = <0x1c000 0x4000 0x1007000 0x1000>;
-		interrupts = <118 0x2 0 0>;
-		fsl,qman-channel-id = <0x7>;
-	};
-	qportal8: qman-portal@20000 {
-		cell-index = <0x8>;
-		compatible = "fsl,qman-portal";
-		reg = <0x20000 0x4000 0x1008000 0x1000>;
-		interrupts = <120 0x2 0 0>;
-		fsl,qman-channel-id = <0x8>;
-	};
-	qportal9: qman-portal@24000 {
-		cell-index = <0x9>;
-		compatible = "fsl,qman-portal";
-		reg = <0x24000 0x4000 0x1009000 0x1000>;
-		interrupts = <122 0x2 0 0>;
-		fsl,qman-channel-id = <0x9>;
-	};
-	qportal10: qman-portal@28000 {
-		cell-index = <0xa>;
-		compatible = "fsl,qman-portal";
-		reg = <0x28000 0x4000 0x100a000 0x1000>;
-		interrupts = <124 0x2 0 0>;
-		fsl,qman-channel-id = <0xa>;
-	};
-	qportal11: qman-portal@2c000 {
-		cell-index = <0xb>;
-		compatible = "fsl,qman-portal";
-		reg = <0x2c000 0x4000 0x100b000 0x1000>;
-		interrupts = <126 0x2 0 0>;
-		fsl,qman-channel-id = <0xb>;
-	};
-	qportal12: qman-portal@30000 {
-		cell-index = <0xc>;
-		compatible = "fsl,qman-portal";
-		reg = <0x30000 0x4000 0x100c000 0x1000>;
-		interrupts = <128 0x2 0 0>;
-		fsl,qman-channel-id = <0xc>;
-	};
-	qportal13: qman-portal@34000 {
-		cell-index = <0xd>;
-		compatible = "fsl,qman-portal";
-		reg = <0x34000 0x4000 0x100d000 0x1000>;
-		interrupts = <130 0x2 0 0>;
-		fsl,qman-channel-id = <0xd>;
-	};
-};
 /* controller at 0x200000 */
 &pci0 {
 	compatible = "fsl,b4420-pcie", "fsl,qoriq-pcie-v2.4";
@@ -272,7 +80,6 @@
 		compatible = "fsl,b4420-device-config", "fsl,qoriq-device-config-2.0";
 	};
 
-/include/ "qoriq-clockgen2.dtsi"
 	global-utilities@e1000 {
 		compatible = "fsl,b4420-clockgen", "fsl,b4-clockgen",
 			      "fsl,qoriq-clockgen-2.0";
@@ -282,15 +89,9 @@
 		compatible = "fsl,b4420-rcpm", "fsl,qoriq-rcpm-2.0";
 	};
 
-	L2: l2-cache-controller@c20000 {
+	L2_1: l2-cache-controller@c20000 {
 		compatible = "fsl,b4420-l2-cache-controller";
-		reg = <0xc20000 0x1000>;
-		next-level-cache = <&cpc>;
-	};
-/* Following is DSP L2 cache*/
-	L2_2: l2-cache-controller@c60000 {
-		compatible = "fsl,b4420-l2-cache-controller";
-		reg = <0xc60000 0x1000>;
+		reg = <0xc20000 0x40000>;
 		next-level-cache = <&cpc>;
 	};
 };

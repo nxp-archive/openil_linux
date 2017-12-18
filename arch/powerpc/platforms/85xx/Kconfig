@@ -9,8 +9,6 @@ menuconfig FSL_SOC_BOOKE
 	select SERIAL_8250_EXTENDED if SERIAL_8250
 	select SERIAL_8250_SHARE_IRQ if SERIAL_8250
 	select FSL_CORENET_RCPM if PPC_E500MC
-	select FSL_QORIQ_PM if SUSPEND && PPC_E500MC
-	select FSL_PMC if SUSPEND && !PPC_E500MC
 	default y
 
 if FSL_SOC_BOOKE
@@ -18,7 +16,7 @@ if FSL_SOC_BOOKE
 if PPC32
 
 config FSL_85XX_CACHE_SRAM
-	bool "Freescale l2cache sram support"
+	bool
 	select PPC_LIB_RHEAP
 	help
 	  When selected, this option enables cache-sram support
@@ -74,7 +72,7 @@ config MPC85xx_CDS
 config MPC85xx_MDS
 	bool "Freescale MPC85xx MDS"
 	select DEFAULT_UIMAGE
-	select PHYLIB
+	select PHYLIB if NETDEVICES
 	select HAS_RAPIDIO
 	select SWIOTLB
 	help
@@ -227,7 +225,7 @@ config GE_IMP3A
 	select DEFAULT_UIMAGE
 	select SWIOTLB
 	select MMIO_NVRAM
-	select ARCH_REQUIRE_GPIOLIB
+	select GPIOLIB
 	select GE_FPGA
 	help
 	  This option enables support for the GE Intelligent Platforms IMP3A
@@ -274,11 +272,10 @@ config CORENET_GENERIC
 	select PPC_E500MC
 	select PHYS_64BIT
 	select SWIOTLB
-	select ARCH_REQUIRE_GPIOLIB
+	select GPIOLIB
 	select GPIO_MPC8XXX
 	select HAS_RAPIDIO
 	select PPC_EPAPR_HV_PIC
-	select HAS_FSL_QBMAN
 	help
 	  This option enables support for the FSL CoreNet based boards.
 	  For 32bit kernel, the following boards are supported:
@@ -286,12 +283,9 @@ config CORENET_GENERIC
 	  For 64bit kernel, the following boards are supported:
 	    T208x QDS/RDB, T4240 QDS/RDB and B4 QDS
 	  The following boards are supported for both 32bit and 64bit kernel:
-	    P5020 DS, P5040 DS, T104x QDS/RDB, T1024 QDS/RDB
+	    P5020 DS, P5040 DS, T102x QDS/RDB, T104x QDS/RDB
 
 endif # FSL_SOC_BOOKE
 
 config TQM85xx
-	bool
-
-config FSL_QORIQ_PM
 	bool

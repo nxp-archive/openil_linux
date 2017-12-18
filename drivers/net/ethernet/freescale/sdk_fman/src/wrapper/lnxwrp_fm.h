@@ -42,7 +42,7 @@
 #ifndef __LNXWRP_FM_H__
 #define __LNXWRP_FM_H__
 
-#include <linux/fsl_qman.h>    /* struct qman_fq */
+#include <linux/fsl_qman.h> /* struct qman_fq */
 
 #include "std_ext.h"
 #include "error_ext.h"

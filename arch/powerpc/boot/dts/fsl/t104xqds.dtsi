@@ -1,7 +1,7 @@
 /*
  * T104xQDS Device Tree Source
  *
- * Copyright 2013 - 2014 Freescale Semiconductor Inc.
+ * Copyright 2013 - 2015 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -75,24 +75,12 @@
 			alignment = <0 0x1000000>;
 		};
 		qman_fqd: qman-fqd {
-			size = <0 0x800000>;
-			alignment = <0 0x800000>;
+			size = <0 0x400000>;
+			alignment = <0 0x400000>;
 		};
 		qman_pfdr: qman-pfdr {
 			size = <0 0x2000000>;
 			alignment = <0 0x2000000>;
-		};
-		pme_pdsr: pme-pdsr {
-			compatible = "fsl,pme-pdsr";
-			alloc-ranges = <0 0 0x10000 0>;
-			size = <0 0x1000000>;
-			alignment = <0 0x1000000>;
-		};
-		pme_sre: pme-sre {
-			 compatible = "fsl,pme-sre";
-			 alloc-ranges = <0 0 0x10000 0>;
-			 size = <0 0xa00000>;
-			 alignment = <0 0xa00000>;
 		};
 	};
 
@@ -124,115 +112,123 @@
 			#size-cells = <1>;
 			compatible = "fsl,fpga-qixis";
 			reg = <3 0 0x300>;
+			ranges = <0 3 0 0x300>;
+
 			mdio-mux-emi1 {
-				compatible = "mdio-mux-mmioreg", "mdio-mux";
-				mdio-parent-bus = <&mdio0>;
 				#address-cells = <1>;
 				#size-cells = <0>;
-				reg = <0x54 1>;    /* BRDCFG4 */
-				mux-mask = <0xe0>; /* EMI1 */
+				compatible = "mdio-mux-mmioreg", "mdio-mux";
+				mdio-parent-bus = <&mdio0>;
+				reg = <0x54 1>;
+				mux-mask = <0xe0>;
 
-				/* On-board RGMII1 PHY */
 				t1040mdio0: mdio@0 {
-					reg = <0x00>;
 					#address-cells = <1>;
 					#size-cells = <0>;
+					reg = <0x00>;
 					status = "disabled";
 
-					rgmii_phy1: ethernet-phy@1 { /* MAC3 */
+					rgmii_phy1: ethernet-phy@1 {
 						reg = <0x1>;
 					};
 				};
 
-				/* On-board RGMII2 PHY */
 				t1040mdio1: mdio@20 {
-					reg = <0x20>;
 					#address-cells = <1>;
 					#size-cells = <0>;
+					reg = <0x20>;
 					status = "disabled";
 
-					rgmii_phy2: ethernet-phy@2 { /* MAC4 */
+					rgmii_phy2: ethernet-phy@2 {
 						reg = <0x2>;
 					};
 				};
 
-				/* Slot 3 */
 				t1040mdio3: mdio@60 {
-					reg = <0x60>;
 					#address-cells = <1>;
 					#size-cells = <0>;
+					reg = <0x60>;
 					status = "disabled";
 
 					phy_s3_01: ethernet-phy@1c {
 						reg = <0x1c>;
 					};
+
 					phy_s3_02: ethernet-phy@1d {
 						reg = <0x1d>;
 					};
+
 					phy_s3_03: ethernet-phy@1e {
 						reg = <0x1e>;
 					};
+
 					phy_s3_04: ethernet-phy@1f {
 						reg = <0x1f>;
 					};
 				};
 
-				/* Slot 5 */
 				t1040mdio5: mdio@a0 {
-					reg = <0xa0>;
 					#address-cells = <1>;
 					#size-cells = <0>;
+					reg = <0xa0>;
 
 					phy_s5_01: ethernet-phy@1c {
 						reg = <0x14>;
 					};
+
 					phy_s5_02: ethernet-phy@1d {
 						reg = <0x15>;
 					};
+
 					phy_s5_03: ethernet-phy@1e {
 						reg = <0x16>;
 					};
+
 					phy_s5_04: ethernet-phy@1f {
 						reg = <0x17>;
 					};
 				};
 
-				/* Slot 6 */
 				t1040mdio6: mdio@c0 {
-					reg = <0xc0>;
 					#address-cells = <1>;
 					#size-cells = <0>;
+					reg = <0xc0>;
 
 					phy_s6_01: ethernet-phy@1c {
 						reg = <0x18>;
 					};
+
 					phy_s6_02: ethernet-phy@1d {
 						reg = <0x19>;
 					};
+
 					phy_s6_03: ethernet-phy@1e {
 						reg = <0x1a>;
 					};
+
 					phy_s6_04: ethernet-phy@1f {
 						reg = <0x1b>;
 					};
 				};
 
-				/* Slot 7 */
 				t1040mdio7: mdio@e0 {
-					reg = <0xe0>;
 					#address-cells = <1>;
 					#size-cells = <0>;
+					reg = <0xe0>;
 					status = "disabled";
 
 					phy_s7_01: ethernet-phy@1c {
 						reg = <0x1c>;
 					};
+
 					phy_s7_02: ethernet-phy@1d {
 						reg = <0x1d>;
 					};
+
 					phy_s7_03: ethernet-phy@1e {
 						reg = <0x1e>;
 					};
+
 					phy_s7_04: ethernet-phy@1f {
 						reg = <0x1f>;
 					};
@@ -283,70 +279,31 @@
 			};
 		};
 
-		fman0: fman@400000 {
-			rcpm-wakeup = <&rcpm 0x00000008>;
-
-			enet0: ethernet@e0000 {
+		fman@400000 {
+			ethernet@e0000 {
 				fixed-link = <0 1 1000 0 0>;
 				phy-connection-type = "sgmii";
-				rcpm-wakeup = <&rcpm 0x80000000>;
 			};
 
-			enet1: ethernet@e2000 {
+			ethernet@e2000 {
 				fixed-link = <1 1 1000 0 0>;
 				phy-connection-type = "sgmii";
-				rcpm-wakeup = <&rcpm 0x40000000>;
 			};
 
-			enet2: ethernet@e4000 {
+			ethernet@e4000 {
 				phy-handle = <&phy_s7_03>;
 				phy-connection-type = "sgmii";
-				rcpm-wakeup = <&rcpm 0x20000000>;
 			};
 
-			enet3: ethernet@e6000 {
+			ethernet@e6000 {
 				phy-handle = <&rgmii_phy1>;
 				phy-connection-type = "rgmii";
-				rcpm-wakeup = <&rcpm 0x10000000>;
 			};
 
-			enet4: ethernet@e8000 {
+			ethernet@e8000 {
 				phy-handle = <&rgmii_phy2>;
 				phy-connection-type = "rgmii";
-				rcpm-wakeup = <&rcpm 0x08000000>;
 			};
-
-			mdio0: mdio@fc000 {
-			};
-		};
-	};
-
-	fsl,dpaa {
-		compatible = "fsl,t1040-dpaa", "fsl,dpaa";
-		ethernet@0 {
-			compatible = "fsl,t1040-dpa-ethernet",
-					"fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet0>;
-		};
-		ethernet@1 {
-			compatible = "fsl,t1040-dpa-ethernet",
-					"fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet1>;
-		};
-		ethernet@2 {
-			compatible = "fsl,t1040-dpa-ethernet",
-					"fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet2>;
-		};
-		ethernet@3 {
-			compatible = "fsl,t1040-dpa-ethernet",
-					"fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet3>;
-		};
-		ethernet@4 {
-			compatible = "fsl,t1040-dpa-ethernet",
-					"fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet4>;
 		};
 	};
 
@@ -417,37 +374,31 @@
 		bus-frequency = <0>;
 
 		si1: si@700 {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			compatible = "fsl,qe-si";
+			compatible = "fsl,t1040-qe-si";
 			reg = <0x700 0x80>;
 		};
 
 		siram1: siram@1000 {
-			#address-cells = <1>;
-			#size-cells = <1>;
-			compatible = "fsl,qe-siram";
+			compatible = "fsl,t1040-qe-siram";
 			reg = <0x1000 0x800>;
 		};
 
 		ucc_hdlc: ucc@2000 {
-			compatible = "fsl,ucc_hdlc";
+			compatible = "fsl,ucc-hdlc";
 			rx-clock-name = "clk8";
 			tx-clock-name = "clk9";
 			fsl,rx-sync-clock = "rsync_pin";
 			fsl,tx-sync-clock = "tsync_pin";
-			fsl,tx-timeslot = <0xfffffffe>;
-			fsl,rx-timeslot = <0xfffffffe>;
+			fsl,tx-timeslot-mask = <0xfffffffe>;
+			fsl,rx-timeslot-mask = <0xfffffffe>;
 			fsl,tdm-framer-type = "e1";
-			fsl,tdm-mode = "normal";
 			fsl,tdm-id = <0>;
 			fsl,siram-entry-id = <0>;
 			fsl,tdm-interface;
 		};
 
 		ucc_serial: ucc@2200 {
-			device_type = "serial";
-			compatible = "ucc_uart";
+			compatible = "fsl,t1040-ucc-uart";
 			port-number = <0>;
 			rx-clock-name = "brg2";
 			tx-clock-name = "brg2";

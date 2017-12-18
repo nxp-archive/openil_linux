@@ -37,10 +37,10 @@
 #define DP_DPCD_SIZE DP_RECEIVER_CAP_SIZE
 
 static char *voltage_names[] = {
-        "0.4V", "0.6V", "0.8V", "1.2V"
+	"0.4V", "0.6V", "0.8V", "1.2V"
 };
 static char *pre_emph_names[] = {
-        "0dB", "3.5dB", "6dB", "9.5dB"
+	"0dB", "3.5dB", "6dB", "9.5dB"
 };
 
 /***** radeon AUX functions *****/
@@ -179,6 +179,7 @@ radeon_dp_aux_transfer_atom(struct drm_dp_aux *aux, struct drm_dp_aux_msg *msg)
 	switch (msg->request & ~DP_AUX_I2C_MOT) {
 	case DP_AUX_NATIVE_WRITE:
 	case DP_AUX_I2C_WRITE:
+	case DP_AUX_I2C_WRITE_STATUS_UPDATE:
 		/* The atom implementation only supports writes with a max payload of
 		 * 12 bytes since it uses 4 bits for the total count (header + payload)
 		 * in the parameter space.  The atom interface supports 16 byte
@@ -388,22 +389,21 @@ bool radeon_dp_getdpcd(struct radeon_connector *radeon_connector)
 {
 	struct radeon_connector_atom_dig *dig_connector = radeon_connector->con_priv;
 	u8 msg[DP_DPCD_SIZE];
-	int ret, i;
+	int ret;
 
-	for (i = 0; i < 7; i++) {
-		ret = drm_dp_dpcd_read(&radeon_connector->ddc_bus->aux, DP_DPCD_REV, msg,
-				       DP_DPCD_SIZE);
-		if (ret == DP_DPCD_SIZE) {
-			memcpy(dig_connector->dpcd, msg, DP_DPCD_SIZE);
+	ret = drm_dp_dpcd_read(&radeon_connector->ddc_bus->aux, DP_DPCD_REV, msg,
+			       DP_DPCD_SIZE);
+	if (ret == DP_DPCD_SIZE) {
+		memcpy(dig_connector->dpcd, msg, DP_DPCD_SIZE);
 
-			DRM_DEBUG_KMS("DPCD: %*ph\n", (int)sizeof(dig_connector->dpcd),
-				      dig_connector->dpcd);
+		DRM_DEBUG_KMS("DPCD: %*ph\n", (int)sizeof(dig_connector->dpcd),
+			      dig_connector->dpcd);
 
-			radeon_dp_probe_oui(radeon_connector);
+		radeon_dp_probe_oui(radeon_connector);
 
-			return true;
-		}
+		return true;
 	}
+
 	dig_connector->dpcd[0] = 0;
 	return false;
 }

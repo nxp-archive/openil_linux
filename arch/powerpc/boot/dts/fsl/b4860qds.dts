@@ -1,7 +1,7 @@
 /*
  * B4860DS Device Tree Source
  *
- * Copyright 2012 Freescale Semiconductor Inc.
+ * Copyright 2012 - 2015 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -39,56 +39,64 @@
 	model = "fsl,B4860QDS";
 	compatible = "fsl,B4860QDS";
 
-	aliases{
+	aliases {
 		phy_sgmii_1e = &phy_sgmii_1e;
 		phy_sgmii_1f = &phy_sgmii_1f;
 		phy_xaui_slot1 = &phy_xaui_slot1;
 		phy_xaui_slot2 = &phy_xaui_slot2;
 	};
+
 	ifc: localbus@ffe124000 {
 		board-control@3,0 {
 			compatible = "fsl,b4860qds-fpga", "fsl,fpga-qixis";
 		};
 	};
-	soc: soc@ffe000000 {
-		fman0: fman@400000 {
-			fm1mac5: ethernet@e8000 {
+
+	soc@ffe000000 {
+		fman@400000 {
+			ethernet@e8000 {
 				phy-handle = <&phy_sgmii_1e>;
 				phy-connection-type = "sgmii";
 			};
-			fm1mac6: ethernet@ea000 {
+
+			ethernet@ea000 {
 				phy-handle = <&phy_sgmii_1f>;
 				phy-connection-type = "sgmii";
 			};
-			fm1mac9: ethernet@f0000 { /* FM1@TGEC2 */
+
+			ethernet@f0000 {
 				phy-handle = <&phy_xaui_slot1>;
 				phy-connection-type = "xgmii";
 			};
-			fm1mac10: ethernet@f2000 { /* FM1@TGEC1 */
+
+			ethernet@f2000 {
 				phy-handle = <&phy_xaui_slot2>;
 				phy-connection-type = "xgmii";
 			};
-			mdio0: mdio@fc000 {
+
+			mdio@fc000 {
 				phy_sgmii_1e: ethernet-phy@1e {
-					status = "disabled";
 					reg = <0x1e>;
-				};
-				phy_sgmii_1f: ethernet-phy@1f {
 					status = "disabled";
+				};
+
+				phy_sgmii_1f: ethernet-phy@1f {
 					reg = <0x1f>;
+					status = "disabled";
 				};
 			};
-			xmdio0: mdio@fd000 {
-				/* For 10g interfaces */
+
+			mdio@fd000 {
 				phy_xaui_slot1: xaui-phy@slot1 {
-					status = "disabled";
 					compatible = "ethernet-phy-ieee802.3-c45";
-					reg = <0x7>; /* default switch setting on slot1 of AMC2PEX */
+					reg = <0x7>;
+					status = "disabled";
 				};
+
 				phy_xaui_slot2: xaui-phy@slot2 {
-					status = "disabled";
 					compatible = "ethernet-phy-ieee802.3-c45";
-					reg = <0x6>; /* default switch setting on slot1 of AMC2PEX */
+					reg = <0x6>;
+					status = "disabled";
 				};
 			};
 		};
@@ -102,37 +110,6 @@
 		};
 		port2 {
 			ranges = <0 0 0xc 0x30000000 0 0x10000000>;
-		};
-	};
-	fsl,dpaa {
-		compatible = "fsl,b4860-dpaa", "fsl,dpaa";
-		ethernet@0 {
-			compatible = "fsl,b4860-dpa-ethernet", "fsl,dpa-ethernet";
-		};
-		ethernet@1 {
-			compatible = "fsl,b4860-dpa-ethernet", "fsl,dpa-ethernet";
-		};
-		ethernet@2 {
-			compatible = "fsl,b4860-dpa-ethernet", "fsl,dpa-ethernet";
-		};
-		ethernet@3 {
-			compatible = "fsl,b4860-dpa-ethernet", "fsl,dpa-ethernet";
-		};
-		ethernet@4 {
-			compatible = "fsl,b4860-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac5>;
-		};
-		ethernet@5 {
-			compatible = "fsl,b4860-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac6>;
-		};
-		ethernet@8 {
-			compatible = "fsl,b4860-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac9>;
-		};
-		ethernet@9 {
-			compatible = "fsl,b4860-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac10>;
 		};
 	};
 };

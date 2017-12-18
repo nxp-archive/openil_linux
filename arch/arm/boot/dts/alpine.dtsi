@@ -93,7 +93,7 @@
 			interrupt-controller;
 			reg = <0x0 0xfb001000 0x0 0x1000>,
 			      <0x0 0xfb002000 0x0 0x2000>,
-			      <0x0 0xfb004000 0x0 0x1000>,
+			      <0x0 0xfb004000 0x0 0x2000>,
 			      <0x0 0xfb006000 0x0 0x2000>;
 			interrupts =
 				<GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_HIGH)>;
@@ -155,6 +155,16 @@
 			ranges = <0x02000000 0x0 0xfe000000 0x0 0xfe000000 0x0 0x1000000>;
 
 			bus-range = <0x00 0x00>;
+			msi-parent = <&msix>;
+		};
+
+		msix: msix@fbe00000 {
+			compatible = "al,alpine-msix";
+			reg = <0x0 0xfbe00000 0x0 0x100000>;
+			interrupt-controller;
+			msi-controller;
+			al,msi-base-spi = <96>;
+			al,msi-num-spis = <64>;
 		};
 	};
 };

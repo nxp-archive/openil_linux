@@ -27,7 +27,7 @@
  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+ */
 
 /* Perform extra checking */
 #define QBMAN_CHECKING
@@ -44,8 +44,6 @@
  * header) may depend on platform-specific declarations, yet other
  * platform-specific routines may depend on platform-independent definitions.
  */
-
-#include "qbman_sys_decl.h"
 
 #define QMAN_REV_4000   0x04000000
 #define QMAN_REV_4100   0x04010000
@@ -67,17 +65,17 @@
  */
 #define DBG_POLL_START(loopvar) (loopvar = 1000)
 #define DBG_POLL_CHECK(loopvar) \
-	do {if (!(loopvar--)) BUG_ON(1); } while (0)
+	do {if (!((loopvar)--)) WARN_ON(1); } while (0)
 
 /* For CCSR or portal-CINH registers that contain fields at arbitrary offsets
  * and widths, these macro-generated encode/decode/isolate/remove inlines can
  * be used.
  *
- * Eg. to "d"ecode a 14-bit field out of a register (into a "uint16_t" type),
+ * Eg. to "d"ecode a 14-bit field out of a register (into a "u16" type),
  * where the field is located 3 bits "up" from the least-significant bit of the
  * register (ie. the field location within the 32-bit register corresponds to a
  * mask of 0x0001fff8), you would do;
- *                uint16_t field = d32_uint16_t(3, 14, reg_value);
+ *                u16 field = d32_u16(3, 14, reg_value);
  *
  * Or to "e"ncode a 1-bit boolean value (input type is "int", zero is FALSE,
  * non-zero is TRUE, so must convert all non-zero inputs to 1, hence the "!!"
@@ -88,7 +86,7 @@
  * If you wish to read-modify-write a register, such that you leave the 14-bit
  * field as-is but have all other fields set to zero, then "i"solate the 14-bit
  * value using;
- *                reg_value = i32_uint16_t(3, 14, reg_value);
+ *                reg_value = i32_u16(3, 14, reg_value);
  *
  * Alternatively, you could "r"emove the 1-bit boolean field (setting it to
  * zero) but leaving all other fields as-is;
@@ -96,33 +94,33 @@
  *
  */
 #define MAKE_MASK32(width) (width == 32 ? 0xffffffff : \
-				 (uint32_t)((1 << width) - 1))
+				 (u32)((1 << width) - 1))
 #define DECLARE_CODEC32(t) \
-static inline uint32_t e32_##t(uint32_t lsoffset, uint32_t width, t val) \
+static inline u32 e32_##t(u32 lsoffset, u32 width, t val) \
 { \
-	BUG_ON(width > (sizeof(t) * 8)); \
-	return ((uint32_t)val & MAKE_MASK32(width)) << lsoffset; \
+	WARN_ON(width > (sizeof(t) * 8)); \
+	return ((u32)val & MAKE_MASK32(width)) << lsoffset; \
 } \
-static inline t d32_##t(uint32_t lsoffset, uint32_t width, uint32_t val) \
+static inline t d32_##t(u32 lsoffset, u32 width, u32 val) \
 { \
-	BUG_ON(width > (sizeof(t) * 8)); \
+	WARN_ON(width > (sizeof(t) * 8)); \
 	return (t)((val >> lsoffset) & MAKE_MASK32(width)); \
 } \
-static inline uint32_t i32_##t(uint32_t lsoffset, uint32_t width, \
-				uint32_t val) \
+static inline u32 i32_##t(u32 lsoffset, u32 width, \
+				u32 val) \
 { \
-	BUG_ON(width > (sizeof(t) * 8)); \
+	WARN_ON(width > (sizeof(t) * 8)); \
 	return e32_##t(lsoffset, width, d32_##t(lsoffset, width, val)); \
 } \
-static inline uint32_t r32_##t(uint32_t lsoffset, uint32_t width, \
-				uint32_t val) \
+static inline u32 r32_##t(u32 lsoffset, u32 width, \
+				u32 val) \
 { \
-	BUG_ON(width > (sizeof(t) * 8)); \
+	WARN_ON(width > (sizeof(t) * 8)); \
 	return ~(MAKE_MASK32(width) << lsoffset) & val; \
 }
-DECLARE_CODEC32(uint32_t)
-DECLARE_CODEC32(uint16_t)
-DECLARE_CODEC32(uint8_t)
+DECLARE_CODEC32(u32)
+DECLARE_CODEC32(u16)
+DECLARE_CODEC32(u8)
 DECLARE_CODEC32(int)
 
 	/*********************/
@@ -130,7 +128,8 @@ DECLARE_CODEC32(int)
 	/*********************/
 
 static inline void __hexdump(unsigned long start, unsigned long end,
-			unsigned long p, size_t sz, const unsigned char *c)
+			     unsigned long p, size_t sz,
+			     const unsigned char *c)
 {
 	while (start < end) {
 		unsigned int pos = 0;
@@ -160,14 +159,13 @@ static inline void __hexdump(unsigned long start, unsigned long end,
 		pr_info("%s", buf);
 	}
 }
+
 static inline void hexdump(const void *ptr, size_t sz)
 {
 	unsigned long p = (unsigned long)ptr;
-	unsigned long start = p & ~(unsigned long)15;
-	unsigned long end = (p + sz + 15) & ~(unsigned long)15;
+	unsigned long start = p & ~15ul;
+	unsigned long end = (p + sz + 15) & ~15ul;
 	const unsigned char *c = ptr;
 
 	__hexdump(start, end, p, sz, c);
 }
-
-#include "qbman_sys.h"

@@ -12,7 +12,6 @@
 #include "writeback.h"
 
 #include <linux/delay.h>
-#include <linux/freezer.h>
 #include <linux/kthread.h>
 #include <trace/events/bcache.h>
 
@@ -129,11 +128,8 @@ static void write_dirty_finish(struct closure *cl)
 	struct dirty_io *io = container_of(cl, struct dirty_io, cl);
 	struct keybuf_key *w = io->bio.bi_private;
 	struct cached_dev *dc = io->dc;
-	struct bio_vec *bv;
-	int i;
 
-	bio_for_each_segment_all(bv, &io->bio, i)
-		__free_page(bv->bv_page);
+	bio_free_pages(&io->bio);
 
 	/* This is kind of a dumb way of signalling errors. */
 	if (KEY_DIRTY(&w->key)) {
@@ -166,12 +162,12 @@ static void write_dirty_finish(struct closure *cl)
 	closure_return_with_destructor(cl, dirty_io_destructor);
 }
 
-static void dirty_endio(struct bio *bio, int error)
+static void dirty_endio(struct bio *bio)
 {
 	struct keybuf_key *w = bio->bi_private;
 	struct dirty_io *io = w->private;
 
-	if (error)
+	if (bio->bi_error)
 		SET_KEY_DIRTY(&w->key, false);
 
 	closure_put(&io->cl);
@@ -183,32 +179,32 @@ static void write_dirty(struct closure *cl)
 	struct keybuf_key *w = io->bio.bi_private;
 
 	dirty_init(w);
-	io->bio.bi_rw		= WRITE;
+	bio_set_op_attrs(&io->bio, REQ_OP_WRITE, 0);
 	io->bio.bi_iter.bi_sector = KEY_START(&w->key);
 	io->bio.bi_bdev		= io->dc->bdev;
 	io->bio.bi_end_io	= dirty_endio;
 
-	closure_bio_submit(&io->bio, cl, &io->dc->disk);
+	closure_bio_submit(&io->bio, cl);
 
 	continue_at(cl, write_dirty_finish, system_wq);
 }
 
-static void read_dirty_endio(struct bio *bio, int error)
+static void read_dirty_endio(struct bio *bio)
 {
 	struct keybuf_key *w = bio->bi_private;
 	struct dirty_io *io = w->private;
 
 	bch_count_io_errors(PTR_CACHE(io->dc->disk.c, &w->key, 0),
-			    error, "reading dirty data from cache");
+			    bio->bi_error, "reading dirty data from cache");
 
-	dirty_endio(bio, error);
+	dirty_endio(bio);
 }
 
 static void read_dirty_submit(struct closure *cl)
 {
 	struct dirty_io *io = container_of(cl, struct dirty_io, cl);
 
-	closure_bio_submit(&io->bio, cl, &io->dc->disk);
+	closure_bio_submit(&io->bio, cl);
 
 	continue_at(cl, write_dirty, system_wq);
 }
@@ -228,7 +224,6 @@ static void read_dirty(struct cached_dev *dc)
 	 */
 
 	while (!kthread_should_stop()) {
-		try_to_freeze();
 
 		w = bch_keybuf_next(&dc->writeback_keys);
 		if (!w)
@@ -253,10 +248,10 @@ static void read_dirty(struct cached_dev *dc)
 		io->dc		= dc;
 
 		dirty_init(w);
+		bio_set_op_attrs(&io->bio, REQ_OP_READ, 0);
 		io->bio.bi_iter.bi_sector = PTR_OFFSET(&w->key, 0);
 		io->bio.bi_bdev		= PTR_CACHE(dc->disk.c,
 						    &w->key, 0)->bdev;
-		io->bio.bi_rw		= READ;
 		io->bio.bi_end_io	= read_dirty_endio;
 
 		if (bio_alloc_pages(&io->bio, GFP_KERNEL))
@@ -433,7 +428,6 @@ static int bch_writeback_thread(void *arg)
 			if (kthread_should_stop())
 				return 0;
 
-			try_to_freeze();
 			schedule();
 			continue;
 		}

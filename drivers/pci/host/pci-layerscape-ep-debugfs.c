@@ -1,7 +1,7 @@
 /*
  * PCIe Endpoint driver for Freescale Layerscape SoCs
  *
- * Copyright (C) 2015 Freescale Semiconductor.
+ * Copyright 2015 Freescale Semiconductor, Inc.
  *
   * Author: Minghuan Lian <Minghuan.Lian@freescale.com>
  *

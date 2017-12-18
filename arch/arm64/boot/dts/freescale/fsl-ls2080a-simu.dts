@@ -1,10 +1,9 @@
 /*
  * Device Tree file for Freescale LS2080a software Simulator model
  *
- * Copyright (C) 2014-2015 Freescale Semiconductor
+ * Copyright 2014-2015 Freescale Semiconductor, Inc.
  *
  * Bhupesh Sharma <bhupesh.sharma@freescale.com>
- * Harninder Rai <harninder.rai@freescale.com>
  *
  * This file is dual-licensed: you can use it either under the terms
  * of the GPL or the X11 license, at your option. Note that this dual
@@ -20,7 +19,6 @@
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
- *
  *
  * Or, alternatively,
  *
@@ -60,3 +58,8 @@
 		interrupts = <0 58 0x1>;
 	};
 };
+
+&ifc {
+	status = "okay";
+};
+

@@ -1,7 +1,7 @@
 /*
  * T1042RDB Device Tree Source
  *
- * Copyright 2014 Freescale Semiconductor Inc.
+ * Copyright 2014 - 2015 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -38,10 +38,32 @@
 / {
 	model = "fsl,T1042RDB";
 	compatible = "fsl,T1042RDB";
+
 	aliases {
-		phy_rgmii_0 = &phy_rgmii_0;
-		phy_rgmii_1 = &phy_rgmii_1;
 		phy_sgmii_2 = &phy_sgmii_2;
+	};
+
+	soc@ffe000000 {
+		fman@400000 {
+			ethernet@e0000 {
+			       status = "disabled";
+			};
+
+			ethernet@e2000 {
+			       status = "disabled";
+			};
+
+			ethernet@e4000 {
+				phy-handle = <&phy_sgmii_2>;
+				phy-connection-type = "sgmii";
+			};
+
+			mdio@fc000 {
+				phy_sgmii_2: ethernet-phy@03 {
+					reg = <0x03>;
+				};
+			};
+		};
 	};
 
 	ifc: localbus@ffe124000 {
@@ -49,79 +71,6 @@
 			compatible = "fsl,t1042rdb-cpld";
 		};
 	};
-	soc: soc@ffe000000 {
-		fman0: fman@400000 {
-			rcpm-wakeup = <&rcpm 0x00000008>;
-
-			enet0: ethernet@e0000 {
-				status = "disabled";
-			};
-
-			enet1: ethernet@e2000 {
-				status = "disabled";
-			};
-
-			enet2: ethernet@e4000 {
-				phy-handle = <&phy_sgmii_2>;
-				phy-connection-type = "sgmii";
-				rcpm-wakeup = <&rcpm 0x20000000>;
-			};
-
-			enet3: ethernet@e6000 {
-				phy-handle = <&phy_rgmii_0>;
-				phy-connection-type = "rgmii";
-				rcpm-wakeup = <&rcpm 0x10000000>;
-			};
-
-			enet4: ethernet@e8000 {
-				phy-handle = <&phy_rgmii_1>;
-				phy-connection-type = "rgmii";
-				rcpm-wakeup = <&rcpm 0x08000000>;
-			};
-
-			mdio0: mdio@fc000 {
-				phy_sgmii_2: ethernet-phy@03 {
-					reg = <0x03>;
-				};
-				phy_rgmii_0: ethernet-phy@01 {
-					reg = <0x01>;
-				};
-				phy_rgmii_1: ethernet-phy@02 {
-					reg = <0x02>;
-				};
-			};
-		};
-
-	};
-	fsl,dpaa {
-		compatible = "fsl,t1040-dpaa", "fsl,dpaa";
-		ethernet@0 {
-			compatible = "fsl,t1040-dpa-ethernet",
-					"fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet0>;
-		};
-		ethernet@1 {
-			compatible = "fsl,t1040-dpa-ethernet",
-					"fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet1>;
-		};
-		ethernet@2 {
-			compatible = "fsl,t1040-dpa-ethernet",
-					"fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet2>;
-		};
-		ethernet@3 {
-			compatible = "fsl,t1040-dpa-ethernet",
-					"fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet3>;
-		};
-		ethernet@4 {
-			compatible = "fsl,t1040-dpa-ethernet",
-					"fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet4>;
-		};
-	};
 };
 
 #include "t1042si-post.dtsi"
-/include/ "qoriq-dpaa-res3.dtsi"

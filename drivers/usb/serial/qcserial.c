@@ -124,6 +124,7 @@ static const struct usb_device_id id_table[] = {
 	{USB_DEVICE(0x1410, 0xa021)},	/* Novatel Gobi 3000 Composite */
 	{USB_DEVICE(0x413c, 0x8193)},	/* Dell Gobi 3000 QDL */
 	{USB_DEVICE(0x413c, 0x8194)},	/* Dell Gobi 3000 Composite */
+	{USB_DEVICE(0x413c, 0x81a6)},	/* Dell DW5570 QDL (MC8805) */
 	{USB_DEVICE(0x1199, 0x68a4)},	/* Sierra Wireless QDL */
 	{USB_DEVICE(0x1199, 0x68a5)},	/* Sierra Wireless Modem */
 	{USB_DEVICE(0x1199, 0x68a8)},	/* Sierra Wireless QDL */
@@ -145,9 +146,11 @@ static const struct usb_device_id id_table[] = {
 	{DEVICE_SWI(0x0f3d, 0x68a2)},	/* Sierra Wireless MC7700 */
 	{DEVICE_SWI(0x114f, 0x68a2)},	/* Sierra Wireless MC7750 */
 	{DEVICE_SWI(0x1199, 0x68a2)},	/* Sierra Wireless MC7710 */
+	{DEVICE_SWI(0x1199, 0x68c0)},	/* Sierra Wireless MC7304/MC7354 */
 	{DEVICE_SWI(0x1199, 0x901c)},	/* Sierra Wireless EM7700 */
 	{DEVICE_SWI(0x1199, 0x901f)},	/* Sierra Wireless EM7355 */
 	{DEVICE_SWI(0x1199, 0x9040)},	/* Sierra Wireless Modem */
+	{DEVICE_SWI(0x1199, 0x9041)},	/* Sierra Wireless MC7305/MC7355 */
 	{DEVICE_SWI(0x1199, 0x9051)},	/* Netgear AirCard 340U */
 	{DEVICE_SWI(0x1199, 0x9053)},	/* Sierra Wireless Modem */
 	{DEVICE_SWI(0x1199, 0x9054)},	/* Sierra Wireless Modem */
@@ -159,6 +162,8 @@ static const struct usb_device_id id_table[] = {
 	{DEVICE_SWI(0x1199, 0x9071)},	/* Sierra Wireless MC74xx */
 	{DEVICE_SWI(0x1199, 0x9078)},	/* Sierra Wireless EM74xx */
 	{DEVICE_SWI(0x1199, 0x9079)},	/* Sierra Wireless EM74xx */
+	{DEVICE_SWI(0x1199, 0x907a)},	/* Sierra Wireless EM74xx QDL */
+	{DEVICE_SWI(0x1199, 0x907b)},	/* Sierra Wireless EM74xx */
 	{DEVICE_SWI(0x413c, 0x81a2)},	/* Dell Wireless 5806 Gobi(TM) 4G LTE Mobile Broadband Card */
 	{DEVICE_SWI(0x413c, 0x81a3)},	/* Dell Wireless 5570 HSPA+ (42Mbps) Mobile Broadband Card */
 	{DEVICE_SWI(0x413c, 0x81a4)},	/* Dell Wireless 5570e HSPA+ (42Mbps) Mobile Broadband Card */
@@ -166,6 +171,8 @@ static const struct usb_device_id id_table[] = {
 	{DEVICE_SWI(0x413c, 0x81a9)},	/* Dell Wireless 5808e Gobi(TM) 4G LTE Mobile Broadband Card */
 	{DEVICE_SWI(0x413c, 0x81b1)},	/* Dell Wireless 5809e Gobi(TM) 4G LTE Mobile Broadband Card */
 	{DEVICE_SWI(0x413c, 0x81b3)},	/* Dell Wireless 5809e Gobi(TM) 4G LTE Mobile Broadband Card (rev3) */
+	{DEVICE_SWI(0x413c, 0x81b5)},	/* Dell Wireless 5811e QDL */
+	{DEVICE_SWI(0x413c, 0x81b6)},	/* Dell Wireless 5811e QDL */
 
 	/* Huawei devices */
 	{DEVICE_HWI(0x03f0, 0x581d)},	/* HP lt4112 LTE/HSPA+ Gobi 4G Modem (Huawei me906e) */
@@ -214,6 +221,7 @@ static int qcprobe(struct usb_serial *serial, const struct usb_device_id *id)
 	__u8 nintf;
 	__u8 ifnum;
 	int altsetting = -1;
+	bool sendsetup = false;
 
 	/* we only support vendor specific functions */
 	if (intf->desc.bInterfaceClass != USB_CLASS_VENDOR_SPEC)
@@ -335,6 +343,7 @@ static int qcprobe(struct usb_serial *serial, const struct usb_device_id *id)
 			break;
 		case 3:
 			dev_dbg(dev, "Modem port found\n");
+			sendsetup = true;
 			break;
 		default:
 			/* don't claim any unsupported interface */
@@ -396,16 +405,24 @@ done:
 		}
 	}
 
+	if (!retval)
+		usb_set_serial_data(serial, (void *)(unsigned long)sendsetup);
+
 	return retval;
 }
 
 static int qc_attach(struct usb_serial *serial)
 {
 	struct usb_wwan_intf_private *data;
+	bool sendsetup;
 
 	data = kzalloc(sizeof(*data), GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
+
+	sendsetup = !!(unsigned long)(usb_get_serial_data(serial));
+	if (sendsetup)
+		data->use_send_setup = 1;
 
 	spin_lock_init(&data->susp_lock);
 
@@ -433,6 +450,7 @@ static struct usb_serial_driver qcdevice = {
 	.probe               = qcprobe,
 	.open		     = usb_wwan_open,
 	.close		     = usb_wwan_close,
+	.dtr_rts	     = usb_wwan_dtr_rts,
 	.write		     = usb_wwan_write,
 	.write_room	     = usb_wwan_write_room,
 	.chars_in_buffer     = usb_wwan_chars_in_buffer,

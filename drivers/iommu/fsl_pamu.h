@@ -322,12 +322,6 @@ struct paace {
 	u32 reserved[8];			/* not currently implemented */
 };
 
-enum paace_field {
-	PAACE_STASH_FIELD,
-	PAACE_OMI_FIELD,
-	PAACE_FIELD_MAX,
-};
-
 /* OME : Operation mapping entry
  * MOE : Mapped Operation Encodings
  * The operation mapping table is table containing operation mapping entries (OME).
@@ -410,9 +404,8 @@ int pamu_config_spaace(int liodn, u32 subwin_cnt, u32 subwin_addr,
 
 u32 get_stash_id(u32 stash_dest_hint, u32 vcpu);
 void get_ome_index(u32 *omi_index, struct device *dev);
-int  pamu_update_paace_field(int liodn, u32 subwin, int field, u32 value);
+int  pamu_update_paace_stash(int liodn, u32 subwin, u32 value);
 int pamu_disable_spaace(int liodn, u32 subwin);
 u32 pamu_get_max_subwin_cnt(void);
-void enable_default_dma_window(int liodn);
 
 #endif  /* __FSL_PAMU_H */

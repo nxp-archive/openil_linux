@@ -26,7 +26,7 @@
 #include <linux/io.h>
 #include <linux/ipipe_tickdev.h>
 #include <linux/platform_device.h>
-#include <mach/at91_ipipe.h>
+#include "at91_ipipe.h"
 
 #define AT91_SLOW_CLOCK 32768
 #define TCNXCNS(timer,v) ((v) << ((timer)<<1))

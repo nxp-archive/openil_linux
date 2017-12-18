@@ -1,18 +1,18 @@
 /*
  * P3041DS Device Tree Source
  *
- * Copyright 2010 - 2016 Freescale Semiconductor Inc.
+ * Copyright 2010 - 2015 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
- *	 notice, this list of conditions and the following disclaimer.
+ *       notice, this list of conditions and the following disclaimer.
  *     * Redistributions in binary form must reproduce the above copyright
- *	 notice, this list of conditions and the following disclaimer in the
- *	 documentation and/or other materials provided with the distribution.
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
  *     * Neither the name of Freescale Semiconductor nor the
- *	 names of its contributors may be used to endorse or promote products
- *	 derived from this software without specific prior written permission.
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
  *
  *
  * ALTERNATIVELY, this software may be distributed under the terms of the
@@ -41,13 +41,7 @@
 	#size-cells = <2>;
 	interrupt-parent = <&mpic>;
 
-	aliases {
-		ethernet0 = &enet0;
-		ethernet1 = &enet1;
-		ethernet2 = &enet2;
-		ethernet3 = &enet3;
-		ethernet4 = &enet4;
-		ethernet5 = &enet5;
+	aliases{
 		phy_rgmii_0 = &phy_rgmii_0;
 		phy_rgmii_1 = &phy_rgmii_1;
 		phy_sgmii_1c = &phy_sgmii_1c;
@@ -75,8 +69,8 @@
 			alignment = <0 0x1000000>;
 		};
 		qman_fqd: qman-fqd {
-			size = <0 0x800000>;
-			alignment = <0 0x800000>;
+			size = <0 0x400000>;
+			alignment = <0 0x400000>;
 		};
 		qman_pfdr: qman-pfdr {
 			size = <0 0x2000000>;
@@ -171,105 +165,45 @@
 			};
 		};
 
-		fman0: fman@400000 {
-			enet0: ethernet@e0000 {
-				tbi-handle = <&tbi0>;
+		fman@400000{
+			ethernet@e0000 {
 				phy-handle = <&phy_sgmii_1c>;
 				phy-connection-type = "sgmii";
 			};
 
-			mdio0: mdio@e1120 {
-				tbi0: tbi-phy@8 {
-					reg = <0x8>;
-					device_type = "tbi-phy";
-				};
-			};
-
-			enet1: ethernet@e2000 {
-				tbi-handle = <&tbi1>;
+			ethernet@e2000 {
 				phy-handle = <&phy_sgmii_1d>;
 				phy-connection-type = "sgmii";
 			};
 
-			mdio@e3120 {
-				tbi1: tbi-phy@8 {
-					reg = <8>;
-					device_type = "tbi-phy";
-				};
-			};
-
-			enet2: ethernet@e4000 {
-				tbi-handle = <&tbi2>;
+			ethernet@e4000 {
 				phy-handle = <&phy_sgmii_1e>;
 				phy-connection-type = "sgmii";
 			};
 
-			mdio@e5120 {
-				tbi2: tbi-phy@8 {
-					reg = <8>;
-					device_type = "tbi-phy";
-				};
-			};
-
-			enet3: ethernet@e6000 {
-				tbi-handle = <&tbi3>;
+			ethernet@e6000 {
 				phy-handle = <&phy_sgmii_1f>;
 				phy-connection-type = "sgmii";
 			};
 
-			mdio@e7120 {
-				#address-cells = <1>;
-				#size-cells = <0>;
-				compatible = "fsl,fman-tbi";
-				reg = <0xe7120 0xee0>;
-				interrupts = <100 1 0 0>;
-
-				tbi3: tbi-phy@8 {
-					reg = <8>;
-					device_type = "tbi-phy";
-				};
-			};
-
-			enet4: ethernet@e8000 {
-				tbi-handle = <&tbi4>;
+			ethernet@e8000 {
 				phy-handle = <&phy_rgmii_1>;
 				phy-connection-type = "rgmii";
 			};
 
-			mdio@e9120 {
-				tbi4: tbi-phy@8 {
-					reg = <8>;
-					device_type = "tbi-phy";
-				};
-			};
-
-			enet5: ethernet@f0000 {
-				/*
-				 * phy-handle will be updated by U-Boot to
-				 * reflect the actual slot the XAUI card is in.
-				 */
+			ethernet@f0000 {
 				phy-handle = <&phy_xgmii_1>;
 				phy-connection-type = "xgmii";
 			};
 
-			/*
-			 * We only support one XAUI card, so the MDIO muxing
-			 * is set by U-Boot, and Linux never touches it.
-			 * Therefore, we don't need a virtual MDIO node.
-			 * However, the phy address depends on the slot, so
-			 * only one of the ethernet-phy nodes below will be
-			 * used.
-			 */
 			hydra_mdio_xgmii: mdio@f1000 {
 				status = "disabled";
 
-				/* XAUI card in slot 1 */
 				phy_xgmii_1: ethernet-phy@4 {
 					compatible = "ethernet-phy-ieee802.3-c45";
 					reg = <0x4>;
 				};
 
-				/* XAUI card in slot 2 */
 				phy_xgmii_2: ethernet-phy@0 {
 					compatible = "ethernet-phy-ieee802.3-c45";
 					reg = <0x0>;
@@ -348,54 +282,46 @@
 			ranges = <0 3 0 0x30>;
 
 			mdio-mux-emi1 {
-				compatible = "mdio-mux-mmioreg", "mdio-mux";
-				mdio-parent-bus = <&mdio0>;
 				#address-cells = <1>;
 				#size-cells = <0>;
-				reg = <9 1>; // BRDCFG1
-				mux-mask = <0x78>; // EMI1
+				compatible = "mdio-mux-mmioreg", "mdio-mux";
+				mdio-parent-bus = <&mdio0>;
+				reg = <9 1>;
+				mux-mask = <0x78>;
 
-				/*
-				 * Virtual MDIO for the two on-board RGMII
-				 * ports.  The reg property is already correct.
-				 */
 				hydra_mdio_rgmii: rgmii-mdio@8 {
-					status = "disabled";
-					reg = <8>; /* EMI1_EN | 0 */
 					#address-cells = <1>;
 					#size-cells = <0>;
+					reg = <8>;
+					status = "disabled";
 
 					phy_rgmii_0: ethernet-phy@0 {
 						reg = <0x0>;
 					};
+
 					phy_rgmii_1: ethernet-phy@1 {
 						reg = <0x1>;
 					};
 				};
-				/*
-				 * Virtual MDIO for the four-port SGMII card.
-				 * The reg property will be fixed-up
-				 * by U-Boot based on the slot that
-				 * the SGMII card is in.
-				 *
-				 * Note: we do not support DTSEC5 connected to
-				 * SGMII, so this is the only SGMII node.
-				 */
+
 				hydra_mdio_sgmii: sgmii-mdio@28 {
-					reg = <0x28>; /* EMI1_EN | 0x20 */
 					#address-cells = <1>;
 					#size-cells = <0>;
+					reg = <0x28>;
 					status = "disabled";
 
 					phy_sgmii_1c: ethernet-phy@1c {
 						reg = <0x1c>;
 					};
+
 					phy_sgmii_1d: ethernet-phy@1d {
 						reg = <0x1d>;
 					};
+
 					phy_sgmii_1e: ethernet-phy@1e {
 						reg = <0x1e>;
 					};
+
 					phy_sgmii_1f: ethernet-phy@1f {
 						reg = <0x1f>;
 					};
@@ -463,37 +389,6 @@
 				  0 0x00010000>;
 		};
 	};
-
-	fsl,dpaa {
-		compatible = "fsl,p3041-dpaa", "fsl,dpaa";
-
-		ethernet@0 {
-			compatible = "fsl,p3041-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet0>;
-		};
-		ethernet@1 {
-			compatible = "fsl,p3041-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet1>;
-		};
-		ethernet@2 {
-			compatible = "fsl,p3041-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet2>;
-			status = "disabled";
-		};
-		ethernet@3 {
-			compatible = "fsl,p3041-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet3>;
-		};
-		ethernet@4 {
-			compatible = "fsl,p3041-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet4>;
-		};
-		ethernet@5 {
-			compatible = "fsl,p3041-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet5>;
-		};
-	};
 };
 
 /include/ "p3041si-post.dtsi"
-/include/ "qoriq-dpaa-res1.dtsi"

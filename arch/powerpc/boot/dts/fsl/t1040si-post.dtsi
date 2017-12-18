@@ -241,61 +241,51 @@
 	compatible = "simple-bus";
 
 	bman-portal@0 {
-		cell-index = <0x0>;
 		compatible = "fsl,bman-portal";
 		reg = <0x0 0x4000>, <0x1000000 0x1000>;
 		interrupts = <105 2 0 0>;
 	};
 	bman-portal@4000 {
-		cell-index = <0x1>;
 		compatible = "fsl,bman-portal";
 		reg = <0x4000 0x4000>, <0x1001000 0x1000>;
 		interrupts = <107 2 0 0>;
 	};
 	bman-portal@8000 {
-		cell-index = <2>;
 		compatible = "fsl,bman-portal";
 		reg = <0x8000 0x4000>, <0x1002000 0x1000>;
 		interrupts = <109 2 0 0>;
 	};
 	bman-portal@c000 {
-		cell-index = <0x3>;
 		compatible = "fsl,bman-portal";
 		reg = <0xc000 0x4000>, <0x1003000 0x1000>;
 		interrupts = <111 2 0 0>;
 	};
 	bman-portal@10000 {
-		cell-index = <0x4>;
 		compatible = "fsl,bman-portal";
 		reg = <0x10000 0x4000>, <0x1004000 0x1000>;
 		interrupts = <113 2 0 0>;
 	};
 	bman-portal@14000 {
-		cell-index = <0x5>;
 		compatible = "fsl,bman-portal";
 		reg = <0x14000 0x4000>, <0x1005000 0x1000>;
 		interrupts = <115 2 0 0>;
 	};
 	bman-portal@18000 {
-		cell-index = <0x6>;
 		compatible = "fsl,bman-portal";
 		reg = <0x18000 0x4000>, <0x1006000 0x1000>;
 		interrupts = <117 2 0 0>;
 	};
 	bman-portal@1c000 {
-		cell-index = <0x7>;
 		compatible = "fsl,bman-portal";
 		reg = <0x1c000 0x4000>, <0x1007000 0x1000>;
 		interrupts = <119 2 0 0>;
 	};
 	bman-portal@20000 {
-		cell-index = <0x8>;
 		compatible = "fsl,bman-portal";
 		reg = <0x20000 0x4000>, <0x1008000 0x1000>;
 		interrupts = <121 2 0 0>;
 	};
 	bman-portal@24000 {
-		cell-index = <0x9>;
 		compatible = "fsl,bman-portal";
 		reg = <0x24000 0x4000>, <0x1009000 0x1000>;
 		interrupts = <123 2 0 0>;
@@ -308,91 +298,64 @@
 	compatible = "simple-bus";
 
 	qportal0: qman-portal@0 {
-		cell-index = <0x0>;
 		compatible = "fsl,qman-portal";
 		reg = <0x0 0x4000>, <0x1000000 0x1000>;
 		interrupts = <104 0x2 0 0>;
-		fsl,qman-channel-id = <0x0>;
+		cell-index = <0x0>;
 	};
-
 	qportal1: qman-portal@4000 {
-		cell-index = <0x1>;
 		compatible = "fsl,qman-portal";
 		reg = <0x4000 0x4000>, <0x1001000 0x1000>;
 		interrupts = <106 0x2 0 0>;
-		fsl,qman-channel-id = <0x1>;
+		cell-index = <0x1>;
 	};
-
 	qportal2: qman-portal@8000 {
-		cell-index = <0x2>;
 		compatible = "fsl,qman-portal";
 		reg = <0x8000 0x4000>, <0x1002000 0x1000>;
 		interrupts = <108 0x2 0 0>;
-		fsl,qman-channel-id = <0x2>;
+		cell-index = <0x2>;
 	};
-
 	qportal3: qman-portal@c000 {
-		cell-index = <0x3>;
 		compatible = "fsl,qman-portal";
 		reg = <0xc000 0x4000>, <0x1003000 0x1000>;
 		interrupts = <110 0x2 0 0>;
-		fsl,qman-channel-id = <0x3>;
+		cell-index = <0x3>;
 	};
-
 	qportal4: qman-portal@10000 {
-		cell-index = <0x4>;
 		compatible = "fsl,qman-portal";
 		reg = <0x10000 0x4000>, <0x1004000 0x1000>;
 		interrupts = <112 0x2 0 0>;
-		fsl,qman-channel-id = <0x4>;
+		cell-index = <0x4>;
 	};
-
 	qportal5: qman-portal@14000 {
-		cell-index = <0x5>;
 		compatible = "fsl,qman-portal";
 		reg = <0x14000 0x4000>, <0x1005000 0x1000>;
 		interrupts = <114 0x2 0 0>;
-		fsl,qman-channel-id = <0x5>;
+		cell-index = <0x5>;
 	};
-
 	qportal6: qman-portal@18000 {
-		cell-index = <0x6>;
 		compatible = "fsl,qman-portal";
 		reg = <0x18000 0x4000>, <0x1006000 0x1000>;
 		interrupts = <116 0x2 0 0>;
-		fsl,qman-channel-id = <0x6>;
+		cell-index = <0x6>;
 	};
-
 	qportal7: qman-portal@1c000 {
-		cell-index = <0x7>;
 		compatible = "fsl,qman-portal";
 		reg = <0x1c000 0x4000>, <0x1007000 0x1000>;
 		interrupts = <118 0x2 0 0>;
-		fsl,qman-channel-id = <0x7>;
+		cell-index = <0x7>;
 	};
-
 	qportal8: qman-portal@20000 {
-		cell-index = <0x8>;
 		compatible = "fsl,qman-portal";
 		reg = <0x20000 0x4000>, <0x1008000 0x1000>;
 		interrupts = <120 0x2 0 0>;
-		fsl,qman-channel-id = <0x8>;
+		cell-index = <0x8>;
 	};
-
 	qportal9: qman-portal@24000 {
-		cell-index = <0x9>;
 		compatible = "fsl,qman-portal";
 		reg = <0x24000 0x4000>, <0x1009000 0x1000>;
 		interrupts = <122 0x2 0 0>;
-		fsl,qman-channel-id = <0x9>;
-	};
-
-	qman-ceetm@0 {
-		compatible = "fsl,qman-ceetm";
-		fsl,ceetm-lfqid-range = <0xf00000 0x1000>;
-		fsl,ceetm-sp-range = <0 16>;
-		fsl,ceetm-lni-range = <0 8>;
-		fsl,ceetm-channel-range = <0 8>;
+		cell-index = <0x9>;
 	};
 };
 
@@ -462,6 +425,50 @@
 /include/ "qoriq-clockgen2.dtsi"
 	global-utilities@e1000 {
 		compatible = "fsl,t1040-clockgen", "fsl,qoriq-clockgen-2.0";
+
+		mux0: mux0@0 {
+			#clock-cells = <0>;
+			reg = <0x0 4>;
+			compatible = "fsl,qoriq-core-mux-2.0";
+			clocks = <&pll0 0>, <&pll0 1>, <&pll0 2>,
+				 <&pll1 0>, <&pll1 1>, <&pll1 2>;
+			clock-names = "pll0", "pll0-div2", "pll1-div4",
+				"pll1", "pll1-div2", "pll1-div4";
+			clock-output-names = "cmux0";
+		};
+
+		mux1: mux1@20 {
+			#clock-cells = <0>;
+			reg = <0x20 4>;
+			compatible = "fsl,qoriq-core-mux-2.0";
+			clocks = <&pll0 0>, <&pll0 1>, <&pll0 2>,
+				 <&pll1 0>, <&pll1 1>, <&pll1 2>;
+			clock-names = "pll0", "pll0-div2", "pll1-div4",
+				"pll1", "pll1-div2", "pll1-div4";
+			clock-output-names = "cmux1";
+		};
+
+		mux2: mux2@40 {
+			#clock-cells = <0>;
+			reg = <0x40 4>;
+			compatible = "fsl,qoriq-core-mux-2.0";
+			clocks = <&pll0 0>, <&pll0 1>, <&pll0 2>,
+				 <&pll1 0>, <&pll1 1>, <&pll1 2>;
+			clock-names = "pll0", "pll0-div2", "pll1-div4",
+				"pll1", "pll1-div2", "pll1-div4";
+			clock-output-names = "cmux2";
+		};
+
+		mux3: mux3@60 {
+			#clock-cells = <0>;
+			reg = <0x60 4>;
+			compatible = "fsl,qoriq-core-mux-2.0";
+			clocks = <&pll0 0>, <&pll0 1>, <&pll0 2>,
+				 <&pll1 0>, <&pll1 1>, <&pll1 2>;
+			clock-names = "pll0_0", "pll0_1", "pll0_2",
+				"pll1_0", "pll1_1", "pll1_2";
+			clock-output-names = "cmux3";
+		};
 	};
 
 	rcpm: global-utilities@e2000 {
@@ -480,7 +487,7 @@
 	};
 
 	tmu: tmu@f0000 {
-		compatible = "fsl,qoriq-tmu", "fsl,t104x-tmu";
+		compatible = "fsl,qoriq-tmu";
 		reg = <0xf0000 0x1000>;
 		interrupts = <18 2 0 0>;
 		fsl,tmu-range = <0xa0000 0x90026 0x8004a 0x1006a>;
@@ -519,8 +526,7 @@
 
 				       0x00030000 0x00000012
 				       0x00030001 0x0000001d>;
-		little-endian;
-		#thermal-sensor-cells = <1>;
+		#thermal-sensor-cells = <0>;
 	};
 
 	thermal-zones {
@@ -528,7 +534,7 @@
 			polling-delay-passive = <1000>;
 			polling-delay = <5000>;
 
-			thermal-sensors = <&tmu 2>;
+			thermal-sensors = <&tmu>;
 
 			trips {
 				cpu_alert: cpu-alert {
@@ -590,27 +596,21 @@
 		fsl,iommu-parent = <&pamu0>;
 		fsl,liodn-reg = <&guts 0x530>; /* eSDHCLIODNR */
 		sdhci,auto-cmd12;
-		rcpm-wakeup = <&rcpm 0x00000080>;
 	};
 /include/ "qoriq-i2c-0.dtsi"
 /include/ "qoriq-i2c-1.dtsi"
 /include/ "qoriq-duart-0.dtsi"
 /include/ "qoriq-duart-1.dtsi"
 /include/ "qoriq-gpio-0.dtsi"
-	gpio@130000 {
-		rcpm-wakeup = <&rcpm 0x00000040>;
-	};
 /include/ "qoriq-gpio-1.dtsi"
 /include/ "qoriq-gpio-2.dtsi"
 /include/ "qoriq-gpio-3.dtsi"
-/include/ "qoriq-tdm1.0.dtsi"
 /include/ "qoriq-usb2-mph-0.dtsi"
 		usb0: usb@210000 {
 			compatible = "fsl-usb2-mph-v2.5", "fsl-usb2-mph";
 			fsl,iommu-parent = <&pamu0>;
 			fsl,liodn-reg = <&guts 0x520>; /* USB1LIODNR */
 			phy_type = "utmi";
-			rcpm-wakeup = <&rcpm 0x00000020>;
 			port0;
 		};
 /include/ "qoriq-usb2-dr-0.dtsi"
@@ -620,7 +620,6 @@
 			fsl,liodn-reg = <&guts 0x524>; /* USB2LIODNR */
 			dr_mode = "host";
 			phy_type = "utmi";
-			rcpm-wakeup = <&rcpm 0x00000010>;
 		};
 
 	display@180000 {
@@ -640,136 +639,37 @@
 		fsl,liodn-reg = <&guts 0x554>; /* SATA2LIODNR */
 	};
 /include/ "qoriq-sec5.0-0.dtsi"
-/include/ "qoriq-pme-0.dtsi"
 /include/ "qoriq-qman3.dtsi"
 /include/ "qoriq-bman1.dtsi"
+
 /include/ "qoriq-fman3l-0.dtsi"
 /include/ "qoriq-fman3-0-1g-0.dtsi"
 /include/ "qoriq-fman3-0-1g-1.dtsi"
 /include/ "qoriq-fman3-0-1g-2.dtsi"
 /include/ "qoriq-fman3-0-1g-3.dtsi"
 /include/ "qoriq-fman3-0-1g-4.dtsi"
-	fman0: fman@400000 {
-		/* tx - 1g - 0 */
-		port@a8000 {
-			fsl,qman-channel-id = <0x802>;
+	fman@400000 {
+		enet0: ethernet@e0000 {
 		};
-		/* tx - 1g - 1 */
-		port@a9000 {
-			fsl,qman-channel-id = <0x803>;
+
+		enet1: ethernet@e2000 {
 		};
-		/* tx - 1g - 2 */
-		port@aa000 {
-			fsl,qman-channel-id = <0x804>;
+
+		enet2: ethernet@e4000 {
 		};
-		/* tx - 1g - 3 */
-		port@ab000 {
-			fsl,qman-channel-id = <0x805>;
+
+		enet3: ethernet@e6000 {
 		};
-		/* tx - 1g - 4 */
-		port@ac000 {
-			fsl,qman-channel-id = <0x806>;
+
+		enet4: ethernet@e8000 {
 		};
-		/* offline - 1 */
-		port@82000 {
-			fsl,qman-channel-id = <0x809>;
+
+		mdio@fc000 {
+			interrupts = <100 1 0 0>;
 		};
-		/* offline - 2 */
-		port@83000 {
-			fsl,qman-channel-id = <0x80a>;
-		};
-		/* offline - 3 */
-		port@84000 {
-			fsl,qman-channel-id = <0x80b>;
-		};
-		/* offline - 4 */
-		port@85000 {
-			fsl,qman-channel-id = <0x80c>;
-		};
-		/* offline - 5 */
-		port@86000 {
-			fsl,qman-channel-id = <0x80d>;
-		};
-		/* offline - 6 */
-		port@87000 {
-			fsl,qman-channel-id = <0x80e>;
-		};
+
 		mdio@fd000 {
 			status = "disabled";
-		};
-	};
-/include/ "qoriq-l2switch-0.dtsi"
-	l2switch@800000 {
-		interrupts = <26 2 0 0>;
-
-		port@100000 {
-			tbi-handle = <&swtbi4>;
-		};
-		port@110000 {
-			tbi-handle = <&swtbi5>;
-		};
-		port@120000 {
-			tbi-handle = <&swtbi6>;
-		};
-		port@130000 {
-			tbi-handle = <&swtbi7>;
-		};
-		port@140000 {
-			tbi-handle = <&swtbi8>;
-		};
-		port@150000 {
-			tbi-handle = <&swtbi9>;
-		};
-		port@160000 {
-			tbi-handle = <&swtbi10>;
-		};
-		port@170000 {
-			tbi-handle = <&swtbi11>;
-		};
-		port@180000 {
-			fixed-link = <2 1 2500 0 0>;
-			phy-connection-type = "sgmii";
-		};
-		port@190000 {
-			fixed-link = <3 1 2500 0 0>;
-			phy-connection-type = "sgmii";
-		};
-		mdio@700ac {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			compatible = "vitesse-9953-mdio";
-			swtbi4: tbi-phy@4 {
-				reg = <0x4>;
-				device_type = "tbi-phy";
-			};
-			swtbi5: tbi-phy@5 {
-				reg = <0x5>;
-				device_type = "tbi-phy";
-			};
-			swtbi6: tbi-phy@6 {
-				reg = <0x6>;
-				device_type = "tbi-phy";
-			};
-			swtbi7: tbi-phy@7 {
-				reg = <0x7>;
-				device_type = "tbi-phy";
-			};
-			swtbi8: tbi-phy@8 {
-				reg = <0x8>;
-				device_type = "tbi-phy";
-			};
-			swtbi9: tbi-phy@9 {
-				reg = <0x9>;
-				device_type = "tbi-phy";
-			};
-			swtbi10: tbi-phy@a {
-				reg = <0xa>;
-				device_type = "tbi-phy";
-			};
-			swtbi11: tbi-phy@b {
-				reg = <0xb>;
-				device_type = "tbi-phy";
-			};
 		};
 	};
 };

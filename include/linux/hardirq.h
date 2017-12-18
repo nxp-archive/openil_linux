@@ -1,10 +1,11 @@
 #ifndef LINUX_HARDIRQ_H
 #define LINUX_HARDIRQ_H
 
-#include <linux/preempt_mask.h>
+#include <linux/preempt.h>
 #include <linux/lockdep.h>
 #include <linux/ftrace_irq.h>
 #include <linux/vtime.h>
+#include <linux/ipipe.h>
 #include <asm/hardirq.h>
 
 
@@ -62,6 +63,7 @@ extern void irq_exit(void);
 #define nmi_enter()						\
 	do {							\
 		__ipipe_nmi_enter();				\
+		printk_nmi_enter();				\
 		lockdep_off();					\
 		ftrace_nmi_enter();				\
 		BUG_ON(in_nmi());				\
@@ -78,6 +80,7 @@ extern void irq_exit(void);
 		preempt_count_sub(NMI_OFFSET + HARDIRQ_OFFSET);	\
 		ftrace_nmi_exit();				\
 		lockdep_on();					\
+		printk_nmi_exit();				\
 		__ipipe_nmi_exit();				\
 	} while (0)
 

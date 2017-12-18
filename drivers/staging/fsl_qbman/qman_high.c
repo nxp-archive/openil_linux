@@ -425,6 +425,18 @@ static inline void hw_ccgr_query_to_cpu(struct qm_mcr_ceetm_ccgr_query *ccgr_q)
 {
 	int i;
 
+	ccgr_q->cm_query.cs_thres.hword =
+		be16_to_cpu(ccgr_q->cm_query.cs_thres.hword);
+	ccgr_q->cm_query.cs_thres_x.hword =
+		be16_to_cpu(ccgr_q->cm_query.cs_thres_x.hword);
+	ccgr_q->cm_query.td_thres.hword =
+		be16_to_cpu(ccgr_q->cm_query.td_thres.hword);
+	ccgr_q->cm_query.wr_parm_g.word =
+	       be32_to_cpu(ccgr_q->cm_query.wr_parm_g.word);
+	ccgr_q->cm_query.wr_parm_y.word =
+		be32_to_cpu(ccgr_q->cm_query.wr_parm_y.word);
+	ccgr_q->cm_query.wr_parm_r.word =
+		be32_to_cpu(ccgr_q->cm_query.wr_parm_r.word);
 	ccgr_q->cm_query.cscn_targ_dcp =
 		be16_to_cpu(ccgr_q->cm_query.cscn_targ_dcp);
 	ccgr_q->cm_query.i_cnt = be40_to_cpu(ccgr_q->cm_query.i_cnt);
@@ -664,7 +676,7 @@ struct qman_portal *qman_create_portal(
 		pr_err("qman_portal - platform_device_alloc() failed\n");
 		goto fail_devalloc;
 	}
-#ifdef CONFIG_ARM
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
 	portal->pdev->dev.coherent_dma_mask = DMA_BIT_MASK(40);
 	portal->pdev->dev.dma_mask = &portal->pdev->dev.coherent_dma_mask;
 #else
@@ -925,6 +937,7 @@ static u32 __poll_portal_slow(struct qman_portal *p, u32 is)
 {
 	const struct qm_mr_entry *msg;
 	struct qm_mr_entry swapped_msg;
+	int k;
 
 	if (is & QM_PIRQ_CSCI) {
 		struct qman_cgrs rr, c;
@@ -944,6 +957,9 @@ static u32 __poll_portal_slow(struct qman_portal *p, u32 is)
 		qm_mc_commit(&p->p, QM_MCC_VERB_QUERYCONGESTION);
 		while (!(mcr = qm_mc_result(&p->p)))
 			cpu_relax();
+		for (k = 0; k < 8; k++)
+			mcr->querycongestion.state.__state[k] = be32_to_cpu(
+					mcr->querycongestion.state.__state[k]);
 		/* mask out the ones I'm not interested in */
 		qman_cgrs_and(&rr, (const struct qman_cgrs *)
 			&mcr->querycongestion.state, &p->cgrs[0]);
@@ -963,7 +979,7 @@ static u32 __poll_portal_slow(struct qman_portal *p, u32 is)
 		struct qm_mc_command *mcc;
 		struct qm_ceetm_ccg *ccg;
 		unsigned long irqflags __maybe_unused;
-		int i, j, k;
+		int i, j;
 
 		spin_lock_irqsave(&p->ccgr_lock, irqflags);
 		/*
@@ -5433,18 +5449,12 @@ int qman_ceetm_ccg_get(struct qm_ceetm_ccg *ccg,
 		return -EINVAL;
 	}
 
-	params->wr_parm_r.word =
-			be32_to_cpu(query_result.cm_query.wr_parm_r.word);
-	params->wr_parm_y.word =
-			be32_to_cpu(query_result.cm_query.wr_parm_y.word);
-	params->wr_parm_g.word =
-		       be32_to_cpu(query_result.cm_query.wr_parm_g.word);
-	params->td_thres.hword =
-			be16_to_cpu(query_result.cm_query.td_thres.hword);
-	params->cs_thres_out.hword =
-			be16_to_cpu(query_result.cm_query.cs_thres_x.hword);
-	params->cs_thres_in.hword =
-			be16_to_cpu(query_result.cm_query.cs_thres.hword);
+	params->wr_parm_r.word = query_result.cm_query.wr_parm_r.word;
+	params->wr_parm_y.word = query_result.cm_query.wr_parm_y.word;
+	params->wr_parm_g.word = query_result.cm_query.wr_parm_g.word;
+	params->td_thres.hword = query_result.cm_query.td_thres.hword;
+	params->cs_thres_out.hword = query_result.cm_query.cs_thres_x.hword;
+	params->cs_thres_in.hword = query_result.cm_query.cs_thres.hword;
 	params->oal = query_result.cm_query.oal;
 	params->wr_en_g = query_result.cm_query.ctl_wr_en_g;
 	params->wr_en_y = query_result.cm_query.ctl_wr_en_y;
@@ -5505,7 +5515,7 @@ int qman_ceetm_cscn_swp_get(struct qm_ceetm_ccg *ccg,
 
 	i = swp_idx / 32;
 	i = 3 - i;
-	*cscn_enabled = be32_to_cpu(query_result.cm_query.cscn_targ_swp[i]) >>
+	*cscn_enabled = query_result.cm_query.cscn_targ_swp[i] >>
 							(31 - swp_idx % 32);
 
 	return 0;
@@ -5577,8 +5587,7 @@ int qman_ceetm_cscn_dcp_get(struct qm_ceetm_ccg *ccg,
 	}
 
 	*vcgid = query_result.cm_query.cdv;
-	*cscn_enabled = (be16_to_cpu(query_result.cm_query.cscn_targ_dcp >>
-				     dcp_idx)) & 0x1;
+	*cscn_enabled = (query_result.cm_query.cscn_targ_dcp >> dcp_idx) & 0x1;
 	return 0;
 }
 EXPORT_SYMBOL(qman_ceetm_cscn_dcp_get);

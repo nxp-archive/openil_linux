@@ -18,7 +18,7 @@
  */
 #ifndef _COBALT_ASM_GENERIC_WRAPPERS_H
 
-#include <linux/version.h>
+#include <linux/xenomai/wrappers.h>
 
 #ifdef CONFIG_IPIPE_LEGACY
 #error "CONFIG_IPIPE_LEGACY must be switched off"
@@ -37,6 +37,23 @@
  *   be defined, instead of testing the existence of a preprocessor
  *   symbol, so that obsolete wrappers can be spotted.
  */
+
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,6,0)
+#define in_ia32_syscall() (current_thread_info()->status & TS_COMPAT)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0)
+#define cobalt_gpiochip_dev(__gc)	((__gc)->dev)
+#else
+#define cobalt_gpiochip_dev(__gc)	((__gc)->parent)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0)
+#define cobalt_get_restart_block(p)	(&task_thread_info(p)->restart_block)
+#else
+#define cobalt_get_restart_block(p)	(&(p)->restart_block)
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
 #define user_msghdr msghdr

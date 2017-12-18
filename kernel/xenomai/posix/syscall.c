@@ -180,6 +180,23 @@ static COBALT_SYSCALL(trace, current,
 	return ret;
 }
 
+static COBALT_SYSCALL(ftrace_puts, current,
+		      (const char __user *str))
+{
+	char buf[256];
+	unsigned len;
+
+	len = cobalt_strncpy_from_user(buf, str, sizeof(buf));
+	if (len < 0)
+		return -EFAULT;
+
+#ifdef CONFIG_TRACING
+	__trace_puts(_THIS_IP_, buf, len);
+#endif
+
+	return 0;
+}
+
 static COBALT_SYSCALL(archcall, current,
 		      (unsigned long a1, unsigned long a2,
 		       unsigned long a3, unsigned long a4,
@@ -314,7 +331,7 @@ static COBALT_SYSCALL(bind, lostage,
 	f = &breq.feat_ret;
 	featreq = breq.feat_req;
 	if (!realtime_core_running() && (featreq & __xn_feat_control) == 0)
-		return -EPERM;
+		return -EAGAIN;
 
 	/*
 	 * Calculate the missing feature set:
@@ -505,7 +522,7 @@ static int handle_head_syscall(struct ipipe_domain *ipd, struct pt_regs *regs)
 
 	nr = code & (__NR_COBALT_SYSCALLS - 1);
 
-	trace_cobalt_head_sysentry(thread, code);
+	trace_cobalt_head_sysentry(code);
 
 	process = cobalt_current_process();
 	if (process == NULL) {
@@ -642,7 +659,7 @@ ret_handled:
 		xnthread_sync_window(thread);
 	}
 
-	trace_cobalt_head_sysexit(thread, __xn_reg_rval(regs));
+	trace_cobalt_head_sysexit(__xn_reg_rval(regs));
 
 	return KEVENT_STOP;
 
@@ -703,7 +720,7 @@ static int handle_root_syscall(struct ipipe_domain *ipd, struct pt_regs *regs)
 	code = __xn_syscall(regs);
 	nr = code & (__NR_COBALT_SYSCALLS - 1);
 
-	trace_cobalt_root_sysentry(thread, code);
+	trace_cobalt_root_sysentry(code);
 
 	/* Processing a Xenomai syscall. */
 
@@ -777,12 +794,12 @@ restart:
 ret_handled:
 	/* Update the stats and userland-visible state. */
 	if (thread) {
-		xnthread_clear_localinfo(thread, XNDESCENT);
+		xnthread_clear_localinfo(thread, XNDESCENT|XNHICCUP);
 		xnstat_counter_inc(&thread->stat.xsc);
 		xnthread_sync_window(thread);
 	}
 
-	trace_cobalt_root_sysexit(thread, __xn_reg_rval(regs));
+	trace_cobalt_root_sysexit(__xn_reg_rval(regs));
 
 	return KEVENT_STOP;
 }
@@ -803,4 +820,9 @@ int ipipe_fastcall_hook(struct pt_regs *regs)
 	XENO_BUG_ON(COBALT, ret == KEVENT_PROPAGATE);
 
 	return ret;
+}
+
+long cobalt_restart_syscall_placeholder(struct restart_block *param)
+{
+	return -EINVAL;
 }

@@ -45,9 +45,9 @@ static void fsnotify_final_destroy_group(struct fsnotify_group *group)
  */
 void fsnotify_group_stop_queueing(struct fsnotify_group *group)
 {
-	mutex_lock(&group->notification_mutex);
+	spin_lock(&group->notification_lock);
 	group->shutdown = true;
-	mutex_unlock(&group->notification_mutex);
+	spin_unlock(&group->notification_lock);
 }
 
 /*
@@ -66,12 +66,21 @@ void fsnotify_destroy_group(struct fsnotify_group *group)
 	 */
 	fsnotify_group_stop_queueing(group);
 
-	/* clear all inode marks for this group */
-	fsnotify_clear_marks_by_group(group);
+	/* clear all inode marks for this group, attach them to destroy_list */
+	fsnotify_detach_group_marks(group);
 
-	synchronize_srcu(&fsnotify_mark_srcu);
+	/*
+	 * Wait for fsnotify_mark_srcu period to end and free all marks in
+	 * destroy_list
+	 */
+	fsnotify_mark_destroy_list();
 
-	/* clear the notification queue of all events */
+	/*
+	 * Since we have waited for fsnotify_mark_srcu in
+	 * fsnotify_mark_destroy_list() there can be no outstanding event
+	 * notification against this group. So clearing the notification queue
+	 * of all events is reliable now.
+	 */
 	fsnotify_flush_notify(group);
 
 	/*
@@ -116,7 +125,7 @@ struct fsnotify_group *fsnotify_alloc_group(const struct fsnotify_ops *ops)
 	atomic_set(&group->refcnt, 1);
 	atomic_set(&group->num_marks, 0);
 
-	mutex_init(&group->notification_mutex);
+	spin_lock_init(&group->notification_lock);
 	INIT_LIST_HEAD(&group->notification_list);
 	init_waitqueue_head(&group->notification_waitq);
 	group->max_events = UINT_MAX;

@@ -53,27 +53,14 @@
 
 static void __ipipe_do_IRQ(unsigned irq, void *cookie);
 
+/* irq_nesting tracks the interrupt nesting level for a CPU. */
+DEFINE_PER_CPU(int, irq_nesting);
+
 #ifdef CONFIG_IPIPE_DEBUG_INTERNAL
 void (*__ipipe_mach_hrtimer_debug)(unsigned irq);
 #endif
 
 #ifdef CONFIG_SMP
-
-struct __ipipe_vnmidata {
-	void (*fn)(void *);
-	void *arg;
-	cpumask_t cpumask;
-};
-
-static struct __ipipe_vnmislot {
-	ipipe_spinlock_t lock;
-	struct __ipipe_vnmidata *data;
-	ipipe_rwlock_t data_lock;
-} __ipipe_vnmi __cacheline_aligned_in_smp = {
-	.lock		= IPIPE_SPIN_LOCK_UNLOCKED,
-	.data		= NULL,
-	.data_lock	= IPIPE_RW_LOCK_UNLOCKED,
-};
 
 void __ipipe_early_core_setup(void)
 {
@@ -118,22 +105,6 @@ unsigned long ipipe_test_root(void)
 }
 EXPORT_SYMBOL_GPL(ipipe_test_root);
 
-void __ipipe_do_vnmi(unsigned int irq, void *cookie)
-{
-	int cpu = ipipe_processor_id();
-	struct __ipipe_vnmidata *data;
-
-	read_lock(&__ipipe_vnmi.data_lock);
-
-	data = __ipipe_vnmi.data;
-	if (likely(data && cpumask_test_cpu(cpu, &data->cpumask))) {
-		data->fn(data->arg);
-		cpumask_clear_cpu(cpu, &data->cpumask);
-	}
-
-	read_unlock(&__ipipe_vnmi.data_lock);
-}
-
 static inline void
 hook_internal_ipi(struct ipipe_domain *ipd, int virq,
 		  void (*handler)(unsigned int irq, void *cookie))
@@ -149,7 +120,6 @@ void __ipipe_hook_critical_ipi(struct ipipe_domain *ipd)
 {
 	__ipipe_ipis_alloc();
 	hook_internal_ipi(ipd, IPIPE_CRITICAL_IPI, __ipipe_do_critical_sync);
-	hook_internal_ipi(ipd, IPIPE_SERVICE_VNMI, __ipipe_do_vnmi);
 }
 
 void ipipe_set_irq_affinity(unsigned int irq, cpumask_t cpumask)
@@ -166,44 +136,6 @@ void ipipe_set_irq_affinity(unsigned int irq, cpumask_t cpumask)
 }
 EXPORT_SYMBOL_GPL(ipipe_set_irq_affinity);
 
-void __ipipe_send_vnmi(void (*fn)(void *), cpumask_t cpumask, void *arg)
-{
-	struct __ipipe_vnmidata data;
-	unsigned long flags;
-	int cpu;
-
-	data.fn = fn;
-	data.arg = arg;
-	data.cpumask = cpumask;
-
-	while (!spin_trylock_irqsave(&__ipipe_vnmi.lock, flags)) {
-		if (hard_irqs_disabled())
-			__ipipe_do_vnmi(IPIPE_SERVICE_VNMI, NULL);
-		cpu_relax();
-	}
-
-	cpu = ipipe_processor_id();
-	cpumask_clear_cpu(cpu, &data.cpumask);
-	if (cpumask_empty(&data.cpumask)) {
-		spin_unlock_irqrestore(&__ipipe_vnmi.lock, flags);
-		return;
-	}
-
-	write_lock(&__ipipe_vnmi.data_lock);
-	__ipipe_vnmi.data = &data;
-	write_unlock(&__ipipe_vnmi.data_lock);
-
-	ipipe_send_ipi(IPIPE_SERVICE_VNMI, data.cpumask);
-	while (!cpumask_empty(&data.cpumask))
-		cpu_relax();
-
-	write_lock(&__ipipe_vnmi.data_lock);
-	__ipipe_vnmi.data = NULL;
-	write_unlock(&__ipipe_vnmi.data_lock);
-
-	spin_unlock_irqrestore(&__ipipe_vnmi.lock, flags);
-}
-EXPORT_SYMBOL_GPL(__ipipe_send_vnmi);
 #endif	/* CONFIG_SMP */
 
 #ifdef CONFIG_SMP_ON_UP
@@ -369,92 +301,6 @@ static void __ipipe_do_IRQ(unsigned irq, void *cookie)
 	struct pt_regs *regs = raw_cpu_ptr(&ipipe_percpu.tick_regs);
 	__handle_domain_irq(NULL, irq, false, regs);
 }
-
-#ifdef CONFIG_MMU
-void __switch_mm_inner(struct mm_struct *prev, struct mm_struct *next,
-		       struct task_struct *tsk)
-{
-	struct mm_struct ** const active_mm =
-		raw_cpu_ptr(&ipipe_percpu.active_mm);
-	int ret;
-#ifdef CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH
-	struct thread_info *const tip = current_thread_info();
-	unsigned long flags;
-
-	prev = *active_mm;
-	clear_bit(TIF_MMSWITCH_INT, &tip->flags);
-	barrier();
-	*active_mm = NULL;
-	barrier();
-
-	for (;;) {
-		ret = __do_switch_mm(prev, next, tsk, true);
-		/*
-		 * Reading thread_info flags and setting active_mm
-		 * must be done atomically.
-		 */
-		flags = hard_local_irq_save();
-		if (__test_and_clear_bit(TIF_MMSWITCH_INT, &tip->flags) == 0) {
-			*active_mm = ret < 0 ? prev : next;
-			hard_local_irq_restore(flags);
-			return;
-		}
-		hard_local_irq_restore(flags);
-
-		if (ret < 0)
-			/*
-			 * We were interrupted by head domain, which
-			 * may have changed the mm context, mm context
-			 * is now unknown, but will be switched in
-			 * deferred_switch_mm
-			 */
-			return;
-
-		prev = NULL;
-	}
-#else
-	ret = __do_switch_mm(prev, next, tsk, true);
-	*active_mm = ret < 0 ? prev : next;
-#endif	/* CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH */
-}
-
-#ifdef finish_arch_post_lock_switch
-void deferred_switch_mm(struct mm_struct *next)
-{
-	struct mm_struct ** const active_mm =
-		raw_cpu_ptr(&ipipe_percpu.active_mm);
-	struct mm_struct *prev = *active_mm;
-#ifdef CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH
-	struct thread_info *const tip = current_thread_info();
-	unsigned long flags;
-
-	clear_bit(TIF_MMSWITCH_INT, &tip->flags);
-	barrier();
-	*active_mm = NULL;
-	barrier();
-
-	for (;;) {
-		__do_switch_mm(prev, next, NULL, false);
-		/*
-		 * Reading thread_info flags and setting active_mm
-		 * must be done atomically.
-		 */
-		flags = hard_local_irq_save();
-		if (__test_and_clear_bit(TIF_MMSWITCH_INT, &tip->flags) == 0) {
-			*active_mm = next;
-			hard_local_irq_restore(flags);
-			return;
-		}
-		hard_local_irq_restore(flags);
-		prev = NULL;
-	}
-#else
-	__do_switch_mm(prev, next, NULL, false);
-	*active_mm = next;
-#endif	/* CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH */
-}
-#endif	/* finish_arch_post_lock_switch */
-#endif /* CONFIG_MMU */
 
 static struct __ipipe_tscinfo tsc_info;
 

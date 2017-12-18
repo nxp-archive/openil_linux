@@ -1,4 +1,4 @@
-/* Copyright 2013-2015 Freescale Semiconductor Inc.
+/* Copyright 2013-2016 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -36,30 +36,61 @@
 #define DPDMAI_VER_MAJOR				2
 #define DPDMAI_VER_MINOR				2
 
+#define DPDMAI_CMD_BASE_VERSION			0
+#define DPDMAI_CMD_ID_OFFSET				4
+
 /* Command IDs */
-#define DPDMAI_CMDID_CLOSE				0x800
-#define DPDMAI_CMDID_OPEN				0x80E
-#define DPDMAI_CMDID_CREATE				0x90E
-#define DPDMAI_CMDID_DESTROY				0x900
+#define DPDMAI_CMDID_CLOSE                           ((0x800 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+#define DPDMAI_CMDID_OPEN                            ((0x80E << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+#define DPDMAI_CMDID_CREATE                          ((0x90E << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+#define DPDMAI_CMDID_DESTROY                         ((0x900 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
 
-#define DPDMAI_CMDID_ENABLE				0x002
-#define DPDMAI_CMDID_DISABLE				0x003
-#define DPDMAI_CMDID_GET_ATTR				0x004
-#define DPDMAI_CMDID_RESET				0x005
-#define DPDMAI_CMDID_IS_ENABLED				0x006
+#define DPDMAI_CMDID_ENABLE                          ((0x002 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+#define DPDMAI_CMDID_DISABLE                         ((0x003 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+#define DPDMAI_CMDID_GET_ATTR                        ((0x004 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+#define DPDMAI_CMDID_RESET                           ((0x005 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+#define DPDMAI_CMDID_IS_ENABLED                      ((0x006 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
 
-#define DPDMAI_CMDID_SET_IRQ				0x010
-#define DPDMAI_CMDID_GET_IRQ				0x011
-#define DPDMAI_CMDID_SET_IRQ_ENABLE			0x012
-#define DPDMAI_CMDID_GET_IRQ_ENABLE			0x013
-#define DPDMAI_CMDID_SET_IRQ_MASK			0x014
-#define DPDMAI_CMDID_GET_IRQ_MASK			0x015
-#define DPDMAI_CMDID_GET_IRQ_STATUS			0x016
-#define DPDMAI_CMDID_CLEAR_IRQ_STATUS			0x017
+#define DPDMAI_CMDID_SET_IRQ                         ((0x010 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+#define DPDMAI_CMDID_GET_IRQ                         ((0x011 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+#define DPDMAI_CMDID_SET_IRQ_ENABLE                  ((0x012 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+#define DPDMAI_CMDID_GET_IRQ_ENABLE                  ((0x013 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+#define DPDMAI_CMDID_SET_IRQ_MASK                    ((0x014 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+#define DPDMAI_CMDID_GET_IRQ_MASK                    ((0x015 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+#define DPDMAI_CMDID_GET_IRQ_STATUS                  ((0x016 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+#define DPDMAI_CMDID_CLEAR_IRQ_STATUS                ((0x017 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
 
-#define DPDMAI_CMDID_SET_RX_QUEUE			0x1A0
-#define DPDMAI_CMDID_GET_RX_QUEUE			0x1A1
-#define DPDMAI_CMDID_GET_TX_QUEUE			0x1A2
+#define DPDMAI_CMDID_SET_RX_QUEUE                    ((0x1A0 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+#define DPDMAI_CMDID_GET_RX_QUEUE                    ((0x1A1 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+#define DPDMAI_CMDID_GET_TX_QUEUE                    ((0x1A2 << DPDMAI_CMD_ID_OFFSET) | DPDMAI_CMD_BASE_VERSION)
+
+
+#define MC_CMD_HDR_TOKEN_O 32  /* Token field offset */
+#define MC_CMD_HDR_TOKEN_S 16  /* Token field size */
+
+
+#define MAKE_UMASK64(_width) \
+	((uint64_t)((_width) < 64 ? ((uint64_t)1 << (_width)) - 1 : \
+	(uint64_t)-1))
+
+static inline uint64_t mc_enc(int lsoffset, int width, uint64_t val)
+{
+	return (uint64_t)(((uint64_t)val & MAKE_UMASK64(width)) << lsoffset);
+}
+
+static inline uint64_t mc_dec(uint64_t val, int lsoffset, int width)
+{
+	return (uint64_t)((val >> lsoffset) & MAKE_UMASK64(width));
+}
+
+#define MC_CMD_OP(_cmd, _param, _offset, _width, _type, _arg) \
+	((_cmd).params[_param] |= mc_enc((_offset), (_width), _arg))
+
+#define MC_RSP_OP(_cmd, _param, _offset, _width, _type, _arg) \
+	(_arg = (_type)mc_dec(_cmd.params[_param], (_offset), (_width)))
+
+#define MC_CMD_HDR_READ_TOKEN(_hdr) \
+	((uint16_t)mc_dec((_hdr), MC_CMD_HDR_TOKEN_O, MC_CMD_HDR_TOKEN_S))
 
 /*                cmd, param, offset, width, type, arg_name */
 #define DPDMAI_CMD_OPEN(cmd, dpdmai_id) \

@@ -17,11 +17,12 @@
 #include <linux/errno.h>
 #include <linux/of_address.h>
 #include <linux/export.h>
-#include <linux/io.h>
-#include <linux/fsl/guts.h>
 
+#include <asm/io.h>
+#include <linux/fsl/guts.h>
 #include <asm/cputhreads.h>
 #include <asm/fsl_pm.h>
+#include <asm/smp.h>
 
 static struct ccsr_rcpm_v1 __iomem *rcpm_v1_regs;
 static struct ccsr_rcpm_v2 __iomem *rcpm_v2_regs;
@@ -217,15 +218,14 @@ static void rcpm_v2_cpu_up_prepare(int cpu)
 	rcpm_v2_irq_unmask(cpu);
 }
 
-static int rcpm_v1_plat_enter_sleep(int state)
+static int rcpm_v1_plat_enter_state(int state)
 {
 	u32 *pmcsr_reg = &rcpm_v1_regs->powmgtcsr;
 	int ret = 0;
 	int result;
 
 	switch (state) {
-	case FSL_PM_SLEEP:
-		cur_cpu_spec->cpu_down_flush();
+	case PLAT_PM_SLEEP:
 		setbits32(pmcsr_reg, RCPM_POWMGTCSR_SLP);
 
 		/* Upon resume, wait for RCPM_POWMGTCSR_SLP bit to be clear. */
@@ -244,15 +244,14 @@ static int rcpm_v1_plat_enter_sleep(int state)
 	return ret;
 }
 
-static int rcpm_v2_plat_enter_sleep(int state)
+static int rcpm_v2_plat_enter_state(int state)
 {
 	u32 *pmcsr_reg = &rcpm_v2_regs->powmgtcsr;
 	int ret = 0;
-	int result, cpu;
+	int result;
 
 	switch (state) {
-	case FSL_PM_SLEEP:
-		cur_cpu_spec->cpu_down_flush();
+	case PLAT_PM_LPM20:
 		/* clear previous LPM20 status */
 		setbits32(pmcsr_reg, RCPM_POWMGTCSR_P_LPM20_ST);
 		/* enter LPM20 status */
@@ -268,18 +267,22 @@ static int rcpm_v2_plat_enter_sleep(int state)
 			ret = -ETIMEDOUT;
 		}
 		break;
-	case FSL_PM_DEEP_SLEEP:
-		cpu = smp_processor_id();
-		rcpm_v2_irq_mask(cpu);
-		ret = fsl_enter_deepsleep();
-		rcpm_v2_irq_unmask(cpu);
-		break;
 	default:
 		pr_warn("Unknown platform PM state (%d)\n", state);
 		ret = -EINVAL;
 	}
 
 	return ret;
+}
+
+static int rcpm_v1_plat_enter_sleep(void)
+{
+	return rcpm_v1_plat_enter_state(PLAT_PM_SLEEP);
+}
+
+static int rcpm_v2_plat_enter_sleep(void)
+{
+	return rcpm_v2_plat_enter_state(PLAT_PM_LPM20);
 }
 
 static void rcpm_common_freeze_time_base(u32 *tben_reg, int freeze)

@@ -824,10 +824,7 @@ static int mmap_piobufs(struct vm_area_struct *vma,
 	phys = dd->physaddr + piobufs;
 
 #if defined(__powerpc__)
-	/* There isn't a generic way to specify writethrough mappings */
-	pgprot_val(vma->vm_page_prot) |= _PAGE_NO_CACHE;
-	pgprot_val(vma->vm_page_prot) |= _PAGE_WRITETHRU;
-	pgprot_val(vma->vm_page_prot) &= ~_PAGE_GUARDED;
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 #endif
 
 	/*
@@ -910,7 +907,7 @@ static int qib_file_vma_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	return 0;
 }
 
-static struct vm_operations_struct qib_file_vm_ops = {
+static const struct vm_operations_struct qib_file_vm_ops = {
 	.fault = qib_file_vma_fault,
 };
 
@@ -2181,6 +2178,11 @@ static ssize_t qib_write(struct file *fp, const char __user *data,
 
 	switch (cmd.type) {
 	case QIB_CMD_ASSIGN_CTXT:
+		if (rcd) {
+			ret = -EINVAL;
+			goto bail;
+		}
+
 		ret = qib_assign_ctxt(fp, &cmd.cmd.user_info);
 		if (ret)
 			goto bail;

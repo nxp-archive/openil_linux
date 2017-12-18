@@ -1,9 +1,10 @@
 /*
  * AMD Cryptographic Coprocessor (CCP) SHA crypto API support
  *
- * Copyright (C) 2013 Advanced Micro Devices, Inc.
+ * Copyright (C) 2013,2016 Advanced Micro Devices, Inc.
  *
  * Author: Tom Lendacky <thomas.lendacky@amd.com>
+ * Author: Gary R Hook <gary.hook@amd.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -107,7 +108,15 @@ static int ccp_do_sha_update(struct ahash_request *req, unsigned int nbytes,
 
 		sg_init_one(&rctx->buf_sg, rctx->buf, rctx->buf_count);
 		sg = ccp_crypto_sg_table_add(&rctx->data_sg, &rctx->buf_sg);
+		if (!sg) {
+			ret = -EINVAL;
+			goto e_free;
+		}
 		sg = ccp_crypto_sg_table_add(&rctx->data_sg, req->src);
+		if (!sg) {
+			ret = -EINVAL;
+			goto e_free;
+		}
 		sg_mark_end(sg);
 
 		sg = rctx->data_sg.sgl;
@@ -126,7 +135,22 @@ static int ccp_do_sha_update(struct ahash_request *req, unsigned int nbytes,
 	rctx->cmd.engine = CCP_ENGINE_SHA;
 	rctx->cmd.u.sha.type = rctx->type;
 	rctx->cmd.u.sha.ctx = &rctx->ctx_sg;
-	rctx->cmd.u.sha.ctx_len = sizeof(rctx->ctx);
+
+	switch (rctx->type) {
+	case CCP_SHA_TYPE_1:
+		rctx->cmd.u.sha.ctx_len = SHA1_DIGEST_SIZE;
+		break;
+	case CCP_SHA_TYPE_224:
+		rctx->cmd.u.sha.ctx_len = SHA224_DIGEST_SIZE;
+		break;
+	case CCP_SHA_TYPE_256:
+		rctx->cmd.u.sha.ctx_len = SHA256_DIGEST_SIZE;
+		break;
+	default:
+		/* Should never get here */
+		break;
+	}
+
 	rctx->cmd.u.sha.src = sg;
 	rctx->cmd.u.sha.src_len = rctx->hash_cnt;
 	rctx->cmd.u.sha.opad = ctx->u.sha.key_len ?
@@ -140,6 +164,11 @@ static int ccp_do_sha_update(struct ahash_request *req, unsigned int nbytes,
 	rctx->first = 0;
 
 	ret = ccp_crypto_enqueue_request(&req->base, &rctx->cmd);
+
+	return ret;
+
+e_free:
+	sg_free_table(&rctx->data_sg);
 
 	return ret;
 }
@@ -331,6 +360,7 @@ static void ccp_hmac_sha_cra_exit(struct crypto_tfm *tfm)
 }
 
 struct ccp_sha_def {
+	unsigned int version;
 	const char *name;
 	const char *drv_name;
 	enum ccp_sha_type type;
@@ -340,6 +370,7 @@ struct ccp_sha_def {
 
 static struct ccp_sha_def sha_algs[] = {
 	{
+		.version	= CCP_VERSION(3, 0),
 		.name		= "sha1",
 		.drv_name	= "sha1-ccp",
 		.type		= CCP_SHA_TYPE_1,
@@ -347,6 +378,7 @@ static struct ccp_sha_def sha_algs[] = {
 		.block_size	= SHA1_BLOCK_SIZE,
 	},
 	{
+		.version	= CCP_VERSION(3, 0),
 		.name		= "sha224",
 		.drv_name	= "sha224-ccp",
 		.type		= CCP_SHA_TYPE_224,
@@ -354,6 +386,7 @@ static struct ccp_sha_def sha_algs[] = {
 		.block_size	= SHA224_BLOCK_SIZE,
 	},
 	{
+		.version	= CCP_VERSION(3, 0),
 		.name		= "sha256",
 		.drv_name	= "sha256-ccp",
 		.type		= CCP_SHA_TYPE_256,
@@ -470,8 +503,11 @@ static int ccp_register_sha_alg(struct list_head *head,
 int ccp_register_sha_algs(struct list_head *head)
 {
 	int i, ret;
+	unsigned int ccpversion = ccp_version();
 
 	for (i = 0; i < ARRAY_SIZE(sha_algs); i++) {
+		if (sha_algs[i].version > ccpversion)
+			continue;
 		ret = ccp_register_sha_alg(head, &sha_algs[i]);
 		if (ret)
 			return ret;

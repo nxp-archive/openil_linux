@@ -16,11 +16,24 @@ enum {
 	ARM_SEC_UNLIKELY,
 	ARM_SEC_MAX,
 };
+#endif
+
+struct mod_plt_sec {
+	struct elf32_shdr	*plt;
+	int			plt_count;
+};
 
 struct mod_arch_specific {
+#ifdef CONFIG_ARM_UNWIND
 	struct unwind_table *unwind[ARM_SEC_MAX];
-};
 #endif
+#ifdef CONFIG_ARM_MODULE_PLTS
+	struct mod_plt_sec	core;
+	struct mod_plt_sec	init;
+#endif
+};
+
+u32 get_module_plt(struct module *mod, unsigned long loc, Elf32_Addr val);
 
 /*
  * Add the ARM architecture version to the version magic string

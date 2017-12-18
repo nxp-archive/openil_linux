@@ -37,7 +37,6 @@
 /include/ "e5500_power_isa.dtsi"
 
 / {
-	compatible = "fsl,T104x";
 	#address-cells = <2>;
 	#size-cells = <2>;
 	interrupt-parent = <&mpic>;
@@ -60,13 +59,12 @@
 		sdhc = &sdhc;
 
 		crypto = &crypto;
-		qman = &qman;
-		bman = &bman;
+
 		fman0 = &fman0;
-		ethernet0 = &fm1mac1;
-		ethernet1 = &fm1mac2;
-		ethernet2 = &fm1mac3;
-		ethernet3 = &fm1mac4;
+		ethernet0 = &enet0;
+		ethernet1 = &enet1;
+		ethernet2 = &enet2;
+		ethernet3 = &enet3;
 	};
 
 	cpus {
@@ -76,7 +74,7 @@
 		cpu0: PowerPC,e5500@0 {
 			device_type = "cpu";
 			reg = <0>;
-			clocks = <&clockgen 1 0>;
+			clocks = <&mux0>;
 			next-level-cache = <&L2_1>;
 			#cooling-cells = <2>;
 			L2_1: l2-cache {
@@ -86,7 +84,7 @@
 		cpu1: PowerPC,e5500@1 {
 			device_type = "cpu";
 			reg = <1>;
-			clocks = <&clockgen 1 1>;
+			clocks = <&mux1>;
 			next-level-cache = <&L2_2>;
 			#cooling-cells = <2>;
 			L2_2: l2-cache {

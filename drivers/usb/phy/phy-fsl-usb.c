@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007,2008 Freescale semiconductor, Inc.
+ * Copyright 2007,2008 Freescale Semiconductor, Inc.
  *
  * Author: Li Yang <LeoLi@freescale.com>
  *         Jerry Huang <Chang-Ming.Huang@freescale.com>
@@ -937,10 +937,10 @@ int usb_otg_start(struct platform_device *pdev)
 			setbits32(&p_otg->dr_mem_map->control,
 				USB_CTRL_ULPI_PHY_CLK_SEL);
 			/*
-			* Due to controller issue of PHY_CLK_VALID in ULPI
-			* mode, we set USB_CTRL_USB_EN before checking
-			* PHY_CLK_VALID, otherwise PHY_CLK_VALID doesn't work.
-			*/
+			 * Due to controller issue of PHY_CLK_VALID in ULPI
+			 * mode, we set USB_CTRL_USB_EN before checking
+			 * PHY_CLK_VALID, otherwise PHY_CLK_VALID doesn't work.
+			 */
 			clrsetbits_be32(&p_otg->dr_mem_map->control,
 				USB_CTRL_UTMI_PHY_EN, USB_CTRL_IOENB);
 		}

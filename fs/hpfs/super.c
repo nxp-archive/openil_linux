@@ -200,12 +200,39 @@ static int hpfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	return 0;
 }
 
+
+long hpfs_ioctl(struct file *file, unsigned cmd, unsigned long arg)
+{
+	switch (cmd) {
+		case FITRIM: {
+			struct fstrim_range range;
+			secno n_trimmed;
+			int r;
+			if (!capable(CAP_SYS_ADMIN))
+				return -EPERM;
+			if (copy_from_user(&range, (struct fstrim_range __user *)arg, sizeof(range)))
+				return -EFAULT;
+			r = hpfs_trim_fs(file_inode(file)->i_sb, range.start >> 9, (range.start + range.len) >> 9, (range.minlen + 511) >> 9, &n_trimmed);
+			if (r)
+				return r;
+			range.len = (u64)n_trimmed << 9;
+			if (copy_to_user((struct fstrim_range __user *)arg, &range, sizeof(range)))
+				return -EFAULT;
+			return 0;
+		}
+		default: {
+			return -ENOIOCTLCMD;
+		}
+	}
+}
+
+
 static struct kmem_cache * hpfs_inode_cachep;
 
 static struct inode *hpfs_alloc_inode(struct super_block *sb)
 {
 	struct hpfs_inode_info *ei;
-	ei = (struct hpfs_inode_info *)kmem_cache_alloc(hpfs_inode_cachep, GFP_NOFS);
+	ei = kmem_cache_alloc(hpfs_inode_cachep, GFP_NOFS);
 	if (!ei)
 		return NULL;
 	ei->vfs_inode.i_version = 1;
@@ -235,7 +262,7 @@ static int init_inodecache(void)
 	hpfs_inode_cachep = kmem_cache_create("hpfs_inode_cache",
 					     sizeof(struct hpfs_inode_info),
 					     0, (SLAB_RECLAIM_ACCOUNT|
-						SLAB_MEM_SPREAD),
+						SLAB_MEM_SPREAD|SLAB_ACCOUNT),
 					     init_once);
 	if (hpfs_inode_cachep == NULL)
 		return -ENOMEM;
@@ -623,6 +650,9 @@ static int hpfs_fill_super(struct super_block *s, void *options, int silent)
 		goto bail4;
 	}
 
+	if (spareblock->n_spares_used)
+		hpfs_load_hotfix_map(s, spareblock);
+
 	/* Load bitmap directory */
 	if (!(sbi->sb_bmp_dir = hpfs_load_bitmap_directory(s, le32_to_cpu(superblock->bitmaps))))
 		goto bail4;
@@ -642,18 +672,6 @@ static int hpfs_fill_super(struct super_block *s, void *options, int silent)
 		mark_buffer_dirty(bh2);
 	}
 
-	if (spareblock->hotfixes_used || spareblock->n_spares_used) {
-		if (errs >= 2) {
-			pr_err("Hotfixes not supported here, try chkdsk\n");
-			mark_dirty(s, 0);
-			goto bail4;
-		}
-		hpfs_error(s, "hotfixes not supported here, try chkdsk");
-		if (errs == 0)
-			pr_err("Proceeding, but your filesystem will be probably corrupted by this driver...\n");
-		else
-			pr_err("This driver may read bad files or crash when operating on disk with hotfixes.\n");
-	}
 	if (le32_to_cpu(spareblock->n_dnode_spares) != le32_to_cpu(spareblock->n_dnode_spares_free)) {
 		if (errs >= 2) {
 			pr_err("Spare dnodes used, try chkdsk\n");

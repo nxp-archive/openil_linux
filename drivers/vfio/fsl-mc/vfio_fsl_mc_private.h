@@ -1,43 +1,55 @@
 /*
  * Freescale Management Complex VFIO private declarations
  *
- * Copyright (C) 2014 Freescale Semiconductor, Inc.
- * Author: Bharat Bhushan <Bharat.Bhushan@freescale.com>
+ * Copyright (C) 2013-2016 Freescale Semiconductor, Inc.
+ * Copyright 2016 NXP
+ * Author: Bharat Bhushan <bharat.bhushan@nxp.com>
  *
  * This file is licensed under the terms of the GNU General Public
  * License version 2. This program is licensed "as is" without any
  * warranty of any kind, whether express or implied.
  */
 
-#include "../../staging/fsl-mc/include/mc.h"
-
 #ifndef VFIO_FSL_MC_PRIVATE_H
 #define VFIO_FSL_MC_PRIVATE_H
 
+#define VFIO_FSL_MC_OFFSET_SHIFT    40
+#define VFIO_FSL_MC_OFFSET_MASK (((u64)(1) << VFIO_FSL_MC_OFFSET_SHIFT) - 1)
+
+#define VFIO_FSL_MC_OFFSET_TO_INDEX(off) (off >> VFIO_FSL_MC_OFFSET_SHIFT)
+
+#define VFIO_FSL_MC_INDEX_TO_OFFSET(index)	\
+	((u64)(index) << VFIO_FSL_MC_OFFSET_SHIFT)
+
 struct vfio_fsl_mc_irq {
-	struct eventfd_ctx	*trigger;
 	u32			flags;
 	u32			count;
+	struct eventfd_ctx	*trigger;
 	char			*name;
-	bool			irq_initialized;
-	bool			irq_configured;
+};
+
+struct vfio_fsl_mc_region {
+	u32			flags;
+#define VFIO_FSL_MC_REGION_TYPE_MMIO  1
+#define VFIO_FSL_MC_REGION_TYPE_CACHEABLE  2
+	u32			type;
+	u64			addr;
+	resource_size_t		size;
+	void __iomem		*ioaddr;
 };
 
 struct vfio_fsl_mc_device {
-	struct fsl_mc_device	*mc_dev;
-	int			refcnt;
-	struct vfio_fsl_mc_irq	*mc_irqs;
+	struct fsl_mc_device		*mc_dev;
+	int				refcnt;
+	u32				num_regions;
+	struct vfio_fsl_mc_region	*regions;
+	struct vfio_fsl_mc_irq		*mc_irqs;
 };
 
-int vfio_fsl_mc_init_irqs(struct vfio_fsl_mc_device *vdev);
-
-void vfio_fsl_mc_free_irqs(struct vfio_fsl_mc_device *vdev);
-
-int vfio_fsl_mc_configure_irq(struct vfio_fsl_mc_device *vdev, int irq_idx);
-
-int vfio_fsl_mc_unconfigure_irqs(struct vfio_fsl_mc_device *vdev);
-
+int vfio_fsl_mc_irqs_init(struct vfio_fsl_mc_device *vdev);
+void vfio_fsl_mc_irqs_cleanup(struct vfio_fsl_mc_device *vdev);
 int vfio_fsl_mc_set_irqs_ioctl(struct vfio_fsl_mc_device *vdev,
-			       uint32_t flags, unsigned index, unsigned start,
-			       unsigned count, void *data);
+			       uint32_t flags, unsigned int index,
+			       unsigned int start, unsigned int count,
+			       void *data);
 #endif /* VFIO_PCI_PRIVATE_H */

@@ -6,7 +6,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
-#include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/wait.h>
 #include <linux/bitops.h>
 #include <xen/events.h>
@@ -70,6 +70,13 @@ static void xen_pcibk_control_isr(struct pci_dev *dev, int reset)
 		enable ? "enable" : "disable");
 
 	if (enable) {
+		/*
+		 * The MSI or MSI-X should not have an IRQ handler. Otherwise
+		 * if the guest terminates we BUG_ON in free_msi_irqs.
+		 */
+		if (dev->msi_enabled || dev->msix_enabled)
+			goto out;
+
 		rc = request_irq(dev_data->irq,
 				xen_pcibk_guest_interrupt, IRQF_SHARED,
 				dev_data->irq_name, dev);
@@ -144,7 +151,12 @@ int xen_pcibk_enable_msi(struct xen_pcibk_device *pdev,
 	if (unlikely(verbose_request))
 		printk(KERN_DEBUG DRV_NAME ": %s: enable MSI\n", pci_name(dev));
 
-	status = pci_enable_msi(dev);
+	if (dev->msi_enabled)
+		status = -EALREADY;
+	else if (dev->msix_enabled)
+		status = -ENXIO;
+	else
+		status = pci_enable_msi(dev);
 
 	if (status) {
 		pr_warn_ratelimited("%s: error enabling MSI for guest %u: err %d\n",
@@ -173,20 +185,23 @@ static
 int xen_pcibk_disable_msi(struct xen_pcibk_device *pdev,
 			  struct pci_dev *dev, struct xen_pci_op *op)
 {
-	struct xen_pcibk_dev_data *dev_data;
-
 	if (unlikely(verbose_request))
 		printk(KERN_DEBUG DRV_NAME ": %s: disable MSI\n",
 		       pci_name(dev));
-	pci_disable_msi(dev);
 
+	if (dev->msi_enabled) {
+		struct xen_pcibk_dev_data *dev_data;
+
+		pci_disable_msi(dev);
+
+		dev_data = pci_get_drvdata(dev);
+		if (dev_data)
+			dev_data->ack_intr = 1;
+	}
 	op->value = dev->irq ? xen_pirq_from_irq(dev->irq) : 0;
 	if (unlikely(verbose_request))
 		printk(KERN_DEBUG DRV_NAME ": %s: MSI: %d\n", pci_name(dev),
 			op->value);
-	dev_data = pci_get_drvdata(dev);
-	if (dev_data)
-		dev_data->ack_intr = 1;
 	return 0;
 }
 
@@ -259,23 +274,27 @@ static
 int xen_pcibk_disable_msix(struct xen_pcibk_device *pdev,
 			   struct pci_dev *dev, struct xen_pci_op *op)
 {
-	struct xen_pcibk_dev_data *dev_data;
 	if (unlikely(verbose_request))
 		printk(KERN_DEBUG DRV_NAME ": %s: disable MSI-X\n",
 			pci_name(dev));
-	pci_disable_msix(dev);
 
+	if (dev->msix_enabled) {
+		struct xen_pcibk_dev_data *dev_data;
+
+		pci_disable_msix(dev);
+
+		dev_data = pci_get_drvdata(dev);
+		if (dev_data)
+			dev_data->ack_intr = 1;
+	}
 	/*
 	 * SR-IOV devices (which don't have any legacy IRQ) have
 	 * an undefined IRQ value of zero.
 	 */
 	op->value = dev->irq ? xen_pirq_from_irq(dev->irq) : 0;
 	if (unlikely(verbose_request))
-		printk(KERN_DEBUG DRV_NAME ": %s: MSI-X: %d\n", pci_name(dev),
-			op->value);
-	dev_data = pci_get_drvdata(dev);
-	if (dev_data)
-		dev_data->ack_intr = 1;
+		printk(KERN_DEBUG DRV_NAME ": %s: MSI-X: %d\n",
+		       pci_name(dev), op->value);
 	return 0;
 }
 #endif
@@ -291,7 +310,7 @@ void xen_pcibk_test_and_schedule_op(struct xen_pcibk_device *pdev)
 	 * already processing a request */
 	if (test_bit(_XEN_PCIF_active, (unsigned long *)&pdev->sh_info->flags)
 	    && !test_and_set_bit(_PDEVF_op_active, &pdev->flags)) {
-		queue_work(xen_pcibk_wq, &pdev->op_work);
+		schedule_work(&pdev->op_work);
 	}
 	/*_XEN_PCIB_active should have been cleared by pcifront. And also make
 	sure xen_pcibk is waiting for ack by checking _PCIB_op_pending*/

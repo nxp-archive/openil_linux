@@ -33,7 +33,7 @@
 #define __FSL_DPKG_H_
 
 #include <linux/types.h>
-#include "../../fsl-mc/include/net.h"
+#include "net.h"
 
 /* Data Path Key Generator API
  * Contains initialization APIs and runtime APIs for the Key Generator
@@ -82,8 +82,8 @@ enum dpkg_extract_type {
  * @offset: Offset within the extracted content
  */
 struct dpkg_mask {
-	uint8_t mask;
-	uint8_t offset;
+	u8 mask;
+	u8 offset;
 };
 
 /**
@@ -131,10 +131,10 @@ struct dpkg_extract {
 		struct {
 			enum net_prot			prot;
 			enum dpkg_extract_from_hdr_type type;
-			uint32_t			field;
-			uint8_t			size;
-			uint8_t			offset;
-			uint8_t			hdr_index;
+			u32			field;
+			u8			size;
+			u8			offset;
+			u8			hdr_index;
 		} from_hdr;
 		/**
 		 * struct from_data - Used when 'type = DPKG_EXTRACT_FROM_DATA'
@@ -142,22 +142,23 @@ struct dpkg_extract {
 		 * @offset: Byte offset
 		 */
 		struct {
-			uint8_t size;
-			uint8_t offset;
+			u8 size;
+			u8 offset;
 		} from_data;
 
 		/**
-		 * struct from_parse - Used when 'type = DPKG_EXTRACT_FROM_PARSE'
+		 * struct from_parse - Used when
+		 *		       'type = DPKG_EXTRACT_FROM_PARSE'
 		 * @size: Size in bytes
 		 * @offset: Byte offset
 		 */
 		struct {
-			uint8_t size;
-			uint8_t offset;
+			u8 size;
+			u8 offset;
 		} from_parse;
 	} extract;
 
-	uint8_t		num_of_byte_masks;
+	u8		num_of_byte_masks;
 	struct dpkg_mask	masks[DPKG_NUM_OF_MASKS];
 };
 
@@ -168,7 +169,7 @@ struct dpkg_extract {
  * @extracts: Array of required extractions
  */
 struct dpkg_profile_cfg {
-	uint8_t num_extracts;
+	u8 num_extracts;
 	struct dpkg_extract extracts[DPKG_MAX_NUM_OF_EXTRACTS];
 };
 

@@ -145,6 +145,10 @@ static t_FmPcdStatsObj* GetStatsObj(t_FmPcdCcNode *p_CcNode)
     if (p_CcNode->maxNumOfKeys)
     {
         p_StatsObj = DequeueStatsObj(&p_CcNode->availableStatsLst);
+
+		/* Clean statistics counters & ADs */
+		MemSet8(p_StatsObj->h_StatsAd, 0, FM_PCD_CC_AD_ENTRY_SIZE);
+		MemSet8(p_StatsObj->h_StatsCounters, 0, p_CcNode->countersArraySize);
     }
     else
     {
@@ -195,8 +199,11 @@ static void PutStatsObj(t_FmPcdCcNode *p_CcNode, t_FmPcdStatsObj *p_StatsObj)
      upon node initialization and now will be enqueued back to the list */
     if (p_CcNode->maxNumOfKeys)
     {
-        /* Nullify counters */
-        MemSet8(p_StatsObj->h_StatsCounters, 0, p_CcNode->countersArraySize);
+		/* Clean statistics counters */
+		MemSet8(p_StatsObj->h_StatsCounters, 0, p_CcNode->countersArraySize);
+
+		/* Clean statistics ADs */
+		MemSet8(p_StatsObj->h_StatsAd, 0, FM_PCD_CC_AD_ENTRY_SIZE);
 
         EnqueueStatsObj(&p_CcNode->availableStatsLst, p_StatsObj);
     }
@@ -1299,6 +1306,7 @@ static void DeleteNode(t_FmPcdCcNode *p_CcNode)
 
     LIST_Del(&p_CcNode->availableStatsLst);
 
+	ReleaseLst(&p_CcNode->availableStatsLst);
     ReleaseLst(&p_CcNode->ccPrevNodesLst);
     ReleaseLst(&p_CcNode->ccTreeIdLst);
     ReleaseLst(&p_CcNode->ccTreesLst);
@@ -4121,6 +4129,9 @@ static t_Error ModifyNextEngineParamNode(
     if (p_CcNode->maxNumOfKeys)
         RELEASE_LOCK(p_FmPcd->shadowLock);
 
+	ReleaseLst(&h_OldPointersLst);
+	ReleaseLst(&h_NewPointersLst);
+
     return err;
 }
 
@@ -5336,6 +5347,9 @@ t_Error FmPcdCcModifyNextEngineParamTree(
     if (p_FmPcd->p_CcShadow)
         RELEASE_LOCK(p_FmPcd->shadowLock);
 
+	ReleaseLst(&h_OldPointersLst);
+	ReleaseLst(&h_NewPointersLst);
+
     return err;
 
 }
@@ -5409,6 +5423,9 @@ t_Error FmPcdCcRemoveKey(t_Handle h_FmPcd, t_Handle h_FmPcdCcNode,
 
     if (p_CcNode->maxNumOfKeys)
         RELEASE_LOCK(p_FmPcd->shadowLock);
+
+	ReleaseLst(&h_OldPointersLst);
+	ReleaseLst(&h_NewPointersLst);
 
     return err;
 }
@@ -5498,6 +5515,9 @@ t_Error FmPcdCcModifyKey(t_Handle h_FmPcd, t_Handle h_FmPcdCcNode,
     if (p_CcNode->maxNumOfKeys)
         RELEASE_LOCK(p_FmPcd->shadowLock);
 
+	ReleaseLst(&h_OldPointersLst);
+	ReleaseLst(&h_NewPointersLst);
+
     return err;
 }
 
@@ -5551,6 +5571,9 @@ t_Error FmPcdCcModifyMissNextEngineParamNode(
 
     if (p_CcNode->maxNumOfKeys)
         RELEASE_LOCK(p_FmPcd->shadowLock);
+
+	ReleaseLst(&h_OldPointersLst);
+	ReleaseLst(&h_NewPointersLst);
 
     return err;
 }
@@ -5657,6 +5680,9 @@ t_Error FmPcdCcAddKey(t_Handle h_FmPcd, t_Handle h_FmPcdCcNode,
     if (p_CcNode->maxNumOfKeys)
         RELEASE_LOCK(p_FmPcd->shadowLock);
 
+	ReleaseLst(&h_OldPointersLst);
+	ReleaseLst(&h_NewPointersLst);
+
     return err;
 }
 
@@ -5747,6 +5773,9 @@ t_Error FmPcdCcModifyKeyAndNextEngine(t_Handle h_FmPcd, t_Handle h_FmPcdCcNode,
 
     if (p_CcNode->maxNumOfKeys)
         RELEASE_LOCK(p_FmPcd->shadowLock);
+
+	ReleaseLst(&h_OldPointersLst);
+	ReleaseLst(&h_NewPointersLst);
 
     return err;
 }

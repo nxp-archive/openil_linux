@@ -1,7 +1,8 @@
 /*
  * Device Tree file for Freescale LS2088A QDS Board.
  *
- * Copyright (C) 2016-17, Freescale Semiconductor
+ * Copyright 2016 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP
  *
  * Abhimanyu Saini <abhimanyu.saini@nxp.com>
  *
@@ -50,8 +51,12 @@
 #include "fsl-ls208xa-qds.dtsi"
 
 / {
-	model = "Freescale Layerscape 2088a QDS Board";
+	model = "Freescale Layerscape 2088A QDS Board";
 	compatible = "fsl,ls2088a-qds", "fsl,ls2088a";
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
 };
 
 &ifc {
@@ -72,9 +77,8 @@
 			#size-cells = <0>;
 
 			/* Child MDIO buses, one for each riser card:
-			   reg = 0x0, 0x20, 0x40, 0x60, 0x80, 0xa0.
-
-			   VSC8234 PHYs on the riser cards.
+			 * reg = 0x0, 0x20, 0x40, 0x60, 0x80, 0xa0.
+			 * VSC8234 PHYs on the riser cards.
 			 */
 
 			mdio_mux3: mdio@60 {
@@ -100,6 +104,46 @@
 				};
 			};
 		};
+	};
+};
+
+&pcs_mdio1 {
+		pcs_phy1: ethernet-phy@0 {
+		backplane-mode = "10gbase-kr";
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0x0>;
+		fsl,lane-handle = <&serdes1>;
+		fsl,lane-reg = <0x9C0 0x40>;/* lane H */
+	};
+};
+
+&pcs_mdio2 {
+		pcs_phy2: ethernet-phy@0 {
+		backplane-mode = "10gbase-kr";
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0x0>;
+		fsl,lane-handle = <&serdes1>;
+		fsl,lane-reg = <0x980 0x40>;/* lane G */
+	};
+};
+
+&pcs_mdio3 {
+		pcs_phy3: ethernet-phy@0 {
+		backplane-mode = "10gbase-kr";
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0x0>;
+		fsl,lane-handle = <&serdes1>;
+		fsl,lane-reg = <0x940 0x40>;/* lane F */
+	};
+};
+
+&pcs_mdio4 {
+		pcs_phy4: ethernet-phy@0 {
+		backplane-mode = "10gbase-kr";
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0x0>;
+		fsl,lane-handle = <&serdes1>;
+		fsl,lane-reg = <0x900 0x40>;/* lane E */
 	};
 };
 

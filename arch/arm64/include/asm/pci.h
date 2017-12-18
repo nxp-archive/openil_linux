@@ -7,8 +7,6 @@
 #include <linux/dma-mapping.h>
 
 #include <asm/io.h>
-#include <asm-generic/pci-bridge.h>
-#include <asm-generic/pci-dma-compat.h>
 
 #define PCIBIOS_MIN_IO		0x1000
 #define PCIBIOS_MIN_MEM		0
@@ -35,7 +33,8 @@ static inline int pci_get_legacy_ide_irq(struct pci_dev *dev, int channel)
 
 #define HAVE_PCI_MMAP
 extern int pci_mmap_page_range(struct pci_dev *dev, struct vm_area_struct *vma,
-			       enum pci_mmap_state mmap_state, int write_combine);
+			       enum pci_mmap_state mmap_state,
+			       int write_combine);
 static inline int pci_proc_domain(struct pci_bus *bus)
 {
 	return 1;

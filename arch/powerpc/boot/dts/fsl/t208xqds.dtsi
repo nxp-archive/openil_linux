@@ -49,24 +49,12 @@
 			alignment = <0 0x1000000>;
 		};
 		qman_fqd: qman-fqd {
-			size = <0 0x800000>;
-			alignment = <0 0x800000>;
+			size = <0 0x400000>;
+			alignment = <0 0x400000>;
 		};
 		qman_pfdr: qman-pfdr {
 			size = <0 0x2000000>;
 			alignment = <0 0x2000000>;
-		};
-		pme_pdsr: pme-pdsr {
-			compatible = "fsl,pme-pdsr";
-			alloc-ranges = <0 0 0x10000 0>;
-			size = <0 0x1000000>;
-			alignment = <0 0x1000000>;
-		};
-		pme_sre: pme-sre {
-			 compatible = "fsl,pme-sre";
-			 alloc-ranges = <0 0 0x10000 0>;
-			 size = <0 0xa00000>;
-			 alignment = <0 0xa00000>;
 		};
 	};
 
@@ -114,7 +102,6 @@
 	};
 
 	qportals: qman-portals@ff6000000 {
-		#address-cells = <1>;
 		ranges = <0x0 0xf 0xf6000000 0x2000000>;
 	};
 
@@ -285,42 +272,6 @@
 				  0x01000000 0 0x00000000
 				  0x01000000 0 0x00000000
 				  0 0x00010000>;
-		};
-	};
-
-	fsl,dpaa {
-		compatible = "fsl,t2080-dpaa", "fsl,dpaa";
-		ethernet@0 {
-			compatible = "fsl,t2080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac1>;
-		};
-		ethernet@1 {
-			compatible = "fsl,t2080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac2>;
-		};
-		ethernet@2 {
-			compatible = "fsl,t2080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac3>;
-		};
-		ethernet@3 {
-			compatible = "fsl,t2080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac4>;
-		};
-		ethernet@4 {
-			compatible = "fsl,t2080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac5>;
-		};
-		ethernet@5 {
-			compatible = "fsl,t2080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac6>;
-		};
-		ethernet@8 {
-			compatible = "fsl,t2080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac9>;
-		};
-		ethernet@9 {
-			compatible = "fsl,t2080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,fman-mac = <&fm1mac10>;
 		};
 	};
 };

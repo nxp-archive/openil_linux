@@ -1759,7 +1759,8 @@ static int ceetm_cls_dump_stats(struct Qdisc *sch, unsigned long arg,
 		}
 	}
 
-	if (gnet_stats_copy_basic(d, NULL, &tmp_bstats) < 0)
+	if (gnet_stats_copy_basic(qdisc_root_sleeping_running(sch),
+				  d, NULL, &tmp_bstats) < 0)
 		return -1;
 
 	if (cq && qman_ceetm_cq_get_dequeue_statistics(cq, 0,
@@ -1839,7 +1840,7 @@ static struct ceetm_class *ceetm_classify(struct sk_buff *skb,
 
 	*qerr = NET_XMIT_SUCCESS | __NET_XMIT_BYPASS;
 	tcf = priv->filter_list;
-	while (tcf && (result = tc_classify(skb, tcf, &res)) >= 0) {
+	while (tcf && (result = tc_classify(skb, tcf, &res, false)) >= 0) {
 #ifdef CONFIG_NET_CLS_ACT
 		switch (result) {
 		case TC_ACT_QUEUED:

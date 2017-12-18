@@ -1,4 +1,6 @@
-/* Copyright 2013 Freescale Semiconductor, Inc.
+/*
+ * Copyright 2013-2016 Freescale Semiconductor, Inc.
+ * Copyright 2016-2017 NXP
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -32,7 +34,7 @@
 #ifndef __SG_SW_QM_H
 #define __SG_SW_QM_H
 
-#include "linux/fsl_qman.h"
+#include <linux/fsl_qman.h>
 #include "regs.h"
 
 static inline void cpu_to_hw_sg(struct qm_sg_entry *qm_sg_ptr)
@@ -43,12 +45,10 @@ static inline void cpu_to_hw_sg(struct qm_sg_entry *qm_sg_ptr)
 	qm_sg_ptr->sgt_efl = cpu_to_caam32(qm_sg_ptr->sgt_efl);
 }
 
-static inline void dma_to_qm_sg_one(struct qm_sg_entry *qm_sg_ptr,
-				      dma_addr_t dma, u32 len, u16 offset)
+static inline void __dma_to_qm_sg(struct qm_sg_entry *qm_sg_ptr, dma_addr_t dma,
+				  u32 len, u16 offset)
 {
 	qm_sg_ptr->addr = dma;
-	qm_sg_ptr->extension = 0;
-	qm_sg_ptr->final = 0;
 	qm_sg_ptr->length = len;
 	qm_sg_ptr->__reserved2 = 0;
 	qm_sg_ptr->bpid = 0;
@@ -56,6 +56,39 @@ static inline void dma_to_qm_sg_one(struct qm_sg_entry *qm_sg_ptr,
 	qm_sg_ptr->offset = offset & QM_SG_OFFSET_MASK;
 
 	cpu_to_hw_sg(qm_sg_ptr);
+}
+
+static inline void dma_to_qm_sg_one(struct qm_sg_entry *qm_sg_ptr,
+				    dma_addr_t dma, u32 len, u16 offset)
+{
+	qm_sg_ptr->extension = 0;
+	qm_sg_ptr->final = 0;
+	__dma_to_qm_sg(qm_sg_ptr, dma, len, offset);
+}
+
+static inline void dma_to_qm_sg_one_last(struct qm_sg_entry *qm_sg_ptr,
+					 dma_addr_t dma, u32 len, u16 offset)
+{
+	qm_sg_ptr->extension = 0;
+	qm_sg_ptr->final = 1;
+	__dma_to_qm_sg(qm_sg_ptr, dma, len, offset);
+}
+
+static inline void dma_to_qm_sg_one_ext(struct qm_sg_entry *qm_sg_ptr,
+					dma_addr_t dma, u32 len, u16 offset)
+{
+	qm_sg_ptr->extension = 1;
+	qm_sg_ptr->final = 0;
+	__dma_to_qm_sg(qm_sg_ptr, dma, len, offset);
+}
+
+static inline void dma_to_qm_sg_one_last_ext(struct qm_sg_entry *qm_sg_ptr,
+					     dma_addr_t dma, u32 len,
+					     u16 offset)
+{
+	qm_sg_ptr->extension = 1;
+	qm_sg_ptr->final = 1;
+	__dma_to_qm_sg(qm_sg_ptr, dma, len, offset);
 }
 
 /*
@@ -76,14 +109,12 @@ sg_to_qm_sg(struct scatterlist *sg, int sg_count,
 	return qm_sg_ptr - 1;
 }
 
-
 /*
  * convert scatterlist to h/w link table format
  * scatterlist must have been previously dma mapped
  */
 static inline void sg_to_qm_sg_last(struct scatterlist *sg, int sg_count,
-				      struct qm_sg_entry *qm_sg_ptr,
-				      u16 offset)
+				    struct qm_sg_entry *qm_sg_ptr, u16 offset)
 {
 	qm_sg_ptr = sg_to_qm_sg(sg, sg_count, qm_sg_ptr, offset);
 
@@ -93,4 +124,3 @@ static inline void sg_to_qm_sg_last(struct scatterlist *sg, int sg_count,
 }
 
 #endif /* __SG_SW_QM_H */
-

@@ -45,14 +45,6 @@ struct fsl_msi {
 
 	struct msi_bitmap bitmap;
 
-	/*
-	 * During probe each bank is assigned a index number.
-	 * index number ranges from 0 to 2^32.
-	 * Example  MSI bank 1 = 0
-	 * MSI bank 2 = 1, and so on.
-	 */
-	int bank_index;
-
 	struct list_head list;          /* support multiple MSI banks */
 
 	phandle phandle;

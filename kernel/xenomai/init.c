@@ -69,7 +69,7 @@ static BLOCKING_NOTIFIER_HEAD(state_notifier_list);
 struct cobalt_pipeline cobalt_pipeline;
 EXPORT_SYMBOL_GPL(cobalt_pipeline);
 
-struct cobalt_machine_cpudata cobalt_machine_cpudata;
+DEFINE_PER_CPU(struct cobalt_machine_cpudata, cobalt_machine_cpudata);
 EXPORT_PER_CPU_SYMBOL_GPL(cobalt_machine_cpudata);
 
 atomic_t cobalt_runstate = ATOMIC_INIT(COBALT_STATE_WARMUP);
@@ -416,7 +416,7 @@ fail:
 
 	return ret;
 }
-subsys_initcall(xenomai_init);
+device_initcall(xenomai_init);
 
 /**
  * @ingroup cobalt
@@ -445,10 +445,11 @@ subsys_initcall(xenomai_init);
  * <TABLE>
  * <TR><TH>Tag</TH> <TH>Context on entry</TH></TR>
  * <TR><TD>primary-only</TD>	<TD>Must be called from a Cobalt task in primary mode</TD></TR>
+ * <TR><TD>primary-timed</TD>	<TD>Requires a Cobalt task in primary mode if timed</TD></TR>
  * <TR><TD>coreirq-only</TD>	<TD>Must be called from a Cobalt IRQ handler</TD></TR>
  * <TR><TD>secondary-only</TD>	<TD>Must be called from a Cobalt task in secondary mode or regular Linux task</TD></TR>
  * <TR><TD>rtdm-task</TD>	<TD>Must be called from a RTDM driver task</TD></TR>
- * <TR><TD>mode-unrestricted</TD>	<TD>Must be called from a Cobalt task in either primary or secondary mode</TD></TR>
+ * <TR><TD>mode-unrestricted</TD>	<TD>May be called from a Cobalt task in either primary or secondary mode</TD></TR>
  * <TR><TD>task-unrestricted</TD>	<TD>May be called from a Cobalt or regular Linux task indifferently</TD></TR>
  * <TR><TD>unrestricted</TD>	<TD>May be called from any context previously described</TD></TR>
  * <TR><TD>atomic-entry</TD>	<TD>Caller must currently hold the big Cobalt kernel lock (nklock)</TD></TR>

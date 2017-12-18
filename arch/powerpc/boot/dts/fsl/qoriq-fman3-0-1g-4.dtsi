@@ -1,18 +1,18 @@
 /*
  * QorIQ FMan v3 1g port #4 device tree stub [ controller @ offset 0x400000 ]
  *
- * Copyright 2012 Freescale Semiconductor Inc.
+ * Copyright 2012 - 2015 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
+ *	 notice, this list of conditions and the following disclaimer.
  *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in the
- *       documentation and/or other materials provided with the distribution.
+ *	 notice, this list of conditions and the following disclaimer in the
+ *	 documentation and/or other materials provided with the distribution.
  *     * Neither the name of Freescale Semiconductor nor the
- *       names of its contributors may be used to endorse or promote products
- *       derived from this software without specific prior written permission.
+ *	 names of its contributors may be used to endorse or promote products
+ *	 derived from this software without specific prior written permission.
  *
  *
  * ALTERNATIVELY, this software may be distributed under the terms of the
@@ -33,15 +33,15 @@
  */
 
 fman@400000 {
-	fman0_rx4: port@8c000 {
-		cell-index = <4>;
-		compatible = "fsl,fman-port-1g-rx";
+	fman0_rx_0x0c: port@8c000 {
+		cell-index = <0xc>;
+		compatible = "fsl,fman-v3-port-rx";
 		reg = <0x8c000 0x1000>;
 	};
 
-	fman0_tx4: port@ac000 {
-		cell-index = <4>;
-		compatible = "fsl,fman-port-1g-tx";
+	fman0_tx_0x2c: port@ac000 {
+		cell-index = <0x2c>;
+		compatible = "fsl,fman-v3-port-tx";
 		reg = <0xac000 0x1000>;
 	};
 
@@ -49,14 +49,19 @@ fman@400000 {
 		cell-index = <4>;
 		compatible = "fsl,fman-memac";
 		reg = <0xe8000 0x1000>;
-		fsl,port-handles = <&fman0_rx4 &fman0_tx4>;
-		ptimer-handle = <&ptp_timer0>;
+		fsl,fman-ports = <&fman0_rx_0x0c &fman0_tx_0x2c>;
+		ptp-timer = <&ptp_timer0>;
+		pcsphy-handle = <&pcsphy4>;
 	};
 
 	mdio@e9000 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		compatible = "fsl,fman-memac-mdio";
+		compatible = "fsl,fman-memac-mdio", "fsl,fman-xmdio";
 		reg = <0xe9000 0x1000>;
+
+		pcsphy4: ethernet-phy@0 {
+			reg = <0x0>;
+		};
 	};
 };

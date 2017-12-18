@@ -36,6 +36,8 @@
 #include <linux/ipipe_trace.h>
 #include <linux/ipipe.h>
 #include <ipipe/setup.h>
+#include <asm/syscall.h>
+#include <asm/unistd.h>
 
 struct ipipe_domain ipipe_root;
 EXPORT_SYMBOL_GPL(ipipe_root);
@@ -1300,7 +1302,7 @@ void __ipipe_dispatch_irq(unsigned int irq, int flags) /* hw interrupts off */
 		if ((control & IPIPE_HANDLE_MASK) == 0)
 			ipd = ipipe_root_domain;
 		if (ipd->irqs[irq].ackfn)
-			ipd->irqs[irq].ackfn(irq, desc);
+			ipd->irqs[irq].ackfn(desc);
 		if (chained_irq) {
 			if ((flags & IPIPE_IRQF_NOSYNC) == 0)
 				/* Run demuxed IRQ handlers. */
@@ -1387,6 +1389,82 @@ out:
 }
 EXPORT_SYMBOL_GPL(ipipe_raise_irq);
 
+static void sync_root_irqs(void)
+{
+	struct ipipe_percpu_domain_data *p;
+	unsigned long flags;
+
+	flags = hard_local_irq_save();
+
+	p = ipipe_this_cpu_root_context();
+	if (unlikely(__ipipe_ipending_p(p)))
+		__ipipe_sync_stage();
+
+	hard_local_irq_restore(flags);
+}
+
+int ipipe_handle_syscall(struct thread_info *ti,
+			 unsigned long nr, struct pt_regs *regs)
+{
+	unsigned long local_flags = READ_ONCE(ti->ipipe_flags);
+	int ret;
+
+	/*
+	 * NOTE: This is a backport from the DOVETAIL syscall
+	 * redirector to the older pipeline implementation.
+	 *
+	 * ==
+	 *
+	 * If the syscall # is out of bounds and the current IRQ stage
+	 * is not the root one, this has to be a non-native system
+	 * call handled by some co-kernel on the head stage. Hand it
+	 * over to the head stage via the fast syscall handler.
+	 *
+	 * Otherwise, if the system call is out of bounds or the
+	 * current thread is shared with a co-kernel, hand the syscall
+	 * over to the latter through the pipeline stages. This
+	 * allows:
+	 *
+	 * - the co-kernel to receive the initial - foreign - syscall
+	 * a thread should send for enabling syscall handling by the
+	 * co-kernel.
+	 *
+	 * - the co-kernel to manipulate the current execution stage
+	 * for handling the request, which includes switching the
+	 * current thread back to the root stage if the syscall is a
+	 * native one, or promoting it to the head stage if handling
+	 * the foreign syscall requires this.
+	 *
+	 * Native syscalls from regular (non-pipeline) threads are
+	 * ignored by this routine, and flow down to the regular
+	 * system call handler.
+	 */
+
+	if (nr >= NR_syscalls && (local_flags & _TIP_HEAD)) {
+		ipipe_fastcall_hook(regs);
+		local_flags = READ_ONCE(ti->ipipe_flags);
+		if (local_flags & _TIP_HEAD) {
+			if (local_flags &  _TIP_MAYDAY)
+				__ipipe_call_mayday(regs);
+			return 1; /* don't pass down, no tail work. */
+		} else {
+			sync_root_irqs();
+			return -1; /* don't pass down, do tail work. */
+		}
+	}
+
+	if ((local_flags & _TIP_NOTIFY) || nr >= NR_syscalls) {
+		ret =__ipipe_notify_syscall(regs);
+		local_flags = READ_ONCE(ti->ipipe_flags);
+		if (local_flags & _TIP_HEAD)
+			return 1; /* don't pass down, no tail work. */
+		if (ret)
+			return -1; /* don't pass down, do tail work. */
+	}
+
+	return 0; /* pass syscall down to the host. */
+}
+
 #ifdef CONFIG_PREEMPT
 
 void preempt_schedule_irq(void);
@@ -1396,7 +1474,9 @@ void __sched __ipipe_preempt_schedule_irq(void)
 	struct ipipe_percpu_domain_data *p;
 	unsigned long flags;
 
-	BUG_ON(!hard_irqs_disabled());
+	if (WARN_ON_ONCE(!hard_irqs_disabled()))
+		hard_local_irq_disable();
+
 	local_irq_save(flags);
 	hard_local_irq_enable();
 	preempt_schedule_irq(); /* Ok, may reschedule now. */
@@ -1409,11 +1489,9 @@ void __sched __ipipe_preempt_schedule_irq(void)
 	 */
 	p = ipipe_this_cpu_root_context();
 	if (unlikely(__ipipe_ipending_p(p))) {
-		__preempt_count_add(PREEMPT_ACTIVE);
 		trace_hardirqs_on();
 		__clear_bit(IPIPE_STALL_FLAG, &p->status);
 		__ipipe_sync_stage();
-		__preempt_count_sub(PREEMPT_ACTIVE);
 	}
 
 	__ipipe_restore_root_nosync(flags);
@@ -1483,8 +1561,6 @@ respin:
 			irq_exit();
 			root_stall_after_handler();
 			hard_local_irq_disable();
-			while (__ipipe_check_root_resched())
-				__ipipe_preempt_schedule_irq();
 		} else {
 			ipd->irqs[irq].handler(irq, ipd->irqs[irq].cookie);
 			root_stall_after_handler();
@@ -1893,7 +1969,7 @@ void __ipipe_uaccess_might_fault(void)
 	struct ipipe_percpu_domain_data *pdd;
 	struct ipipe_domain *ipd;
 	unsigned long flags;
-
+       
 	flags = hard_local_irq_save();
 	ipd = __ipipe_current_domain;
 	if (ipd == ipipe_root_domain) {
@@ -1910,7 +1986,6 @@ void __ipipe_uaccess_might_fault(void)
 	(void)pdd;
 #endif /* !CONFIG_IPIPE_DEBUG_CONTEXT */
 	hard_local_irq_restore(flags);
-	
 }
 EXPORT_SYMBOL_GPL(__ipipe_uaccess_might_fault);
 #endif

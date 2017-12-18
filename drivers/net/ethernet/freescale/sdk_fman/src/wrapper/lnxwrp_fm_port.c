@@ -359,6 +359,7 @@ static t_LnxWrpFmPortDev *ReadFmPortDevTreeNode(struct platform_device
 		p_LnxWrpFmPortDev->settings.param.specificParams.nonRxParams.
 			qmChannel = p_LnxWrpFmPortDev->txCh;
 	} else if (of_device_is_compatible(port_node, "fsl,fman-port-1g-tx")) {
+		tmp_prop -= 0x28;
 		if (unlikely(tmp_prop >= FM_MAX_NUM_OF_1G_TX_PORTS)) {
 			REPORT_ERROR(MAJOR, E_INVALID_VALUE,
 					("of_get_property(%s, cell-index) failed",
@@ -387,6 +388,7 @@ static t_LnxWrpFmPortDev *ReadFmPortDevTreeNode(struct platform_device
 			settings.param.specificParams.nonRxParams.qmChannel =
 			p_LnxWrpFmPortDev->txCh;
 	} else if (of_device_is_compatible(port_node, "fsl,fman-port-10g-tx")) {
+		tmp_prop -= 0x30;
 		if (unlikely(tmp_prop>= FM_MAX_NUM_OF_10G_TX_PORTS)) {
 			REPORT_ERROR(MAJOR, E_INVALID_VALUE,
 					("of_get_property(%s, cell-index) failed",
@@ -419,6 +421,7 @@ static t_LnxWrpFmPortDev *ReadFmPortDevTreeNode(struct platform_device
 		p_LnxWrpFmPortDev->settings.param.specificParams.nonRxParams.
 			qmChannel = p_LnxWrpFmPortDev->txCh;
 	} else if (of_device_is_compatible(port_node, "fsl,fman-port-1g-rx")) {
+		tmp_prop -= 0x08;
 		if (unlikely(tmp_prop >= FM_MAX_NUM_OF_1G_RX_PORTS)) {
 			REPORT_ERROR(MAJOR, E_INVALID_VALUE,
 					("of_get_property(%s, cell-index) failed",
@@ -434,6 +437,7 @@ static t_LnxWrpFmPortDev *ReadFmPortDevTreeNode(struct platform_device
 		if (p_LnxWrpFmDev->pcdActive)
 			p_LnxWrpFmPortDev->defPcd = p_LnxWrpFmDev->defPcd;
 	} else if (of_device_is_compatible(port_node, "fsl,fman-port-10g-rx")) {
+		tmp_prop -= 0x10;
 		if (unlikely(tmp_prop >= FM_MAX_NUM_OF_10G_RX_PORTS)) {
 			REPORT_ERROR(MAJOR, E_INVALID_VALUE,
 					("of_get_property(%s, cell-index) failed",

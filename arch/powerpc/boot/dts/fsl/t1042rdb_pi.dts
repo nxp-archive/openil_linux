@@ -1,7 +1,7 @@
 /*
  * T1042RDB_PI Device Tree Source
  *
- * Copyright 2014 Freescale Semiconductor Inc.
+ * Copyright 2014 - 2015 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -38,16 +38,13 @@
 / {
 	model = "fsl,T1042RDB_PI";
 	compatible = "fsl,T1042RDB_PI";
-	aliases {
-		phy_rgmii_0 = &phy_rgmii_0;
-		phy_rgmii_1 = &phy_rgmii_1;
-	};
 
 	ifc: localbus@ffe124000 {
 		cpld@3,0 {
 			compatible = "fsl,t1042rdb_pi-cpld";
 		};
 	};
+
 	soc: soc@ffe000000 {
 		i2c@118000 {
 			rtc@68 {
@@ -56,66 +53,21 @@
 				interrupts = <0x2 0x1 0 0>;
 			};
 		};
-		fman0: fman@400000 {
-			rcpm-wakeup = <&rcpm 0x00000008>;
 
-			enet0: ethernet@e0000 {
+		fman@400000 {
+			ethernet@e0000 {
 				status = "disabled";
 			};
 
-			enet1: ethernet@e2000 {
+			ethernet@e2000 {
 				status = "disabled";
 			};
 
-			enet2: ethernet@e4000 {
+			ethernet@e4000 {
 				status = "disabled";
 			};
-
-			enet3: ethernet@e6000 {
-				phy-handle = <&phy_rgmii_0>;
-				phy-connection-type = "rgmii";
-				rcpm-wakeup = <&rcpm 0x10000000>;
-			};
-
-			enet4: ethernet@e8000 {
-				phy-handle = <&phy_rgmii_1>;
-				phy-connection-type = "rgmii";
-				rcpm-wakeup = <&rcpm 0x08000000>;
-			};
-
-			mdio0: mdio@fc000 {
-				phy_rgmii_0: ethernet-phy@01 {
-					reg = <0x01>;
-				};
-				phy_rgmii_1: ethernet-phy@02 {
-					reg = <0x02>;
-				};
-			};
-		};
-	};
-	fsl,dpaa {
-		compatible = "fsl,t1042-dpaa", "fsl,dpaa";
-		ethernet@0 {
-			status = "disabled";
-		};
-		ethernet@1 {
-			status = "disabled";
-		};
-		ethernet@2 {
-			status = "disabled";
-		};
-		ethernet@3 {
-			compatible = "fsl,t1042-dpa-ethernet",
-					"fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet3>;
-		};
-		ethernet@4 {
-			compatible = "fsl,t1042-dpa-ethernet",
-					"fsl,dpa-ethernet";
-			fsl,fman-mac = <&enet4>;
 		};
 	};
 };
 
 #include "t1042si-post.dtsi"
-/include/ "qoriq-dpaa-res3.dtsi"

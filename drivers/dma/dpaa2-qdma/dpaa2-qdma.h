@@ -1,4 +1,4 @@
-/* Copyright 2015 NXP Semiconductor Inc.
+/* Copyright 2015 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -61,7 +61,12 @@ struct dpaa2_qdma_sd_d {
 	uint32_t rbpcmd;	/* Route-by-port command */
 	uint32_t cmd;
 } __attribute__((__packed__));
-#define CMD_TTYPE_RW (0x4 << 28)
+/* Source descriptor command read transaction type for RBP=0:
+ coherent copy of cacheable memory */
+#define QDMA_SD_CMD_RDTTYPE_COHERENT (0xb << 28)
+/* Destination descriptor command write transaction type for RBP=0:
+ coherent copy of cacheable memory */
+#define QDMA_DD_CMD_WRTTYPE_COHERENT (0x6 << 28)
 
 #define QDMA_SG_FMT_SDB		0x0 /* single data buffer */
 #define QDMA_SG_FMT_FDS		0x1 /* frame data section */
@@ -94,10 +99,11 @@ struct dpaa2_qdma_sg {
 	} ctrl;
 } __attribute__((__packed__));
 
-#define QMAN_FD_FMT_ENABLE (1 << 28) /* frame list table enable */
+#define QMAN_FD_FMT_ENABLE (1 << 12) /* frame list table enable */
 #define QMAN_FD_BMT_ENABLE (1 << 15) /* bypass memory translation */
-#define QMAN_FD_SL_DISABLE (0 << 30) /* short lengthe disabled */
-#define QMAN_FD_SL_ENABLE (1 << 30) /* short lengthe enabled */
+#define QMAN_FD_BMT_DISABLE (0 << 15) /* bypass memory translation */
+#define QMAN_FD_SL_DISABLE (0 << 14) /* short lengthe disabled */
+#define QMAN_FD_SL_ENABLE (1 << 14) /* short lengthe enabled */
 
 #define QDMA_SB_FRAME (0 << 28) /* single frame */
 #define QDMA_SG_FRAME (2 << 28) /* scatter gather frames */
@@ -121,6 +127,7 @@ struct dpaa2_qdma_sg {
 #define QDMA_FL_FMT_SBF 0x0	/* Single buffer frame */
 #define QDMA_FL_FMT_SGE 0x2 /* Scatter gather frame */
 #define QDMA_FL_BMT_ENABLE 0x1 /* enable bypass memory translation */
+#define QDMA_FL_BMT_DISABLE 0x0 /* enable bypass memory translation */
 #define QDMA_FL_SL_LONG 0x0 /* long length */
 #define QDMA_FL_SL_SHORT 0x1 /* short length */
 #define QDMA_FL_F 0x1 /* last frame list bit */
@@ -218,6 +225,7 @@ struct dpaa2_qdma_engine {
 struct dpaa2_qdma_priv {
 	int dpqdma_id;
 
+	struct iommu_domain *iommu_domain;
 	struct dpdmai_attr dpdmai_attr;
 	struct device *dev;
 	struct fsl_mc_io *mc_io;

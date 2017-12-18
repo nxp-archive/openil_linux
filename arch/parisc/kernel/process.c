@@ -139,17 +139,14 @@ void machine_power_off(void)
 
 	printk(KERN_EMERG "System shut down completed.\n"
 	       "Please power this system off now.");
+
+	/* prevent soft lockup/stalled CPU messages for endless loop. */
+	rcu_sysrq_start();
+	for (;;);
 }
 
 void (*pm_power_off)(void) = machine_power_off;
 EXPORT_SYMBOL(pm_power_off);
-
-/*
- * Free current thread data structures etc..
- */
-void exit_thread(void)
-{
-}
 
 void flush_thread(void)
 {

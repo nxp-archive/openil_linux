@@ -35,17 +35,13 @@
 #include "smp.h"
 #include "mpc85xx.h"
 
-#include <linux/fsl_usdpaa.h>
-
 void __init corenet_gen_pic_init(void)
 {
 	struct mpic *mpic;
 	unsigned int flags = MPIC_BIG_ENDIAN | MPIC_SINGLE_DEST_CPU |
 		MPIC_NO_RESET;
 
-#ifdef CONFIG_QUICC_ENGINE
 	struct device_node *np;
-#endif
 
 	if (ppc_md.get_irq == mpic_get_coreint_irq)
 		flags |= MPIC_ENABLE_COREINT;
@@ -55,14 +51,12 @@ void __init corenet_gen_pic_init(void)
 
 	mpic_init(mpic);
 
-#ifdef CONFIG_QUICC_ENGINE
 	np = of_find_compatible_node(NULL, NULL, "fsl,qe-ic");
 	if (np) {
 		qe_ic_init(np, 0, qe_ic_cascade_low_mpic,
 				qe_ic_cascade_high_mpic);
 		of_node_put(np);
 	}
-#endif
 }
 
 /*
@@ -94,9 +88,6 @@ static const struct of_device_id of_device_ids[] = {
 		.compatible	= "simple-bus"
 	},
 	{
-		.compatible	= "fsl,dpaa",
-	},
-	{
 		.compatible	= "mdio-mux-gpio"
 	},
 	{
@@ -123,11 +114,9 @@ static const struct of_device_id of_device_ids[] = {
 	{
 		.compatible	= "fsl,qoriq-pcie-v3.0",
 	},
-#ifdef CONFIG_QUICC_ENGINE
 	{
 		.compatible	= "fsl,qe",
 	},
-#endif
 	{
 		.compatible    = "fsl,fman",
 	},
@@ -172,6 +161,7 @@ static const char * const boards[] __initconst = {
 	"fsl,T1042RDB",
 	"fsl,T1042RDB_PI",
 	"keymile,kmcoge4",
+	"varisys,CYRUS",
 	NULL
 };
 
@@ -180,20 +170,19 @@ static const char * const boards[] __initconst = {
  */
 static int __init corenet_generic_probe(void)
 {
-	unsigned long root = of_get_flat_dt_root();
 	char hv_compat[24];
 	int i;
 #ifdef CONFIG_SMP
 	extern struct smp_ops_t smp_85xx_ops;
 #endif
 
-	if (of_flat_dt_match(root, boards))
+	if (of_device_compatible_match(of_root, boards))
 		return 1;
 
 	/* Check if we're running under the Freescale hypervisor */
 	for (i = 0; boards[i]; i++) {
 		snprintf(hv_compat, sizeof(hv_compat), "%s-hv", boards[i]);
-		if (of_flat_dt_is_compatible(root, hv_compat)) {
+		if (of_machine_is_compatible(hv_compat)) {
 			ppc_md.init_IRQ = ehv_pic_init;
 
 			ppc_md.get_irq = ehv_pic_get_irq;
@@ -236,7 +225,6 @@ define_machine(corenet_generic) {
 #else
 	.get_irq		= mpic_get_coreint_irq,
 #endif
-	.restart		= fsl_rstcr_restart,
 	.calibrate_decr		= generic_calibrate_decr,
 	.progress		= udbg_progress,
 #ifdef CONFIG_PPC64

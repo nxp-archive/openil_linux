@@ -1,7 +1,7 @@
 /*
  * T2080QDS Device Tree Source
  *
- * Copyright 2013 Freescale Semiconductor Inc.
+ * Copyright 2013 - 2015 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -61,53 +61,48 @@
 };
 
 &soc {
-	fman0: fman@400000 {
-		fm1mac1: ethernet@e0000 { /* DTSEC1/10GEC3 */
+	fman@400000 {
+		ethernet@e0000 {
 			phy-handle = <&phy_sgmii_s3_1e>;
 			phy-connection-type = "xgmii";
 		};
 
-		fm1mac2: ethernet@e2000 { /* DTSEC2/10GEC4 */
+		ethernet@e2000 {
 			phy-handle = <&phy_sgmii_s3_1f>;
 			phy-connection-type = "xgmii";
 		};
 
-		fm1mac3: ethernet@e4000 {
+		ethernet@e4000 {
 			phy-handle = <&rgmii_phy1>;
 			phy-connection-type = "rgmii";
 		};
 
-		fm1mac4: ethernet@e6000 {
+		ethernet@e6000 {
 			phy-handle = <&rgmii_phy2>;
 			phy-connection-type = "rgmii";
 		};
 
-		fm1mac5: ethernet@e8000 {
+		ethernet@e8000 {
 			phy-handle = <&phy_sgmii_s2_1e>;
 			phy-connection-type = "sgmii";
 		};
 
-		fm1mac6: ethernet@ea000 {
+		ethernet@ea000 {
 			phy-handle = <&phy_sgmii_s2_1d>;
 			phy-connection-type = "sgmii";
 		};
 
-		fm1mac9: ethernet@f0000 { /* DTSEC9/10GEC1 */
+		ethernet@f0000 {
 			phy-handle = <&phy_xaui_slot3>;
 			phy-connection-type = "xgmii";
 		};
 
-		fm1mac10: ethernet@f2000 { /* DTSEC10/10GEC2 */
+		ethernet@f2000 {
 			phy-handle = <&phy_sgmii_s3_1f>;
 			phy-connection-type = "xgmii";
 		};
 
-		mdio0: mdio@fc000 {
-		};
-
-		xmdio0: mdio@fd000 {
-			#address-cells = <1>;
-			#size-cells = <0>;
+		mdio@fd000 {
 			phy_xaui_slot3: ethernet-phy@3 {
 				compatible = "ethernet-phy-ieee802.3-c45";
 				reg = <0x3>;
@@ -122,89 +117,92 @@
 		mdio-parent-bus = <&mdio0>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-		reg = <0x54 1>;    /* BRDCFG4 */
-		mux-mask = <0xe0>; /* EMI1 */
+		reg = <0x54 1>;
+		mux-mask = <0xe0>;
 
-		/* On-board RGMII1 PHY */
 		t2080mdio0: mdio@0 {
-			reg = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			reg = <0>;
 
-			rgmii_phy1: ethernet-phy@1 { /* MAC3 */
+			rgmii_phy1: ethernet-phy@1 {
 				reg = <0x1>;
 			};
 		};
 
-		/* On-board RGMII2 PHY */
 		t2080mdio1: mdio@20 {
-			reg = <0x20>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			reg = <0x20>;
 
-			rgmii_phy2: ethernet-phy@2 { /* MAC4 */
+			rgmii_phy2: ethernet-phy@2 {
 				reg = <0x2>;
 			};
 		};
 
-		/* Slot 1 */
 		t2080mdio2: mdio@40 {
-			reg = <0x40>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			reg = <0x40>;
 			status = "disabled";
 
 			phy_sgmii_s1_1c: ethernet-phy@1c {
 				reg = <0x1c>;
 			};
+
 			phy_sgmii_s1_1d: ethernet-phy@1d {
 				reg = <0x1d>;
 			};
+
 			phy_sgmii_s1_1e: ethernet-phy@1e {
 				reg = <0x1e>;
 			};
+
 			phy_sgmii_s1_1f: ethernet-phy@1f {
 				reg = <0x1f>;
 			};
 		};
 
-		/* Slot 2 */
 		t2080mdio3: mdio@c0 {
-			reg = <0xc0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-			/*status = "disabled";*/
+			reg = <0xc0>;
 
 			phy_sgmii_s2_1c: ethernet-phy@1c {
 				reg = <0x1c>;
 			};
+
 			phy_sgmii_s2_1d: ethernet-phy@1d {
 				reg = <0x1d>;
 			};
+
 			phy_sgmii_s2_1e: ethernet-phy@1e {
 				reg = <0x1e>;
 			};
+
 			phy_sgmii_s2_1f: ethernet-phy@1f {
 				reg = <0x1f>;
 			};
 		};
 
-		/* Slot 3 */
 		t2080mdio4: mdio@60 {
-			reg = <0x60>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			reg = <0x60>;
 			status = "disabled";
 
 			phy_sgmii_s3_1c: ethernet-phy@1c {
 				reg = <0x1c>;
 			};
+
 			phy_sgmii_s3_1d: ethernet-phy@1d {
 				reg = <0x1d>;
 			};
+
 			phy_sgmii_s3_1e: ethernet-phy@1e {
 				reg = <0x1e>;
 			};
+
 			phy_sgmii_s3_1f: ethernet-phy@1f {
 				reg = <0x1f>;
 			};
@@ -213,5 +211,3 @@
 };
 
 /include/ "t2080si-post.dtsi"
-/include/ "qoriq-dpaa-res3.dtsi"
-/include/ "qoriq-qman-ceetm0.dtsi"

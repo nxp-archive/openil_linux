@@ -47,8 +47,17 @@ static void ipipe_timer_default_request(struct ipipe_timer *timer, int steal)
 	if (!(evtdev->features & CLOCK_EVT_FEAT_ONESHOT))
 		return;
 
-	if (evtdev->mode != CLOCK_EVT_MODE_ONESHOT) {
-		evtdev->set_mode(CLOCK_EVT_MODE_ONESHOT, evtdev);
+	if (clockevent_state_oneshot(evtdev) ||
+		clockevent_state_oneshot_stopped(evtdev))
+		timer->orig_mode = CLOCK_EVT_MODE_ONESHOT;
+	else {
+		if (clockevent_state_periodic(evtdev))
+			timer->orig_mode = CLOCK_EVT_MODE_PERIODIC;
+		else if (clockevent_state_shutdown(evtdev))
+			timer->orig_mode = CLOCK_EVT_MODE_SHUTDOWN;
+		else
+			timer->orig_mode = CLOCK_EVT_MODE_UNUSED;
+		evtdev->set_state_oneshot(evtdev);
 		evtdev->set_next_event(timer->freq / HZ, evtdev);
 	}
 }
@@ -61,9 +70,31 @@ static void ipipe_timer_default_release(struct ipipe_timer *timer)
 {
 	struct clock_event_device *evtdev = timer->host_timer;
 
-	evtdev->set_mode(evtdev->mode, evtdev);
-	if (evtdev->mode == CLOCK_EVT_MODE_ONESHOT)
+	switch (timer->orig_mode) {
+	case CLOCK_EVT_MODE_SHUTDOWN:
+		evtdev->set_state_shutdown(evtdev);
+		break;
+	case CLOCK_EVT_MODE_PERIODIC:
+		evtdev->set_state_periodic(evtdev);
+	case CLOCK_EVT_MODE_ONESHOT:
 		evtdev->set_next_event(timer->freq / HZ, evtdev);
+		break;
+	}
+}
+
+static int get_dev_mode(struct clock_event_device *evtdev)
+{
+	if (clockevent_state_oneshot(evtdev) ||
+		clockevent_state_oneshot_stopped(evtdev))
+		return CLOCK_EVT_MODE_ONESHOT;
+
+	if (clockevent_state_periodic(evtdev))
+		return CLOCK_EVT_MODE_PERIODIC;
+
+	if (clockevent_state_shutdown(evtdev))
+		return CLOCK_EVT_MODE_SHUTDOWN;
+
+	return CLOCK_EVT_MODE_UNUSED;
 }
 
 void ipipe_host_timer_register(struct clock_event_device *evtdev)
@@ -73,6 +104,8 @@ void ipipe_host_timer_register(struct clock_event_device *evtdev)
 	if (timer == NULL)
 		return;
 
+	timer->orig_mode = CLOCK_EVT_MODE_UNUSED;
+	
 	if (timer->request == NULL)
 		timer->request = ipipe_timer_default_request;
 
@@ -149,7 +182,7 @@ static void ipipe_timer_request_sync(void)
 	evtdev = timer->host_timer;
 
 #ifdef CONFIG_GENERIC_CLOCKEVENTS
-	steal = evtdev != NULL && evtdev->mode != CLOCK_EVT_MODE_UNUSED;
+	steal = evtdev != NULL && !clockevent_state_detached(evtdev);
 #else /* !CONFIG_GENERIC_CLOCKEVENTS */
 	steal = 1;
 #endif /* !CONFIG_GENERIC_CLOCKEVENTS */
@@ -200,7 +233,7 @@ static void select_root_only_timer(unsigned cpu, unsigned hrclock_khz,
 		if (t->irq == per_cpu(ipipe_percpu.hrtimer_irq, icpu)) {
 #ifdef CONFIG_GENERIC_CLOCKEVENTS
 			evtdev = t->host_timer;
-			if (evtdev && evtdev->mode == CLOCK_EVT_MODE_SHUTDOWN)
+			if (evtdev && clockevent_state_shutdown(evtdev))
 				continue;
 #endif /* CONFIG_GENERIC_CLOCKEVENTS */
 			goto found;
@@ -249,7 +282,7 @@ int ipipe_select_timers(const struct cpumask *mask)
 
 #ifdef CONFIG_GENERIC_CLOCKEVENTS
 			evtdev = t->host_timer;
-			if (evtdev && evtdev->mode == CLOCK_EVT_MODE_SHUTDOWN)
+			if (evtdev && clockevent_state_shutdown(evtdev))
 				continue;
 #endif /* CONFIG_GENERIC_CLOCKEVENTS */
 			goto found;
@@ -323,16 +356,43 @@ void ipipe_timers_release(void)
 	}
 }
 
-static void __ipipe_ack_hrtimer_irq(unsigned int irq, struct irq_desc *desc)
+static void __ipipe_ack_hrtimer_irq(struct irq_desc *desc)
 {
 	struct ipipe_timer *timer = __ipipe_raw_cpu_read(percpu_timer);
 
 	if (desc)
-		desc->ipipe_ack(irq, desc);
+		desc->ipipe_ack(desc);
 	if (timer->ack)
 		timer->ack();
 	if (desc)
-		desc->ipipe_end(irq, desc);
+		desc->ipipe_end(desc);
+}
+
+static int do_set_oneshot(struct clock_event_device *cdev)
+{
+	struct ipipe_timer *timer = __ipipe_raw_cpu_read(percpu_timer);
+
+	timer->mode_handler(CLOCK_EVT_MODE_ONESHOT, cdev);
+
+	return 0;
+}
+
+static int do_set_periodic(struct clock_event_device *cdev)
+{
+	struct ipipe_timer *timer = __ipipe_raw_cpu_read(percpu_timer);
+
+	timer->mode_handler(CLOCK_EVT_MODE_PERIODIC, cdev);
+
+	return 0;
+}
+
+static int do_set_shutdown(struct clock_event_device *cdev)
+{
+	struct ipipe_timer *timer = __ipipe_raw_cpu_read(percpu_timer);
+
+	timer->mode_handler(CLOCK_EVT_MODE_SHUTDOWN, cdev);
+
+	return 0;
 }
 
 int ipipe_timer_start(void (*tick_handler)(void),
@@ -362,21 +422,28 @@ int ipipe_timer_start(void (*tick_handler)(void),
 	}
 
 #ifdef CONFIG_GENERIC_CLOCKEVENTS
-	steal = evtdev != NULL && evtdev->mode != CLOCK_EVT_MODE_UNUSED;
+	steal = evtdev != NULL && !clockevent_state_detached(evtdev);
 	if (steal && evtdev->ipipe_stolen == 0) {
 		timer->real_mult = evtdev->mult;
 		timer->real_shift = evtdev->shift;
-		timer->real_set_mode = evtdev->set_mode;
-		timer->real_set_next_event = evtdev->set_next_event;
+		timer->orig_set_state_periodic = evtdev->set_state_periodic;
+		timer->orig_set_state_oneshot = evtdev->set_state_oneshot;
+		timer->orig_set_state_oneshot_stopped = evtdev->set_state_oneshot_stopped;
+		timer->orig_set_state_shutdown = evtdev->set_state_shutdown;
+		timer->orig_set_next_event = evtdev->set_next_event;
+		timer->mode_handler = emumode;
 		evtdev->mult = 1;
 		evtdev->shift = 0;
 		evtdev->max_delta_ns = UINT_MAX;
-		evtdev->set_mode = emumode;
+		evtdev->set_state_periodic = do_set_periodic;
+		evtdev->set_state_oneshot = do_set_oneshot;
+		evtdev->set_state_oneshot_stopped = do_set_oneshot;
+		evtdev->set_state_shutdown = do_set_shutdown;
 		evtdev->set_next_event = emutick;
 		evtdev->ipipe_stolen = 1;
 	}
 
-	ret = evtdev ? evtdev->mode : CLOCK_EVT_MODE_UNUSED;
+	ret = get_dev_mode(evtdev);
 #else /* CONFIG_GENERIC_CLOCKEVENTS */
 	steal = 1;
 	ret = 0;
@@ -412,11 +479,11 @@ void ipipe_timer_stop(unsigned cpu)
 		if (evtdev->ipipe_stolen) {
 			evtdev->mult = timer->real_mult;
 			evtdev->shift = timer->real_shift;
-			evtdev->set_mode = timer->real_set_mode;
-			evtdev->set_next_event = timer->real_set_next_event;
-			timer->real_mult = timer->real_shift = 0;
-			timer->real_set_mode = NULL;
-			timer->real_set_next_event = NULL;
+			evtdev->set_state_periodic = timer->orig_set_state_periodic;
+			evtdev->set_state_oneshot = timer->orig_set_state_oneshot;
+			evtdev->set_state_oneshot_stopped = timer->orig_set_state_oneshot_stopped;
+			evtdev->set_state_shutdown = timer->orig_set_state_shutdown;
+			evtdev->set_next_event = timer->orig_set_next_event;
 			evtdev->ipipe_stolen = 0;
 		}
 
@@ -449,9 +516,10 @@ void ipipe_timer_set(unsigned long cdelay)
 		tdelay *= t->c2t_integ;
 	if (t->c2t_frac)
 		tdelay += ((unsigned long long)cdelay * t->c2t_frac) >> 32;
+	if (tdelay < t->min_delay_ticks)
+		tdelay = t->min_delay_ticks;
 
-	if (tdelay < t->min_delay_ticks
-	    || t->set(tdelay, t->timer_set) < 0)
+	if (t->set(tdelay, t->timer_set) < 0)
 		ipipe_raise_irq(t->irq);
 }
 EXPORT_SYMBOL_GPL(ipipe_timer_set);

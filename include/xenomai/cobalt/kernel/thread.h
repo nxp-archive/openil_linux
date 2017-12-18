@@ -270,14 +270,6 @@ static inline struct task_struct *xnthread_host_task(struct xnthread *thread)
 	return xnthread_archtcb(thread)->core.host_task;
 }
 
-static inline pid_t xnthread_host_pid(struct xnthread *thread)
-{
-	if (xnthread_test_state(thread, XNROOT))
-		return 0;
-
-	return task_pid_nr(xnthread_host_task(thread));
-}
-
 #define xnthread_for_each_booster(__pos, __thread)		\
 	list_for_each_entry(__pos, &(__thread)->boosters, next)
 
@@ -443,6 +435,8 @@ void xnthread_deregister(struct xnthread *thread);
 char *xnthread_format_status(unsigned long status,
 			     char *buf, int size);
 
+pid_t xnthread_host_pid(struct xnthread *thread);
+
 int xnthread_set_clock(struct xnthread *thread,
 		       struct xnclock *newclock);
 
@@ -540,16 +534,10 @@ static inline void xnthread_commit_ceiling(struct xnthread *curr)
 }
 
 #ifdef CONFIG_SMP
-int xnthread_migrate(int cpu);
 
 void xnthread_migrate_passive(struct xnthread *thread,
 			      struct xnsched *sched);
 #else
-
-static inline int xnthread_migrate(int cpu)
-{
-	return cpu ? -EINVAL : 0;
-}
 
 static inline void xnthread_migrate_passive(struct xnthread *thread,
 					    struct xnsched *sched)

@@ -268,6 +268,8 @@ static int __cold mac_probe(struct platform_device *_of_dev)
 		goto _return_dev_set_drvdata;
 	}
 	mac_dev->cell_index = (uint8_t)cell_index;
+	if (mac_dev->cell_index >= 8)
+		mac_dev->cell_index -= 8;
 
 	/* Get the MAC address */
 	mac_addr = of_get_mac_address(mac_node);
@@ -280,7 +282,7 @@ static int __cold mac_probe(struct platform_device *_of_dev)
 	memcpy(mac_dev->addr, mac_addr, sizeof(mac_dev->addr));
 
 	/* Verify the number of port handles */
-	nph = of_count_phandle_with_args(mac_node, "fsl,port-handles", NULL);
+	nph = of_count_phandle_with_args(mac_node, "fsl,fman-ports", NULL);
 	if (unlikely(nph < 0)) {
 		dev_err(dev, "Cannot read port handles of mac node %s from device tree\n",
 				mac_node->full_name);
@@ -296,7 +298,7 @@ static int __cold mac_probe(struct platform_device *_of_dev)
 	}
 
 	for_each_port_device(i, mac_dev->port_dev) {
-		dev_node = of_parse_phandle(mac_node, "fsl,port-handles", i);
+		dev_node = of_parse_phandle(mac_node, "fsl,fman-ports", i);
 		if (unlikely(dev_node == NULL)) {
 			dev_err(dev, "Cannot find port node referenced by mac node %s from device tree\n",
 					mac_node->full_name);

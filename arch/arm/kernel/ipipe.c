@@ -359,11 +359,19 @@ void __ipipe_exit_irq(struct pt_regs *regs)
 	}
 }
 
+void printascii(const char *s);
 /* hw irqs off */
 asmlinkage void __exception __ipipe_grab_irq(int irq, struct pt_regs *regs)
 {
 	struct ipipe_percpu_data *p = __ipipe_raw_cpu_ptr(&ipipe_percpu);
 
+#if 0
+	if (irq == 16)
+		printascii("*");
+	else
+		printascii("#");
+#endif
+	
 	ipipe_trace_irq_entry(irq);
 
 	if (p->hrtimer_irq == -1)

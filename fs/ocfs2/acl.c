@@ -201,7 +201,7 @@ static int ocfs2_acl_set_mode(struct inode *inode, struct buffer_head *di_bh,
 	}
 
 	inode->i_mode = new_mode;
-	inode->i_ctime = CURRENT_TIME;
+	inode->i_ctime = current_time(inode);
 	di->i_mode = cpu_to_le16(inode->i_mode);
 	di->i_ctime = cpu_to_le64(inode->i_ctime.tv_sec);
 	di->i_ctime_nsec = cpu_to_le32(inode->i_ctime.tv_nsec);
@@ -241,13 +241,11 @@ int ocfs2_set_acl(handle_t *handle,
 	case ACL_TYPE_ACCESS:
 		name_index = OCFS2_XATTR_INDEX_POSIX_ACL_ACCESS;
 		if (acl) {
-			umode_t mode = inode->i_mode;
-			ret = posix_acl_equiv_mode(acl, &mode);
-			if (ret < 0)
-				return ret;
+			umode_t mode;
 
-			if (ret == 0)
-				acl = NULL;
+			ret = posix_acl_update_mode(inode, &mode, &acl);
+			if (ret)
+				return ret;
 
 			ret = ocfs2_acl_set_mode(inode, di_bh,
 						 handle, mode);
@@ -284,7 +282,19 @@ int ocfs2_set_acl(handle_t *handle,
 
 int ocfs2_iop_set_acl(struct inode *inode, struct posix_acl *acl, int type)
 {
-	return ocfs2_set_acl(NULL, inode, NULL, type, acl, NULL, NULL);
+	struct buffer_head *bh = NULL;
+	int status = 0;
+
+	status = ocfs2_inode_lock(inode, &bh, 1);
+	if (status < 0) {
+		if (status != -ENOENT)
+			mlog_errno(status);
+		return status;
+	}
+	status = ocfs2_set_acl(NULL, inode, bh, type, acl, NULL, NULL);
+	ocfs2_inode_unlock(inode, 1);
+	brelse(bh);
+	return status;
 }
 
 struct posix_acl *ocfs2_iop_get_acl(struct inode *inode, int type)
@@ -292,20 +302,22 @@ struct posix_acl *ocfs2_iop_get_acl(struct inode *inode, int type)
 	struct ocfs2_super *osb;
 	struct buffer_head *di_bh = NULL;
 	struct posix_acl *acl;
-	int ret = -EAGAIN;
+	int ret;
 
 	osb = OCFS2_SB(inode->i_sb);
 	if (!(osb->s_mount_opt & OCFS2_MOUNT_POSIX_ACL))
 		return NULL;
-
-	ret = ocfs2_read_inode_block(inode, &di_bh);
-	if (ret < 0)
+	ret = ocfs2_inode_lock(inode, &di_bh, 0);
+	if (ret < 0) {
+		if (ret != -ENOENT)
+			mlog_errno(ret);
 		return ERR_PTR(ret);
+	}
 
 	acl = ocfs2_get_acl_nolock(inode, type, di_bh);
 
+	ocfs2_inode_unlock(inode, 0);
 	brelse(di_bh);
-
 	return acl;
 }
 

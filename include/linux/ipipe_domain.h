@@ -46,7 +46,7 @@ struct ipipe_vm_notifier;
 #define __IPIPE_SHIFT_R	   3
 #define __IPIPE_ALL_R	  (__IPIPE_ALL_E << __IPIPE_SHIFT_R)
 
-typedef void (*ipipe_irq_ackfn_t)(unsigned int irq, struct irq_desc *desc);
+typedef void (*ipipe_irq_ackfn_t)(struct irq_desc *desc);
 
 struct ipipe_domain {
 	int context_offset;

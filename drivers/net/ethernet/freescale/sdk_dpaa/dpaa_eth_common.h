@@ -58,10 +58,6 @@
 #define DPA_SGT_MAX_ENTRIES 16 /* maximum number of entries in SG Table */
 
 #define DPA_SGT_ENTRIES_THRESHOLD	DPA_SGT_MAX_ENTRIES
-#ifndef CONFIG_PPC
-/* each S/G entry can be divided into two S/G entries during errata W/A */
-#define DPA_SGT_4K_ENTRIES_THRESHOLD	7
-#endif
 
 #define DPA_BUFF_RELEASE_MAX 8 /* maximum number of buffers released at once */
 
@@ -144,7 +140,7 @@ int dpa_netdev_init(struct net_device *net_dev,
 int __cold dpa_start(struct net_device *net_dev);
 int __cold dpa_stop(struct net_device *net_dev);
 void __cold dpa_timeout(struct net_device *net_dev);
-struct rtnl_link_stats64 * __cold
+void __cold
 dpa_get_stats64(struct net_device *net_dev,
 		struct rtnl_link_stats64 *stats);
 int dpa_change_mtu(struct net_device *net_dev, int new_mtu);
@@ -190,7 +186,7 @@ int dpa_fq_probe_mac(struct device *dev, struct list_head *list,
 		     enum port_type ptype);
 int dpa_get_channel(void);
 void dpa_release_channel(void);
-int dpaa_eth_add_channel(void *__arg);
+void dpaa_eth_add_channel(u16 channel);
 int dpaa_eth_cgr_init(struct dpa_priv_s *priv);
 void dpa_fq_setup(struct dpa_priv_s *priv, const struct dpa_fq_cbs_t *fq_cbs,
 		struct fm_port *tx_port);

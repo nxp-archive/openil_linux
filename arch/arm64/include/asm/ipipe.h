@@ -33,7 +33,7 @@
 #include <linux/ipipe_trace.h>
 #include <linux/ipipe_debug.h>
 
-#define IPIPE_CORE_RELEASE	6
+#define IPIPE_CORE_RELEASE	2
 
 struct ipipe_domain;
 
@@ -97,20 +97,6 @@ extern unsigned long __ipipe_hrtimer_freq;
 extern void (*__ipipe_mach_hrtimer_debug)(unsigned irq);
 #endif /* CONFIG_IPIPE_DEBUG_INTERNAL */
 
-#ifdef CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH
-
-#define ipipe_mm_switch_protect(__flags)	\
-	do {					\
-		(void)(__flags);		\
-	} while(0)
-
-#define ipipe_mm_switch_unprotect(__flags)	\
-	do {					\
-		(void)(__flags);		\
-	} while(0)
-
-#else /* !CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH */
-
 #define ipipe_mm_switch_protect(__flags)		\
 	do {						\
 		(__flags) = hard_cond_local_irq_save();	\
@@ -118,10 +104,6 @@ extern void (*__ipipe_mach_hrtimer_debug)(unsigned irq);
 
 #define ipipe_mm_switch_unprotect(__flags)	\
 	hard_cond_local_irq_restore(__flags)
-
-#endif /* !CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH */
-
-#define ipipe_get_active_mm()	(__this_cpu_read(ipipe_percpu.active_mm))
 
 #define ipipe_read_tsc(t)	do { t = __ipipe_tsc_get(); } while(0)
 #define __ipipe_read_timebase()	__ipipe_tsc_get()
@@ -183,8 +165,6 @@ static inline void ipipe_unmute_pic(void)
 void __ipipe_early_core_setup(void);
 void __ipipe_hook_critical_ipi(struct ipipe_domain *ipd);
 void __ipipe_root_localtimer(unsigned int irq, void *cookie);
-void __ipipe_send_vnmi(void (*fn)(void *), cpumask_t cpumask, void *arg);
-void __ipipe_do_vnmi(unsigned int irq, void *cookie);
 void __ipipe_grab_ipi(unsigned svc, struct pt_regs *regs);
 void __ipipe_ipis_alloc(void);
 void __ipipe_ipis_request(void);
@@ -244,9 +224,6 @@ static inline unsigned long __ipipe_ffnz(unsigned long ul)
 	(ipipe_notifier_enabled_p(p) || (unsigned long)sc >= __NR_syscalls)
 
 #define __ipipe_root_tick_p(regs) (!arch_irqs_disabled_flags(regs->pstate))
-
-struct task_struct *ipipe_switch_to(struct task_struct *prev,
-				    struct task_struct *next);
 
 #else /* !CONFIG_IPIPE */
 

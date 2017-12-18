@@ -279,22 +279,6 @@ static struct nid_path *get_nid_path(struct hda_codec *codec,
 }
 
 /**
- * snd_hda_get_nid_path - get the path between the given NIDs
- * @codec: the HDA codec
- * @from_nid: the NID where the path start from
- * @to_nid: the NID where the path ends at
- *
- * Return the found nid_path object or NULL for error.
- * Passing 0 to either @from_nid or @to_nid behaves as a wildcard.
- */
-struct nid_path *snd_hda_get_nid_path(struct hda_codec *codec,
-				      hda_nid_t from_nid, hda_nid_t to_nid)
-{
-	return get_nid_path(codec, from_nid, to_nid, 0);
-}
-EXPORT_SYMBOL_GPL(snd_hda_get_nid_path);
-
-/**
  * snd_hda_get_path_idx - get the index number corresponding to the path
  * instance
  * @codec: the HDA codec
@@ -451,7 +435,7 @@ static bool __parse_nid_path(struct hda_codec *codec,
 	return true;
 }
 
-/**
+/*
  * snd_hda_parse_nid_path - parse the widget path from the given nid to
  * the target nid
  * @codec: the HDA codec
@@ -470,7 +454,7 @@ static bool __parse_nid_path(struct hda_codec *codec,
  * with the negative of given value are excluded, only other paths are chosen.
  * when @anchor_nid is zero, no special handling about path selection.
  */
-bool snd_hda_parse_nid_path(struct hda_codec *codec, hda_nid_t from_nid,
+static bool snd_hda_parse_nid_path(struct hda_codec *codec, hda_nid_t from_nid,
 			    hda_nid_t to_nid, int anchor_nid,
 			    struct nid_path *path)
 {
@@ -481,7 +465,6 @@ bool snd_hda_parse_nid_path(struct hda_codec *codec, hda_nid_t from_nid,
 	}
 	return false;
 }
-EXPORT_SYMBOL_GPL(snd_hda_parse_nid_path);
 
 /**
  * snd_hda_add_new_path - parse the path between the given NIDs and
@@ -843,7 +826,7 @@ static hda_nid_t path_power_update(struct hda_codec *codec,
 				   bool allow_powerdown)
 {
 	hda_nid_t nid, changed = 0;
-	int i, state;
+	int i, state, power;
 
 	for (i = 0; i < path->depth; i++) {
 		nid = path->path[i];
@@ -855,7 +838,9 @@ static hda_nid_t path_power_update(struct hda_codec *codec,
 			state = AC_PWRST_D0;
 		else
 			state = AC_PWRST_D3;
-		if (!snd_hda_check_power_state(codec, nid, state)) {
+		power = snd_hda_codec_read(codec, nid, 0,
+					   AC_VERB_GET_POWER_STATE, 0);
+		if (power != (state | (state << 4))) {
 			snd_hda_codec_write(codec, nid, 0,
 					    AC_VERB_SET_POWER_STATE, state);
 			changed = nid;
@@ -2507,10 +2492,6 @@ static int create_loopback_mixing_ctl(struct hda_codec *codec)
 	if (!snd_hda_gen_add_kctl(spec, NULL, &loopback_mixing_enum))
 		return -ENOMEM;
 	spec->have_aamix_ctl = 1;
-	/* if no explicit aamix path is present (e.g. for Realtek codecs),
-	 * enable aamix as default -- just for compatibility
-	 */
-	spec->aamix_mode = !has_aamix_out_paths(spec);
 	return 0;
 }
 
@@ -5221,7 +5202,7 @@ static int alt_playback_pcm_open(struct hda_pcm_stream *hinfo,
 	int err = 0;
 
 	mutex_lock(&spec->pcm_mutex);
-	if (!spec->indep_hp_enabled)
+	if (spec->indep_hp && !spec->indep_hp_enabled)
 		err = -EBUSY;
 	else
 		spec->active_streams |= 1 << STREAM_INDEP_HP;
@@ -5451,6 +5432,7 @@ static int dyn_adc_capture_pcm_prepare(struct hda_pcm_stream *hinfo,
 	spec->cur_adc_stream_tag = stream_tag;
 	spec->cur_adc_format = format;
 	snd_hda_codec_setup_stream(codec, spec->cur_adc, stream_tag, 0, format);
+	call_pcm_capture_hook(hinfo, codec, substream, HDA_GEN_PCM_ACT_PREPARE);
 	return 0;
 }
 
@@ -5461,6 +5443,7 @@ static int dyn_adc_capture_pcm_cleanup(struct hda_pcm_stream *hinfo,
 	struct hda_gen_spec *spec = codec->spec;
 	snd_hda_codec_cleanup_stream(codec, spec->cur_adc);
 	spec->cur_adc = 0;
+	call_pcm_capture_hook(hinfo, codec, substream, HDA_GEN_PCM_ACT_CLEANUP);
 	return 0;
 }
 
@@ -5928,13 +5911,14 @@ error:
 	return err;
 }
 
-static const struct hda_codec_preset snd_hda_preset_generic[] = {
-	{ .id = HDA_CODEC_ID_GENERIC, .patch = snd_hda_parse_generic_codec },
+static const struct hda_device_id snd_hda_id_generic[] = {
+	HDA_CODEC_ENTRY(HDA_CODEC_ID_GENERIC, "Generic", snd_hda_parse_generic_codec),
 	{} /* terminator */
 };
+MODULE_DEVICE_TABLE(hdaudio, snd_hda_id_generic);
 
 static struct hda_codec_driver generic_driver = {
-	.preset = snd_hda_preset_generic,
+	.id = snd_hda_id_generic,
 };
 
 module_hda_codec_driver(generic_driver);

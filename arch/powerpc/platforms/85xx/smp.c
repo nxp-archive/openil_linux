@@ -10,8 +10,6 @@
  * option) any later version.
  */
 
-#define pr_fmt(fmt) "smp: %s: " fmt, __func__
-
 #include <linux/stddef.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -244,7 +242,8 @@ static int smp_85xx_start_cpu(int cpu)
 		if (!spin_event_timeout(
 				read_spin_table_addr_l(spin_table) == 1,
 				10000, 100)) {
-			pr_err("timeout waiting for cpu %d to reset\n", hw_cpu);
+			pr_err("timeout waiting for cpu %d to reset\n",
+				hw_cpu);
 			ret = -EAGAIN;
 			goto err;
 		}
@@ -296,11 +295,11 @@ static int smp_85xx_kick_cpu(int nr)
 		 */
 		if (cpu_online(primary)) {
 			smp_call_function_single(primary,
-						 wake_hw_thread, &nr, 1);
+					wake_hw_thread, &nr, 1);
 			goto done;
 		} else if (cpu_online(primary + 1)) {
 			smp_call_function_single(primary + 1,
-						 wake_hw_thread, &nr, 1);
+					wake_hw_thread, &nr, 1);
 			goto done;
 		}
 
@@ -349,6 +348,10 @@ struct smp_ops_t smp_85xx_ops = {
 #ifdef CONFIG_HOTPLUG_CPU
 	.cpu_disable	= generic_cpu_disable,
 	.cpu_die	= generic_cpu_die,
+#endif
+#if defined(CONFIG_KEXEC) && !defined(CONFIG_PPC64)
+	.give_timebase	= smp_generic_give_timebase,
+	.take_timebase	= smp_generic_take_timebase,
 #endif
 };
 
