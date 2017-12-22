@@ -228,9 +228,9 @@ static inline unsigned long __ipipe_ffnz(unsigned long ul)
 #else /* !CONFIG_IPIPE */
 
 #define __ipipe_tsc_update()	do { } while(0)
-
+#ifdef CONFIG_IPIPE
 #define hard_smp_processor_id()		smp_processor_id()
-
+#endif
 #define ipipe_mm_switch_protect(flags) \
 	do {					\
 		(void) (flags);			\

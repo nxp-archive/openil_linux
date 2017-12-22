@@ -1,6 +1,6 @@
 config IPIPE
 	bool "Interrupt pipeline"
-	default y
+	default n
 	---help---
 	  Activate this option if you want the interrupt pipeline to be
 	  compiled in.

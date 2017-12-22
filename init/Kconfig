@@ -2146,7 +2146,7 @@ menuconfig XENOMAI
 	bool "Xenomai/cobalt"
 	select IPIPE
 	select IPIPE_WANT_APIREV_2
-	default y
+	default n
 	help
 	  Xenomai's Cobalt core is a real-time extension to the Linux
 	  kernel, which exhibits very short interrupt and scheduling
