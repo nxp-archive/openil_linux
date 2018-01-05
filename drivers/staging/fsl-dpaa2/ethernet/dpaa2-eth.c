@@ -907,7 +907,8 @@ static netdev_tx_t dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	trace_dpaa2_tx_fd(net_dev, &fd);
 
 	for (i = 0; i < DPAA2_ETH_ENQUEUE_RETRIES; i++) {
-		err = dpaa2_io_service_enqueue_qd(NULL, priv->tx_qdid, 0,
+		err = dpaa2_io_service_enqueue_qd(fq->channel->dpio,
+						  priv->tx_qdid, 0,
 						  fq->tx_qdbin, &fd);
 		if (err != -EBUSY)
 			break;
@@ -1021,7 +1022,8 @@ static int set_tx_csum(struct dpaa2_eth_priv *priv, bool enable)
 /* Perform a single release command to add buffers
  * to the specified buffer pool
  */
-static int add_bufs(struct dpaa2_eth_priv *priv, u16 bpid)
+static int add_bufs(struct dpaa2_eth_priv *priv,
+		    struct dpaa2_eth_channel *ch, u16 bpid)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	u64 buf_array[DPAA2_ETH_BUFS_PER_CMD];
@@ -1055,7 +1057,7 @@ static int add_bufs(struct dpaa2_eth_priv *priv, u16 bpid)
 
 release_bufs:
 	/* In case the portal is busy, retry until successful */
-	while ((err = dpaa2_io_service_release(NULL, bpid,
+	while ((err = dpaa2_io_service_release(ch->dpio, bpid,
 					       buf_array, i)) == -EBUSY)
 		cpu_relax();
 
@@ -1095,7 +1097,7 @@ static int seed_pool(struct dpaa2_eth_priv *priv, u16 bpid)
 		priv->channel[j]->buf_count = 0;
 		for (i = 0; i < priv->max_bufs_per_ch;
 		     i += DPAA2_ETH_BUFS_PER_CMD) {
-			new_count = add_bufs(priv, bpid);
+			new_count = add_bufs(priv, priv->channel[j], bpid);
 			priv->channel[j]->buf_count += new_count;
 
 			if (new_count < DPAA2_ETH_BUFS_PER_CMD) {
@@ -1150,7 +1152,7 @@ static int refill_pool(struct dpaa2_eth_priv *priv,
 		return 0;
 
 	do {
-		new_count = add_bufs(priv, bpid);
+		new_count = add_bufs(priv, ch, bpid);
 		if (unlikely(!new_count)) {
 			/* Out of memory; abort for now, we'll try later on */
 			break;
@@ -1171,7 +1173,8 @@ static int pull_channel(struct dpaa2_eth_channel *ch)
 
 	/* Retry while portal is busy */
 	do {
-		err = dpaa2_io_service_pull_channel(NULL, ch->ch_id, ch->store);
+		err = dpaa2_io_service_pull_channel(ch->dpio, ch->ch_id,
+						    ch->store);
 		dequeues++;
 		cpu_relax();
 	} while (err == -EBUSY);
@@ -1224,7 +1227,7 @@ static int dpaa2_eth_poll(struct napi_struct *napi, int budget)
 	 */
 	napi_complete(napi);
 	do {
-		err = dpaa2_io_service_rearm(NULL, &ch->nctx);
+		err = dpaa2_io_service_rearm(ch->dpio, &ch->nctx);
 		cpu_relax();
 	} while (err == -EBUSY);
 
@@ -2071,7 +2074,8 @@ static int setup_dpio(struct dpaa2_eth_priv *priv)
 		nctx->desired_cpu = i;
 
 		/* Register the new context */
-		err = dpaa2_io_service_register(NULL, nctx);
+		channel->dpio = dpaa2_io_service_select(i);
+		err = dpaa2_io_service_register(channel->dpio, nctx);
 		if (err) {
 			dev_dbg(dev, "No affine DPIO for cpu %d\n", i);
 			/* If no affine DPIO for this core, there's probably
@@ -2111,7 +2115,7 @@ static int setup_dpio(struct dpaa2_eth_priv *priv)
 	return 0;
 
 err_set_cdan:
-	dpaa2_io_service_deregister(NULL, nctx);
+	dpaa2_io_service_deregister(channel->dpio, nctx);
 err_service_reg:
 	free_channel(priv, channel);
 err_alloc_ch:
@@ -2134,7 +2138,7 @@ static void free_dpio(struct dpaa2_eth_priv *priv)
 	/* deregister CDAN notifications and free channels */
 	for (i = 0; i < priv->num_channels; i++) {
 		ch = priv->channel[i];
-		dpaa2_io_service_deregister(NULL, &ch->nctx);
+		dpaa2_io_service_deregister(ch->dpio, &ch->nctx);
 		free_channel(priv, ch);
 	}
 }
