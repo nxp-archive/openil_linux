@@ -263,8 +263,12 @@ static int xhci_plat_probe(struct platform_device *pdev)
 		goto disable_clk;
 	}
 
-	if (device_property_read_bool(sysdev, "usb3-lpm-capable"))
+	if (device_property_read_bool(sysdev, "usb3-lpm-capable")) {
 		xhci->quirks |= XHCI_LPM_SUPPORT;
+		if (device_property_read_bool(sysdev,
+					"snps,dis-u1u2-when-u3-quirk"))
+			xhci->quirks |= XHCI_DIS_U1U2_WHEN_U3;
+	}
 
 	if (device_property_read_bool(&pdev->dev, "quirk-reverse-in-out"))
 		xhci->quirks |= XHCI_REVERSE_IN_OUT;
