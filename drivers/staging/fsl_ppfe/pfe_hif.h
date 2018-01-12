@@ -20,6 +20,7 @@
 #define _PFE_HIF_H_
 
 #include <linux/netdevice.h>
+#include <linux/interrupt.h>
 
 #define HIF_NAPI_STATS
 
