@@ -787,6 +787,9 @@ static int fsl_qspi_nor_setup(struct fsl_qspi *q)
 	/* enable the interrupt */
 	qspi_writel(q, QUADSPI_RSER_TFIE, q->iobase + QUADSPI_RSER);
 
+	/* Init for AHB read */
+	fsl_qspi_init_ahb_read(q);
+
 	return 0;
 }
 
@@ -808,9 +811,6 @@ static int fsl_qspi_nor_setup_last(struct fsl_qspi *q)
 	ret = fsl_qspi_clk_prep_enable(q);
 	if (ret)
 		return ret;
-
-	/* Init for AHB read */
-	fsl_qspi_init_ahb_read(q);
 
 	return 0;
 }
