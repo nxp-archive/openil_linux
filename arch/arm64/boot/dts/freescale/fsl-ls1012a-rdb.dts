@@ -80,21 +80,6 @@
 	status = "okay";
 };
 
-&qspi {
-	num-cs = <2>;
-	bus-num = <0>;
-	status = "okay";
-
-	qflash0: s25fs512s@0 {
-		compatible = "spansion,m25p80";
-		#address-cells = <1>;
-		#size-cells = <1>;
-		spi-max-frequency = <20000000>;
-		m25p,fast-read;
-		reg = <0>;
-	};
-};
-
 &sata {
 	status = "okay";
 };
@@ -135,4 +120,19 @@
 			reg = <0x0>; /* enabled/disabled */
 		};
 	};
+};
+
+&qspi {
+	status = "okay";
+	qflash0: s25fs512s@0 {
+		compatible = "spansion,m25p80";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		spi-max-frequency = <20000000>;
+		m25p,fast-read;
+		reg = <0>;
+		spi-rx-bus-width = <2>;
+		spi-tx-bus-width = <2>;
+	};
+
 };
