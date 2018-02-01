@@ -136,13 +136,15 @@
 
 &qspi {
 	status = "okay";
+	fsl,qspi-has-second-chip;
 	qflash0: s25fs512s@0 {
 		compatible = "spansion,m25p80";
 		#address-cells = <1>;
 		#size-cells = <1>;
 		spi-max-frequency = <20000000>;
-		m25p,fast-read;
 		reg = <0>;
+		spi-rx-bus-width = <4>;
+		spi-tx-bus-width = <4>;
 	};
 
 	qflash1: s25fs512s@1 {
@@ -150,8 +152,9 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		spi-max-frequency = <20000000>;
-		m25p,fast-read;
 		reg = <1>;
+		spi-rx-bus-width = <4>;
+		spi-tx-bus-width = <4>;
 	};
 };
 
