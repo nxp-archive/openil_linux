@@ -325,6 +325,7 @@ static u32 dpaa2_eth_run_xdp(struct dpaa2_eth_priv *priv,
 	/* Allow the XDP program to use the specially reserved headroom */
 	xdp.data_hard_start = xdp.data - XDP_PACKET_HEADROOM;
 
+	rcu_read_lock();
 	xdp_act = bpf_prog_run_xdp(xdp_prog, &xdp);
 
 	/* xdp.data pointer may have changed */
@@ -366,6 +367,8 @@ static u32 dpaa2_eth_run_xdp(struct dpaa2_eth_priv *priv,
 		percpu_stats->rx_packets++;
 		percpu_stats->rx_bytes += dpaa2_fd_get_len(fd);
 	}
+
+	rcu_read_unlock();
 
 	return xdp_act;
 }
