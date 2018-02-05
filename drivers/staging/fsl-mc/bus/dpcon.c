@@ -30,7 +30,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 #include <linux/kernel.h>
-#include "../include/mc.h"
+#include <linux/fsl/mc.h>
 #include "../include/dpcon.h"
 
 #include "dpcon-cmd.h"

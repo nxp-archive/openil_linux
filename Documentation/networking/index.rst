@@ -7,6 +7,7 @@ Contents:
    :maxdepth: 2
 
    batman-adv
+   dpaa2/index
    kapi
    z8530book
 
