@@ -262,6 +262,7 @@ static void pl061_irq_mask_ack(struct irq_data *d)
 	writeb(gpioie, pl061->base + GPIOIE);
 	raw_spin_unlock(&pl061->lock);
 }
+#endif
 
 static void pl061_irq_unmask(struct irq_data *d)
 {
