@@ -194,6 +194,7 @@ static void aic5_suspend(struct irq_data *d)
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
 	int i;
 	u32 mask;
+	unsigned long flags;
 
 	if (smr_cache)
 		for (i = 0; i < domain->revmap_size; i++) {
@@ -201,7 +202,7 @@ static void aic5_suspend(struct irq_data *d)
 			smr_cache[i] = irq_reg_readl(bgc, AT91_AIC5_SMR);
 		}
 
-	irq_gc_lock(bgc);
+	flags = irq_gc_lock(bgc);
 	for (i = 0; i < dgc->irqs_per_chip; i++) {
 		mask = 1 << i;
 		if ((mask & gc->mask_cache) == (mask & gc->wake_active))
@@ -224,8 +225,9 @@ static void aic5_resume(struct irq_data *d)
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
 	int i;
 	u32 mask;
+	unsigned long flags;
 
-	irq_gc_lock(bgc);
+	flags = irq_gc_lock(bgc);
 
 	if (smr_cache) {
 		irq_reg_writel(bgc, 0xffffffff, AT91_AIC5_SPU);
