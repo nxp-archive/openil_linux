@@ -51,6 +51,7 @@
 #include <linux/pwm.h>
 #include <linux/regmap.h>
 #include <linux/slab.h>
+#include <linux/ipipe.h>
 
 /*
  * GPIO unit register offsets.
