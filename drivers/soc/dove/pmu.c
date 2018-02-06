@@ -16,6 +16,7 @@
 #include <linux/slab.h>
 #include <linux/soc/dove/pmu.h>
 #include <linux/spinlock.h>
+#include <linux/ipipe.h>
 
 #define NR_PMU_IRQS		7
 
