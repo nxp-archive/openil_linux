@@ -328,6 +328,7 @@ struct dpaa2_eth_ch_stats {
 #define DPAA2_ETH_MAX_QUEUES		(DPAA2_ETH_MAX_RX_QUEUES + \
 					DPAA2_ETH_MAX_TX_QUEUES + \
 					DPAA2_ETH_MAX_RX_ERR_QUEUES)
+#define DPAA2_ETH_MAX_NETDEV_QUEUES	(DPNI_MAX_DIST_SIZE * DPAA2_ETH_MAX_TCS)
 
 enum dpaa2_eth_fq_type {
 	DPAA2_RX_FQ = 0,
