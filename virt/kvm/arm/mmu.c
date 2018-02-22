@@ -1340,17 +1340,19 @@ static int user_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 		hugetlb = true;
 		gfn = (fault_ipa & PMD_MASK) >> PAGE_SHIFT;
 	} else {
-		pte_t *pte;
-		spinlock_t *ptl;
-		pgprot_t prot;
+		if (!is_vm_hugetlb_page(vma)) {
+			pte_t *pte;
+			spinlock_t *ptl;
+			pgprot_t prot;
 
-		pte = get_locked_pte(current->mm, memslot->userspace_addr, &ptl);
-		prot = stage1_to_stage2_pgprot(__pgprot(pte_val(*pte)));
-		pte_unmap_unlock(pte, ptl);
+			pte = get_locked_pte(current->mm, memslot->userspace_addr, &ptl);
+			prot = stage1_to_stage2_pgprot(__pgprot(pte_val(*pte)));
+			pte_unmap_unlock(pte, ptl);
 #ifdef ARM64
-		if (pgprot_val(prot) == pgprot_val(PAGE_S2_NS))
-			mem_type = PAGE_S2_NS;
+			if (pgprot_val(prot) == pgprot_val(PAGE_S2_NS))
+				mem_type = PAGE_S2_NS;
 #endif
+		}
 
 		/*
 		 * Pages belonging to memslots that don't have the same
