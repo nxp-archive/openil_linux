@@ -612,6 +612,7 @@
 			snps,dis_rxdet_inp3_quirk;
 			usb3-lpm-capable;
 			snps,dis-u1u2-when-u3-quirk;
+			snps,incr-burst-type-adjustment = <1>, <4>, <8>, <16>;
 		};
 
 		usb1: usb@3000000 {
@@ -623,6 +624,7 @@
 			snps,dis_rxdet_inp3_quirk;
 			usb3-lpm-capable;
 			snps,dis-u1u2-when-u3-quirk;
+			snps,incr-burst-type-adjustment = <1>, <4>, <8>, <16>;
 		};
 
 		usb2: usb@3100000 {
@@ -634,6 +636,7 @@
 			snps,dis_rxdet_inp3_quirk;
 			usb3-lpm-capable;
 			snps,dis-u1u2-when-u3-quirk;
+			snps,incr-burst-type-adjustment = <1>, <4>, <8>, <16>;
 		};
 
 		sata: sata@3200000 {
