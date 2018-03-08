@@ -335,6 +335,7 @@ void dma_common_free_remap(void *cpu_addr, size_t size, unsigned long vm_flags)
  * Common configuration to enable DMA API use for a device
  */
 #include <linux/pci.h>
+#include "../staging/fsl-mc/include/mc.h"
 
 int dma_configure(struct device *dev)
 {
@@ -347,6 +348,12 @@ int dma_configure(struct device *dev)
 		dma_dev = bridge;
 		if (IS_ENABLED(CONFIG_OF) && dma_dev->parent &&
 		    dma_dev->parent->of_node)
+			dma_dev = dma_dev->parent;
+	}
+
+	if (dev_is_fsl_mc(dev)) {
+		dma_dev = dev;
+		while (dev_is_fsl_mc(dma_dev))
 			dma_dev = dma_dev->parent;
 	}
 

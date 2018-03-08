@@ -17,6 +17,8 @@
 
 #include <linux/platform_device.h>
 
+#include <linux/of_device.h>
+
 #include "core.h"
 
 static int dwc3_host_get_irq(struct dwc3 *dwc)
@@ -85,7 +87,14 @@ int dwc3_host_init(struct dwc3 *dwc)
 		return -ENOMEM;
 	}
 
-	xhci->dev.parent	= dwc->dev;
+	if (IS_ENABLED(CONFIG_OF) && dwc->dev->of_node)
+		of_dma_configure(&xhci->dev, dwc->dev->of_node);
+	else
+		dma_set_coherent_mask(&xhci->dev, dwc->dev->coherent_dma_mask);
+
+	xhci->dev.parent = dwc->dev;
+
+	xhci->dev.dma_mask = dwc->dev->dma_mask;
 
 	dwc->xhci = xhci;
 
@@ -97,6 +106,15 @@ int dwc3_host_init(struct dwc3 *dwc)
 	}
 
 	memset(props, 0, sizeof(struct property_entry) * ARRAY_SIZE(props));
+
+	if (dwc->quirk_reverse_in_out)
+		props[prop_idx++].name = "quirk-reverse-in-out";
+
+	if (dwc->quirk_stop_transfer_in_block)
+		props[prop_idx++].name = "quirk-stop-transfer-in-block";
+
+	if (dwc->quirk_stop_ep_in_u1)
+		props[prop_idx++].name = "quirk-stop-ep-in-u1";
 
 	if (dwc->usb3_lpm_capable)
 		props[prop_idx++].name = "usb3-lpm-capable";

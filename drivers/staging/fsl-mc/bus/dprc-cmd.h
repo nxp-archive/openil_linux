@@ -56,6 +56,7 @@
 #define DPRC_CMDID_GET_API_VERSION              DPRC_CMD(0xa05)
 
 #define DPRC_CMDID_GET_ATTR                     DPRC_CMD(0x004)
+#define DPRC_CMDID_RESET_CONT                   DPRC_CMD(0x005)
 
 #define DPRC_CMDID_SET_IRQ                      DPRC_CMD(0x010)
 #define DPRC_CMDID_GET_IRQ                      DPRC_CMD(0x011)
@@ -81,8 +82,7 @@ struct dprc_cmd_open {
 struct dprc_cmd_create_container {
 	/* cmd word 0 */
 	__le32 options;
-	__le16 icid;
-	__le16 pad0;
+	__le32 icid;
 	/* cmd word 1 */
 	__le32 pad1;
 	__le32 portal_id;
@@ -183,8 +183,7 @@ struct dprc_cmd_clear_irq_status {
 struct dprc_rsp_get_attributes {
 	/* response word 0 */
 	__le32 container_id;
-	__le16 icid;
-	__le16 pad;
+	__le32 icid;
 	/* response word 1 */
 	__le32 options;
 	__le32 portal_id;
@@ -353,11 +352,16 @@ struct dprc_cmd_get_obj_region {
 
 struct dprc_rsp_get_obj_region {
 	/* response word 0 */
-	__le64 pad;
+	__le64 pad0;
 	/* response word 1 */
-	__le64 base_addr;
+	__le32 base_addr;
+	__le32 pad1;
 	/* response word 2 */
 	__le32 size;
+	u8 type;
+	u8 pad2[3];
+	/* response word 3 */
+	__le32 flags;
 };
 
 struct dprc_cmd_set_obj_label {

@@ -1,6 +1,6 @@
 /*
  * Copyright 2014-2016 Freescale Semiconductor Inc.
- * Copyright NXP
+ * Copyright 2017 NXP
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -88,6 +88,8 @@ void dpaa2_io_down(struct dpaa2_io *d);
 
 irqreturn_t dpaa2_io_irq(struct dpaa2_io *obj);
 
+struct dpaa2_io *dpaa2_io_service_select(int cpu);
+
 /**
  * struct dpaa2_io_notification_ctx - The DPIO notification context structure
  * @cb:           The callback to be invoked when the notification arrives
@@ -138,5 +140,53 @@ struct dpaa2_io_store *dpaa2_io_store_create(unsigned int max_frames,
 					     struct device *dev);
 void dpaa2_io_store_destroy(struct dpaa2_io_store *s);
 struct dpaa2_dq *dpaa2_io_store_next(struct dpaa2_io_store *s, int *is_last);
+
+/***************/
+/* CSCN        */
+/***************/
+
+/**
+ * struct dpaa2_cscn - The CSCN message format
+ * @verb: identifies the type of message (should be 0x27).
+ * @stat: status bits related to dequeuing response (not used)
+ * @state: bit 0 = 0/1 if CG is no/is congested
+ * @reserved: reserved byte
+ * @cgid: congest grp ID - the first 16 bits
+ * @ctx: context data
+ *
+ * Congestion management can be implemented in software through
+ * the use of Congestion State Change Notifications (CSCN). These
+ * are messages written by DPAA2 hardware to memory whenever the
+ * instantaneous count (I_CNT field in the CG) exceeds the
+ * Congestion State (CS) entrance threshold, signifying congestion
+ * entrance, or when the instantaneous count returns below exit
+ * threshold, signifying congestion exit. The format of the message
+ * is given by the dpaa2_cscn structure. Bit 0 of the state field
+ * represents congestion state written by the hardware.
+ */
+struct dpaa2_cscn {
+	u8 verb;
+	u8 stat;
+	u8 state;
+	u8 reserved;
+	__le32 cgid;
+	__le64 ctx;
+};
+
+#define DPAA2_CSCN_SIZE                        64
+#define DPAA2_CSCN_ALIGN               16
+
+#define DPAA2_CSCN_STATE_MASK          0x1
+#define DPAA2_CSCN_CONGESTED           1
+
+static inline bool dpaa2_cscn_state_congested(struct dpaa2_cscn *cscn)
+{
+	return ((cscn->state & DPAA2_CSCN_STATE_MASK) == DPAA2_CSCN_CONGESTED);
+}
+
+int dpaa2_io_query_fq_count(struct dpaa2_io *d, u32 fqid,
+			    u32 *fcnt, u32 *bcnt);
+int dpaa2_io_query_bp_count(struct dpaa2_io *d, u32 bpid,
+			    u32 *num);
 
 #endif /* __FSL_DPAA2_IO_H */

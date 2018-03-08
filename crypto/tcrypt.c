@@ -76,7 +76,7 @@ static char *check[] = {
 	"khazad", "wp512", "wp384", "wp256", "tnepres", "xeta",  "fcrypt",
 	"camellia", "seed", "salsa20", "rmd128", "rmd160", "rmd256", "rmd320",
 	"lzo", "cts", "zlib", "sha3-224", "sha3-256", "sha3-384", "sha3-512",
-	NULL
+	"rsa", NULL
 };
 
 struct tcrypt_result {
@@ -221,11 +221,13 @@ static void sg_init_aead(struct scatterlist *sg, char *xbuf[XBUFSIZE],
 	}
 
 	sg_init_table(sg, np + 1);
-	np--;
+	if (rem)
+		np--;
 	for (k = 0; k < np; k++)
 		sg_set_buf(&sg[k + 1], xbuf[k], PAGE_SIZE);
 
-	sg_set_buf(&sg[k + 1], xbuf[k], rem);
+	if (rem)
+		sg_set_buf(&sg[k + 1], xbuf[k], rem);
 }
 
 static void test_aead_speed(const char *algo, int enc, unsigned int secs,
@@ -1331,6 +1333,10 @@ static int do_test(const char *alg, u32 type, u32 mask, int m)
 		ret += tcrypt_test("hmac(sha3-512)");
 		break;
 
+	case 115:
+		ret += tcrypt_test("rsa");
+		break;
+
 	case 150:
 		ret += tcrypt_test("ansi_cprng");
 		break;
@@ -1391,6 +1397,9 @@ static int do_test(const char *alg, u32 type, u32 mask, int m)
 		break;
 	case 190:
 		ret += tcrypt_test("authenc(hmac(sha512),cbc(des3_ede))");
+		break;
+	case 191:
+		ret += tcrypt_test("tls10(hmac(sha1),cbc(aes))");
 		break;
 	case 200:
 		test_cipher_speed("ecb(aes)", ENCRYPT, sec, NULL, 0,

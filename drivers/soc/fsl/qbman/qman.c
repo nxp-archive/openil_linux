@@ -41,6 +41,43 @@
 
 /* Portal register assists */
 
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
+/* Cache-inhibited register offsets */
+#define QM_REG_EQCR_PI_CINH	0x3000
+#define QM_REG_EQCR_CI_CINH	0x3040
+#define QM_REG_EQCR_ITR		0x3080
+#define QM_REG_DQRR_PI_CINH	0x3100
+#define QM_REG_DQRR_CI_CINH	0x3140
+#define QM_REG_DQRR_ITR		0x3180
+#define QM_REG_DQRR_DCAP	0x31C0
+#define QM_REG_DQRR_SDQCR	0x3200
+#define QM_REG_DQRR_VDQCR	0x3240
+#define QM_REG_DQRR_PDQCR	0x3280
+#define QM_REG_MR_PI_CINH	0x3300
+#define QM_REG_MR_CI_CINH	0x3340
+#define QM_REG_MR_ITR		0x3380
+#define QM_REG_CFG		0x3500
+#define QM_REG_ISR		0x3600
+#define QM_REG_IER		0x3640
+#define QM_REG_ISDR		0x3680
+#define QM_REG_IIR		0x36C0
+#define QM_REG_ITPR		0x3740
+
+/* Cache-enabled register offsets */
+#define QM_CL_EQCR		0x0000
+#define QM_CL_DQRR		0x1000
+#define QM_CL_MR		0x2000
+#define QM_CL_EQCR_PI_CENA	0x3000
+#define QM_CL_EQCR_CI_CENA	0x3040
+#define QM_CL_DQRR_PI_CENA	0x3100
+#define QM_CL_DQRR_CI_CENA	0x3140
+#define QM_CL_MR_PI_CENA	0x3300
+#define QM_CL_MR_CI_CENA	0x3340
+#define QM_CL_CR		0x3800
+#define QM_CL_RR0		0x3900
+#define QM_CL_RR1		0x3940
+
+#else
 /* Cache-inhibited register offsets */
 #define QM_REG_EQCR_PI_CINH	0x0000
 #define QM_REG_EQCR_CI_CINH	0x0004
@@ -75,6 +112,7 @@
 #define QM_CL_CR		0x3800
 #define QM_CL_RR0		0x3900
 #define QM_CL_RR1		0x3940
+#endif
 
 /*
  * BTW, the drivers (and h/w programming model) already obtain the required
@@ -909,12 +947,12 @@ static inline int qm_mc_result_timeout(struct qm_portal *portal,
 
 static inline void fq_set(struct qman_fq *fq, u32 mask)
 {
-	set_bits(mask, &fq->flags);
+	fq->flags |= mask;
 }
 
 static inline void fq_clear(struct qman_fq *fq, u32 mask)
 {
-	clear_bits(mask, &fq->flags);
+	fq->flags &= ~mask;
 }
 
 static inline int fq_isset(struct qman_fq *fq, u32 mask)
@@ -1566,7 +1604,7 @@ void qman_p_irqsource_add(struct qman_portal *p, u32 bits)
 	unsigned long irqflags;
 
 	local_irq_save(irqflags);
-	set_bits(bits & QM_PIRQ_VISIBLE, &p->irq_sources);
+	p->irq_sources |= bits & QM_PIRQ_VISIBLE;
 	qm_out(&p->p, QM_REG_IER, p->irq_sources);
 	local_irq_restore(irqflags);
 }
@@ -1589,7 +1627,7 @@ void qman_p_irqsource_remove(struct qman_portal *p, u32 bits)
 	 */
 	local_irq_save(irqflags);
 	bits &= QM_PIRQ_VISIBLE;
-	clear_bits(bits, &p->irq_sources);
+	p->irq_sources &= ~bits;
 	qm_out(&p->p, QM_REG_IER, p->irq_sources);
 	ier = qm_in(&p->p, QM_REG_IER);
 	/*

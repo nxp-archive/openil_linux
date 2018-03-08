@@ -83,6 +83,11 @@ static int dwc3_get_dr_mode(struct dwc3 *dwc)
 		mode = USB_DR_MODE_HOST;
 		break;
 	default:
+	       /* Adjust Frame Length */
+		if (dwc->configure_gfladj)
+		dwc3_writel(dwc->regs, DWC3_GFLADJ, GFLADJ_30MHZ_REG_SEL |
+				GFLADJ_30MHZ(GFLADJ_30MHZ_DEFAULT));
+
 		if (IS_ENABLED(CONFIG_USB_DWC3_HOST))
 			mode = USB_DR_MODE_HOST;
 		else if (IS_ENABLED(CONFIG_USB_DWC3_GADGET))
@@ -246,31 +251,6 @@ static int dwc3_core_soft_reset(struct dwc3 *dwc)
 	} while (--retries);
 
 	return -ETIMEDOUT;
-}
-
-/*
- * dwc3_frame_length_adjustment - Adjusts frame length if required
- * @dwc3: Pointer to our controller context structure
- */
-static void dwc3_frame_length_adjustment(struct dwc3 *dwc)
-{
-	u32 reg;
-	u32 dft;
-
-	if (dwc->revision < DWC3_REVISION_250A)
-		return;
-
-	if (dwc->fladj == 0)
-		return;
-
-	reg = dwc3_readl(dwc->regs, DWC3_GFLADJ);
-	dft = reg & DWC3_GFLADJ_30MHZ_MASK;
-	if (!dev_WARN_ONCE(dwc->dev, dft == dwc->fladj,
-	    "request value same as default, ignoring\n")) {
-		reg &= ~DWC3_GFLADJ_30MHZ_MASK;
-		reg |= DWC3_GFLADJ_30MHZ_SDBND_SEL | dwc->fladj;
-		dwc3_writel(dwc->regs, DWC3_GFLADJ, reg);
-	}
 }
 
 /**
@@ -736,6 +716,96 @@ static void dwc3_core_setup_global_control(struct dwc3 *dwc)
 
 static int dwc3_core_get_phy(struct dwc3 *dwc);
 
+/* set global soc bus configuration registers */
+static void dwc3_set_soc_bus_cfg(struct dwc3 *dwc)
+{
+	struct device *dev = dwc->dev;
+	u32 *vals;
+	u32 cfg;
+	int ntype;
+	int ret;
+	int i;
+
+	cfg = dwc3_readl(dwc->regs, DWC3_GSBUSCFG0);
+
+	/*
+	 * Handle property "snps,incr-burst-type-adjustment".
+	 * Get the number of value from this property:
+	 * result <= 0, means this property is not supported.
+	 * result = 1, means INCRx burst mode supported.
+	 * result > 1, means undefined length burst mode supported.
+	 */
+	ntype = device_property_read_u32_array(dev,
+			"snps,incr-burst-type-adjustment", NULL, 0);
+	if (ntype > 0) {
+		vals = kcalloc(ntype, sizeof(u32), GFP_KERNEL);
+		if (!vals) {
+			dev_err(dev, "Error to get memory\n");
+			return;
+		}
+		/* Get INCR burst type, and parse it */
+		ret = device_property_read_u32_array(dev,
+			"snps,incr-burst-type-adjustment", vals, ntype);
+		if (ret) {
+			dev_err(dev, "Error to get property\n");
+			return;
+		}
+		*(dwc->incrx_type + 1) = vals[0];
+		if (ntype > 1) {
+			*dwc->incrx_type = 1;
+			for (i = 1; i < ntype; i++) {
+				if (vals[i] > *(dwc->incrx_type + 1))
+					*(dwc->incrx_type + 1) = vals[i];
+			}
+		} else
+			*dwc->incrx_type = 0;
+
+		/* Enable Undefined Length INCR Burst and Enable INCRx Burst */
+		cfg &= ~DWC3_GSBUSCFG0_INCRBRST_MASK;
+		if (*dwc->incrx_type)
+			cfg |= DWC3_GSBUSCFG0_INCRBRSTENA;
+		switch (*(dwc->incrx_type + 1)) {
+		case 256:
+			cfg |= DWC3_GSBUSCFG0_INCR256BRSTENA;
+			break;
+		case 128:
+			cfg |= DWC3_GSBUSCFG0_INCR128BRSTENA;
+			break;
+		case 64:
+			cfg |= DWC3_GSBUSCFG0_INCR64BRSTENA;
+			break;
+		case 32:
+			cfg |= DWC3_GSBUSCFG0_INCR32BRSTENA;
+			break;
+		case 16:
+			cfg |= DWC3_GSBUSCFG0_INCR16BRSTENA;
+			break;
+		case 8:
+			cfg |= DWC3_GSBUSCFG0_INCR8BRSTENA;
+			break;
+		case 4:
+			cfg |= DWC3_GSBUSCFG0_INCR4BRSTENA;
+			break;
+		case 1:
+			break;
+		default:
+			dev_err(dev, "Invalid property\n");
+			break;
+		}
+	}
+
+	/* Handle usb snooping */
+	if (dwc->dma_coherent) {
+		cfg &= ~DWC3_GSBUSCFG0_SNP_MASK;
+		cfg |= (AXI3_CACHE_TYPE_SNP << DWC3_GSBUSCFG0_DATARD_SHIFT) |
+			(AXI3_CACHE_TYPE_SNP << DWC3_GSBUSCFG0_DESCRD_SHIFT) |
+			(AXI3_CACHE_TYPE_SNP << DWC3_GSBUSCFG0_DATAWR_SHIFT) |
+			(AXI3_CACHE_TYPE_SNP << DWC3_GSBUSCFG0_DESCWR_SHIFT);
+	}
+
+	dwc3_writel(dwc->regs, DWC3_GSBUSCFG0, cfg);
+}
+
 /**
  * dwc3_core_init - Low-level initialization of DWC3 Core
  * @dwc: Pointer to our controller context structure
@@ -785,8 +855,7 @@ static int dwc3_core_init(struct dwc3 *dwc)
 	if (ret)
 		goto err1;
 
-	/* Adjust Frame Length */
-	dwc3_frame_length_adjustment(dwc);
+	dwc3_set_soc_bus_cfg(dwc);
 
 	usb_phy_set_suspend(dwc->usb2_phy, 0);
 	usb_phy_set_suspend(dwc->usb3_phy, 0);
@@ -994,6 +1063,7 @@ static void dwc3_core_exit_mode(struct dwc3 *dwc)
 static void dwc3_get_properties(struct dwc3 *dwc)
 {
 	struct device		*dev = dwc->dev;
+	struct device_node      *node = dev->of_node;
 	u8			lpm_nyet_threshold;
 	u8			tx_de_emphasis;
 	u8			hird_threshold;
@@ -1031,6 +1101,14 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 				&hird_threshold);
 	dwc->usb3_lpm_capable = device_property_read_bool(dev,
 				"snps,usb3_lpm_capable");
+	dwc->dma_coherent = device_property_read_bool(dev,
+				"dma-coherent");
+
+	dwc->needs_fifo_resize = of_property_read_bool(node, "tx-fifo-resize");
+
+	dwc->configure_gfladj =
+			of_property_read_bool(node, "configure-gfladj");
+	dwc->dr_mode = of_usb_get_dr_mode(node);
 
 	dwc->disable_scramble_quirk = device_property_read_bool(dev,
 				"snps,disable_scramble_quirk");
@@ -1063,8 +1141,16 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 	dwc->dis_tx_ipgap_linecheck_quirk = device_property_read_bool(dev,
 				"snps,dis-tx-ipgap-linecheck-quirk");
 
+	dwc->quirk_reverse_in_out = device_property_read_bool(dev,
+				"snps,quirk_reverse_in_out");
+	dwc->quirk_stop_transfer_in_block = device_property_read_bool(dev,
+				"snps,quirk_stop_transfer_in_block");
+	dwc->quirk_stop_ep_in_u1 = device_property_read_bool(dev,
+				"snps,quirk_stop_ep_in_u1");
 	dwc->tx_de_emphasis_quirk = device_property_read_bool(dev,
 				"snps,tx_de_emphasis_quirk");
+	dwc->disable_devinit_u1u2_quirk = device_property_read_bool(dev,
+				"snps,disable_devinit_u1u2");
 	device_property_read_u8(dev, "snps,tx_de_emphasis",
 				&tx_de_emphasis);
 	device_property_read_string(dev, "snps,hsphy_interface",
@@ -1149,6 +1235,7 @@ static int dwc3_probe(struct platform_device *pdev)
 
 	void __iomem		*regs;
 
+	struct device_node      *node = dev->of_node;
 	dwc = devm_kzalloc(dev, sizeof(*dwc), GFP_KERNEL);
 	if (!dwc)
 		return -ENOMEM;
@@ -1166,6 +1253,11 @@ static int dwc3_probe(struct platform_device *pdev)
 					DWC3_XHCI_REGS_END;
 	dwc->xhci_resources[0].flags = res->flags;
 	dwc->xhci_resources[0].name = res->name;
+
+	if (node) {
+		dwc->configure_gfladj =
+			of_property_read_bool(node, "configure-gfladj");
+	}
 
 	res->start += DWC3_GLOBALS_REGS_START;
 
@@ -1196,6 +1288,11 @@ static int dwc3_probe(struct platform_device *pdev)
 	ret = pm_runtime_get_sync(dev);
 	if (ret < 0)
 		goto err1;
+
+	/* Adjust Frame Length */
+	if (dwc->configure_gfladj)
+	dwc3_writel(dwc->regs, DWC3_GFLADJ, GFLADJ_30MHZ_REG_SEL |
+		    GFLADJ_30MHZ(GFLADJ_30MHZ_DEFAULT));
 
 	pm_runtime_forbid(dev);
 

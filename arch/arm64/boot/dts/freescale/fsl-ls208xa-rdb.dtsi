@@ -85,6 +85,7 @@
 		reg = <0x75>;
 		#address-cells = <1>;
 		#size-cells = <0>;
+		i2c-mux-never-disable;
 		i2c@1 {
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -92,6 +93,17 @@
 			rtc@68 {
 				compatible = "dallas,ds3232";
 				reg = <0x68>;
+			};
+		};
+
+		i2c@2 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x02>;
+			ina220@40 {
+				compatible = "ti,ina220";
+				reg = <0x40>;
+				shunt-resistor = <500>;
 			};
 		};
 
@@ -132,7 +144,15 @@
 };
 
 &qspi {
-	status = "disabled";
+	status = "okay";
+	flash0: s25fs512s@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "spansion,m25p80";
+		m25p,fast-read;
+		spi-max-frequency = <20000000>;
+		reg = <0>;
+	};
 };
 
 &sata0 {

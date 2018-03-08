@@ -16,3 +16,6 @@ config FSL_GUTS
 	  Initially only reading SVR and registering soc device are supported.
 	  Other guts accesses, such as reading RCW, should eventually be moved
 	  into this driver as well.
+if ARM || ARM64
+source "drivers/soc/fsl/Kconfig.arm"
+endif

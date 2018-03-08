@@ -192,7 +192,6 @@ static int fsl_dcu_drm_pm_suspend(struct device *dev)
 	if (!fsl_dev)
 		return 0;
 
-	disable_irq(fsl_dev->irq);
 	drm_kms_helper_poll_disable(fsl_dev->drm);
 
 	console_lock();
@@ -210,6 +209,8 @@ static int fsl_dcu_drm_pm_suspend(struct device *dev)
 		return PTR_ERR(fsl_dev->state);
 	}
 
+	disable_irq(fsl_dev->irq);
+
 	clk_disable_unprepare(fsl_dev->clk);
 
 	return 0;
@@ -226,6 +227,12 @@ static int fsl_dcu_drm_pm_resume(struct device *dev)
 	ret = clk_prepare_enable(fsl_dev->clk);
 	if (ret < 0) {
 		dev_err(dev, "failed to enable dcu clk\n");
+		return ret;
+	}
+
+	ret = clk_prepare_enable(fsl_dev->pix_clk);
+	if (ret < 0) {
+		dev_err(dev, "failed to enable dcu pix clk\n");
 		return ret;
 	}
 
@@ -348,6 +355,12 @@ static int fsl_dcu_drm_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to register pix clk\n");
 		ret = PTR_ERR(fsl_dev->pix_clk);
 		goto disable_clk;
+	}
+
+	ret = clk_prepare_enable(fsl_dev->pix_clk);
+	if (ret < 0) {
+		dev_err(dev, "failed to enable dcu pix clk\n");
+		return ret;
 	}
 
 	fsl_dev->tcon = fsl_tcon_init(dev);

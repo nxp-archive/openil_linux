@@ -83,7 +83,7 @@ static inline struct dpaa2_io *service_select_by_cpu(struct dpaa2_io *d,
 	 * If cpu == -1, choose the current cpu, with no guarantees about
 	 * potentially being migrated away.
 	 */
-	if (unlikely(cpu < 0))
+	if (cpu < 0)
 		cpu = smp_processor_id();
 
 	/* If a specific cpu was requested, pick it up immediately */
@@ -95,6 +95,10 @@ static inline struct dpaa2_io *service_select(struct dpaa2_io *d)
 	if (d)
 		return d;
 
+	d = service_select_by_cpu(d, -1);
+	if (d)
+		return d;
+
 	spin_lock(&dpio_list_lock);
 	d = list_entry(dpio_list.next, struct dpaa2_io, node);
 	list_del(&d->node);
@@ -103,6 +107,23 @@ static inline struct dpaa2_io *service_select(struct dpaa2_io *d)
 
 	return d;
 }
+
+/**
+ * dpaa2_io_service_select() - return a dpaa2_io service affined to this cpu
+ * @cpu: the cpu id
+ *
+ * Return the affine dpaa2_io service, or NULL if there is no service affined
+ * to the specified cpu. If DPAA2_IO_ANY_CPU is used, return the next available
+ * service.
+ */
+struct dpaa2_io *dpaa2_io_service_select(int cpu)
+{
+	if (cpu == DPAA2_IO_ANY_CPU)
+		return service_select(NULL);
+
+	return service_select_by_cpu(NULL, cpu);
+}
+EXPORT_SYMBOL_GPL(dpaa2_io_service_select);
 
 /**
  * dpaa2_io_create() - create a dpaa2_io object.
@@ -616,3 +637,71 @@ struct dpaa2_dq *dpaa2_io_store_next(struct dpaa2_io_store *s, int *is_last)
 	return ret;
 }
 EXPORT_SYMBOL(dpaa2_io_store_next);
+
+/**
+ * dpaa2_io_query_fq_count() - Get the frame and byte count for a given fq.
+ * @d: the given DPIO object.
+ * @fqid: the id of frame queue to be queried.
+ * @fcnt: the queried frame count.
+ * @bcnt: the queried byte count.
+ *
+ * Knowing the FQ count at run-time can be useful in debugging situations.
+ * The instantaneous frame- and byte-count are hereby returned.
+ *
+ * Return 0 for a successful query, and negative error code if query fails.
+ */
+int dpaa2_io_query_fq_count(struct dpaa2_io *d, u32 fqid,
+			    u32 *fcnt, u32 *bcnt)
+{
+	struct qbman_fq_query_np_rslt state;
+	struct qbman_swp *swp;
+	unsigned long irqflags;
+	int ret;
+
+	d = service_select(d);
+	if (!d)
+		return -ENODEV;
+
+	swp = d->swp;
+	spin_lock_irqsave(&d->lock_mgmt_cmd, irqflags);
+	ret = qbman_fq_query_state(swp, fqid, &state);
+	spin_unlock_irqrestore(&d->lock_mgmt_cmd, irqflags);
+	if (ret)
+		return ret;
+	*fcnt = qbman_fq_state_frame_count(&state);
+	*bcnt = qbman_fq_state_byte_count(&state);
+
+	return 0;
+}
+EXPORT_SYMBOL(dpaa2_io_query_fq_count);
+
+/**
+ * dpaa2_io_query_bp_count() - Query the number of buffers currently in a
+ * buffer pool.
+ * @d: the given DPIO object.
+ * @bpid: the index of buffer pool to be queried.
+ * @num: the queried number of buffers in the buffer pool.
+ *
+ * Return 0 for a successful query, and negative error code if query fails.
+ */
+int dpaa2_io_query_bp_count(struct dpaa2_io *d, u32 bpid, u32 *num)
+{
+	struct qbman_bp_query_rslt state;
+	struct qbman_swp *swp;
+	unsigned long irqflags;
+	int ret;
+
+	d = service_select(d);
+	if (!d)
+		return -ENODEV;
+
+	swp = d->swp;
+	spin_lock_irqsave(&d->lock_mgmt_cmd, irqflags);
+	ret = qbman_bp_query(swp, bpid, &state);
+	spin_unlock_irqrestore(&d->lock_mgmt_cmd, irqflags);
+	if (ret)
+		return ret;
+	*num = qbman_bp_info_num_free_bufs(&state);
+	return 0;
+}
+EXPORT_SYMBOL(dpaa2_io_query_bp_count);

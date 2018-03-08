@@ -28,13 +28,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
-
 #include "dpaa_sys.h"
 
 #include <soc/fsl/qman.h>
 #include <linux/dma-mapping.h>
 #include <linux/iommu.h>
+#include <linux/dma-contiguous.h>
+#include <linux/of_address.h>
 
 #if defined(CONFIG_FSL_PAMU)
 #include <asm/fsl_pamu_stash.h>
@@ -187,6 +187,7 @@ struct qm_portal_config {
 #define QMAN_REV20 0x0200
 #define QMAN_REV30 0x0300
 #define QMAN_REV31 0x0301
+#define QMAN_REV32 0x0302
 extern u16 qman_ip_rev; /* 0 if uninitialised, otherwise QMAN_REVx */
 
 #define QM_FQID_RANGE_START 1 /* FQID 0 reserved for internal use */

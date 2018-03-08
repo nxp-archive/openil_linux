@@ -5539,6 +5539,14 @@ S:	Maintained
 F:	drivers/net/ethernet/freescale/fman
 F:	Documentation/devicetree/bindings/powerpc/fsl/fman.txt
 
+FREESCALE QORIQ PPFE ETHERNET DRIVER
+M:	Anji Jagarlmudi <anji.jagarlmudi@nxp.com>
+M:	Calvin Johnson <calvin.johnson@nxp.com>
+L:	netdev@vger.kernel.org
+S:	Maintained
+F:	drivers/staging/fsl_ppfe
+F:	Documentation/devicetree/bindings/net/fsl_ppfe/pfe.txt
+
 FREESCALE QUAD SPI DRIVER
 M:	Han Xu <han.xu@nxp.com>
 L:	linux-mtd@lists.infradead.org
@@ -5552,6 +5560,12 @@ S:	Maintained
 F:	drivers/soc/fsl/qe/
 F:	include/soc/fsl/*qe*.h
 F:	include/soc/fsl/*ucc*.h
+
+FREESCALE QEIC DRIVERS
+M:	Qiang Zhao <qiang.zhao@nxp.com>
+L:	linux-kernel@vger.kernel.org
+S:	Maintained
+F:	drivers/irqchip/irq-qeic.c
 
 FREESCALE QUICC ENGINE UCC ETHERNET DRIVER
 M:	Li Yang <leoyang.li@nxp.com>

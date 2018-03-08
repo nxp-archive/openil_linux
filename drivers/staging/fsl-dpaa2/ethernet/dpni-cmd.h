@@ -39,9 +39,11 @@
 #define DPNI_VER_MAJOR				7
 #define DPNI_VER_MINOR				0
 #define DPNI_CMD_BASE_VERSION			1
+#define DPNI_CMD_2ND_VERSION			2
 #define DPNI_CMD_ID_OFFSET			4
 
 #define DPNI_CMD(id)	(((id) << DPNI_CMD_ID_OFFSET) | DPNI_CMD_BASE_VERSION)
+#define DPNI_CMD_V2(id)	(((id) << DPNI_CMD_ID_OFFSET) | DPNI_CMD_2ND_VERSION)
 
 #define DPNI_CMDID_OPEN					DPNI_CMD(0x801)
 #define DPNI_CMDID_CLOSE				DPNI_CMD(0x800)
@@ -64,7 +66,7 @@
 #define DPNI_CMDID_GET_IRQ_STATUS			DPNI_CMD(0x016)
 #define DPNI_CMDID_CLEAR_IRQ_STATUS			DPNI_CMD(0x017)
 
-#define DPNI_CMDID_SET_POOLS				DPNI_CMD(0x200)
+#define DPNI_CMDID_SET_POOLS				DPNI_CMD_V2(0x200)
 #define DPNI_CMDID_SET_ERRORS_BEHAVIOR			DPNI_CMD(0x20B)
 
 #define DPNI_CMDID_GET_QDID				DPNI_CMD(0x210)
@@ -87,11 +89,15 @@
 
 #define DPNI_CMDID_SET_RX_TC_DIST			DPNI_CMD(0x235)
 
+#define DPNI_CMDID_SET_QOS_TBL				DPNI_CMD(0x240)
+#define DPNI_CMDID_ADD_QOS_ENT				DPNI_CMD(0x241)
+#define DPNI_CMDID_REMOVE_QOS_ENT			DPNI_CMD(0x242)
 #define DPNI_CMDID_ADD_FS_ENT				DPNI_CMD(0x244)
 #define DPNI_CMDID_REMOVE_FS_ENT			DPNI_CMD(0x245)
 #define DPNI_CMDID_CLR_FS_ENT				DPNI_CMD(0x246)
 
 #define DPNI_CMDID_GET_STATISTICS			DPNI_CMD(0x25D)
+#define DPNI_CMDID_RESET_STATISTICS			DPNI_CMD(0x25E)
 #define DPNI_CMDID_GET_QUEUE				DPNI_CMD(0x25F)
 #define DPNI_CMDID_SET_QUEUE				DPNI_CMD(0x260)
 #define DPNI_CMDID_GET_TAILDROP				DPNI_CMD(0x261)
@@ -126,13 +132,14 @@ struct dpni_cmd_open {
 
 #define DPNI_BACKUP_POOL(val, order)	(((val) & 0x1) << (order))
 struct dpni_cmd_set_pools {
-	/* cmd word 0 */
 	u8 num_dpbp;
 	u8 backup_pool_mask;
 	__le16 pad;
-	/* cmd word 0..4 */
-	__le32 dpbp_id[DPNI_MAX_DPBP];
-	/* cmd word 4..6 */
+	struct {
+		__le16 dpbp_id;
+		u8 priority_mask;
+		u8 pad;
+	} pool[DPNI_MAX_DPBP];
 	__le16 buffer_size[DPNI_MAX_DPBP];
 };
 
@@ -335,6 +342,14 @@ struct dpni_rsp_get_link_state {
 	__le64 options;
 };
 
+struct dpni_cmd_set_tx_shaping {
+	/* cmd word 0 */
+	__le16 max_burst_size;
+	__le16 pad[3];
+	/* cmd word 1 */
+	__le32 rate_limit;
+};
+
 struct dpni_cmd_set_max_frame_length {
 	__le16 max_frame_length;
 };
@@ -503,6 +518,63 @@ struct dpni_cmd_set_queue {
 	__le64 user_context;
 };
 
+#define DPNI_DISCARD_ON_MISS_SHIFT	0
+#define DPNI_DISCARD_ON_MISS_SIZE	1
+
+struct dpni_cmd_set_qos_table {
+	__le32 pad;
+	u8 default_tc;
+	/* only the LSB */
+	u8 discard_on_miss;
+	__le16 pad1[21];
+	__le64 key_cfg_iova;
+};
+
+struct dpni_cmd_add_qos_entry {
+	__le16 pad;
+	u8 tc_id;
+	u8 key_size;
+	__le16 index;
+	__le16 pad2;
+	__le64 key_iova;
+	__le64 mask_iova;
+};
+
+struct dpni_cmd_remove_qos_entry {
+	u8 pad1[3];
+	u8 key_size;
+	__le32 pad2;
+	__le64 key_iova;
+	__le64 mask_iova;
+};
+
+struct dpni_cmd_add_fs_entry {
+	/* cmd word 0 */
+	__le16 options;
+	u8 tc_id;
+	u8 key_size;
+	__le16 index;
+	__le16 flow_id;
+	/* cmd word 1 */
+	__le64 key_iova;
+	/* cmd word 2 */
+	__le64 mask_iova;
+	/* cmd word 3 */
+	__le64 flc;
+};
+
+struct dpni_cmd_remove_fs_entry {
+	/* cmd word 0 */
+	__le16 pad0;
+	u8 tc_id;
+	u8 key_size;
+	__le32 pad1;
+	/* cmd word 1 */
+	__le64 key_iova;
+	/* cmd word 2 */
+	__le64 mask_iova;
+};
+
 struct dpni_cmd_set_taildrop {
 	/* cmd word 0 */
 	u8 congestion_point;
@@ -538,4 +610,52 @@ struct dpni_rsp_get_taildrop {
 	__le32 threshold;
 };
 
+#define DPNI_DEST_TYPE_SHIFT		0
+#define DPNI_DEST_TYPE_SIZE		4
+#define DPNI_CONG_UNITS_SHIFT		4
+#define DPNI_CONG_UNITS_SIZE		2
+
+struct dpni_cmd_set_congestion_notification {
+	/* cmd word 0 */
+	u8 qtype;
+	u8 tc;
+	u8 pad[6];
+	/* cmd word 1 */
+	__le32 dest_id;
+	__le16 notification_mode;
+	u8 dest_priority;
+	/* from LSB: dest_type: 4 units:2 */
+	u8 type_units;
+	/* cmd word 2 */
+	__le64 message_iova;
+	/* cmd word 3 */
+	__le64 message_ctx;
+	/* cmd word 4 */
+	__le32 threshold_entry;
+	__le32 threshold_exit;
+};
+
+struct dpni_cmd_get_congestion_notification {
+	/* cmd word 0 */
+	u8 qtype;
+	u8 tc;
+};
+
+struct dpni_rsp_get_congestion_notification {
+	/* cmd word 0 */
+	__le64 pad;
+	/* cmd word 1 */
+	__le32 dest_id;
+	__le16 notification_mode;
+	u8 dest_priority;
+	/* from LSB: dest_type: 4 units:2 */
+	u8 type_units;
+	/* cmd word 2 */
+	__le64 message_iova;
+	/* cmd word 3 */
+	__le64 message_ctx;
+	/* cmd word 4 */
+	__le32 threshold_entry;
+	__le32 threshold_exit;
+};
 #endif /* _FSL_DPNI_CMD_H */

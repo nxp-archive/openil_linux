@@ -14,6 +14,8 @@
 #include <linux/device.h>
 #include <linux/mod_devicetable.h>
 #include <linux/interrupt.h>
+#include <linux/cdev.h>
+#include "dprc.h"
 
 #define FSL_MC_VENDOR_FREESCALE	0x1957
 
@@ -163,6 +165,7 @@ struct fsl_mc_obj_desc {
  * @regions: pointer to array of MMIO region entries
  * @irqs: pointer to array of pointers to interrupts allocated to this device
  * @resource: generic resource associated with this MC object device, if any.
+ * @driver_override: Driver name to force a match
  *
  * Generic device object for MC object devices that are "attached" to a
  * MC bus.
@@ -188,13 +191,14 @@ struct fsl_mc_device {
 	struct device dev;
 	u64 dma_mask;
 	u16 flags;
-	u16 icid;
+	u32 icid;
 	u16 mc_handle;
 	struct fsl_mc_io *mc_io;
 	struct fsl_mc_obj_desc obj_desc;
 	struct resource *regions;
 	struct fsl_mc_device_irq **irqs;
 	struct fsl_mc_resource *resource;
+	const char *driver_override;
 };
 
 #define to_fsl_mc_device(_dev) \
@@ -325,7 +329,7 @@ static inline void mc_cmd_read_api_version(struct mc_command *cmd,
 struct fsl_mc_io {
 	struct device *dev;
 	u16 flags;
-	u16 portal_size;
+	u32 portal_size;
 	phys_addr_t portal_phys_addr;
 	void __iomem *portal_virt_addr;
 	struct fsl_mc_device *dpmcp_dev;
@@ -353,6 +357,18 @@ int mc_send_command(struct fsl_mc_io *mc_io, struct mc_command *cmd);
 #define dev_is_fsl_mc(_dev) (0)
 #endif
 
+/* Macro to check if a device is a container device */
+#define fsl_mc_is_cont_dev(_dev) (to_fsl_mc_device(_dev)->flags & \
+	FSL_MC_IS_DPRC)
+
+/* Macro to get the container device of a MC device */
+#define fsl_mc_cont_dev(_dev) (fsl_mc_is_cont_dev(_dev) ? \
+	(_dev) : (_dev)->parent)
+
+#define fsl_mc_is_dev_coherent(_dev) \
+	(!((to_fsl_mc_device(_dev))->obj_desc.flags & \
+	FSL_MC_OBJ_FLAG_NO_MEM_SHAREABILITY))
+
 /*
  * module_fsl_mc_driver() - Helper macro for drivers that don't do
  * anything special in module init/exit.  This eliminates a lot of
@@ -368,6 +384,8 @@ int mc_send_command(struct fsl_mc_io *mc_io, struct mc_command *cmd);
  */
 #define fsl_mc_driver_register(drv) \
 	__fsl_mc_driver_register(drv, THIS_MODULE)
+
+void fsl_mc_device_remove(struct fsl_mc_device *mc_dev);
 
 int __must_check __fsl_mc_driver_register(struct fsl_mc_driver *fsl_mc_driver,
 					  struct module *owner);
@@ -397,5 +415,103 @@ int __must_check fsl_mc_allocate_irqs(struct fsl_mc_device *mc_dev);
 void fsl_mc_free_irqs(struct fsl_mc_device *mc_dev);
 
 extern struct bus_type fsl_mc_bus_type;
+
+struct irq_domain;
+struct msi_domain_info;
+
+/**
+ * Maximum number of total IRQs that can be pre-allocated for an MC bus'
+ * IRQ pool
+ */
+#define FSL_MC_IRQ_POOL_MAX_TOTAL_IRQS	256
+
+#ifdef CONFIG_FSL_MC_BUS
+#define dev_is_fsl_mc(_dev) ((_dev)->bus == &fsl_mc_bus_type)
+#else
+/* If fsl-mc bus is not present device cannot belong to fsl-mc bus */
+#define dev_is_fsl_mc(_dev) (0)
+#endif
+
+/**
+ * struct fsl_mc_resource_pool - Pool of MC resources of a given
+ * type
+ * @type: type of resources in the pool
+ * @max_count: maximum number of resources in the pool
+ * @free_count: number of free resources in the pool
+ * @mutex: mutex to serialize access to the pool's free list
+ * @free_list: anchor node of list of free resources in the pool
+ * @mc_bus: pointer to the MC bus that owns this resource pool
+ */
+struct fsl_mc_resource_pool {
+	enum fsl_mc_pool_type type;
+	int max_count;
+	int free_count;
+	struct mutex mutex;	/* serializes access to free_list */
+	struct list_head free_list;
+	struct fsl_mc_bus *mc_bus;
+};
+
+/**
+ * struct fsl_mc_restool - information associated with a restool device file
+ * @cdev: struct char device linked to the root dprc
+ * @dev: dev_t for the char device to be added
+ * @device: newly created device in /dev
+ * @mutex: mutex lock to serialize the open/release operations
+ * @local_instance_in_use: local MC I/O instance in use or not
+ * @dynamic_instance_count: number of dynamically created MC I/O instances
+ */
+struct fsl_mc_restool {
+	struct cdev cdev;
+	dev_t dev;
+	struct device *device;
+	struct mutex mutex; /* serialize open/release operations */
+	bool local_instance_in_use;
+	u32 dynamic_instance_count;
+};
+
+/**
+ * struct fsl_mc_bus - logical bus that corresponds to a physical DPRC
+ * @mc_dev: fsl-mc device for the bus device itself.
+ * @resource_pools: array of resource pools (one pool per resource type)
+ * for this MC bus. These resources represent allocatable entities
+ * from the physical DPRC.
+ * @irq_resources: Pointer to array of IRQ objects for the IRQ pool
+ * @scan_mutex: Serializes bus scanning
+ * @dprc_attr: DPRC attributes
+ */
+struct fsl_mc_bus {
+	struct fsl_mc_device mc_dev;
+	struct fsl_mc_resource_pool resource_pools[FSL_MC_NUM_POOL_TYPES];
+	struct fsl_mc_device_irq *irq_resources;
+	struct mutex scan_mutex;    /* serializes bus scanning */
+	struct dprc_attributes dprc_attr;
+	struct fsl_mc_restool restool_misc;
+};
+
+#define to_fsl_mc_bus(_mc_dev) \
+	container_of(_mc_dev, struct fsl_mc_bus, mc_dev)
+
+int dprc_scan_objects(struct fsl_mc_device *mc_bus_dev,
+		      const char *driver_override,
+		      unsigned int *total_irq_count);
+
+struct irq_domain *fsl_mc_msi_create_irq_domain(struct fwnode_handle *fwnode,
+						struct msi_domain_info *info,
+						struct irq_domain *parent);
+
+int fsl_mc_find_msi_domain(struct device *mc_platform_dev,
+			   struct irq_domain **mc_msi_domain);
+
+int fsl_mc_populate_irq_pool(struct fsl_mc_bus *mc_bus,
+			     unsigned int irq_count);
+
+void fsl_mc_cleanup_irq_pool(struct fsl_mc_bus *mc_bus);
+
+void fsl_mc_init_all_resource_pools(struct fsl_mc_device *mc_bus_dev);
+
+void fsl_mc_cleanup_all_resource_pools(struct fsl_mc_device *mc_bus_dev);
+
+void fsl_mc_get_root_dprc(struct device *dev,
+			  struct device **root_dprc_dev);
 
 #endif /* _FSL_MC_H_ */
