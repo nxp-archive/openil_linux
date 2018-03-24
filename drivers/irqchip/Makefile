@@ -75,3 +75,4 @@ obj-$(CONFIG_EZNPS_GIC)			+= irq-eznps.o
 obj-$(CONFIG_ARCH_ASPEED)		+= irq-aspeed-vic.o
 obj-$(CONFIG_STM32_EXTI) 		+= irq-stm32-exti.o
 obj-$(CONFIG_QUICC_ENGINE)		+= irq-qeic.o
+obj-$(CONFIG_BAREMETAL)			+= ipi-baremetal.o
