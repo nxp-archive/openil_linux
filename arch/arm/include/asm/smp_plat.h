@@ -116,4 +116,8 @@ static inline int platform_can_hotplug_cpu(unsigned int cpu)
 }
 #endif
 
+#ifdef CONFIG_BAREMETAL
+int ipi_baremetal(void);
+#endif
+
 #endif
