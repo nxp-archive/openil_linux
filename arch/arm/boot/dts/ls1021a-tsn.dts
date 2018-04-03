@@ -255,6 +255,8 @@
 		spi-max-frequency = <4000000>;
 		#address-cells = <1>;
 		#size-cells = <1>;
+		fsl,spi-cs-sck-delay = <1000>;
+		fsl,spi-sck-cs-delay = <1000>;
 	};
 	spidev@2 {
 		compatible = "rohm,dh2228fv";
