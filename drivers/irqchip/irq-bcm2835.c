@@ -115,6 +115,7 @@ static struct irq_chip armctrl_chip = {
 	.irq_hold = armctrl_mask_irq,
 	.irq_release = armctrl_unmask_irq,
 #endif
+	.flags	     = IRQCHIP_PIPELINE_SAFE,
 };
 
 static int armctrl_xlate(struct irq_domain *d, struct device_node *ctrlr,
