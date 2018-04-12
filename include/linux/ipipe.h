@@ -34,6 +34,9 @@
 #include <asm/ipipe.h>
 #endif
 
+struct cpuidle_device;
+struct cpuidle_state;
+
 #ifdef CONFIG_IPIPE
 
 #include <linux/ipipe_domain.h>
@@ -426,6 +429,13 @@ void __ipipe_tracer_hrclock_initialized(void);
 	} while (0)
 #endif /* !CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH */
 
+bool __ipipe_enter_cpuidle(void);
+
+bool ipipe_enter_cpuidle(struct cpuidle_device *dev,
+			 struct cpuidle_state *state);
+
+void ipipe_exit_cpuidle(void);
+
 #else	/* !CONFIG_IPIPE */
 
 #define __ipipe_root_p		1
@@ -459,6 +469,20 @@ int ipipe_handle_syscall(struct thread_info *ti,
 {
 	return 0;
 }
+
+static inline bool __ipipe_enter_cpuidle(void)
+{
+	return true;
+}
+
+static inline
+bool ipipe_enter_cpuidle(struct cpuidle_device *dev,
+			 struct cpuidle_state *state)
+{
+	return true;
+}
+
+static inline void ipipe_exit_cpuidle(void) { }
 
 #endif	/* !CONFIG_IPIPE */
 

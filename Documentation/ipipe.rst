@@ -718,29 +718,39 @@ The following kernel areas are involved in interrupt pipelining:
 
   * CPUIDLE support
 
-    Interrupt pipelining introduces an interesting corner case in the
-    logic of the CPU idle framework: the kernel might be idle in the
-    sense that no in-band activity is scheduled yet, and at the same
-    time, some out-of-band code might wait for a tick event already
+    The logic of the CPUIDLE framework has to account for those
+    specific issues the interrupt pipelining introduces:
+
+    - the kernel might be idle in the sense that no in-band activity
+    is scheduled yet, and planning to shut down the timer device
+    suffering the C3STOP (mis)feature.  However, at the same time,
+    some out-of-band code might wait for a tick event already
     programmed in the timer hardware controlled by some out-of-band
     code via the timer_ interposition mechanism.
 
-    In that situation, we don't want the CPUIDLE logic to turn off the
-    hardware timer, causing the pending out-of-band event to be
-    lost. Since the in-band kernel code does not know about the
-    out-of-band context plans in essence, CPUIDLE calls
-    :c:func:`ipipe_enter_idle_hook` to figure out whether the
-    out-of-band system is fine with entering the idle state as well.
-    Conversely, the CPUIDLE logic invokes :c:func:`ipipe_exit_idle_hook`
-    to inform the out-of-band code when the idle state ends. Both
-    routines should be overriden by the out-of-band code for receiving
-    these notifications (*__weak* binding).
+    - switching the CPU to a power saving state may incur a
+    significant latency, particularly for waking it up before it can
+    handle an incoming IRQ, which is at odds with the purpose of
+    interrupt pipelining.
 
-    If :c:func:`ipipe_enter_idle_hook` returns a boolean *true* value,
-    CPUIDLE proceeds as normally and may turn off the per-CPU timer
-    hardware if the *C3STOP* misfeature is detected there. Otherwise,
-    the CPU is simply denied from entering the idle state, leaving the
-    timer hardware enabled.
+    Obviously, we don't want the CPUIDLE logic to turn off the
+    hardware timer when C3STOP is in effect for the timer device,
+    which would cause the pending out-of-band event to be
+    lost.
+
+    Likewise, the wake up latency induced by entering a sleep state on
+    a particular hardware may not always be acceptable.
+
+    Since the in-band kernel code does not know about the out-of-band
+    code plans by design, CPUIDLE calls :c:func:`ipipe_cpuidle_control`
+    to figure out whether the out-of-band system is fine with entering
+    the idle state as well.  This routine should be overriden by the
+    out-of-band code for receiving such notification (*__weak*
+    binding).
+
+    If this hook returns a boolean *true* value, CPUIDLE proceeds as
+    normally. Otherwise, the CPU is simply denied from entering the
+    idle state, leaving the timer hardware enabled.
 
   * Kernel preemption control (PREEMPT)
 

@@ -1910,6 +1910,49 @@ void __ipipe_share_current(int flags)
 }
 EXPORT_SYMBOL_GPL(__ipipe_share_current);
 
+bool __weak ipipe_cpuidle_control(struct cpuidle_device *dev,
+				  struct cpuidle_state *state)
+{
+	/*
+	 * Allow entering the idle state by default, matching the
+	 * original behavior when CPU_IDLE is turned
+	 * on. ipipe_cpuidle_control() should be overriden by the
+	 * client domain code for determining whether the CPU may
+	 * actually enter the idle state.
+	 */
+	return true;
+}
+
+bool __ipipe_enter_cpuidle(void)
+{
+	struct ipipe_percpu_domain_data *p;
+
+	/*
+	 * We may go idle if no interrupt is waiting delivery from the
+	 * root stage.
+	 */
+	hard_local_irq_disable();
+	p = ipipe_this_cpu_root_context();
+
+	return !__ipipe_ipending_p(p);
+}
+
+bool ipipe_enter_cpuidle(struct cpuidle_device *dev,
+			 struct cpuidle_state *state)
+{
+	/*
+	 * Pending IRQs or a co-kernel may deny the transition to
+	 * idle.
+	 */
+	return __ipipe_enter_cpuidle() && ipipe_cpuidle_control(dev, state);
+}
+
+void ipipe_exit_cpuidle(void)
+{
+	/* unstall and re-enable hw IRQs too. */
+	local_irq_enable();
+}
+
 #if defined(CONFIG_DEBUG_ATOMIC_SLEEP) || defined(CONFIG_PROVE_LOCKING) || \
 	defined(CONFIG_PREEMPT_VOLUNTARY) || defined(CONFIG_IPIPE_DEBUG_CONTEXT)
 void __ipipe_uaccess_might_fault(void)
