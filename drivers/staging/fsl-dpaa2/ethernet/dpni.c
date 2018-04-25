@@ -934,7 +934,7 @@ int dpni_set_tx_shaping(struct fsl_mc_io *mc_io,
 			u16 token,
 			const struct dpni_tx_shaping_cfg *tx_shaper)
 {
-	struct mc_command cmd = { 0 };
+	struct fsl_mc_command cmd = { 0 };
 	struct dpni_cmd_set_tx_shaping *cmd_params;
 
 	/* prepare command */
@@ -1399,7 +1399,7 @@ int dpni_set_qos_table(struct fsl_mc_io *mc_io,
 		       const struct dpni_qos_tbl_cfg *cfg)
 {
 	struct dpni_cmd_set_qos_table *cmd_params;
-	struct mc_command cmd = { 0 };
+	struct fsl_mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_QOS_TBL,
@@ -1437,7 +1437,7 @@ int dpni_add_qos_entry(struct fsl_mc_io *mc_io,
 		       u16 index)
 {
 	struct dpni_cmd_add_qos_entry *cmd_params;
-	struct mc_command cmd = { 0 };
+	struct fsl_mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_ADD_QOS_ENT,
@@ -1469,7 +1469,7 @@ int dpni_remove_qos_entry(struct fsl_mc_io *mc_io,
 			  const struct dpni_rule_cfg *cfg)
 {
 	struct dpni_cmd_remove_qos_entry *cmd_params;
-	struct mc_command cmd = { 0 };
+	struct fsl_mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_REMOVE_QOS_ENT,
@@ -1508,7 +1508,7 @@ int dpni_add_fs_entry(struct fsl_mc_io *mc_io,
 		      const struct dpni_fs_action_cfg *action)
 {
 	struct dpni_cmd_add_fs_entry *cmd_params;
-	struct mc_command cmd = { 0 };
+	struct fsl_mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_ADD_FS_ENT,
@@ -1546,7 +1546,7 @@ int dpni_remove_fs_entry(struct fsl_mc_io *mc_io,
 			 const struct dpni_rule_cfg *cfg)
 {
 	struct dpni_cmd_remove_fs_entry *cmd_params;
-	struct mc_command cmd = { 0 };
+	struct fsl_mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_REMOVE_FS_ENT,
@@ -1583,7 +1583,7 @@ int dpni_set_congestion_notification(
 			const struct dpni_congestion_notification_cfg *cfg)
 {
 	struct dpni_cmd_set_congestion_notification *cmd_params;
-	struct mc_command cmd = { 0 };
+	struct fsl_mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(
@@ -1630,7 +1630,7 @@ int dpni_get_congestion_notification(
 {
 	struct dpni_rsp_get_congestion_notification *rsp_params;
 	struct dpni_cmd_get_congestion_notification *cmd_params;
-	struct mc_command cmd = { 0 };
+	struct fsl_mc_command cmd = { 0 };
 	int err;
 
 	/* prepare command */
@@ -1826,7 +1826,7 @@ int dpni_reset_statistics(struct fsl_mc_io *mc_io,
 			  u32 cmd_flags,
 			  u16 token)
 {
-	struct mc_command cmd = { 0 };
+	struct fsl_mc_command cmd = { 0 };
 
 	/* prepare command */
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_RESET_STATISTICS,
@@ -1949,7 +1949,7 @@ int dpni_get_api_version(struct fsl_mc_io *mc_io,
 			 u16 *minor_ver)
 {
 	struct dpni_rsp_get_api_version *rsp_params;
-	struct mc_command cmd = { 0 };
+	struct fsl_mc_command cmd = { 0 };
 	int err;
 
 	cmd.header = mc_encode_cmd_header(DPNI_CMDID_GET_API_VERSION,
