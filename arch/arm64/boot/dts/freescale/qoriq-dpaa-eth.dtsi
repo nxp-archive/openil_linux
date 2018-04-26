@@ -65,7 +65,7 @@ fsldpaa: fsl,dpaa {
 };
 
 fslfman: fsl,fmanim {
-	compatible = "fsl,ls1043a-dpaa", "simple-bus", "fsl,dpaa";
+	compatible = "fsl,ls1043a-dpaa";
 	ethernet@0 {
 		compatible = "fsl,im-ethernet";
 		fsl,fman-mac = <&enet0>;
