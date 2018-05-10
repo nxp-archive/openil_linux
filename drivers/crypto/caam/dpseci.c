@@ -32,7 +32,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "../../../drivers/staging/fsl-mc/include/mc.h"
+#include <linux/fsl/mc.h>
 #include "../../../drivers/staging/fsl-mc/include/dpopr.h"
 #include "dpseci.h"
 #include "dpseci_cmd.h"
