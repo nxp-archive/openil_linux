@@ -859,10 +859,13 @@ static netdev_tx_t dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	queue_mapping = skb_get_queue_mapping(skb);
 	prio = netdev_txq_to_tc(net_dev, queue_mapping);
 
-	/* need to update based on traffic class offset */
-	if (prio)
-		queue_mapping -= prio * dpaa2_eth_queue_count(priv);
-
+	/* Hardware interprets priority level 0 as being the highest,
+	 * so we need to do a reverse mapping to the netdev tc index
+	 */
+	if (net_dev->num_tc)
+		prio = net_dev->num_tc - prio - 1;
+ 
+	queue_mapping %= dpaa2_eth_queue_count(priv);
 	fq = &priv->fq[queue_mapping];
 
 	/* If we're congested, stop this tx queue; transmission of
