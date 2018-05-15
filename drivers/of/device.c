@@ -16,7 +16,7 @@
 #include <asm/errno.h>
 #include "of_private.h"
 #ifdef CONFIG_FSL_MC_BUS
-#include "../staging/fsl-mc/include/mc.h"
+#include <linux/fsl/mc.h>
 #endif
 
 /**

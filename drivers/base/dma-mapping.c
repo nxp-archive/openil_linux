@@ -335,7 +335,7 @@ void dma_common_free_remap(void *cpu_addr, size_t size, unsigned long vm_flags)
  * Common configuration to enable DMA API use for a device
  */
 #include <linux/pci.h>
-#include "../staging/fsl-mc/include/mc.h"
+#include <linux/fsl/mc.h>
 
 int dma_configure(struct device *dev)
 {
