@@ -36,11 +36,10 @@
 #include <linux/dcbnl.h>
 #include <linux/netdevice.h>
 #include <linux/if_vlan.h>
+#include <linux/fsl/mc.h>
 
 #include "../../fsl-mc/include/dpaa2-io.h"
 #include "../../fsl-mc/include/dpaa2-fd.h"
-#include "../../fsl-mc/include/dpbp.h"
-#include "../../fsl-mc/include/dpcon.h"
 #include "dpni.h"
 #include "dpni-cmd.h"
 
@@ -329,6 +328,7 @@ struct dpaa2_eth_ch_stats {
 #define DPAA2_ETH_MAX_QUEUES		(DPAA2_ETH_MAX_RX_QUEUES + \
 					DPAA2_ETH_MAX_TX_QUEUES + \
 					DPAA2_ETH_MAX_RX_ERR_QUEUES)
+#define DPAA2_ETH_MAX_NETDEV_QUEUES	(DPNI_MAX_DIST_SIZE * DPAA2_ETH_MAX_TCS)
 
 enum dpaa2_eth_fq_type {
 	DPAA2_RX_FQ = 0,
@@ -362,6 +362,7 @@ struct dpaa2_eth_channel {
 	int ch_id;
 	int dpio_id;
 	struct napi_struct napi;
+	struct dpaa2_io *dpio;
 	struct dpaa2_io_store *store;
 	struct dpaa2_eth_priv *priv;
 	int buf_count;

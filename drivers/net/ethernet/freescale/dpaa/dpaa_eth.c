@@ -392,34 +392,19 @@ out:
 
 static struct mac_device *dpaa_mac_dev_get(struct platform_device *pdev)
 {
-	struct platform_device *of_dev;
 	struct dpaa_eth_data *eth_data;
-	struct device *dpaa_dev, *dev;
-	struct device_node *mac_node;
+	struct device *dpaa_dev;
 	struct mac_device *mac_dev;
 
 	dpaa_dev = &pdev->dev;
 	eth_data = dpaa_dev->platform_data;
-	if (!eth_data)
+	if (!eth_data) {
+		dev_err(dpaa_dev, "eth_data missing\n");
 		return ERR_PTR(-ENODEV);
-
-	mac_node = eth_data->mac_node;
-
-	of_dev = of_find_device_by_node(mac_node);
-	if (!of_dev) {
-		dev_err(dpaa_dev, "of_find_device_by_node(%pOF) failed\n",
-			mac_node);
-		of_node_put(mac_node);
-		return ERR_PTR(-EINVAL);
 	}
-	of_node_put(mac_node);
-
-	dev = &of_dev->dev;
-
-	mac_dev = dev_get_drvdata(dev);
+	mac_dev = eth_data->mac_dev;
 	if (!mac_dev) {
-		dev_err(dpaa_dev, "dev_get_drvdata(%s) failed\n",
-			dev_name(dev));
+		dev_err(dpaa_dev, "mac_dev missing\n");
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -473,6 +458,16 @@ static void dpaa_set_rx_mode(struct net_device *net_dev)
 		if (err < 0)
 			netif_err(priv, drv, net_dev,
 				  "mac_dev->set_promisc() = %d\n",
+				  err);
+	}
+
+	if (!!(net_dev->flags & IFF_ALLMULTI) != priv->mac_dev->allmulti) {
+		priv->mac_dev->allmulti = !priv->mac_dev->allmulti;
+		err = priv->mac_dev->set_allmulti(priv->mac_dev->fman_mac,
+						  priv->mac_dev->allmulti);
+		if (err < 0)
+			netif_err(priv, drv, net_dev,
+				  "mac_dev->set_allmulti() = %d\n",
 				  err);
 	}
 
@@ -1759,6 +1754,7 @@ static struct sk_buff *sg_fd_to_skb(const struct dpaa_priv *priv,
 
 	/* Iterate through the SGT entries and add data buffers to the skb */
 	sgt = vaddr + fd_off;
+	skb = NULL;
 	for (i = 0; i < DPAA_SGT_MAX_ENTRIES; i++) {
 		/* Extension bit is not supported */
 		WARN_ON(qm_sg_entry_is_ext(&sgt[i]));
@@ -1776,7 +1772,7 @@ static struct sk_buff *sg_fd_to_skb(const struct dpaa_priv *priv,
 		count_ptr = this_cpu_ptr(dpaa_bp->percpu_count);
 		dma_unmap_single(dpaa_bp->dev, sg_addr, dpaa_bp->size,
 				 DMA_FROM_DEVICE);
-		if (i == 0) {
+		if (!skb) {
 			sz = dpaa_bp->size +
 				SKB_DATA_ALIGN(sizeof(struct skb_shared_info));
 			skb = build_skb(sg_vaddr, sz);
@@ -1965,8 +1961,10 @@ static int skb_to_sg_fd(struct dpaa_priv *priv,
 		goto csum_failed;
 	}
 
+	/* SGT[0] is used by the linear part */
 	sgt = (struct qm_sg_entry *)(sgt_buf + priv->tx_headroom);
-	qm_sg_entry_set_len(&sgt[0], skb_headlen(skb));
+	frag_len = skb_headlen(skb);
+	qm_sg_entry_set_len(&sgt[0], frag_len);
 	sgt[0].bpid = FSL_DPAA_BPID_INV;
 	sgt[0].offset = 0;
 	addr = dma_map_single(dev, skb->data,
@@ -1979,9 +1977,9 @@ static int skb_to_sg_fd(struct dpaa_priv *priv,
 	qm_sg_entry_set64(&sgt[0], addr);
 
 	/* populate the rest of SGT entries */
-	frag = &skb_shinfo(skb)->frags[0];
-	frag_len = frag->size;
-	for (i = 1; i <= nr_frags; i++, frag++) {
+	for (i = 0; i < nr_frags; i++) {
+		frag = &skb_shinfo(skb)->frags[i];
+		frag_len = frag->size;
 		WARN_ON(!skb_frag_page(frag));
 		addr = skb_frag_dma_map(dev, frag, 0,
 					frag_len, dma_dir);
@@ -1991,15 +1989,16 @@ static int skb_to_sg_fd(struct dpaa_priv *priv,
 			goto sg_map_failed;
 		}
 
-		qm_sg_entry_set_len(&sgt[i], frag_len);
-		sgt[i].bpid = FSL_DPAA_BPID_INV;
-		sgt[i].offset = 0;
+		qm_sg_entry_set_len(&sgt[i + 1], frag_len);
+		sgt[i + 1].bpid = FSL_DPAA_BPID_INV;
+		sgt[i + 1].offset = 0;
 
 		/* keep the offset in the address */
-		qm_sg_entry_set64(&sgt[i], addr);
-		frag_len = frag->size;
+		qm_sg_entry_set64(&sgt[i + 1], addr);
 	}
-	qm_sg_entry_set_f(&sgt[i - 1], frag_len);
+
+	/* Set the final bit in the last used entry of the SGT */
+	qm_sg_entry_set_f(&sgt[nr_frags], frag_len);
 
 	qm_fd_set_sg(fd, priv->tx_headroom, skb->len);
 
@@ -2378,14 +2377,8 @@ static enum qman_cb_dqrr_result rx_error_dqrr(struct qman_portal *portal,
 	if (dpaa_eth_napi_schedule(percpu_priv, portal))
 		return qman_cb_dqrr_stop;
 
-	if (dpaa_eth_refill_bpools(priv))
-		/* Unable to refill the buffer pool due to insufficient
-		 * system memory. Just release the frame back into the pool,
-		 * otherwise we'll soon end up with an empty buffer pool.
-		 */
-		dpaa_fd_release(net_dev, &dq->fd);
-	else
-		dpaa_rx_error(net_dev, priv, percpu_priv, &dq->fd, fq->fqid);
+	dpaa_eth_refill_bpools(priv);
+	dpaa_rx_error(net_dev, priv, percpu_priv, &dq->fd, fq->fqid);
 
 	return qman_cb_dqrr_consume;
 }
@@ -2599,6 +2592,44 @@ static void dpaa_eth_napi_disable(struct dpaa_priv *priv)
 	}
 }
 
+static void dpaa_adjust_link(struct net_device *net_dev)
+{
+	struct mac_device *mac_dev;
+	struct dpaa_priv *priv;
+
+	priv = netdev_priv(net_dev);
+	mac_dev = priv->mac_dev;
+	mac_dev->adjust_link(mac_dev);
+}
+
+static int dpaa_phy_init(struct net_device *net_dev)
+{
+	struct mac_device *mac_dev;
+	struct phy_device *phy_dev;
+	struct dpaa_priv *priv;
+
+	priv = netdev_priv(net_dev);
+	mac_dev = priv->mac_dev;
+
+	phy_dev = of_phy_connect(net_dev, mac_dev->phy_node,
+				 &dpaa_adjust_link, 0,
+				 mac_dev->phy_if);
+	if (!phy_dev) {
+		netif_err(priv, ifup, net_dev, "init_phy() failed\n");
+		return -ENODEV;
+	}
+
+	/* Remove any features not supported by the controller */
+	phy_dev->supported &= mac_dev->if_support;
+	phy_dev->supported |= (SUPPORTED_Pause | SUPPORTED_Asym_Pause);
+	phy_dev->advertising = phy_dev->supported;
+
+	mac_dev->phy_dev = phy_dev;
+	net_dev->phydev = phy_dev;
+
+	return 0;
+}
+
 static int dpaa_open(struct net_device *net_dev)
 {
 	struct mac_device *mac_dev;
@@ -2609,12 +2640,9 @@ static int dpaa_open(struct net_device *net_dev)
 	mac_dev = priv->mac_dev;
 	dpaa_eth_napi_enable(priv);
 
-	net_dev->phydev = mac_dev->init_phy(net_dev, priv->mac_dev);
-	if (!net_dev->phydev) {
-		netif_err(priv, ifup, net_dev, "init_phy() failed\n");
-		err = -ENODEV;
+	err = dpaa_phy_init(net_dev);
+	if (err)
 		goto phy_init_failed;
-	}
 
 	for (i = 0; i < ARRAY_SIZE(mac_dev->port); i++) {
 		err = fman_port_enable(mac_dev->port[i]);
@@ -2813,7 +2841,6 @@ static inline u16 dpaa_get_headroom(struct dpaa_buffer_layout *bl)
 static int dpaa_eth_probe(struct platform_device *pdev)
 {
 	struct dpaa_bp *dpaa_bps[DPAA_BPS_NUM] = {NULL};
-	struct dpaa_percpu_priv *percpu_priv;
 	struct net_device *net_dev = NULL;
 	struct dpaa_fq *dpaa_fq, *tmp;
 	struct dpaa_priv *priv = NULL;
@@ -2822,7 +2849,13 @@ static int dpaa_eth_probe(struct platform_device *pdev)
 	int err = 0, i, channel;
 	struct device *dev;
 
-	dev = &pdev->dev;
+	/* device used for DMA mapping */
+	dev = pdev->dev.parent;
+	err = dma_coerce_mask_and_coherent(dev, DMA_BIT_MASK(40));
+	if (err) {
+		dev_err(dev, "dma_coerce_mask_and_coherent() failed\n");
+		return err;
+	}
 
 	/* Allocate this early, so we can store relevant information in
 	 * the private area
@@ -2830,7 +2863,7 @@ static int dpaa_eth_probe(struct platform_device *pdev)
 	net_dev = alloc_etherdev_mq(sizeof(*priv), DPAA_ETH_TXQ_NUM);
 	if (!net_dev) {
 		dev_err(dev, "alloc_etherdev_mq() failed\n");
-		goto alloc_etherdev_mq_failed;
+		return -ENOMEM;
 	}
 
 	/* Do this here, so we can be verbose early */
@@ -2846,7 +2879,7 @@ static int dpaa_eth_probe(struct platform_device *pdev)
 	if (IS_ERR(mac_dev)) {
 		dev_err(dev, "dpaa_mac_dev_get() failed\n");
 		err = PTR_ERR(mac_dev);
-		goto mac_probe_failed;
+		goto free_netdev;
 	}
 
 	/* If fsl_fm_max_frm is set to a higher value than the all-common 1500,
@@ -2864,21 +2897,13 @@ static int dpaa_eth_probe(struct platform_device *pdev)
 	priv->buf_layout[RX].priv_data_size = DPAA_RX_PRIV_DATA_SIZE; /* Rx */
 	priv->buf_layout[TX].priv_data_size = DPAA_TX_PRIV_DATA_SIZE; /* Tx */
 
-	/* device used for DMA mapping */
-	set_dma_ops(dev, get_dma_ops(&pdev->dev));
-	err = dma_coerce_mask_and_coherent(dev, DMA_BIT_MASK(40));
-	if (err) {
-		dev_err(dev, "dma_coerce_mask_and_coherent() failed\n");
-		goto dev_mask_failed;
-	}
-
 	/* bp init */
 	for (i = 0; i < DPAA_BPS_NUM; i++) {
-		int err;
-
 		dpaa_bps[i] = dpaa_bp_alloc(dev);
-		if (IS_ERR(dpaa_bps[i]))
-			return PTR_ERR(dpaa_bps[i]);
+		if (IS_ERR(dpaa_bps[i])) {
+			err = PTR_ERR(dpaa_bps[i]);
+			goto free_dpaa_bps;
+		}
 		/* the raw size of the buffers used for reception */
 		dpaa_bps[i]->raw_size = bpool_buffer_raw_size(i, DPAA_BPS_NUM);
 		/* avoid runtime computations by keeping the usable size here */
@@ -2886,11 +2911,8 @@ static int dpaa_eth_probe(struct platform_device *pdev)
 		dpaa_bps[i]->dev = dev;
 
 		err = dpaa_bp_alloc_pool(dpaa_bps[i]);
-		if (err < 0) {
-			dpaa_bps_free(priv);
-			priv->dpaa_bps[i] = NULL;
-			goto bp_create_failed;
-		}
+		if (err < 0)
+			goto free_dpaa_bps;
 		priv->dpaa_bps[i] = dpaa_bps[i];
 	}
 
@@ -2901,7 +2923,7 @@ static int dpaa_eth_probe(struct platform_device *pdev)
 	err = dpaa_alloc_all_fqs(dev, &priv->dpaa_fq_list, &port_fqs);
 	if (err < 0) {
 		dev_err(dev, "dpaa_alloc_all_fqs() failed\n");
-		goto fq_probe_failed;
+		goto free_dpaa_bps;
 	}
 
 	priv->mac_dev = mac_dev;
@@ -2910,12 +2932,12 @@ static int dpaa_eth_probe(struct platform_device *pdev)
 	if (channel < 0) {
 		dev_err(dev, "dpaa_get_channel() failed\n");
 		err = channel;
-		goto get_channel_failed;
+		goto free_dpaa_bps;
 	}
 
 	priv->channel = (u16)channel;
 
-	/* Start a thread that will walk the CPUs with affine portals
+	/* Walk the CPUs with affine portals
 	 * and add this pool channel to each's dequeue mask.
 	 */
 	dpaa_eth_add_channel(priv->channel);
@@ -2930,20 +2952,20 @@ static int dpaa_eth_probe(struct platform_device *pdev)
 	err = dpaa_eth_cgr_init(priv);
 	if (err < 0) {
 		dev_err(dev, "Error initializing CGR\n");
-		goto tx_cgr_init_failed;
+		goto free_dpaa_bps;
 	}
 
 	err = dpaa_ingress_cgr_init(priv);
 	if (err < 0) {
 		dev_err(dev, "Error initializing ingress CGR\n");
-		goto rx_cgr_init_failed;
+		goto delete_egress_cgr;
 	}
 
 	/* Add the FQs to the interface, and make them active */
 	list_for_each_entry_safe(dpaa_fq, tmp, &priv->dpaa_fq_list, list) {
 		err = dpaa_fq_init(dpaa_fq, false);
 		if (err < 0)
-			goto fq_alloc_failed;
+			goto free_dpaa_fqs;
 	}
 
 	priv->tx_headroom = dpaa_get_headroom(&priv->buf_layout[TX]);
@@ -2953,7 +2975,7 @@ static int dpaa_eth_probe(struct platform_device *pdev)
 	err = dpaa_eth_init_ports(mac_dev, dpaa_bps, DPAA_BPS_NUM, &port_fqs,
 				  &priv->buf_layout[0], dev);
 	if (err)
-		goto init_ports_failed;
+		goto free_dpaa_fqs;
 
 	/* Rx traffic distribution based on keygen hashing defaults to on */
 	priv->keygen_in_use = true;
@@ -2962,11 +2984,7 @@ static int dpaa_eth_probe(struct platform_device *pdev)
 	if (!priv->percpu_priv) {
 		dev_err(dev, "devm_alloc_percpu() failed\n");
 		err = -ENOMEM;
-		goto alloc_percpu_failed;
-	}
-	for_each_possible_cpu(i) {
-		percpu_priv = per_cpu_ptr(priv->percpu_priv, i);
-		memset(percpu_priv, 0, sizeof(*percpu_priv));
+		goto free_dpaa_fqs;
 	}
 
 	priv->num_tc = 1;
@@ -2975,11 +2993,11 @@ static int dpaa_eth_probe(struct platform_device *pdev)
 	/* Initialize NAPI */
 	err = dpaa_napi_add(net_dev);
 	if (err < 0)
-		goto napi_add_failed;
+		goto delete_dpaa_napi;
 
 	err = dpaa_netdev_init(net_dev, &dpaa_ops, tx_timeout);
 	if (err < 0)
-		goto netdev_init_failed;
+		goto delete_dpaa_napi;
 
 	dpaa_eth_sysfs_init(&net_dev->dev);
 
@@ -2988,32 +3006,21 @@ static int dpaa_eth_probe(struct platform_device *pdev)
 
 	return 0;
 
-netdev_init_failed:
-napi_add_failed:
+delete_dpaa_napi:
 	dpaa_napi_del(net_dev);
-alloc_percpu_failed:
-init_ports_failed:
+free_dpaa_fqs:
 	dpaa_fq_free(dev, &priv->dpaa_fq_list);
-fq_alloc_failed:
 	qman_delete_cgr_safe(&priv->ingress_cgr);
 	qman_release_cgrid(priv->ingress_cgr.cgrid);
-rx_cgr_init_failed:
+delete_egress_cgr:
 	qman_delete_cgr_safe(&priv->cgr_data.cgr);
 	qman_release_cgrid(priv->cgr_data.cgr.cgrid);
-tx_cgr_init_failed:
-get_channel_failed:
+free_dpaa_bps:
 	dpaa_bps_free(priv);
-bp_create_failed:
-fq_probe_failed:
-dev_mask_failed:
-mac_probe_failed:
+free_netdev:
 	dev_set_drvdata(dev, NULL);
 	free_netdev(net_dev);
-alloc_etherdev_mq_failed:
-	for (i = 0; i < DPAA_BPS_NUM && dpaa_bps[i]; i++) {
-		if (atomic_read(&dpaa_bps[i]->refs) == 0)
-			devm_kfree(dev, dpaa_bps[i]);
-	}
+
 	return err;
 }
 

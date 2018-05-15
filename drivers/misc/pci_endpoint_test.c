@@ -97,6 +97,8 @@ struct pci_endpoint_test {
 	struct miscdevice miscdev;
 	enum pci_barno test_reg_bar;
 	size_t alignment;
+	char name[20];
+	int irq_num;
 };
 
 struct pci_endpoint_test_data {
@@ -454,9 +456,7 @@ static int pci_endpoint_test_probe(struct pci_dev *pdev,
 {
 	int i;
 	int err;
-	int irq = 0;
 	int id;
-	char name[20];
 	enum pci_barno bar;
 	void __iomem *base;
 	struct device *dev = &pdev->dev;
@@ -501,19 +501,19 @@ static int pci_endpoint_test_probe(struct pci_dev *pdev,
 	pci_set_master(pdev);
 
 	if (!no_msi) {
-		irq = pci_alloc_irq_vectors(pdev, 1, 32, PCI_IRQ_MSI);
-		if (irq < 0)
+		test->irq_num = pci_alloc_irq_vectors(pdev, 1, 32, PCI_IRQ_MSI);
+		if (test->irq_num < 0)
 			dev_err(dev, "failed to get MSI interrupts\n");
 	}
 
-	err = devm_request_irq(dev, pdev->irq, pci_endpoint_test_irqhandler,
+	err = request_irq(pdev->irq, pci_endpoint_test_irqhandler,
 			       IRQF_SHARED, DRV_MODULE_NAME, test);
 	if (err) {
 		dev_err(dev, "failed to request IRQ %d\n", pdev->irq);
 		goto err_disable_msi;
 	}
 
-	for (i = 1; i < irq; i++) {
+	for (i = 1; i < test->irq_num; i++) {
 		err = devm_request_irq(dev, pdev->irq + i,
 				       pci_endpoint_test_irqhandler,
 				       IRQF_SHARED, DRV_MODULE_NAME, test);
@@ -548,10 +548,10 @@ static int pci_endpoint_test_probe(struct pci_dev *pdev,
 		goto err_iounmap;
 	}
 
-	snprintf(name, sizeof(name), DRV_MODULE_NAME ".%d", id);
+	snprintf(test->name, sizeof(test->name), DRV_MODULE_NAME ".%d", id);
 	misc_device = &test->miscdev;
 	misc_device->minor = MISC_DYNAMIC_MINOR;
-	misc_device->name = name;
+	misc_device->name = test->name;
 	misc_device->fops = &pci_endpoint_test_fops,
 
 	err = misc_register(misc_device);
@@ -584,6 +584,7 @@ err_disable_pdev:
 static void pci_endpoint_test_remove(struct pci_dev *pdev)
 {
 	int id;
+	int i;
 	enum pci_barno bar;
 	struct pci_endpoint_test *test = pci_get_drvdata(pdev);
 	struct miscdevice *misc_device = &test->miscdev;
@@ -599,6 +600,8 @@ static void pci_endpoint_test_remove(struct pci_dev *pdev)
 		if (test->bar[bar])
 			pci_iounmap(pdev, test->bar[bar]);
 	}
+	for (i = 0; i < test->irq_num; i++)
+		free_irq(pdev->irq + i, test);
 	pci_disable_msi(pdev);
 	pci_release_regions(pdev);
 	pci_disable_device(pdev);
@@ -607,6 +610,7 @@ static void pci_endpoint_test_remove(struct pci_dev *pdev)
 static const struct pci_device_id pci_endpoint_test_tbl[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_TI, PCI_DEVICE_ID_TI_DRA74x) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_TI, PCI_DEVICE_ID_TI_DRA72x) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_FREESCALE, PCI_ANY_ID) },
 	{ }
 };
 MODULE_DEVICE_TABLE(pci, pci_endpoint_test_tbl);

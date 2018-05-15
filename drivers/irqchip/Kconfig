@@ -42,6 +42,12 @@ config ARM_GIC_V3_ITS
 	depends on PCI
 	depends on PCI_MSI
 
+config ARM_GIC_V3_ITS_FSL_MC
+	bool
+	depends on ARM_GIC_V3_ITS
+	depends on FSL_MC_BUS
+	default ARM_GIC_V3_ITS
+
 config ARM_NVIC
 	bool
 	select IRQ_DOMAIN

@@ -43,7 +43,7 @@
 #include <linux/filter.h>
 #include <linux/atomic.h>
 
-#include "../../fsl-mc/include/mc.h"
+#include <linux/fsl/mc.h>
 #include "dpaa2-eth.h"
 
 /* CREATE_TRACE_POINTS only needs to be defined once. Other dpa files
@@ -841,12 +841,19 @@ static netdev_tx_t dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	struct dpaa2_fd fd;
 	struct rtnl_link_stats64 *percpu_stats;
 	struct dpaa2_eth_drv_stats *percpu_extras;
-	unsigned int needed_headroom;
 	struct dpaa2_eth_fq *fq;
 	u16 queue_mapping;
+	unsigned int needed_headroom;
+	u8 prio;
 	int err, i;
 
 	queue_mapping = skb_get_queue_mapping(skb);
+	prio = netdev_txq_to_tc(net_dev, queue_mapping);
+
+	/* need to update based on traffic class offset */
+	if (prio)
+		queue_mapping -= prio * dpaa2_eth_queue_count(priv);
+
 	fq = &priv->fq[queue_mapping];
 
 	/* If we're congested, stop this tx queue; transmission of
@@ -907,7 +914,8 @@ static netdev_tx_t dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	trace_dpaa2_tx_fd(net_dev, &fd);
 
 	for (i = 0; i < DPAA2_ETH_ENQUEUE_RETRIES; i++) {
-		err = dpaa2_io_service_enqueue_qd(NULL, priv->tx_qdid, 0,
+		err = dpaa2_io_service_enqueue_qd(fq->channel->dpio,
+						  priv->tx_qdid, prio,
 						  fq->tx_qdbin, &fd);
 		if (err != -EBUSY)
 			break;
@@ -1021,7 +1029,8 @@ static int set_tx_csum(struct dpaa2_eth_priv *priv, bool enable)
 /* Perform a single release command to add buffers
  * to the specified buffer pool
  */
-static int add_bufs(struct dpaa2_eth_priv *priv, u16 bpid)
+static int add_bufs(struct dpaa2_eth_priv *priv,
+		    struct dpaa2_eth_channel *ch, u16 bpid)
 {
 	struct device *dev = priv->net_dev->dev.parent;
 	u64 buf_array[DPAA2_ETH_BUFS_PER_CMD];
@@ -1055,7 +1064,7 @@ static int add_bufs(struct dpaa2_eth_priv *priv, u16 bpid)
 
 release_bufs:
 	/* In case the portal is busy, retry until successful */
-	while ((err = dpaa2_io_service_release(NULL, bpid,
+	while ((err = dpaa2_io_service_release(ch->dpio, bpid,
 					       buf_array, i)) == -EBUSY)
 		cpu_relax();
 
@@ -1095,7 +1104,7 @@ static int seed_pool(struct dpaa2_eth_priv *priv, u16 bpid)
 		priv->channel[j]->buf_count = 0;
 		for (i = 0; i < priv->max_bufs_per_ch;
 		     i += DPAA2_ETH_BUFS_PER_CMD) {
-			new_count = add_bufs(priv, bpid);
+			new_count = add_bufs(priv, priv->channel[j], bpid);
 			priv->channel[j]->buf_count += new_count;
 
 			if (new_count < DPAA2_ETH_BUFS_PER_CMD) {
@@ -1150,7 +1159,7 @@ static int refill_pool(struct dpaa2_eth_priv *priv,
 		return 0;
 
 	do {
-		new_count = add_bufs(priv, bpid);
+		new_count = add_bufs(priv, ch, bpid);
 		if (unlikely(!new_count)) {
 			/* Out of memory; abort for now, we'll try later on */
 			break;
@@ -1171,7 +1180,8 @@ static int pull_channel(struct dpaa2_eth_channel *ch)
 
 	/* Retry while portal is busy */
 	do {
-		err = dpaa2_io_service_pull_channel(NULL, ch->ch_id, ch->store);
+		err = dpaa2_io_service_pull_channel(ch->dpio, ch->ch_id,
+						    ch->store);
 		dequeues++;
 		cpu_relax();
 	} while (err == -EBUSY);
@@ -1224,7 +1234,7 @@ static int dpaa2_eth_poll(struct napi_struct *napi, int budget)
 	 */
 	napi_complete(napi);
 	do {
-		err = dpaa2_io_service_rearm(NULL, &ch->nctx);
+		err = dpaa2_io_service_rearm(ch->dpio, &ch->nctx);
 		cpu_relax();
 	} while (err == -EBUSY);
 
@@ -1896,6 +1906,84 @@ static void dpaa2_eth_xdp_flush(struct net_device *net_dev)
 	 */
 }
 
+static int dpaa2_eth_update_xps(struct dpaa2_eth_priv *priv)
+{
+	struct net_device *net_dev = priv->net_dev;
+	unsigned int i, num_queues;
+	struct cpumask xps_mask;
+	struct dpaa2_eth_fq *fq;
+	int err = 0;
+
+	num_queues = (net_dev->num_tc ? : 1) * dpaa2_eth_queue_count(priv);
+	for (i = 0; i < num_queues; i++) {
+		fq = &priv->fq[i % dpaa2_eth_queue_count(priv)];
+		cpumask_clear(&xps_mask);
+		cpumask_set_cpu(fq->target_cpu, &xps_mask);
+		err = netif_set_xps_queue(net_dev, &xps_mask, i);
+		if (err) {
+			dev_info_once(net_dev->dev.parent,
+				      "Error setting XPS queue\n");
+			break;
+		}
+	}
+
+	return err;
+}
+
+static int dpaa2_eth_setup_tc(struct net_device *net_dev,
+			      enum tc_setup_type type,
+			      void *type_data)
+{
+	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
+	struct tc_mqprio_qopt *mqprio = (struct tc_mqprio_qopt *)type_data;
+	int i, err = 0;
+
+	if (type != TC_SETUP_QDISC_MQPRIO)
+		return -EINVAL;
+
+	if (mqprio->num_tc > dpaa2_eth_tc_count(priv)) {
+		netdev_err(net_dev, "Max %d traffic classes supported\n",
+			   dpaa2_eth_tc_count(priv));
+		return -EINVAL;
+	}
+
+	if (mqprio->num_tc == net_dev->num_tc)
+		return 0;
+
+	mqprio->hw = TC_MQPRIO_HW_OFFLOAD_TCS;
+
+	if (!mqprio->num_tc) {
+		netdev_reset_tc(net_dev);
+		err = netif_set_real_num_tx_queues(net_dev,
+						   dpaa2_eth_queue_count(priv));
+		if (err)
+			return err;
+
+		goto update_xps;
+	}
+
+	err = netdev_set_num_tc(net_dev, mqprio->num_tc);
+	if (err)
+		return err;
+
+	err = netif_set_real_num_tx_queues(net_dev, mqprio->num_tc *
+					   dpaa2_eth_queue_count(priv));
+	if (err)
+		return err;
+
+	for (i = 0; i < mqprio->num_tc; i++) {
+		err = netdev_set_tc_queue(net_dev, i,
+					  dpaa2_eth_queue_count(priv),
+					  i * dpaa2_eth_queue_count(priv));
+		if (err)
+			return err;
+	}
+
+update_xps:
+	err = dpaa2_eth_update_xps(priv);
+	return err;
+}
+
 static const struct net_device_ops dpaa2_eth_ops = {
 	.ndo_open = dpaa2_eth_open,
 	.ndo_start_xmit = dpaa2_eth_tx,
@@ -1910,6 +1998,7 @@ static const struct net_device_ops dpaa2_eth_ops = {
 	.ndo_xdp = dpaa2_eth_xdp,
 	.ndo_xdp_xmit = dpaa2_eth_xdp_xmit,
 	.ndo_xdp_flush = dpaa2_eth_xdp_flush,
+	.ndo_setup_tc = dpaa2_eth_setup_tc,
 };
 
 static void cdan_cb(struct dpaa2_io_notification_ctx *ctx)
@@ -2071,7 +2160,8 @@ static int setup_dpio(struct dpaa2_eth_priv *priv)
 		nctx->desired_cpu = i;
 
 		/* Register the new context */
-		err = dpaa2_io_service_register(NULL, nctx);
+		channel->dpio = dpaa2_io_service_select(i);
+		err = dpaa2_io_service_register(channel->dpio, nctx);
 		if (err) {
 			dev_dbg(dev, "No affine DPIO for cpu %d\n", i);
 			/* If no affine DPIO for this core, there's probably
@@ -2111,7 +2201,7 @@ static int setup_dpio(struct dpaa2_eth_priv *priv)
 	return 0;
 
 err_set_cdan:
-	dpaa2_io_service_deregister(NULL, nctx);
+	dpaa2_io_service_deregister(channel->dpio, nctx);
 err_service_reg:
 	free_channel(priv, channel);
 err_alloc_ch:
@@ -2134,7 +2224,7 @@ static void free_dpio(struct dpaa2_eth_priv *priv)
 	/* deregister CDAN notifications and free channels */
 	for (i = 0; i < priv->num_channels; i++) {
 		ch = priv->channel[i];
-		dpaa2_io_service_deregister(NULL, &ch->nctx);
+		dpaa2_io_service_deregister(ch->dpio, &ch->nctx);
 		free_channel(priv, ch);
 	}
 }
@@ -2160,10 +2250,8 @@ static struct dpaa2_eth_channel *get_affine_channel(struct dpaa2_eth_priv *priv,
 static void set_fq_affinity(struct dpaa2_eth_priv *priv)
 {
 	struct device *dev = priv->net_dev->dev.parent;
-	struct cpumask xps_mask;
 	struct dpaa2_eth_fq *fq;
-	int rx_cpu, txc_cpu;
-	int i, err;
+	int rx_cpu, txc_cpu, i;
 
 	/* For each FQ, pick one channel/CPU to deliver frames to.
 	 * This may well change at runtime, either through irqbalance or
@@ -2184,16 +2272,6 @@ static void set_fq_affinity(struct dpaa2_eth_priv *priv)
 		case DPAA2_TX_CONF_FQ:
 			fq->target_cpu = txc_cpu;
 
-			/* Tell the stack to affine to txc_cpu the Tx queue
-			 * associated with the confirmation one
-			 */
-			cpumask_clear(&xps_mask);
-			cpumask_set_cpu(txc_cpu, &xps_mask);
-			err = netif_set_xps_queue(priv->net_dev, &xps_mask,
-						  fq->flowid);
-			if (err)
-				dev_info_once(dev, "Error setting XPS queue\n");
-
 			txc_cpu = cpumask_next(txc_cpu, &priv->dpio_cpumask);
 			if (txc_cpu >= nr_cpu_ids)
 				txc_cpu = cpumask_first(&priv->dpio_cpumask);
@@ -2203,6 +2281,8 @@ static void set_fq_affinity(struct dpaa2_eth_priv *priv)
 		}
 		fq->channel = get_affine_channel(priv, fq->target_cpu);
 	}
+
+	dpaa2_eth_update_xps(priv);
 }
 
 static void setup_fqs(struct dpaa2_eth_priv *priv)
@@ -3546,7 +3626,7 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 	dev = &dpni_dev->dev;
 
 	/* Net device */
-	net_dev = alloc_etherdev_mq(sizeof(*priv), DPAA2_ETH_MAX_TX_QUEUES);
+	net_dev = alloc_etherdev_mq(sizeof(*priv), DPAA2_ETH_MAX_NETDEV_QUEUES);
 	if (!net_dev) {
 		dev_err(dev, "alloc_etherdev_mq() failed\n");
 		return -ENOMEM;
