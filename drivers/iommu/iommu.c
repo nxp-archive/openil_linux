@@ -33,7 +33,7 @@
 #include <linux/bitops.h>
 #include <linux/property.h>
 #include <trace/events/iommu.h>
-#include "../staging/fsl-mc/include/mc.h"
+#include <linux/fsl/mc.h>
 
 static struct kset *iommu_group_kset;
 static DEFINE_IDA(iommu_group_ida);

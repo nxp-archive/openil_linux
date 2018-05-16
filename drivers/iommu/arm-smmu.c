@@ -52,7 +52,7 @@
 #include <linux/spinlock.h>
 
 #include <linux/amba/bus.h>
-#include "../staging/fsl-mc/include/mc.h"
+#include <linux/fsl/mc.h>
 
 #include "io-pgtable.h"
 #include "arm-smmu-regs.h"
