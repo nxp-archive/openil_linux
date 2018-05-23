@@ -83,10 +83,20 @@ enum ipi_msg_type {
 	IPI_TIMER,
 	IPI_IRQ_WORK,
 	IPI_WAKEUP,
+#ifdef CONFIG_BAREMETAL
+	IPI_BAREMETAL_COMM = 8,
+#endif
 };
 
 #ifdef CONFIG_ARM64_VHE
 
+#ifdef CONFIG_BAREMETAL
+inline int ipi_baremetal(void)
+{
+	return IPI_BAREMETAL_COMM;
+}
+EXPORT_SYMBOL_GPL(ipi_baremetal);
+#endif
 /* Whether the boot CPU is running in HYP mode or not*/
 static bool boot_cpu_hyp_mode;
 
@@ -774,6 +784,9 @@ static const char *ipi_types[NR_IPI] __tracepoint_string = {
 	S(IPI_TIMER, "Timer broadcast interrupts"),
 	S(IPI_IRQ_WORK, "IRQ work interrupts"),
 	S(IPI_WAKEUP, "CPU wake-up interrupts"),
+#ifdef CONFIG_BAREMETAL
+	S(IPI_BAREMETAL_COMM, "Baremetal inter-core interrupts"),
+#endif
 };
 
 void show_ipi_list(struct seq_file *p, int prec)
@@ -1000,6 +1013,10 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 	case IPI_RESCHEDULE:
 		scheduler_ipi();
 		break;
+#ifdef CONFIG_BAREMETAL
+	case IPI_BAREMETAL_COMM:
+		break;
+#endif
 
 	case IPI_CALL_FUNC:
 		noipipe_irq_enter();
@@ -1048,7 +1065,6 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 			  cpu);
 		break;
 #endif
-
 	default:
 		pr_crit("CPU%u: Unknown IPI message 0x%x\n", cpu, ipinr);
 		break;

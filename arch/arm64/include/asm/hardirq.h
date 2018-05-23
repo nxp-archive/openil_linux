@@ -20,7 +20,12 @@
 #include <linux/threads.h>
 #include <asm/irq.h>
 
-#define NR_IPI	7
+#ifdef CONFIG_BAREMETAL
+/* the IPI for baremetal is number 8 */
+#define NR_IPI	9
+#else
+#define NR_IPI 7
+#endif
 
 typedef struct {
 	unsigned int __softirq_pending;
