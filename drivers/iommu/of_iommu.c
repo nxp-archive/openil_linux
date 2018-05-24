@@ -24,7 +24,7 @@
 #include <linux/of_iommu.h>
 #include <linux/of_pci.h>
 #include <linux/slab.h>
-#include "../staging/fsl-mc/include/mc.h"
+#include <linux/fsl/mc.h>
 
 #define NO_IOMMU	1
 
