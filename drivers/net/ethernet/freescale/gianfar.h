@@ -10,6 +10,7 @@
  * Modifier: Sandeep Gopalpet <sandeep.kumar@freescale.com>
  *
  * Copyright 2002-2009, 2011-2013 Freescale Semiconductor, Inc.
+ * Copyright 2018-2019 NXP
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -1371,8 +1372,5 @@ struct filer_table {
 	u32 index;
 	struct gfar_filer_entry fe[MAX_FILER_CACHE_IDX + 20];
 };
-
-/* The gianfar_ptp module will set this variable */
-extern int gfar_phc_index;
 
 #endif /* __GIANFAR_H */
