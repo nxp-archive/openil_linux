@@ -141,7 +141,7 @@ struct dpaa2_eth_swa {
 			struct sk_buff *skb;
 			struct scatterlist *scl;
 			int num_sg;
-			int num_dma_bufs;
+			int sgt_size;
 		} sg;
 		struct {
 			int dma_size;
@@ -172,7 +172,7 @@ struct dpaa2_fas {
 	u8 ppid;
 	__le16 ifpid;
 	__le32 status;
-} __packed;
+};
 
 /* Frame annotation status word is located in the first 8 bytes
  * of the buffer's hardware annoatation area
@@ -318,7 +318,6 @@ struct dpaa2_eth_ch_stats {
 	__u64 pull_err;
 };
 
-#define DPAA2_ETH_MAX_DPCONS		NR_CPUS
 #define DPAA2_ETH_MAX_TCS		8
 
 /* Maximum number of queues associated with a DPNI */
@@ -329,6 +328,8 @@ struct dpaa2_eth_ch_stats {
 					DPAA2_ETH_MAX_TX_QUEUES + \
 					DPAA2_ETH_MAX_RX_ERR_QUEUES)
 #define DPAA2_ETH_MAX_NETDEV_QUEUES	(DPNI_MAX_DIST_SIZE * DPAA2_ETH_MAX_TCS)
+
+#define DPAA2_ETH_MAX_DPCONS		16
 
 enum dpaa2_eth_fq_type {
 	DPAA2_RX_FQ = 0,
@@ -360,7 +361,6 @@ struct dpaa2_eth_channel {
 	struct fsl_mc_device *dpcon;
 	int dpcon_id;
 	int ch_id;
-	int dpio_id;
 	struct napi_struct napi;
 	struct dpaa2_io *dpio;
 	struct dpaa2_io_store *store;
@@ -378,12 +378,13 @@ struct dpaa2_eth_cls_rule {
 	bool in_use;
 };
 
-struct dpaa2_eth_hash_fields {
+struct dpaa2_eth_dist_fields {
 	u64 rxnfc_field;
 	enum net_prot cls_prot;
 	int cls_field;
 	int offset;
 	int size;
+	u32 id;
 };
 
 /* Driver private data */
@@ -415,6 +416,8 @@ struct dpaa2_eth_priv {
 	struct dpaa2_eth_channel *channel[DPAA2_ETH_MAX_DPCONS];
 
 	struct dpni_attr dpni_attrs;
+	u16 dpni_ver_major;
+	u16 dpni_ver_minor;
 	struct fsl_mc_device *dpbp_dev;
 
 	struct fsl_mc_io *mc_io;
@@ -429,8 +432,11 @@ struct dpaa2_eth_priv {
 	bool do_link_poll;
 	struct task_struct *poll_thread;
 
-	struct dpaa2_eth_hash_fields *hash_fields;
-	u8 num_hash_fields;
+	/* Rx distribution (hash and flow steering) header fields
+	 * supported by the driver
+	 */
+	struct dpaa2_eth_dist_fields *dist_fields;
+	u8 num_dist_fields;
 	/* enabled ethtool hashing bits */
 	u64 rx_hash_fields;
 #ifdef CONFIG_FSL_DPAA2_ETH_DEBUGFS
@@ -444,7 +450,33 @@ struct dpaa2_eth_priv {
 	struct ieee_pfc pfc;
 	bool vlan_clsf_set;
 	bool tx_pause_frames;
+
+	bool ceetm_en;
 };
+
+enum dpaa2_eth_rx_dist {
+	DPAA2_ETH_RX_DIST_HASH,
+	DPAA2_ETH_RX_DIST_FS,
+	DPAA2_ETH_RX_DIST_LEGACY
+};
+
+/* Supported Rx distribution field ids */
+#define DPAA2_ETH_DIST_ETHSRC		BIT(0)
+#define DPAA2_ETH_DIST_ETHDST		BIT(1)
+#define DPAA2_ETH_DIST_ETHTYPE		BIT(2)
+#define DPAA2_ETH_DIST_VLAN		BIT(3)
+#define DPAA2_ETH_DIST_IPSRC		BIT(4)
+#define DPAA2_ETH_DIST_IPDST		BIT(5)
+#define DPAA2_ETH_DIST_IPPROTO		BIT(6)
+#define DPAA2_ETH_DIST_L4SRC		BIT(7)
+#define DPAA2_ETH_DIST_L4DST		BIT(8)
+#define DPAA2_ETH_DIST_ALL		(~0U)
+
+/* Default Rx hash key */
+#define DPAA2_ETH_DIST_DEFAULT_HASH \
+	(DPAA2_ETH_DIST_IPPROTO | \
+	 DPAA2_ETH_DIST_IPSRC | DPAA2_ETH_DIST_IPDST | \
+	 DPAA2_ETH_DIST_L4SRC | DPAA2_ETH_DIST_L4DST)
 
 #define dpaa2_eth_hash_enabled(priv)	\
 	((priv)->dpni_attrs.num_queues > 1)
@@ -463,6 +495,23 @@ struct dpaa2_eth_priv {
 
 extern const struct ethtool_ops dpaa2_ethtool_ops;
 extern const char dpaa2_eth_drv_version[];
+
+static inline int dpaa2_eth_cmp_dpni_ver(struct dpaa2_eth_priv *priv,
+					 u16 ver_major, u16 ver_minor)
+{
+	if (priv->dpni_ver_major == ver_major)
+		return priv->dpni_ver_minor - ver_minor;
+	return priv->dpni_ver_major - ver_major;
+}
+
+#define DPNI_DIST_KEY_VER_MAJOR			7
+#define DPNI_DIST_KEY_VER_MINOR			5
+
+static inline bool dpaa2_eth_has_legacy_dist(struct dpaa2_eth_priv *priv)
+{
+	return (dpaa2_eth_cmp_dpni_ver(priv, DPNI_DIST_KEY_VER_MAJOR,
+				       DPNI_DIST_KEY_VER_MINOR) < 0);
+}
 
 /* Hardware only sees DPAA2_ETH_RX_BUF_SIZE, but the skb built around
  * the buffer also needs space for its shared info struct, and we need
@@ -544,8 +593,16 @@ dpaa2_eth_get_td_type(struct dpaa2_eth_priv *priv)
 		return DPAA2_ETH_TD_QUEUE;
 }
 
+static inline int dpaa2_eth_ch_count(struct dpaa2_eth_priv *priv)
+{
+	return 1;
+}
+
 void check_cls_support(struct dpaa2_eth_priv *priv);
 
 int set_rx_taildrop(struct dpaa2_eth_priv *priv);
+
+int dpaa2_eth_set_dist_key(struct dpaa2_eth_priv *priv,
+			   enum dpaa2_eth_rx_dist type, u32 key_fields);
 
 #endif	/* __DPAA2_H */

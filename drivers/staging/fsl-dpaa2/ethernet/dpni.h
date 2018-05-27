@@ -55,11 +55,11 @@ struct fsl_mc_io;
 /**
  * Maximum number of senders
  */
-#define DPNI_MAX_SENDERS			8
+#define DPNI_MAX_SENDERS			16
 /**
  * Maximum distribution size
  */
-#define DPNI_MAX_DIST_SIZE			8
+#define DPNI_MAX_DIST_SIZE			16
 
 /**
  * All traffic classes considered; see dpni_set_queue()
@@ -486,6 +486,24 @@ union dpni_statistics {
 		u64 egress_confirmed_frames;
 	} page_2;
 	/**
+	 * struct page_3 - Page_3 statistics structure with values for the
+	 *		   selected TC
+	 * @ceetm_dequeue_bytes: Cumulative count of the number of bytes
+	 *			 dequeued
+	 * @ceetm_dequeue_frames: Cumulative count of the number of frames
+	 *			  dequeued
+	 * @ceetm_reject_bytes: Cumulative count of the number of bytes in all
+	 *			frames whose enqueue was rejected
+	 * @ceetm_reject_frames: Cumulative count of all frame enqueues
+	 *			 rejected
+	 */
+	struct {
+		u64 ceetm_dequeue_bytes;
+		u64 ceetm_dequeue_frames;
+		u64 ceetm_reject_bytes;
+		u64 ceetm_reject_frames;
+	} page_3;
+	/**
 	 * struct raw - raw statistics structure
 	 */
 	struct {
@@ -497,6 +515,7 @@ int dpni_get_statistics(struct fsl_mc_io	*mc_io,
 			u32			cmd_flags,
 			u16			token,
 			u8			page,
+			u8			param,
 			union dpni_statistics	*stat);
 
 int dpni_reset_statistics(struct fsl_mc_io *mc_io,
@@ -566,10 +585,12 @@ struct dpni_tx_shaping_cfg {
 	u16	max_burst_size;
 };
 
-int dpni_set_tx_shaping(struct fsl_mc_io			*mc_io,
-			u32					cmd_flags,
-			u16					token,
-			const struct dpni_tx_shaping_cfg	*tx_shaper);
+int dpni_set_tx_shaping(struct fsl_mc_io *mc_io,
+			u32 cmd_flags,
+			u16 token,
+			const struct dpni_tx_shaping_cfg *tx_cr_shaper,
+			const struct dpni_tx_shaping_cfg *tx_er_shaper,
+			int coupled);
 
 int dpni_set_max_frame_length(struct fsl_mc_io	*mc_io,
 			      u32		cmd_flags,
@@ -690,6 +711,50 @@ int dpni_set_qos_table(struct fsl_mc_io *mc_io,
 		       u32 cmd_flags,
 		       u16 token,
 		       const struct dpni_qos_tbl_cfg *cfg);
+
+/**
+ * enum dpni_tx_schedule_mode - DPNI Tx scheduling mode
+ * @DPNI_TX_SCHED_STRICT_PRIORITY: strict priority
+ * @DPNI_TX_SCHED_WEIGHTED_A: weighted based scheduling in group A
+ * @DPNI_TX_SCHED_WEIGHTED_B: weighted based scheduling in group B
+ */
+enum dpni_tx_schedule_mode {
+	DPNI_TX_SCHED_STRICT_PRIORITY = 0,
+	DPNI_TX_SCHED_WEIGHTED_A,
+	DPNI_TX_SCHED_WEIGHTED_B,
+};
+
+/**
+ * struct dpni_tx_schedule_cfg - Structure representing Tx scheduling conf
+ * @mode:		Scheduling mode
+ * @delta_bandwidth:	Bandwidth represented in weights from 100 to 10000;
+ *	not applicable for 'strict-priority' mode;
+ */
+struct dpni_tx_schedule_cfg {
+	enum dpni_tx_schedule_mode mode;
+	u16 delta_bandwidth;
+};
+
+/**
+ * struct dpni_tx_priorities_cfg - Structure representing transmission
+ *					priorities for DPNI TCs
+ * @tc_sched:	An array of traffic-classes
+ * @prio_group_A: Priority of group A
+ * @prio_group_B: Priority of group B
+ * @separate_groups: Treat A and B groups as separate
+ * @ceetm_ch_idx: ceetm channel index to apply the changes
+ */
+struct dpni_tx_priorities_cfg {
+	struct dpni_tx_schedule_cfg tc_sched[DPNI_MAX_TC];
+	u8 prio_group_A;
+	u8 prio_group_B;
+	u8 separate_groups;
+};
+
+int dpni_set_tx_priorities(struct fsl_mc_io *mc_io,
+			   u32 cmd_flags,
+			   u16 token,
+			   const struct dpni_tx_priorities_cfg *cfg);
 
 /**
  * struct dpni_rx_tc_dist_cfg - Rx traffic class distribution configuration
@@ -916,6 +981,12 @@ struct dpni_congestion_notification_cfg {
 	u16 notification_mode;
 };
 
+/** Compose TC parameter for function dpni_set_congestion_notification()
+ * and dpni_get_congestion_notification().
+ */
+#define DPNI_BUILD_CH_TC(ceetm_ch_idx, tc) \
+	((((ceetm_ch_idx) & 0x0F) << 4) | ((tc) & 0x0F))
+
 int dpni_set_congestion_notification(
 			struct fsl_mc_io *mc_io,
 			u32 cmd_flags,
@@ -1056,5 +1127,46 @@ int dpni_remove_fs_entry(struct fsl_mc_io *mc_io,
 			 u16 token,
 			 u8 tc_id,
 			 const struct dpni_rule_cfg *cfg);
+
+/**
+ * When used for queue_idx in function dpni_set_rx_dist_default_queue
+ * will signal to dpni to drop all unclassified frames
+ */
+#define DPNI_FS_MISS_DROP		((uint16_t)-1)
+
+/**
+ * struct dpni_rx_dist_cfg - distribution configuration
+ * @dist_size:	distribution size; supported values: 1,2,3,4,6,7,8,
+ *		12,14,16,24,28,32,48,56,64,96,112,128,192,224,256,384,448,
+ *		512,768,896,1024
+ * @key_cfg_iova: I/O virtual address of 256 bytes DMA-able memory filled with
+ *		the extractions to be used for the distribution key by calling
+ *		dpkg_prepare_key_cfg() relevant only when enable!=0 otherwise
+ *		it can be '0'
+ * @enable: enable/disable the distribution.
+ * @tc: TC id for which distribution is set
+ * @fs_miss_flow_id: when packet misses all rules from flow steering table and
+ *		hash is disabled it will be put into this queue id; use
+ *		DPNI_FS_MISS_DROP to drop frames. The value of this field is
+ *		used only when flow steering distribution is enabled and hash
+ *		distribution is disabled
+ */
+struct dpni_rx_dist_cfg {
+	u16 dist_size;
+	u64 key_cfg_iova;
+	u8 enable;
+	u8 tc;
+	u16 fs_miss_flow_id;
+};
+
+int dpni_set_rx_fs_dist(struct fsl_mc_io *mc_io,
+			u32 cmd_flags,
+			u16 token,
+			const struct dpni_rx_dist_cfg *cfg);
+
+int dpni_set_rx_hash_dist(struct fsl_mc_io *mc_io,
+			  u32 cmd_flags,
+			  u16 token,
+			  const struct dpni_rx_dist_cfg *cfg);
 
 #endif /* __FSL_DPNI_H */

@@ -42,9 +42,10 @@
 #include <linux/bpf.h>
 #include <linux/filter.h>
 #include <linux/atomic.h>
-
+#include <net/sock.h>
 #include <linux/fsl/mc.h>
 #include "dpaa2-eth.h"
+#include "dpaa2-eth-ceetm.h"
 
 /* CREATE_TRACE_POINTS only needs to be defined once. Other dpa files
  * using trace events only need to #include <trace/events/sched.h>
@@ -108,9 +109,11 @@ static void free_rx_fd(struct dpaa2_eth_priv *priv,
 		/* We don't support any other format */
 		return;
 
-	/* For S/G frames, we first need to free all SG entries */
+	/* For S/G frames, we first need to free all SG entries
+	 * except the first one, which was taken care of already
+	 */
 	sgt = vaddr + dpaa2_fd_get_offset(fd);
-	for (i = 0; i < DPAA2_ETH_MAX_SG_ENTRIES; i++) {
+	for (i = 1; i < DPAA2_ETH_MAX_SG_ENTRIES; i++) {
 		addr = dpaa2_sg_get_addr(&sgt[i]);
 		sg_vaddr = dpaa2_iova_to_virt(priv->iommu_domain, addr);
 		dma_unmap_single(dev, addr, DPAA2_ETH_RX_BUF_SIZE,
@@ -181,6 +184,11 @@ static struct sk_buff *build_frag_skb(struct dpaa2_eth_priv *priv,
 			/* We build the skb around the first data buffer */
 			skb = build_skb(sg_vaddr, DPAA2_ETH_SKB_SIZE);
 			if (unlikely(!skb)) {
+				/* Free the first SG entry now, since we already
+				 * unmapped it and obtained the virtual address
+				 */
+				skb_free_frag(sg_vaddr);
+
 				/* We still need to subtract the buffers used
 				 * by this FD from our software counter
 				 */
@@ -215,6 +223,8 @@ static struct sk_buff *build_frag_skb(struct dpaa2_eth_priv *priv,
 			break;
 	}
 
+	WARN_ONCE(i == DPAA2_ETH_MAX_SG_ENTRIES, "Final bit not set in SGT");
+
 	/* Count all data buffers + SG table buffer */
 	ch->buf_count -= i + 2;
 
@@ -248,7 +258,8 @@ static int dpaa2_eth_xdp_tx(struct dpaa2_eth_priv *priv,
 
 	fq = &priv->fq[queue_id];
 	for (i = 0; i < DPAA2_ETH_ENQUEUE_RETRIES; i++) {
-		err = dpaa2_io_service_enqueue_qd(NULL, priv->tx_qdid, 0,
+		err = dpaa2_io_service_enqueue_qd(fq->channel->dpio,
+						  priv->tx_qdid, 0,
 						  fq->tx_qdbin, fd);
 		if (err != -EBUSY)
 			break;
@@ -290,12 +301,12 @@ static void release_fd_buf(struct dpaa2_eth_priv *priv,
 	if (likely(ch->rel_buf_cnt < DPAA2_ETH_BUFS_PER_CMD))
 		return;
 
-	while ((err = dpaa2_io_service_release(NULL, priv->bpid,
+	while ((err = dpaa2_io_service_release(ch->dpio, priv->bpid,
 					       ch->rel_buf_array,
 					       ch->rel_buf_cnt)) == -EBUSY)
 		cpu_relax();
 
-	if (unlikely(err))
+	if (err)
 		free_bufs(priv, ch->rel_buf_array, ch->rel_buf_cnt);
 
 	ch->rel_buf_cnt = 0;
@@ -551,7 +562,7 @@ static bool consume_frames(struct dpaa2_eth_channel *ch, int *rx_cleaned,
 		fd = dpaa2_dq_fd(dq);
 		prefetch(fd);
 
-		fq = (struct dpaa2_eth_fq *)dpaa2_dq_fqd_ctx(dq);
+		fq = (struct dpaa2_eth_fq *)(uintptr_t)dpaa2_dq_fqd_ctx(dq);
 		fq->consume(priv, ch, fd, &ch->napi, fq->flowid);
 		cleaned++;
 	} while (!is_last);
@@ -644,13 +655,15 @@ static int build_sg_fd(struct dpaa2_eth_priv *priv,
 
 	/* Prepare the HW SGT structure */
 	sgt_buf_size = priv->tx_data_offset +
-		       sizeof(struct dpaa2_sg_entry) * (1 + num_dma_bufs);
-	sgt_buf = kzalloc(sgt_buf_size + DPAA2_ETH_TX_BUF_ALIGN, GFP_ATOMIC);
+		       sizeof(struct dpaa2_sg_entry) *  num_dma_bufs;
+	sgt_buf = netdev_alloc_frag(sgt_buf_size + DPAA2_ETH_TX_BUF_ALIGN);
 	if (unlikely(!sgt_buf)) {
 		err = -ENOMEM;
 		goto sgt_buf_alloc_failed;
 	}
 	sgt_buf = PTR_ALIGN(sgt_buf, DPAA2_ETH_TX_BUF_ALIGN);
+	memset(sgt_buf, 0, sgt_buf_size);
+
 	sgt = (struct dpaa2_sg_entry *)(sgt_buf + priv->tx_data_offset);
 
 	/* Fill in the HW SGT structure.
@@ -676,7 +689,7 @@ static int build_sg_fd(struct dpaa2_eth_priv *priv,
 	swa->sg.skb = skb;
 	swa->sg.scl = scl;
 	swa->sg.num_sg = num_sg;
-	swa->sg.num_dma_bufs = num_dma_bufs;
+	swa->sg.sgt_size = sgt_buf_size;
 
 	/* Separately map the SGT buffer */
 	addr = dma_map_single(dev, sgt_buf, sgt_buf_size, DMA_BIDIRECTIONAL);
@@ -696,7 +709,7 @@ static int build_sg_fd(struct dpaa2_eth_priv *priv,
 	return 0;
 
 dma_map_single_failed:
-	kfree(sgt_buf);
+	skb_free_frag(sgt_buf);
 sgt_buf_alloc_failed:
 	dma_unmap_sg(dev, scl, num_sg, DMA_BIDIRECTIONAL);
 dma_map_sg_failed:
@@ -767,9 +780,6 @@ static void free_tx_fd(struct dpaa2_eth_priv *priv,
 	dma_addr_t fd_addr;
 	struct sk_buff *skb = NULL;
 	unsigned char *buffer_start;
-	int unmap_size;
-	struct scatterlist *scl;
-	int num_sg, num_dma_bufs;
 	struct dpaa2_eth_swa *swa;
 	u8 fd_format = dpaa2_fd_get_format(fd);
 
@@ -794,18 +804,17 @@ static void free_tx_fd(struct dpaa2_eth_priv *priv,
 		}
 	} else if (fd_format == dpaa2_fd_sg) {
 		skb = swa->sg.skb;
-		scl = swa->sg.scl;
-		num_sg = swa->sg.num_sg;
-		num_dma_bufs = swa->sg.num_dma_bufs;
 
 		/* Unmap the scatterlist */
-		dma_unmap_sg(dev, scl, num_sg, DMA_BIDIRECTIONAL);
-		kfree(scl);
+		dma_unmap_sg(dev, swa->sg.scl, swa->sg.num_sg, DMA_BIDIRECTIONAL);
+		kfree(swa->sg.scl);
 
 		/* Unmap the SGT buffer */
-		unmap_size = priv->tx_data_offset +
-		       sizeof(struct dpaa2_sg_entry) * (1 + num_dma_bufs);
-		dma_unmap_single(dev, fd_addr, unmap_size, DMA_BIDIRECTIONAL);
+		dma_unmap_single(dev, fd_addr, swa->sg.sgt_size,
+				 DMA_BIDIRECTIONAL);
+	} else {
+		netdev_dbg(priv->net_dev, "Invalid FD format\n");
+		return;
 	}
 
 	if (swa->type == DPAA2_ETH_SWA_XDP) {
@@ -826,9 +835,9 @@ static void free_tx_fd(struct dpaa2_eth_priv *priv,
 		skb_tstamp_tx(skb, &shhwtstamps);
 	}
 
-	/* Free SGT buffer kmalloc'ed on tx */
+	/* Free SGT buffer allocated on tx */
 	if (fd_format != dpaa2_fd_single)
-		kfree(buffer_start);
+		skb_free_frag(buffer_start);
 
 	/* Move on with skb release */
 	napi_consume_skb(skb, in_napi);
@@ -845,15 +854,18 @@ static netdev_tx_t dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	u16 queue_mapping;
 	unsigned int needed_headroom;
 	u8 prio;
-	int err, i;
+	int err, i, ch_id = 0;
 
 	queue_mapping = skb_get_queue_mapping(skb);
 	prio = netdev_txq_to_tc(net_dev, queue_mapping);
 
-	/* need to update based on traffic class offset */
-	if (prio)
-		queue_mapping -= prio * dpaa2_eth_queue_count(priv);
-
+	/* Hardware interprets priority level 0 as being the highest,
+	 * so we need to do a reverse mapping to the netdev tc index
+	 */
+	if (net_dev->num_tc)
+		prio = net_dev->num_tc - prio - 1;
+ 
+	queue_mapping %= dpaa2_eth_queue_count(priv);
 	fq = &priv->fq[queue_mapping];
 
 	/* If we're congested, stop this tx queue; transmission of
@@ -880,6 +892,8 @@ static netdev_tx_t dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 			goto err_alloc_headroom;
 		}
 		percpu_extras->tx_reallocs++;
+		if (skb->sk)
+			skb_set_owner_w(ns, skb->sk);
 		dev_kfree_skb(skb);
 		skb = ns;
 	}
@@ -913,6 +927,12 @@ static netdev_tx_t dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 	/* Tracing point */
 	trace_dpaa2_tx_fd(net_dev, &fd);
 
+	if (dpaa2_eth_ceetm_is_enabled(priv)) {
+		err = dpaa2_ceetm_classify(skb, net_dev->qdisc, &ch_id, &prio);
+		if (err)
+			goto err_ceetm_classify;
+	}
+
 	for (i = 0; i < DPAA2_ETH_ENQUEUE_RETRIES; i++) {
 		err = dpaa2_io_service_enqueue_qd(fq->channel->dpio,
 						  priv->tx_qdid, prio,
@@ -932,6 +952,8 @@ static netdev_tx_t dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 
 	return NETDEV_TX_OK;
 
+err_ceetm_classify:
+	free_tx_fd(priv, &fd, false);
 err_build_fd:
 err_alloc_headroom:
 	dev_kfree_skb(skb);
@@ -1071,7 +1093,7 @@ release_bufs:
 	/* If release command failed, clean up and bail out; not much
 	 * else we can do about it
 	 */
-	if (unlikely(err)) {
+	if (err) {
 		free_bufs(priv, buf_array, i);
 		return 0;
 	}
@@ -1237,6 +1259,8 @@ static int dpaa2_eth_poll(struct napi_struct *napi, int budget)
 		err = dpaa2_io_service_rearm(ch->dpio, &ch->nctx);
 		cpu_relax();
 	} while (err == -EBUSY);
+		WARN_ONCE(err, "CDAN notifications rearm failed on core %d",
+			  ch->nctx.desired_cpu);
 
 	return max(rx_cleaned, 1);
 }
@@ -1458,25 +1482,6 @@ static void dpaa2_eth_get_stats(struct net_device *net_dev,
 		for (j = 0; j < num; j++)
 			netstats[j] += cpustats[j];
 	}
-}
-
-static int dpaa2_eth_change_mtu(struct net_device *net_dev, int mtu)
-{
-	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
-	int err;
-
-	/* Set the maximum Rx frame length to match the transmit side;
-	 * account for L2 headers when computing the MFL
-	 */
-	err = dpni_set_max_frame_length(priv->mc_io, 0, priv->mc_token,
-					(u16)DPAA2_ETH_L2_MAX_FRM(mtu));
-	if (err) {
-		netdev_err(net_dev, "dpni_set_max_frame_length() failed\n");
-		return err;
-	}
-
-	net_dev->mtu = mtu;
-	return 0;
 }
 
 /* Copy mac unicast addresses from @net_dev to @priv.
@@ -1991,7 +1996,6 @@ static const struct net_device_ops dpaa2_eth_ops = {
 	.ndo_init = dpaa2_eth_init,
 	.ndo_set_mac_address = dpaa2_eth_set_addr,
 	.ndo_get_stats64 = dpaa2_eth_get_stats,
-	.ndo_change_mtu = dpaa2_eth_change_mtu,
 	.ndo_set_rx_mode = dpaa2_eth_set_rx_mode,
 	.ndo_set_features = dpaa2_eth_set_features,
 	.ndo_do_ioctl = dpaa2_eth_ioctl,
@@ -2450,6 +2454,21 @@ static int setup_dpni(struct fsl_mc_device *ls_dev)
 		return err;
 	}
 
+	/* Check if we can work with this DPNI object */
+	err = dpni_get_api_version(priv->mc_io, 0, &priv->dpni_ver_major,
+				   &priv->dpni_ver_minor);
+	if (err) {
+		dev_err(dev, "dpni_get_api_version() failed\n");
+		goto close;
+	}
+	if (dpaa2_eth_cmp_dpni_ver(priv, DPNI_VER_MAJOR, DPNI_VER_MINOR) < 0) {
+		dev_err(dev, "DPNI version %u.%u not supported, need >= %u.%u\n",
+			priv->dpni_ver_major, priv->dpni_ver_minor,
+			DPNI_VER_MAJOR, DPNI_VER_MINOR);
+		err = -ENOTSUPP;
+		goto close;
+	}
+
 	ls_dev->mc_io = priv->mc_io;
 	ls_dev->mc_handle = priv->mc_token;
 
@@ -2538,7 +2557,7 @@ static int setup_rx_flow(struct dpaa2_eth_priv *priv,
 	queue.destination.id = fq->channel->dpcon_id;
 	queue.destination.type = DPNI_DEST_DPCON;
 	queue.destination.priority = 1;
-	queue.user_context = (u64)fq;
+	queue.user_context = (u64)(uintptr_t)fq;
 	err = dpni_set_queue(priv->mc_io, 0, priv->mc_token,
 			     DPNI_QUEUE_RX, fq->tc, fq->flowid,
 			     DPNI_QUEUE_OPT_USER_CTX | DPNI_QUEUE_OPT_DEST,
@@ -2696,7 +2715,7 @@ static int setup_tx_flow(struct dpaa2_eth_priv *priv,
 	queue.destination.id = fq->channel->dpcon_id;
 	queue.destination.type = DPNI_DEST_DPCON;
 	queue.destination.priority = 0;
-	queue.user_context = (u64)fq;
+	queue.user_context = (u64)(uintptr_t)fq;
 	err = dpni_set_queue(priv->mc_io, 0, priv->mc_token,
 			     DPNI_QUEUE_TX_CONFIRM, 0, fq->flowid,
 			     DPNI_QUEUE_OPT_USER_CTX | DPNI_QUEUE_OPT_DEST,
@@ -2744,16 +2763,18 @@ static int setup_rx_err_flow(struct dpaa2_eth_priv *priv,
 #endif
 
 /* default hash key fields */
-static struct dpaa2_eth_hash_fields default_hash_fields[] = {
+static struct dpaa2_eth_dist_fields default_dist_fields[] = {
 	{
 		/* L2 header */
 		.rxnfc_field = RXH_L2DA,
 		.cls_prot = NET_PROT_ETH,
 		.cls_field = NH_FLD_ETH_DA,
+		.id = DPAA2_ETH_DIST_ETHDST,
 		.size = 6,
 	}, {
 		.cls_prot = NET_PROT_ETH,
 		.cls_field = NH_FLD_ETH_SA,
+		.id = DPAA2_ETH_DIST_ETHSRC,
 		.size = 6,
 	}, {
 		/* This is the last ethertype field parsed:
@@ -2762,28 +2783,33 @@ static struct dpaa2_eth_hash_fields default_hash_fields[] = {
 		 */
 		.cls_prot = NET_PROT_ETH,
 		.cls_field = NH_FLD_ETH_TYPE,
+		.id = DPAA2_ETH_DIST_ETHTYPE,
 		.size = 2,
 	}, {
 		/* VLAN header */
 		.rxnfc_field = RXH_VLAN,
 		.cls_prot = NET_PROT_VLAN,
 		.cls_field = NH_FLD_VLAN_TCI,
+		.id = DPAA2_ETH_DIST_VLAN,
 		.size = 2,
 	}, {
 		/* IP header */
 		.rxnfc_field = RXH_IP_SRC,
 		.cls_prot = NET_PROT_IP,
 		.cls_field = NH_FLD_IP_SRC,
+		.id = DPAA2_ETH_DIST_IPSRC,
 		.size = 4,
 	}, {
 		.rxnfc_field = RXH_IP_DST,
 		.cls_prot = NET_PROT_IP,
 		.cls_field = NH_FLD_IP_DST,
+		.id = DPAA2_ETH_DIST_IPDST,
 		.size = 4,
 	}, {
 		.rxnfc_field = RXH_L3_PROTO,
 		.cls_prot = NET_PROT_IP,
 		.cls_field = NH_FLD_IP_PROTO,
+		.id = DPAA2_ETH_DIST_IPPROTO,
 		.size = 1,
 	}, {
 		/* Using UDP ports, this is functionally equivalent to raw
@@ -2792,62 +2818,31 @@ static struct dpaa2_eth_hash_fields default_hash_fields[] = {
 		.rxnfc_field = RXH_L4_B_0_1,
 		.cls_prot = NET_PROT_UDP,
 		.cls_field = NH_FLD_UDP_PORT_SRC,
+		.id = DPAA2_ETH_DIST_L4SRC,
 		.size = 2,
 	}, {
 		.rxnfc_field = RXH_L4_B_2_3,
 		.cls_prot = NET_PROT_UDP,
 		.cls_field = NH_FLD_UDP_PORT_DST,
+		.id = DPAA2_ETH_DIST_L4DST,
 		.size = 2,
 	},
 };
 
-/* Set RX hash options */
-static int dpaa2_eth_set_hash(struct dpaa2_eth_priv *priv)
+static int legacy_config_dist_key(struct dpaa2_eth_priv *priv,
+				  dma_addr_t key_iova)
 {
 	struct device *dev = priv->net_dev->dev.parent;
-	struct dpkg_profile_cfg cls_cfg;
 	struct dpni_rx_tc_dist_cfg dist_cfg;
-	u8 *dma_mem;
-	int i;
-	int err = 0;
+	int i, err;
 
-	memset(&cls_cfg, 0, sizeof(cls_cfg));
-
-	for (i = 0; i < priv->num_hash_fields; i++) {
-		struct dpkg_extract *key =
-			&cls_cfg.extracts[cls_cfg.num_extracts];
-
-		key->type = DPKG_EXTRACT_FROM_HDR;
-		key->extract.from_hdr.prot = priv->hash_fields[i].cls_prot;
-		key->extract.from_hdr.type = DPKG_FULL_FIELD;
-		key->extract.from_hdr.field = priv->hash_fields[i].cls_field;
-		cls_cfg.num_extracts++;
-
-		priv->rx_hash_fields |= priv->hash_fields[i].rxnfc_field;
-	}
-
-	dma_mem = kzalloc(DPAA2_CLASSIFIER_DMA_SIZE, GFP_KERNEL);
-	if (!dma_mem)
-		return -ENOMEM;
-
-	err = dpni_prepare_key_cfg(&cls_cfg, dma_mem);
-	if (err) {
-		dev_err(dev, "dpni_prepare_key_cfg error %d\n", err);
-		goto err_prep_key;
-	}
+	/* In legacy mode, we can't configure flow steering independently */
+	if (!dpaa2_eth_hash_enabled(priv))
+		return -EOPNOTSUPP;
 
 	memset(&dist_cfg, 0, sizeof(dist_cfg));
 
-	/* Prepare for setting the rx dist */
-	dist_cfg.key_cfg_iova = dma_map_single(dev, dma_mem,
-					       DPAA2_CLASSIFIER_DMA_SIZE,
-					       DMA_TO_DEVICE);
-	if (dma_mapping_error(dev, dist_cfg.key_cfg_iova)) {
-		dev_err(dev, "DMA mapping failed\n");
-		err = -ENOMEM;
-		goto err_dma_map;
-	}
-
+	dist_cfg.key_cfg_iova = key_iova;
 	dist_cfg.dist_size = dpaa2_eth_queue_count(priv);
 	if (dpaa2_eth_fs_enabled(priv)) {
 		dist_cfg.dist_mode = DPNI_DIST_MODE_FS;
@@ -2859,18 +2854,146 @@ static int dpaa2_eth_set_hash(struct dpaa2_eth_priv *priv)
 	for (i = 0; i < dpaa2_eth_tc_count(priv); i++) {
 		err = dpni_set_rx_tc_dist(priv->mc_io, 0, priv->mc_token, i,
 					  &dist_cfg);
-		if (err)
-			break;
+		if (err) {
+			dev_err(dev, "dpni_set_rx_tc_dist failed\n");
+			return err;
+		}
 	}
 
-	dma_unmap_single(dev, dist_cfg.key_cfg_iova,
-			 DPAA2_CLASSIFIER_DMA_SIZE, DMA_TO_DEVICE);
-	if (err)
-		dev_err(dev, "dpni_set_rx_tc_dist() error %d\n", err);
+	return 0;
+}
 
-err_dma_map:
-err_prep_key:
-	kfree(dma_mem);
+static int config_hash_key(struct dpaa2_eth_priv *priv, dma_addr_t key_iova)
+{
+	struct device *dev = priv->net_dev->dev.parent;
+	struct dpni_rx_dist_cfg dist_cfg;
+	int i, err;
+
+	if (!dpaa2_eth_hash_enabled(priv))
+		return -EOPNOTSUPP;
+
+	memset(&dist_cfg, 0, sizeof(dist_cfg));
+
+	dist_cfg.key_cfg_iova = key_iova;
+	dist_cfg.dist_size = dpaa2_eth_queue_count(priv);
+	dist_cfg.enable = true;
+
+	for (i = 0; i < dpaa2_eth_tc_count(priv); i++) {
+		dist_cfg.tc = i;
+
+		err = dpni_set_rx_hash_dist(priv->mc_io, 0,
+					    priv->mc_token, &dist_cfg);
+		if (err) {
+			dev_err(dev, "dpni_set_rx_hash_dist failed\n");
+			return err;
+		}
+	}
+
+	return 0;
+}
+
+static int config_fs_key(struct dpaa2_eth_priv *priv, dma_addr_t key_iova)
+{
+	struct device *dev = priv->net_dev->dev.parent;
+	struct dpni_rx_dist_cfg dist_cfg;
+	int i, err;
+
+	if (!dpaa2_eth_fs_enabled(priv))
+		return -EOPNOTSUPP;
+
+	memset(&dist_cfg, 0, sizeof(dist_cfg));
+
+	dist_cfg.key_cfg_iova = key_iova;
+	dist_cfg.dist_size = dpaa2_eth_queue_count(priv);
+	dist_cfg.enable = true;
+
+	for (i = 0; i < dpaa2_eth_tc_count(priv); i++) {
+		dist_cfg.tc = i;
+
+		err = dpni_set_rx_fs_dist(priv->mc_io, 0,
+					  priv->mc_token, &dist_cfg);
+		if (err) {
+			dev_err(dev, "dpni_set_rx_fs_dist failed\n");
+			return err;
+		}
+	}
+
+	return 0;
+}
+
+int dpaa2_eth_set_dist_key(struct dpaa2_eth_priv *priv,
+			   enum dpaa2_eth_rx_dist type, u32 key_fields)
+{
+	struct device *dev = priv->net_dev->dev.parent;
+	struct dpkg_profile_cfg cls_cfg;
+	struct dpkg_extract *key;
+	u32 hash_fields = 0;
+	dma_addr_t key_iova;
+	u8 *key_mem;
+	int i, err;
+
+	memset(&cls_cfg, 0, sizeof(cls_cfg));
+
+	for (i = 0; i < priv->num_dist_fields; i++) {
+		if (!(key_fields & priv->dist_fields[i].id))
+			continue;
+
+		key = &cls_cfg.extracts[cls_cfg.num_extracts];
+		key->type = DPKG_EXTRACT_FROM_HDR;
+		key->extract.from_hdr.prot = priv->dist_fields[i].cls_prot;
+		key->extract.from_hdr.type = DPKG_FULL_FIELD;
+		key->extract.from_hdr.field = priv->dist_fields[i].cls_field;
+		cls_cfg.num_extracts++;
+
+		hash_fields |= priv->dist_fields[i].rxnfc_field;
+	}
+
+	key_mem = kzalloc(DPAA2_CLASSIFIER_DMA_SIZE, GFP_KERNEL);
+	if (!key_mem)
+		return -ENOMEM;
+
+	err = dpni_prepare_key_cfg(&cls_cfg, key_mem);
+	if (err) {
+		dev_err(dev, "dpni_prepare_key_cfg error %d\n", err);
+		goto free_key;
+	}
+
+	key_iova = dma_map_single(dev, key_mem, DPAA2_CLASSIFIER_DMA_SIZE,
+				  DMA_TO_DEVICE);
+	if (dma_mapping_error(dev, key_iova)) {
+		dev_err(dev, "DMA mapping failed\n");
+		err = -ENOMEM;
+		goto free_key;
+	}
+
+	switch (type) {
+	case DPAA2_ETH_RX_DIST_LEGACY:
+		err = legacy_config_dist_key(priv, key_iova);
+		break;
+	case DPAA2_ETH_RX_DIST_HASH:
+		err = config_hash_key(priv, key_iova);
+		break;
+	case DPAA2_ETH_RX_DIST_FS:
+		err = config_fs_key(priv, key_iova);
+		break;
+	default:
+		err = -EINVAL;
+		break;
+	}
+
+	dma_unmap_single(dev, key_iova, DPAA2_CLASSIFIER_DMA_SIZE,
+			 DMA_TO_DEVICE);
+	if (err) {
+		if (err != -EOPNOTSUPP)
+			dev_err(dev, "Distribution key config failed\n");
+		goto free_key;
+	}
+
+	if (type != DPAA2_ETH_RX_DIST_FS)
+		priv->rx_hash_fields = hash_fields;
+
+free_key:
+	kfree(key_mem);
 	return err;
 }
 
@@ -2900,19 +3023,23 @@ static int bind_dpni(struct dpaa2_eth_priv *priv)
 	/* Verify classification options and disable hashing and/or
 	 * flow steering support in case of invalid configuration values
 	 */
-	priv->hash_fields = default_hash_fields;
-	priv->num_hash_fields = ARRAY_SIZE(default_hash_fields);
+	priv->dist_fields = default_dist_fields;
+	priv->num_dist_fields = ARRAY_SIZE(default_dist_fields);
 	check_cls_support(priv);
 
 	/* have the interface implicitly distribute traffic based on
-	 * a static hash key
+	 * a static hash key. Also configure flow steering key, if supported.
+	 * Errors here are not blocking, so just let the called function
+	 * print its error message and move along.
 	 */
-	if (dpaa2_eth_hash_enabled(priv)) {
-		err = dpaa2_eth_set_hash(priv);
-		if (err) {
-			dev_err(dev, "Failed to configure hashing\n");
-			return err;
-		}
+	if (dpaa2_eth_has_legacy_dist(priv)) {
+		dpaa2_eth_set_dist_key(priv, DPAA2_ETH_RX_DIST_LEGACY,
+				       DPAA2_ETH_DIST_ALL);
+	} else {
+		dpaa2_eth_set_dist_key(priv, DPAA2_ETH_RX_DIST_HASH,
+				       DPAA2_ETH_DIST_DEFAULT_HASH);
+		dpaa2_eth_set_dist_key(priv, DPAA2_ETH_RX_DIST_FS,
+				       DPAA2_ETH_DIST_ALL);
 	}
 
 	/* Configure handling of error frames */
@@ -3085,9 +3212,14 @@ static int netdev_init(struct net_device *net_dev)
 		return err;
 	}
 
-	/* Set MTU limits */
-	net_dev->min_mtu = 68;
+	/* Set MTU upper limit; lower limit is default (68B) */
 	net_dev->max_mtu = DPAA2_ETH_MAX_MTU;
+	err = dpni_set_max_frame_length(priv->mc_io, 0, priv->mc_token,
+					(u16)DPAA2_ETH_MFL);
+	if (err) {
+		dev_err(dev, "dpni_set_max_frame_length() failed\n");
+		return err;
+	}
 
 	/* Set actual number of queues in the net device */
 	num_queues = dpaa2_eth_queue_count(priv);
@@ -3128,14 +3260,9 @@ static int poll_link_state(void *arg)
 	return 0;
 }
 
-static irqreturn_t dpni_irq0_handler(int irq_num, void *arg)
-{
-	return IRQ_WAKE_THREAD;
-}
-
 static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 {
-	u32 status = 0, clear = 0;
+	u32 status = ~0;
 	struct device *dev = (struct device *)arg;
 	struct fsl_mc_device *dpni_dev = to_fsl_mc_device(dev);
 	struct net_device *net_dev = dev_get_drvdata(dev);
@@ -3145,18 +3272,12 @@ static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 				  DPNI_IRQ_INDEX, &status);
 	if (unlikely(err)) {
 		netdev_err(net_dev, "Can't get irq status (err %d)\n", err);
-		clear = 0xffffffff;
-		goto out;
+		return IRQ_HANDLED;
 	}
 
-	if (status & DPNI_IRQ_EVENT_LINK_CHANGED) {
-		clear |= DPNI_IRQ_EVENT_LINK_CHANGED;
+	if (status & DPNI_IRQ_EVENT_LINK_CHANGED)
 		link_state_update(netdev_priv(net_dev));
-	}
 
-out:
-	dpni_clear_irq_status(dpni_dev->mc_io, 0, dpni_dev->mc_handle,
-			      DPNI_IRQ_INDEX, clear);
 	return IRQ_HANDLED;
 }
 
@@ -3173,8 +3294,7 @@ static int setup_irqs(struct fsl_mc_device *ls_dev)
 
 	irq = ls_dev->irqs[0];
 	err = devm_request_threaded_irq(&ls_dev->dev, irq->msi_desc->irq,
-					dpni_irq0_handler,
-					dpni_irq0_handler_thread,
+					NULL, dpni_irq0_handler_thread,
 					IRQF_NO_SUSPEND | IRQF_ONESHOT,
 					dev_name(&ls_dev->dev), &ls_dev->dev);
 	if (err < 0) {
@@ -3249,7 +3369,7 @@ static ssize_t dpaa2_eth_write_tx_shaping(struct device *dev,
 {
 	int err, items;
 	struct dpaa2_eth_priv *priv = netdev_priv(to_net_dev(dev));
-	struct dpni_tx_shaping_cfg scfg;
+	struct dpni_tx_shaping_cfg scfg, ercfg = { 0 };
 
 	items = sscanf(buf, "%u %hu", &scfg.rate_limit, &scfg.max_burst_size);
 	if (items != 2) {
@@ -3263,7 +3383,8 @@ static ssize_t dpaa2_eth_write_tx_shaping(struct device *dev,
 		return -EINVAL;
 	}
 
-	err = dpni_set_tx_shaping(priv->mc_io, 0, priv->mc_token, &scfg);
+	err = dpni_set_tx_shaping(priv->mc_io, 0, priv->mc_token, &scfg,
+				  &ercfg, 0);
 	if (err) {
 		dev_err(dev, "dpni_set_tx_shaping() failed\n");
 		return -EPERM;
@@ -3644,8 +3765,10 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 	err = fsl_mc_portal_allocate(dpni_dev, FSL_MC_IO_ATOMIC_CONTEXT_PORTAL,
 				     &priv->mc_io);
 	if (err) {
-		dev_dbg(dev, "MC portal allocation failed\n");
-		err = -EPROBE_DEFER;
+		if (err == -ENXIO)
+			err = -EPROBE_DEFER;
+		else
+			dev_err(dev, "MC portal allocation failed\n");
 		goto err_portal_alloc;
 	}
 
@@ -3772,11 +3895,10 @@ static int dpaa2_eth_remove(struct fsl_mc_device *ls_dev)
 #endif
 	dpaa2_eth_sysfs_remove(&net_dev->dev);
 
+	unregister_netdev(net_dev);
+
 	disable_ch_napi(priv);
 	del_ch_napi(priv);
-
-	unregister_netdev(net_dev);
-	dev_info(net_dev->dev.parent, "Removed interface %s\n", net_dev->name);
 
 	if (priv->do_link_poll)
 		kthread_stop(priv->poll_thread);
@@ -3794,6 +3916,8 @@ static int dpaa2_eth_remove(struct fsl_mc_device *ls_dev)
 
 	dev_set_drvdata(dev, NULL);
 	free_netdev(net_dev);
+
+	dev_dbg(net_dev->dev.parent, "Removed interface %s\n", net_dev->name);
 
 	return 0;
 }
@@ -3823,18 +3947,27 @@ static int __init dpaa2_eth_driver_init(void)
 
 	dpaa2_eth_dbg_init();
 	err = fsl_mc_driver_register(&dpaa2_eth_driver);
-	if (err) {
-		dpaa2_eth_dbg_exit();
-		return err;
-	}
+	if (err)
+		goto out_debugfs_err;
+
+	err = dpaa2_ceetm_register();
+	if (err)
+		goto out_ceetm_err;
 
 	return 0;
+
+out_ceetm_err:
+	fsl_mc_driver_unregister(&dpaa2_eth_driver);
+out_debugfs_err:
+	dpaa2_eth_dbg_exit();
+	return err;
 }
 
 static void __exit dpaa2_eth_driver_exit(void)
 {
-	dpaa2_eth_dbg_exit();
+	dpaa2_ceetm_unregister();
 	fsl_mc_driver_unregister(&dpaa2_eth_driver);
+	dpaa2_eth_dbg_exit();
 }
 
 module_init(dpaa2_eth_driver_init);

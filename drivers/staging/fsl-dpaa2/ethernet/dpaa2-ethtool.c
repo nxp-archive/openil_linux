@@ -87,20 +87,13 @@ static void dpaa2_eth_get_drvinfo(struct net_device *net_dev,
 				  struct ethtool_drvinfo *drvinfo)
 {
 	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
-	u16 fw_major, fw_minor;
-	int err;
 
 	strlcpy(drvinfo->driver, KBUILD_MODNAME, sizeof(drvinfo->driver));
 	strlcpy(drvinfo->version, dpaa2_eth_drv_version,
 		sizeof(drvinfo->version));
 
-	err =  dpni_get_api_version(priv->mc_io, 0, &fw_major, &fw_minor);
-	if (!err)
-		snprintf(drvinfo->fw_version, sizeof(drvinfo->fw_version),
-			 "%u.%u", fw_major, fw_minor);
-	else
-		strlcpy(drvinfo->fw_version, "N/A",
-			sizeof(drvinfo->fw_version));
+	snprintf(drvinfo->fw_version, sizeof(drvinfo->fw_version),
+		 "%u.%u", priv->dpni_ver_major, priv->dpni_ver_minor);
 
 	strlcpy(drvinfo->bus_info, dev_name(net_dev->dev.parent->parent),
 		sizeof(drvinfo->bus_info));
@@ -135,6 +128,8 @@ out:
 	return err;
 }
 
+#define DPNI_DYNAMIC_LINK_SET_VER_MAJOR		7
+#define DPNI_DYNAMIC_LINK_SET_VER_MINOR		1
 static int
 dpaa2_eth_set_link_ksettings(struct net_device *net_dev,
 			     const struct ethtool_link_ksettings *link_settings)
@@ -143,6 +138,18 @@ dpaa2_eth_set_link_ksettings(struct net_device *net_dev,
 	struct dpni_link_state state = {0};
 	struct dpni_link_cfg cfg = {0};
 	int err = 0;
+
+	/* If using an older MC version, the DPNI must be down
+ 	 * in order to be able to change link settings. Taking steps to let
+ 	 * the user know that.
+ 	 */
+	if (dpaa2_eth_cmp_dpni_ver(priv, DPNI_DYNAMIC_LINK_SET_VER_MAJOR,
+				   DPNI_DYNAMIC_LINK_SET_VER_MINOR) < 0) {
+		if (netif_running(net_dev)) {
+			netdev_info(net_dev, "Interface must be brought down first.\n");
+			return -EACCES;
+		}
+	}
 
 	/* Need to interrogate link state to get flow control params */
 	err = dpni_get_link_state(priv->mc_io, 0, priv->mc_token, &state);
@@ -306,7 +313,7 @@ static void dpaa2_eth_get_ethtool_stats(struct net_device *net_dev,
 	/* Print standard counters, from DPNI statistics */
 	for (j = 0; j <= 2; j++) {
 		err = dpni_get_statistics(priv->mc_io, 0, priv->mc_token,
-					  j, &dpni_stats);
+					  j, 0, &dpni_stats);
 		if (err != 0)
 			netdev_warn(net_dev, "dpni_get_stats(%d) failed\n", j);
 		switch (j) {
@@ -382,11 +389,11 @@ static int cls_key_off(struct dpaa2_eth_priv *priv, int prot, int field)
 {
 	int i, off = 0;
 
-	for (i = 0; i < priv->num_hash_fields; i++) {
-		if (priv->hash_fields[i].cls_prot == prot &&
-		    priv->hash_fields[i].cls_field == field)
+	for (i = 0; i < priv->num_dist_fields; i++) {
+		if (priv->dist_fields[i].cls_prot == prot &&
+		    priv->dist_fields[i].cls_field == field)
 			return off;
-		off += priv->hash_fields[i].size;
+		off += priv->dist_fields[i].size;
 	}
 
 	return -1;
@@ -396,8 +403,8 @@ static u8 cls_key_size(struct dpaa2_eth_priv *priv)
 {
 	u8 i, size = 0;
 
-	for (i = 0; i < priv->num_hash_fields; i++)
-		size += priv->hash_fields[i].size;
+	for (i = 0; i < priv->num_dist_fields; i++)
+		size += priv->dist_fields[i].size;
 
 	return size;
 }
@@ -414,7 +421,7 @@ void check_cls_support(struct dpaa2_eth_priv *priv)
 				 key_size);
 			goto disable_fs;
 		}
-		if (priv->num_hash_fields > DPKG_MAX_NUM_OF_EXTRACTS) {
+		if (priv->num_dist_fields > DPKG_MAX_NUM_OF_EXTRACTS) {
 			dev_info(dev, "Too many key fields (max = %d). Hashing and steering are disabled\n",
 				 DPKG_MAX_NUM_OF_EXTRACTS);
 			goto disable_fs;
@@ -766,6 +773,22 @@ static int del_cls(struct net_device *net_dev, int location)
 	return 0;
 }
 
+static int set_hash(struct net_device *net_dev, u64 data)
+{
+	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
+	u32 key = 0;
+	int i;
+
+	if (data & RXH_DISCARD)
+		return -EOPNOTSUPP;
+
+	for (i = 0; i < priv->num_dist_fields; i++)
+		if (priv->dist_fields[i].rxnfc_field & data)
+			key |= priv->dist_fields[i].id;
+
+	return dpaa2_eth_set_dist_key(priv, DPAA2_ETH_RX_DIST_HASH, key);
+}
+
 static int dpaa2_eth_set_rxnfc(struct net_device *net_dev,
 			       struct ethtool_rxnfc *rxnfc)
 {
@@ -775,11 +798,12 @@ static int dpaa2_eth_set_rxnfc(struct net_device *net_dev,
 	case ETHTOOL_SRXCLSRLINS:
 		err = add_cls(net_dev, &rxnfc->fs);
 		break;
-
 	case ETHTOOL_SRXCLSRLDEL:
 		err = del_cls(net_dev, rxnfc->fs.location);
 		break;
-
+	case ETHTOOL_SRXFH:
+		err = set_hash(net_dev, rxnfc->data);
+		break;
 	default:
 		err = -EOPNOTSUPP;
 	}

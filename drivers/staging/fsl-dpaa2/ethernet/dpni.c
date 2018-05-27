@@ -922,17 +922,21 @@ int dpni_get_link_state(struct fsl_mc_io *mc_io,
 
 /**
  * dpni_set_tx_shaping() - Set the transmit shaping
- * @mc_io:	Pointer to MC portal's I/O object
- * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
- * @token:	Token of DPNI object
- * @tx_shaper:	Tx shaping configuration
+ * @mc_io:		Pointer to MC portal's I/O object
+ * @cmd_flags:		Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:		Token of DPNI object
+ * @tx_cr_shaper:	TX committed rate shaping configuration
+ * @tx_er_shaper:	TX excess rate shaping configuration
+ * @coupled:		Committed and excess rate shapers are coupled
  *
  * Return:	'0' on Success; Error code otherwise.
  */
 int dpni_set_tx_shaping(struct fsl_mc_io *mc_io,
 			u32 cmd_flags,
 			u16 token,
-			const struct dpni_tx_shaping_cfg *tx_shaper)
+			const struct dpni_tx_shaping_cfg *tx_cr_shaper,
+			const struct dpni_tx_shaping_cfg *tx_er_shaper,
+			int coupled)
 {
 	struct fsl_mc_command cmd = { 0 };
 	struct dpni_cmd_set_tx_shaping *cmd_params;
@@ -942,8 +946,13 @@ int dpni_set_tx_shaping(struct fsl_mc_io *mc_io,
 					  cmd_flags,
 					  token);
 	cmd_params = (struct dpni_cmd_set_tx_shaping *)cmd.params;
-	cmd_params->max_burst_size = cpu_to_le16(tx_shaper->max_burst_size);
-	cmd_params->rate_limit = cpu_to_le32(tx_shaper->rate_limit);
+	cmd_params->tx_cr_max_burst_size =
+				cpu_to_le16(tx_cr_shaper->max_burst_size);
+	cmd_params->tx_er_max_burst_size =
+				cpu_to_le16(tx_er_shaper->max_burst_size);
+	cmd_params->tx_cr_rate_limit = cpu_to_le32(tx_cr_shaper->rate_limit);
+	cmd_params->tx_er_rate_limit = cpu_to_le32(tx_er_shaper->rate_limit);
+	dpni_set_field(cmd_params->coupled, COUPLED, coupled);
 
 	/* send command to mc*/
 	return mc_send_command(mc_io, &cmd);
@@ -1341,6 +1350,55 @@ int dpni_clear_mac_filters(struct fsl_mc_io *mc_io,
 }
 
 /**
+ * dpni_set_tx_priorities() - Set transmission TC priority configuration
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPNI object
+ * @cfg:	Transmission selection configuration
+ *
+ * warning:	Allowed only when DPNI is disabled
+ *
+ * Return:	'0' on Success; Error code otherwise.
+ */
+int dpni_set_tx_priorities(struct fsl_mc_io *mc_io,
+			   u32 cmd_flags,
+			   u16 token,
+			   const struct dpni_tx_priorities_cfg *cfg)
+{
+	struct dpni_cmd_set_tx_priorities *cmd_params;
+	struct fsl_mc_command cmd = { 0 };
+	int i;
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_TX_PRIORITIES,
+					  cmd_flags,
+					  token);
+	cmd_params = (struct dpni_cmd_set_tx_priorities *)cmd.params;
+	dpni_set_field(cmd_params->flags,
+		       SEPARATE_GRP,
+		       cfg->separate_groups);
+	cmd_params->prio_group_A = cfg->prio_group_A;
+	cmd_params->prio_group_B = cfg->prio_group_B;
+
+	for (i = 0; i + 1 < DPNI_MAX_TC; i += 2) {
+		dpni_set_field(cmd_params->modes[i / 2],
+			       MODE_1,
+			       cfg->tc_sched[i].mode);
+		dpni_set_field(cmd_params->modes[i / 2],
+			       MODE_2,
+			       cfg->tc_sched[i + 1].mode);
+	}
+
+	for (i = 0; i < DPNI_MAX_TC; i++) {
+		cmd_params->delta_bandwidth[i] =
+				cpu_to_le16(cfg->tc_sched[i].delta_bandwidth);
+	}
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
+
+/**
  * dpni_set_rx_tc_dist() - Set Rx traffic class distribution configuration
  * @mc_io:	Pointer to MC portal's I/O object
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
@@ -1615,7 +1673,10 @@ int dpni_set_congestion_notification(
  * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
  * @token:	Token of DPNI object
  * @qtype:	Type of queue - Rx, Tx and Tx confirm types are supported
- * @tc_id:	Traffic class selection (0-7)
+ * @tc_id:	bits 7-4 contain ceetm channel index (valid only for TX);
+ *		bits 3-0 contain traffic class.
+ *		Use macro DPNI_BUILD_CH_TC() to build correct value for
+ *		tc_id parameter.
  * @cfg:	congestion notification configuration
  *
  * Return:	'0' on Success; error code otherwise.
@@ -1779,6 +1840,8 @@ int dpni_get_queue(struct fsl_mc_io *mc_io,
  * @token:	Token of DPNI object
  * @page:	Selects the statistics page to retrieve, see
  *		DPNI_GET_STATISTICS output. Pages are numbered 0 to 2.
+ * @param:	Custom parameter for some pages used to select a certain
+ *		statistic source, for example the TC.
  * @stat:	Structure containing the statistics
  *
  * Return:	'0' on Success; Error code otherwise.
@@ -1787,6 +1850,7 @@ int dpni_get_statistics(struct fsl_mc_io *mc_io,
 			u32 cmd_flags,
 			u16 token,
 			u8 page,
+			u8 param,
 			union dpni_statistics *stat)
 {
 	struct fsl_mc_command cmd = { 0 };
@@ -1800,6 +1864,7 @@ int dpni_get_statistics(struct fsl_mc_io *mc_io,
 					  token);
 	cmd_params = (struct dpni_cmd_get_statistics *)cmd.params;
 	cmd_params->page_number = page;
+	cmd_params->param = param;
 
 	/* send command to mc */
 	err = mc_send_command(mc_io, &cmd);
@@ -1845,7 +1910,10 @@ int dpni_reset_statistics(struct fsl_mc_io *mc_io,
  * @cg_point:	Congestion point
  * @q_type:	Queue type on which the taildrop is configured.
  *		Only Rx queues are supported for now
- * @tc:		Traffic class to apply this taildrop to
+ * @tc:		bits 7-4 contain ceetm channel index (valid only for TX);
+ *		bits 3-0 contain traffic class.
+ *		Use macro DPNI_BUILD_CH_TC() to build correct value for
+ *		tc parameter.
  * @q_index:	Index of the queue if the DPNI supports multiple queues for
  *		traffic distribution. Ignored if CONGESTION_POINT is not 0.
  * @taildrop:	Taildrop structure
@@ -1889,7 +1957,10 @@ int dpni_set_taildrop(struct fsl_mc_io *mc_io,
  * @cg_point:	Congestion point
  * @q_type:	Queue type on which the taildrop is configured.
  *		Only Rx queues are supported for now
- * @tc:		Traffic class to apply this taildrop to
+ * @tc:		bits 7-4 contain ceetm channel index (valid only for TX);
+ *		bits 3-0 contain traffic class.
+ *		Use macro DPNI_BUILD_CH_TC() to build correct value for
+ *		tc parameter.
  * @q_index:	Index of the queue if the DPNI supports multiple queues for
  *		traffic distribution. Ignored if CONGESTION_POINT is not 0.
  * @taildrop:	Taildrop structure
@@ -1964,4 +2035,78 @@ int dpni_get_api_version(struct fsl_mc_io *mc_io,
 	*minor_ver = le16_to_cpu(rsp_params->minor);
 
 	return 0;
+}
+
+/**
+ * dpni_set_rx_fs_dist() - Set Rx traffic class FS distribution
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPNI object
+ * @cfg: Distribution configuration
+ * If the FS is already enabled with a previous call the classification
+ * key will be changed but all the table rules are kept. If the
+ * existing rules do not match the key the results will not be
+ * predictable. It is the user responsibility to keep key integrity.
+ * If cfg.enable is set to 1 the command will create a flow steering table
+ * and will classify packets according to this table. The packets that
+ * miss all the table rules will be classified according to settings
+ * made in dpni_set_rx_hash_dist()
+ * If cfg.enable is set to 0 the command will clear flow steering table.
+ * The packets will be classified according to settings made in
+ * dpni_set_rx_hash_dist()
+ */
+int dpni_set_rx_fs_dist(struct fsl_mc_io *mc_io,
+			u32 cmd_flags,
+			u16 token,
+			const struct dpni_rx_dist_cfg *cfg)
+{
+	struct dpni_cmd_set_rx_fs_dist *cmd_params;
+	struct fsl_mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_RX_FS_DIST,
+					  cmd_flags,
+					  token);
+	cmd_params = (struct dpni_cmd_set_rx_fs_dist *)cmd.params;
+	cmd_params->dist_size = le16_to_cpu(cfg->dist_size);
+	dpni_set_field(cmd_params->enable, RX_FS_DIST_ENABLE, cfg->enable);
+	cmd_params->tc = cfg->tc;
+	cmd_params->miss_flow_id = le16_to_cpu(cfg->fs_miss_flow_id);
+	cmd_params->key_cfg_iova = le64_to_cpu(cfg->key_cfg_iova);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
+}
+
+/**
+ * dpni_set_rx_hash_dist() - Set Rx traffic class HASH distribution
+ * @mc_io:	Pointer to MC portal's I/O object
+ * @cmd_flags:	Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:	Token of DPNI object
+ * @cfg: Distribution configuration
+ * If cfg.enable is set to 1 the packets will be classified using a hash
+ * function based on the key received in cfg.key_cfg_iova parameter.
+ * If cfg.enable is set to 0 the packets will be sent to the queue configured
+ * in dpni_set_rx_dist_default_queue() call
+ */
+int dpni_set_rx_hash_dist(struct fsl_mc_io *mc_io,
+			  u32 cmd_flags,
+			  u16 token,
+			  const struct dpni_rx_dist_cfg *cfg)
+{
+	struct dpni_cmd_set_rx_hash_dist *cmd_params;
+	struct fsl_mc_command cmd = { 0 };
+
+	/* prepare command */
+	cmd.header = mc_encode_cmd_header(DPNI_CMDID_SET_RX_HASH_DIST,
+					  cmd_flags,
+					  token);
+	cmd_params = (struct dpni_cmd_set_rx_hash_dist *)cmd.params;
+	cmd_params->dist_size = le16_to_cpu(cfg->dist_size);
+	dpni_set_field(cmd_params->enable, RX_FS_DIST_ENABLE, cfg->enable);
+	cmd_params->tc = cfg->tc;
+	cmd_params->key_cfg_iova = le64_to_cpu(cfg->key_cfg_iova);
+
+	/* send command to mc*/
+	return mc_send_command(mc_io, &cmd);
 }
