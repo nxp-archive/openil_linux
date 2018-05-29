@@ -9,15 +9,10 @@
 #include <linux/module.h>
 #include <linux/mod_devicetable.h>
 #include <linux/slab.h>
-#include <linux/pci.h>
 #include <linux/platform_device.h>
-#include <linux/amba/bus.h>
 
 #include <asm/errno.h>
 #include "of_private.h"
-#ifdef CONFIG_FSL_MC_BUS
-#include <linux/fsl/mc.h>
-#endif
 
 /**
  * of_match_device - Tell if a struct device matches an of_device_id list
@@ -104,14 +99,7 @@ int of_dma_configure(struct device *dev, struct device_node *np)
 		 * DMA configuration regardless of whether "dma-ranges" is
 		 * correctly specified or not.
 		 */
-		if (!dev_is_pci(dev) &&
-#ifdef CONFIG_ARM_AMBA
-		    dev->bus != &amba_bustype &&
-#endif
-#ifdef CONFIG_FSL_MC_BUS
-		    dev->bus != &fsl_mc_bus_type &&
-#endif
-		    dev->bus != &platform_bus_type)
+		if (!dev->bus->force_dma)
 			return ret == -ENODEV ? 0 : ret;
 
 		dma_addr = offset = 0;
@@ -161,12 +149,7 @@ int of_dma_configure(struct device *dev, struct device_node *np)
 	dev->coherent_dma_mask &= mask;
 	*dev->dma_mask &= mask;
 
-#ifdef CONFIG_FSL_MC_BUS
-	if (dev_is_fsl_mc(dev))
-		coherent = fsl_mc_is_dev_coherent(dev);
-	else
-#endif
-		coherent = of_dma_is_coherent(np);
+	coherent = of_dma_is_coherent(np);
 	dev_dbg(dev, "device is%sdma coherent\n",
 		coherent ? " " : " not ");
 
