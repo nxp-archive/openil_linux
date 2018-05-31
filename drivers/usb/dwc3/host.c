@@ -17,8 +17,6 @@
 
 #include <linux/platform_device.h>
 
-#include <linux/of_device.h>
-
 #include "core.h"
 
 static int dwc3_host_get_irq(struct dwc3 *dwc)
@@ -87,14 +85,7 @@ int dwc3_host_init(struct dwc3 *dwc)
 		return -ENOMEM;
 	}
 
-	if (IS_ENABLED(CONFIG_OF) && dwc->dev->of_node)
-		of_dma_configure(&xhci->dev, dwc->dev->of_node);
-	else
-		dma_set_coherent_mask(&xhci->dev, dwc->dev->coherent_dma_mask);
-
-	xhci->dev.parent = dwc->dev;
-
-	xhci->dev.dma_mask = dwc->dev->dma_mask;
+	xhci->dev.parent	= dwc->dev;
 
 	dwc->xhci = xhci;
 
