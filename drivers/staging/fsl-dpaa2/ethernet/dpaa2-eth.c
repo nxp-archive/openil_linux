@@ -1943,7 +1943,7 @@ static int dpaa2_eth_setup_tc(struct net_device *net_dev,
 	struct tc_mqprio_qopt *mqprio = (struct tc_mqprio_qopt *)type_data;
 	int i, err = 0;
 
-	if (type != TC_SETUP_QDISC_MQPRIO)
+	if (type != TC_SETUP_MQPRIO)
 		return -EINVAL;
 
 	if (mqprio->num_tc > dpaa2_eth_tc_count(priv)) {
