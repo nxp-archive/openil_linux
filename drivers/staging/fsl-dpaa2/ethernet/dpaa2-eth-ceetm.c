@@ -1183,7 +1183,7 @@ struct Qdisc_ops dpaa2_ceetm_qdisc_ops __read_mostly = {
 
 /* Run the filters and classifiers attached to the qdisc on the provided skb */
 int dpaa2_ceetm_classify(struct sk_buff *skb, struct Qdisc *sch,
-			 int *qdid, int *qpri)
+			 int *qdid, u8 *qpri)
 {
 	struct dpaa2_ceetm_qdisc *priv = qdisc_priv(sch);
 	struct dpaa2_ceetm_class *cl = NULL;
