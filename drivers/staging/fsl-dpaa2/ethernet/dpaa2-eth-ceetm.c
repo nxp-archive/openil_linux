@@ -648,7 +648,7 @@ static int dpaa2_ceetm_init(struct Qdisc *sch, struct nlattr *opt)
 	if (!netif_is_multiqueue(dev))
 		return -EOPNOTSUPP;
 
-	err = tcf_block_get(&priv->block, &priv->filter_list, sch);
+	err = tcf_block_get(&priv->block, &priv->filter_list);
 	if (err) {
 		pr_err("CEETM: unable to get tcf_block\n");
 		return err;
@@ -848,7 +848,7 @@ static int dpaa2_ceetm_cls_add(struct Qdisc *sch, u32 classid,
 	if (!cl)
 		return -ENOMEM;
 
-	err = tcf_block_get(&cl->block, &cl->filter_list, sch);
+	err = tcf_block_get(&cl->block, &cl->filter_list);
 	if (err) {
 		pr_err("%s: Unable to set new root class\n", __func__);
 		goto out_free;
