@@ -275,7 +275,6 @@ struct bus_type fsl_mc_bus_type = {
 	.uevent = fsl_mc_bus_uevent,
 	.dev_groups = fsl_mc_dev_groups,
 	.bus_groups = fsl_mc_bus_groups,
-	.force_dma = true,
 };
 EXPORT_SYMBOL_GPL(fsl_mc_bus_type);
 
