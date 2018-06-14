@@ -18,7 +18,6 @@
 #include "qbman-portal.h"
 
 struct dpaa2_io {
-	atomic_t refs;
 	struct dpaa2_io_desc dpio_desc;
 	struct qbman_swp_desc swp_desc;
 	struct qbman_swp *swp;
@@ -122,7 +121,6 @@ struct dpaa2_io *dpaa2_io_create(const struct dpaa2_io_desc *desc)
 		return NULL;
 	}
 
-	atomic_set(&obj->refs, 1);
 	obj->dpio_desc = *desc;
 	obj->swp_desc.cena_bar = obj->dpio_desc.regs_cena;
 	obj->swp_desc.cinh_bar = obj->dpio_desc.regs_cinh;
@@ -154,7 +152,6 @@ struct dpaa2_io *dpaa2_io_create(const struct dpaa2_io_desc *desc)
 
 	return obj;
 }
-EXPORT_SYMBOL_GPL(dpaa2_io_create);
 
 /**
  * dpaa2_io_down() - release the dpaa2_io object.
@@ -167,11 +164,8 @@ EXPORT_SYMBOL_GPL(dpaa2_io_create);
  */
 void dpaa2_io_down(struct dpaa2_io *d)
 {
-	if (!atomic_dec_and_test(&d->refs))
-		return;
 	kfree(d);
 }
-EXPORT_SYMBOL_GPL(dpaa2_io_down);
 
 #define DPAA_POLL_MAX 32
 
@@ -202,7 +196,7 @@ irqreturn_t dpaa2_io_irq(struct dpaa2_io *obj)
 			u64 q64;
 
 			q64 = qbman_result_SCN_ctx(dq);
-			ctx = (void *)q64;
+			ctx = (void *)(uintptr_t)q64;
 			ctx->cb(ctx);
 		} else {
 			pr_crit("fsl-mc-dpio: Unrecognised/ignored DQRR entry\n");
@@ -218,7 +212,6 @@ done:
 	qbman_swp_interrupt_set_inhibit(swp, 0);
 	return IRQ_HANDLED;
 }
-EXPORT_SYMBOL_GPL(dpaa2_io_irq);
 
 /**
  * dpaa2_io_service_register() - Prepare for servicing of FQDAN or CDAN
@@ -248,7 +241,7 @@ int dpaa2_io_service_register(struct dpaa2_io *d,
 		return -ENODEV;
 
 	ctx->dpio_id = d->dpio_desc.dpio_id;
-	ctx->qman64 = (u64)ctx;
+	ctx->qman64 = (u64)(uintptr_t)ctx;
 	ctx->dpio_private = d;
 	spin_lock_irqsave(&d->lock_notifications, irqflags);
 	list_add(&ctx->node, &d->notifications);
