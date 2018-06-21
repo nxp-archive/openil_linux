@@ -3,6 +3,8 @@
  *
  * Copyright (C) 2016 Freescale Semiconductor.
  *
+ * Copyright 2018-2019 NXP
+ *
  * Author: Minghuan Lian <Minghuan.Lian@nxp.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -206,7 +208,7 @@ static void ls_scfg_msi_irq_handler(struct irq_desc *desc)
 			msir->srs;
 		virq = irq_find_mapping(msi_data->parent, hwirq);
 		if (virq)
-			generic_handle_irq(virq);
+			ipipe_handle_demuxed_irq(virq);
 	}
 
 	chained_irq_exit(irq_desc_get_chip(desc), desc);
