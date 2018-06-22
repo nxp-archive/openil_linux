@@ -190,6 +190,7 @@ config STACKTRACE_SUPPORT
 
 config LOCKDEP_SUPPORT
 	bool
+	depends on !IPIPE
 	default y
 
 config TRACE_IRQFLAGS_SUPPORT
