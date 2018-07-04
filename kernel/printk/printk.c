@@ -38,6 +38,7 @@
 #include <linux/kmsg_dump.h>
 #include <linux/syslog.h>
 #include <linux/cpu.h>
+#include <linux/ipipe.h>
 #include <linux/rculist.h>
 #include <linux/poll.h>
 #include <linux/irq_work.h>
@@ -1971,6 +1972,65 @@ int vprintk_default(const char *fmt, va_list args)
 }
 EXPORT_SYMBOL_GPL(vprintk_default);
 
+#ifdef CONFIG_IPIPE
+
+extern int __ipipe_printk_bypass;
+
+static IPIPE_DEFINE_SPINLOCK(__ipipe_printk_lock);
+
+static int __ipipe_printk_fill;
+
+static char __ipipe_printk_buf[__LOG_BUF_LEN];
+
+int __ipipe_log_printk(const char *fmt, va_list args)
+{
+	int ret = 0, fbytes, oldcount;
+	unsigned long flags;
+
+	raw_spin_lock_irqsave(&__ipipe_printk_lock, flags);
+
+	oldcount = __ipipe_printk_fill;
+	fbytes = __LOG_BUF_LEN - oldcount;
+	if (fbytes > 1)	{
+		ret = vscnprintf(__ipipe_printk_buf + __ipipe_printk_fill,
+				 fbytes, fmt, args) + 1;
+		__ipipe_printk_fill += ret;
+	}
+
+	raw_spin_unlock_irqrestore(&__ipipe_printk_lock, flags);
+
+	if (oldcount == 0)
+		ipipe_raise_irq(__ipipe_printk_virq);
+
+	return ret;
+}
+
+void __ipipe_flush_printk (unsigned virq, void *cookie)
+{
+	char *p = __ipipe_printk_buf;
+	int len, lmax, out = 0;
+	unsigned long flags;
+
+	goto start;
+	do {
+	raw_spin_unlock_irqrestore(&__ipipe_printk_lock, flags);
+start:
+		lmax = __ipipe_printk_fill;
+		while (out < lmax) {
+			len = strlen(p) + 1;
+			printk("%s",p);
+			p += len;
+			out += len;
+		}
+		raw_spin_lock_irqsave(&__ipipe_printk_lock, flags);
+	}
+	while (__ipipe_printk_fill != lmax);
+
+	__ipipe_printk_fill = 0;
+
+	raw_spin_unlock_irqrestore(&__ipipe_printk_lock, flags);
+}
+
 /**
  * printk - print a kernel message
  * @fmt: format string
@@ -1992,6 +2052,44 @@ EXPORT_SYMBOL_GPL(vprintk_default);
  *
  * See the vsnprintf() documentation for format string extensions over C99.
  */
+
+asmlinkage __visible int printk(const char *fmt, ...)
+{
+	int sprintk = 1, cs = -1;
+	unsigned long flags;
+	va_list args;
+	int ret;
+
+	va_start(args, fmt);
+
+	flags = hard_local_irq_save();
+
+	if (__ipipe_printk_bypass || oops_in_progress)
+		cs = ipipe_disable_context_check();
+	else if (__ipipe_current_domain == ipipe_root_domain) {
+		if (ipipe_head_domain != ipipe_root_domain &&
+		    (raw_irqs_disabled_flags(flags) ||
+		     test_bit(IPIPE_STALL_FLAG, &__ipipe_head_status)))
+			sprintk = 0;
+	} else
+		sprintk = 0;
+
+	hard_local_irq_restore(flags);
+
+	if (sprintk) {
+		ret = vprintk_func(fmt, args);
+		if (cs != -1)
+			ipipe_restore_context_check(cs);
+	} else
+		ret = __ipipe_log_printk(fmt, args);
+
+	va_end(args);
+
+	return ret;
+}
+
+#else /* !CONFIG_IPIPE */
+
 asmlinkage __visible int printk(const char *fmt, ...)
 {
 	va_list args;
@@ -2003,6 +2101,9 @@ asmlinkage __visible int printk(const char *fmt, ...)
 
 	return r;
 }
+
+#endif /* CONFIG_IPIPE */
+
 EXPORT_SYMBOL(printk);
 
 #else /* CONFIG_PRINTK */

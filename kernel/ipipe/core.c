@@ -102,6 +102,11 @@ IPIPE_DEFINE_SPINLOCK(__ipipe_lock);
 
 static unsigned long __ipipe_virtual_irq_map;
 
+#ifdef CONFIG_PRINTK
+unsigned int __ipipe_printk_virq;
+int __ipipe_printk_bypass;
+#endif /* CONFIG_PRINTK */
+
 #ifdef CONFIG_PROC_FS
 
 struct proc_dir_entry *ipipe_proc_root;
@@ -305,6 +310,14 @@ void __init __ipipe_init_early(void)
 	 */
 	__ipipe_early_core_setup();
 	__ipipe_early_client_setup();
+
+#ifdef CONFIG_PRINTK
+	__ipipe_printk_virq = ipipe_alloc_virq();
+	ipd->irqs[__ipipe_printk_virq].handler = __ipipe_flush_printk;
+	ipd->irqs[__ipipe_printk_virq].cookie = NULL;
+	ipd->irqs[__ipipe_printk_virq].ackfn = NULL;
+	ipd->irqs[__ipipe_printk_virq].control = IPIPE_HANDLE_MASK;
+#endif /* CONFIG_PRINTK */
 
 	__ipipe_work_virq = ipipe_alloc_virq();
 	ipd->irqs[__ipipe_work_virq].handler = __ipipe_do_work;
@@ -1478,6 +1491,9 @@ EXPORT_SYMBOL(__ipipe_spin_unlock_debug);
 
 void ipipe_prepare_panic(void)
 {
+#ifdef CONFIG_PRINTK
+	__ipipe_printk_bypass = 1;
+#endif
 	ipipe_context_check_off();
 }
 EXPORT_SYMBOL_GPL(ipipe_prepare_panic);
