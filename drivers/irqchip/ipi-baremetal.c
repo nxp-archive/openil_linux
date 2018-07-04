@@ -44,6 +44,7 @@
 #include <linux/interrupt.h>
 #include <asm/siginfo.h>
 #include <linux/uaccess.h>
+#include <linux/mman.h>
 
 int pid;
 int mycoreid;
@@ -270,12 +271,41 @@ int ipi_baremetal_handle(u32 irqnr, u32 irqsrc)
 	return 0;
 }
 
+static const struct vm_operations_struct shd_mmap_mem_ops = {
+#ifdef CONFIG_HAVE_IOREMAP_PROT
+	.access = generic_access_phys
+#endif
+};
+
+static int shd_mmap_mem(struct file *file, struct vm_area_struct *vma)
+{
+	size_t size = vma->vm_end - vma->vm_start;
+
+#ifdef CONFIG_LS1021A_BAREMETAL
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+#else
+	vma->vm_page_prot = pgprot_cached(vma->vm_page_prot);
+#endif
+	vma->vm_ops = &shd_mmap_mem_ops;
+
+	/* Remap-pfn-range will mark the range VM_IO */
+	if (remap_pfn_range(vma,
+			    vma->vm_start,
+			    vma->vm_pgoff,
+			    size,
+			    vma->vm_page_prot)) {
+		return -EAGAIN;
+	}
+	return 0;
+}
+
 const struct file_operations ipi_bm_ops = {
 	.owner = THIS_MODULE,
 	.open = ipi_baremetal_open,
 	.release = ipi_baremetal_release,
 	.read = ipi_baremetal_read,
 	.write = ipi_baremetal_write,
+	.mmap = shd_mmap_mem,
 };
 
 static struct miscdevice ipi_bm_misc = {
@@ -290,8 +320,13 @@ static int __init ipi_baremetal_init(void)
 
 	pr_info("NXP inter-core communiction IRQ driver\n");
 #ifndef IPI_BAREMETAL_SIGNAL
+#ifdef CONFIG_LS1021A_BAREMETAL
 	share_base = ioremap((phys_addr_t)CONFIG_SYS_DDR_SDRAM_SHARE_BASE,
 				CONFIG_SYS_DDR_SDRAM_SHARE_SIZE);
+#else
+	share_base = ioremap_cache((phys_addr_t)CONFIG_SYS_DDR_SDRAM_SHARE_BASE,
+				CONFIG_SYS_DDR_SDRAM_SHARE_SIZE);
+#endif
 	if (!share_base) {
 		pr_err("failed to remap share base (%lu/%u) for ICC\n",
 			CONFIG_SYS_DDR_SDRAM_SHARE_BASE,
