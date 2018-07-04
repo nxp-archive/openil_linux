@@ -991,7 +991,11 @@ struct irq_chip_type {
  * different flow mechanisms (level/edge) for it.
  */
 struct irq_chip_generic {
+#ifdef CONFIG_IPIPE
+	ipipe_spinlock_t	lock;
+#else
 	raw_spinlock_t		lock;
+#endif
 	void __iomem		*reg_base;
 	u32			(*reg_readl)(void __iomem *addr);
 	void			(*reg_writel)(u32 val, void __iomem *addr);
@@ -1119,18 +1123,28 @@ static inline struct irq_chip_type *irq_data_get_chip_type(struct irq_data *d)
 #define IRQ_MSK(n) (u32)((n) < 32 ? ((1 << (n)) - 1) : UINT_MAX)
 
 #ifdef CONFIG_SMP
-static inline void irq_gc_lock(struct irq_chip_generic *gc)
+static inline unsigned long irq_gc_lock(struct irq_chip_generic *gc)
 {
-	raw_spin_lock(&gc->lock);
+	unsigned long flags = 0;
+	raw_spin_lock_irqsave_cond(&gc->lock, flags);
+	return flags;
 }
 
-static inline void irq_gc_unlock(struct irq_chip_generic *gc)
+static inline void
+irq_gc_unlock(struct irq_chip_generic *gc, unsigned long flags)
 {
-	raw_spin_unlock(&gc->lock);
+	raw_spin_unlock_irqrestore_cond(&gc->lock, flags);
 }
 #else
-static inline void irq_gc_lock(struct irq_chip_generic *gc) { }
-static inline void irq_gc_unlock(struct irq_chip_generic *gc) { }
+static inline unsigned long irq_gc_lock(struct irq_chip_generic *gc)
+{
+	return hard_cond_local_irq_save();
+}
+static inline void
+irq_gc_unlock(struct irq_chip_generic *gc, unsigned long flags)
+{
+	hard_cond_local_irq_restore(flags);
+}
 #endif
 
 /*
