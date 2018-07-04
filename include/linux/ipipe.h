@@ -63,6 +63,11 @@ void __ipipe_set_irq_pending(struct ipipe_domain *ipd, unsigned int irq);
 static inline void ipipe_mute_pic(void) { }
 static inline void ipipe_unmute_pic(void) { }
 
+static inline bool __ipipe_hrclock_ok(void)
+{
+	return __ipipe_hrclock_freq != 0;
+}
+
 static inline void __ipipe_nmi_enter(void)
 {
 	__this_cpu_write(ipipe_percpu.nmi_state, __ipipe_root_status);
