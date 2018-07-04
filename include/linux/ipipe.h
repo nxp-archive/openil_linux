@@ -253,7 +253,9 @@ static inline int ipipe_chained_irq_p(struct irq_desc *desc)
 
 static inline void ipipe_handle_demuxed_irq(unsigned int cascade_irq)
 {
+	ipipe_trace_irq_entry(cascade_irq);
 	__ipipe_dispatch_irq(cascade_irq, IPIPE_IRQF_NOSYNC);
+	ipipe_trace_irq_exit(cascade_irq);
 }
 
 static inline void __ipipe_init_threadflags(struct thread_info *ti)
@@ -296,6 +298,12 @@ int ipipe_test_ti_thread_flag(struct thread_info *ti, int flag)
 
 #define ipipe_test_thread_flag(flag) \
 	ipipe_test_ti_thread_flag(current_thread_info(), flag)
+
+#ifdef CONFIG_IPIPE_TRACE
+void __ipipe_tracer_hrclock_initialized(void);
+#else /* !CONFIG_IPIPE_TRACE */
+#define __ipipe_tracer_hrclock_initialized()	do { } while(0)
+#endif /* !CONFIG_IPIPE_TRACE */
 
 #else	/* !CONFIG_IPIPE */
 

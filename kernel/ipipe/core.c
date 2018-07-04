@@ -211,6 +211,8 @@ void __init __ipipe_init_proc(void)
 	proc_create("version", 0444, ipipe_proc_root,
 		    &__ipipe_version_proc_ops);
 	add_domain_proc(ipipe_root_domain);
+
+	__ipipe_init_tracer();
 }
 
 #else
@@ -1400,6 +1402,7 @@ void ipipe_root_only(void)
 	hard_smp_local_irq_restore(flags);
 
 	ipipe_prepare_panic();
+	ipipe_trace_panic_freeze();
 
 	if (this_domain != ipipe_root_domain)
 		pr_err("I-pipe: Detected illicit call from head domain '%s'\n"
@@ -1411,6 +1414,7 @@ void ipipe_root_only(void)
 			"        A critical section may have been "
 			"left unterminated.\n");
 	dump_stack();
+	ipipe_trace_panic_dump();
 }
 EXPORT_SYMBOL(ipipe_root_only);
 
