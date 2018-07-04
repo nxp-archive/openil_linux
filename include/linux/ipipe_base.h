@@ -100,6 +100,9 @@ static inline void __ipipe_sync_stage(void)
 int __ipipe_log_printk(const char *fmt, va_list args);
 void __ipipe_flush_printk(unsigned int irq, void *cookie);
 
+#define __ipipe_get_cpu(flags)	({ (flags) = hard_preempt_disable(); ipipe_processor_id(); })
+#define __ipipe_put_cpu(flags)	hard_preempt_enable(flags)
+
 #define __ipipe_serial_debug(__fmt, __args...)	raw_printk(__fmt, ##__args)
 
 #else /* !CONFIG_IPIPE */
@@ -114,6 +117,16 @@ static inline void __ipipe_init(void) { }
 static inline void __ipipe_init_proc(void) { }
 
 static inline void __ipipe_idle(void) { }
+
+#define hard_preempt_disable()		({ preempt_disable(); 0; })
+#define hard_preempt_enable(flags)	({ preempt_enable(); (void)(flags); })
+
+#define __ipipe_get_cpu(flags)		({ (void)(flags); get_cpu(); })
+#define __ipipe_put_cpu(flags)		\
+	do {				\
+		(void)(flags);		\
+		put_cpu();		\
+	} while (0)
 
 #define __ipipe_root_tick_p(regs)	1
 
