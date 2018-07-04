@@ -22,6 +22,7 @@
 #include <linux/delay.h>
 #include <linux/kexec.h>
 #include <linux/sched.h>
+#include <linux/ipipe.h>
 #include <linux/sysrq.h>
 #include <linux/init.h>
 #include <linux/nmi.h>
@@ -468,6 +469,7 @@ void oops_enter(void)
 {
 	tracing_off();
 	/* can't trust the integrity of the kernel anymore: */
+	ipipe_disable_context_check();
 	debug_locks_off();
 	do_oops_enter_exit();
 }

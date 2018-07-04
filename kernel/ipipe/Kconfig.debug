@@ -1,0 +1,23 @@
+config IPIPE_DEBUG
+	bool "I-pipe debugging"
+	depends on IPIPE
+	select RAW_PRINTK
+
+config IPIPE_DEBUG_CONTEXT
+	bool "Check for illicit cross-domain calls"
+	depends on IPIPE_DEBUG
+	default y
+	---help---
+	  Enable this feature to arm checkpoints in the kernel that
+	  verify the correct invocation context. On entry of critical
+	  Linux services a warning is issued if the caller is not
+	  running over the root domain.
+
+config IPIPE_DEBUG_INTERNAL
+	bool "Enable internal debug checks"
+	depends on IPIPE_DEBUG
+	default y
+	---help---
+	  When this feature is enabled, I-pipe will perform internal
+	  consistency checks of its subsystems, e.g. on per-cpu variable
+	  access.
