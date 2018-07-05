@@ -54,6 +54,7 @@
 #include <linux/futex.h>
 #include <linux/compat.h>
 #include <linux/kthread.h>
+#include <linux/ipipe.h>
 #include <linux/task_io_accounting_ops.h>
 #include <linux/rcupdate.h>
 #include <linux/ptrace.h>
@@ -1010,6 +1011,7 @@ static inline void __mmput(struct mm_struct *mm)
 	exit_aio(mm);
 	ksm_exit(mm);
 	khugepaged_exit(mm); /* must run before exit_mmap */
+	__ipipe_report_cleanup(mm);
 	exit_mmap(mm);
 	mm_put_huge_zero_page(mm);
 	set_mm_exe_file(mm, NULL);
