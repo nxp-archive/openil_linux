@@ -444,6 +444,7 @@ dtb-$(CONFIG_SOC_LS1021A) += \
 	ls1021a-qds.dtb \
 	ls1021a-twr.dtb \
 	ls1021a-iot.dtb \
+	ls1021a-iot-bm.dtb \
 	ls1021a-tsn.dtb
 dtb-$(CONFIG_SOC_VF610) += \
 	vf500-colibri-eval-v3.dtb \
