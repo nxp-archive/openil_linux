@@ -23,6 +23,8 @@
 #ifndef __LINUX_IPIPE_BASE_H
 #define __LINUX_IPIPE_BASE_H
 
+struct kvm_vcpu;
+struct ipipe_vm_notifier;
 struct irq_desc;
 
 #ifdef CONFIG_IPIPE
@@ -40,6 +42,10 @@ struct ipipe_domain;
 struct ipipe_trap_data {
 	int exception;
 	struct pt_regs *regs;
+};
+
+struct ipipe_vm_notifier {
+	void (*handler)(struct ipipe_vm_notifier *nfy);
 };
 
 static inline int ipipe_virtual_irq_p(unsigned int irq)
@@ -167,6 +173,8 @@ int __ipipe_notify_trap(int exception, struct pt_regs *regs);
 
 void __ipipe_call_mayday(struct pt_regs *regs);
 
+void __ipipe_notify_vm_preemption(void);
+
 #define __ipipe_serial_debug(__fmt, __args...)	raw_printk(__fmt, ##__args)
 
 #else /* !CONFIG_IPIPE */
@@ -211,6 +219,12 @@ static inline void __ipipe_report_cleanup(struct mm_struct *mm) { }
 	handle_domain_irq(__domain, __hwirq, __regs)
 
 #define ipipe_handle_demuxed_irq(irq)		generic_handle_irq(irq)
+
+#define __ipipe_enter_vm(vmf)	do { } while (0)
+
+static inline void __ipipe_exit_vm(void) { }
+
+static inline void __ipipe_notify_vm_preemption(void) { }
 
 #define __ipipe_serial_debug(__fmt, __args...)	do { } while (0)
 

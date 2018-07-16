@@ -1256,6 +1256,19 @@ int __ipipe_switch_tail(void)
 	return !x;
 }
 
+void __ipipe_notify_vm_preemption(void)
+{
+	struct ipipe_vm_notifier *vmf;
+	struct ipipe_percpu_data *p;
+
+	ipipe_check_irqoff();
+	p = __ipipe_raw_cpu_ptr(&ipipe_percpu);
+	vmf = p->vm_notifier;
+	if (unlikely(vmf))
+		vmf->handler(vmf);
+}
+EXPORT_SYMBOL_GPL(__ipipe_notify_vm_preemption);
+
 static void dispatch_irq_head(unsigned int irq) /* hw interrupts off */
 {
 	struct ipipe_percpu_domain_data *p = ipipe_this_cpu_head_context(), *old;
