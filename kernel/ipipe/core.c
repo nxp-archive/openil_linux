@@ -37,6 +37,8 @@
 #include <linux/ipipe_trace.h>
 #include <linux/ipipe.h>
 #include <ipipe/setup.h>
+#include <asm/syscall.h>
+#include <asm/unistd.h>
 
 struct ipipe_domain ipipe_root;
 EXPORT_SYMBOL_GPL(ipipe_root);
@@ -938,6 +940,257 @@ out:
 }
 EXPORT_SYMBOL_GPL(ipipe_free_irq);
 
+void ipipe_set_hooks(struct ipipe_domain *ipd, int enables)
+{
+	struct ipipe_percpu_domain_data *p;
+	unsigned long flags;
+	int cpu, wait;
+
+	if (ipd == ipipe_root_domain) {
+		IPIPE_WARN(enables & __IPIPE_TRAP_E);
+		enables &= ~__IPIPE_TRAP_E;
+	} else {
+		IPIPE_WARN(enables & __IPIPE_KEVENT_E);
+		enables &= ~__IPIPE_KEVENT_E;
+	}
+
+	flags = ipipe_critical_enter(NULL);
+
+	for_each_online_cpu(cpu) {
+		p = ipipe_percpu_context(ipd, cpu);
+		p->coflags &= ~__IPIPE_ALL_E;
+		p->coflags |= enables;
+	}
+
+	wait = (enables ^ __IPIPE_ALL_E) << __IPIPE_SHIFT_R;
+	if (wait == 0 || !__ipipe_root_p) {
+		ipipe_critical_exit(flags);
+		return;
+	}
+
+	ipipe_this_cpu_context(ipd)->coflags &= ~wait;
+
+	ipipe_critical_exit(flags);
+
+	/*
+	 * In case we cleared some hooks over the root domain, we have
+	 * to wait for any ongoing execution to finish, since our
+	 * caller might subsequently unmap the target domain code.
+	 *
+	 * We synchronize with the relevant __ipipe_notify_*()
+	 * helpers, disabling all hooks before we start waiting for
+	 * completion on all CPUs.
+	 */
+	for_each_online_cpu(cpu) {
+		while (ipipe_percpu_context(ipd, cpu)->coflags & wait)
+			schedule_timeout_interruptible(HZ / 50);
+	}
+}
+EXPORT_SYMBOL_GPL(ipipe_set_hooks);
+
+int __weak ipipe_fastcall_hook(struct pt_regs *regs)
+{
+	return -1;	/* i.e. fall back to slow path. */
+}
+
+int __weak ipipe_syscall_hook(struct ipipe_domain *ipd, struct pt_regs *regs)
+{
+	return 0;
+}
+
+static inline void sync_root_irqs(void)
+{
+	struct ipipe_percpu_domain_data *p;
+	unsigned long flags;
+
+	flags = hard_local_irq_save();
+
+	p = ipipe_this_cpu_root_context();
+	if (unlikely(__ipipe_ipending_p(p)))
+		__ipipe_sync_stage();
+
+	hard_local_irq_restore(flags);
+}
+
+int ipipe_handle_syscall(struct thread_info *ti,
+			 unsigned long nr, struct pt_regs *regs)
+{
+	unsigned long local_flags = READ_ONCE(ti->ipipe_flags);
+	int ret;
+
+	/*
+	 * NOTE: This is a backport from the DOVETAIL syscall
+	 * redirector to the older pipeline implementation.
+	 *
+	 * ==
+	 *
+	 * If the syscall # is out of bounds and the current IRQ stage
+	 * is not the root one, this has to be a non-native system
+	 * call handled by some co-kernel on the head stage. Hand it
+	 * over to the head stage via the fast syscall handler.
+	 *
+	 * Otherwise, if the system call is out of bounds or the
+	 * current thread is shared with a co-kernel, hand the syscall
+	 * over to the latter through the pipeline stages. This
+	 * allows:
+	 *
+	 * - the co-kernel to receive the initial - foreign - syscall
+	 * a thread should send for enabling syscall handling by the
+	 * co-kernel.
+	 *
+	 * - the co-kernel to manipulate the current execution stage
+	 * for handling the request, which includes switching the
+	 * current thread back to the root stage if the syscall is a
+	 * native one, or promoting it to the head stage if handling
+	 * the foreign syscall requires this.
+	 *
+	 * Native syscalls from regular (non-pipeline) threads are
+	 * ignored by this routine, and flow down to the regular
+	 * system call handler.
+	 */
+
+	if (nr >= NR_syscalls && (local_flags & _TIP_HEAD)) {
+		ipipe_fastcall_hook(regs);
+		local_flags = READ_ONCE(ti->ipipe_flags);
+		if (local_flags & _TIP_HEAD) {
+			if (local_flags &  _TIP_MAYDAY)
+				__ipipe_call_mayday(regs);
+			return 1; /* don't pass down, no tail work. */
+		} else {
+			sync_root_irqs();
+			return -1; /* don't pass down, do tail work. */
+		}
+	}
+
+	if ((local_flags & _TIP_NOTIFY) || nr >= NR_syscalls) {
+		ret =__ipipe_notify_syscall(regs);
+		local_flags = READ_ONCE(ti->ipipe_flags);
+		if (local_flags & _TIP_HEAD)
+			return 1; /* don't pass down, no tail work. */
+		if (ret)
+			return -1; /* don't pass down, do tail work. */
+	}
+
+	return 0; /* pass syscall down to the host. */
+}
+
+int __ipipe_notify_syscall(struct pt_regs *regs)
+{
+	struct ipipe_domain *caller_domain, *this_domain, *ipd;
+	struct ipipe_percpu_domain_data *p;
+	unsigned long flags;
+	int ret = 0;
+
+	/*
+	 * We should definitely not pipeline a syscall with IRQs off.
+	 */
+	IPIPE_WARN_ONCE(hard_irqs_disabled());
+
+	flags = hard_local_irq_save();
+	caller_domain = this_domain = __ipipe_current_domain;
+	ipd = ipipe_head_domain;
+next:
+	p = ipipe_this_cpu_context(ipd);
+	if (likely(p->coflags & __IPIPE_SYSCALL_E)) {
+		__ipipe_set_current_context(p);
+		p->coflags |= __IPIPE_SYSCALL_R;
+		hard_local_irq_restore(flags);
+		ret = ipipe_syscall_hook(caller_domain, regs);
+		flags = hard_local_irq_save();
+		p->coflags &= ~__IPIPE_SYSCALL_R;
+		if (__ipipe_current_domain != ipd)
+			/* Account for domain migration. */
+			this_domain = __ipipe_current_domain;
+		else
+			__ipipe_set_current_domain(this_domain);
+	}
+
+	if (this_domain == ipipe_root_domain) {
+		if (ipd != ipipe_root_domain && ret == 0) {
+			ipd = ipipe_root_domain;
+			goto next;
+		}
+		/*
+		 * Careful: we may have migrated from head->root, so p
+		 * would be ipipe_this_cpu_context(head).
+		 */
+		p = ipipe_this_cpu_root_context();
+		if (__ipipe_ipending_p(p))
+			__ipipe_sync_stage();
+	} else if (ipipe_test_thread_flag(TIP_MAYDAY))
+		__ipipe_call_mayday(regs);
+
+	hard_local_irq_restore(flags);
+
+	return ret;
+}
+
+int __weak ipipe_trap_hook(struct ipipe_trap_data *data)
+{
+	return 0;
+}
+
+int __ipipe_notify_trap(int exception, struct pt_regs *regs)
+{
+	struct ipipe_percpu_domain_data *p;
+	struct ipipe_trap_data data;
+	unsigned long flags;
+	int ret = 0;
+
+	flags = hard_local_irq_save();
+
+	/*
+	 * We send a notification about all traps raised over a
+	 * registered head domain only.
+	 */
+	if (__ipipe_root_p)
+		goto out;
+
+	p = ipipe_this_cpu_head_context();
+	if (likely(p->coflags & __IPIPE_TRAP_E)) {
+		p->coflags |= __IPIPE_TRAP_R;
+		hard_local_irq_restore(flags);
+		data.exception = exception;
+		data.regs = regs;
+		ret = ipipe_trap_hook(&data);
+		flags = hard_local_irq_save();
+		p->coflags &= ~__IPIPE_TRAP_R;
+	}
+out:
+	hard_local_irq_restore(flags);
+
+	return ret;
+}
+
+int __weak ipipe_kevent_hook(int kevent, void *data)
+{
+	return 0;
+}
+
+int __ipipe_notify_kevent(int kevent, void *data)
+{
+	struct ipipe_percpu_domain_data *p;
+	unsigned long flags;
+	int ret = 0;
+
+	ipipe_root_only();
+
+	flags = hard_local_irq_save();
+
+	p = ipipe_this_cpu_root_context();
+	if (likely(p->coflags & __IPIPE_KEVENT_E)) {
+		p->coflags |= __IPIPE_KEVENT_R;
+		hard_local_irq_restore(flags);
+		ret = ipipe_kevent_hook(kevent, data);
+		flags = hard_local_irq_save();
+		p->coflags &= ~__IPIPE_KEVENT_R;
+	}
+
+	hard_local_irq_restore(flags);
+
+	return ret;
+}
+
 static void dispatch_irq_head(unsigned int irq) /* hw interrupts off */
 {
 	struct ipipe_percpu_domain_data *p = ipipe_this_cpu_head_context(), *old;
@@ -1263,6 +1516,16 @@ respin:
 		trace_hardirqs_on();
 
 	__clear_bit(IPIPE_STALL_FLAG, &p->status);
+}
+
+void __ipipe_call_mayday(struct pt_regs *regs)
+{
+	unsigned long flags;
+
+	ipipe_clear_thread_flag(TIP_MAYDAY);
+	flags = hard_local_irq_save();
+	__ipipe_notify_trap(IPIPE_TRAP_MAYDAY, regs);
+	hard_local_irq_restore(flags);
 }
 
 #ifdef CONFIG_SMP

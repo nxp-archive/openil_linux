@@ -38,6 +38,11 @@
 
 #include <linux/ipipe_domain.h>
 
+/* ipipe_set_hooks(..., enables) */
+#define IPIPE_SYSCALL	__IPIPE_SYSCALL_E
+#define IPIPE_TRAP	__IPIPE_TRAP_E
+#define IPIPE_KEVENT	__IPIPE_KEVENT_E
+
 struct ipipe_sysinfo {
 	int sys_nr_cpus;	/* Number of CPUs on board */
 	int sys_hrtimer_irq;	/* hrtimer device IRQ */
@@ -107,6 +112,13 @@ void ipipe_free_irq(struct ipipe_domain *ipd,
 		    unsigned int irq);
 
 void ipipe_raise_irq(unsigned int irq);
+
+
+void ipipe_set_hooks(struct ipipe_domain *ipd,
+		     int enables);
+
+int ipipe_handle_syscall(struct thread_info *ti,
+			 unsigned long nr, struct pt_regs *regs);
 
 unsigned int ipipe_alloc_virq(void);
 
@@ -299,6 +311,27 @@ int ipipe_test_ti_thread_flag(struct thread_info *ti, int flag)
 #define ipipe_test_thread_flag(flag) \
 	ipipe_test_ti_thread_flag(current_thread_info(), flag)
 
+#define ipipe_enable_notifier(p)					\
+	ipipe_set_ti_thread_flag(task_thread_info(p), TIP_NOTIFY)
+
+#define ipipe_disable_notifier(p)					\
+	do {								\
+		struct thread_info *ti = task_thread_info(p);		\
+		ipipe_clear_ti_thread_flag(ti, TIP_NOTIFY);		\
+		ipipe_clear_ti_thread_flag(ti, TIP_MAYDAY);		\
+	} while (0)
+
+#define ipipe_notifier_enabled_p(p)					\
+	ipipe_test_ti_thread_flag(task_thread_info(p), TIP_NOTIFY)
+
+#define ipipe_raise_mayday(p)						\
+	do {								\
+		struct thread_info *ti = task_thread_info(p);		\
+		ipipe_check_irqoff();					\
+		if (ipipe_test_ti_thread_flag(ti, TIP_NOTIFY))		\
+			ipipe_set_ti_thread_flag(ti, TIP_MAYDAY);	\
+	} while (0)
+
 #ifdef CONFIG_IPIPE_TRACE
 void __ipipe_tracer_hrclock_initialized(void);
 #else /* !CONFIG_IPIPE_TRACE */
@@ -321,6 +354,13 @@ static inline void __ipipe_nmi_exit(void) { }
 static inline void ipipe_lock_irq(unsigned int irq) { }
 
 static inline void ipipe_unlock_irq(unsigned int irq) { }
+
+static inline
+int ipipe_handle_syscall(struct thread_info *ti,
+			 unsigned long nr, struct pt_regs *regs)
+{
+	return 0;
+}
 
 #endif	/* !CONFIG_IPIPE */
 

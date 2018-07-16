@@ -37,6 +37,11 @@ struct irq_desc;
 struct pt_regs;
 struct ipipe_domain;
 
+struct ipipe_trap_data {
+	int exception;
+	struct pt_regs *regs;
+};
+
 static inline int ipipe_virtual_irq_p(unsigned int irq)
 {
 	return irq >= IPIPE_VIRQ_BASE && irq < IPIPE_NR_IRQS;
@@ -103,6 +108,65 @@ void __ipipe_flush_printk(unsigned int irq, void *cookie);
 #define __ipipe_get_cpu(flags)	({ (flags) = hard_preempt_disable(); ipipe_processor_id(); })
 #define __ipipe_put_cpu(flags)	hard_preempt_enable(flags)
 
+int __ipipe_notify_kevent(int event, void *data);
+
+#define __ipipe_report_sigwake(p)					\
+	do {								\
+		if (ipipe_notifier_enabled_p(p))			\
+			__ipipe_notify_kevent(IPIPE_KEVT_SIGWAKE, p);	\
+	} while (0)
+
+struct ipipe_cpu_migration_data {
+	struct task_struct *task;
+	int dest_cpu;
+};
+
+#define __ipipe_report_setaffinity(__p, __dest_cpu)			\
+	do {								\
+		struct ipipe_cpu_migration_data d = {			\
+			.task = (__p),					\
+			.dest_cpu = (__dest_cpu),			\
+		};							\
+		if (ipipe_notifier_enabled_p(__p))			\
+			__ipipe_notify_kevent(IPIPE_KEVT_SETAFFINITY, &d); \
+	} while (0)
+
+#define __ipipe_report_exit(p)						\
+	do {								\
+		if (ipipe_notifier_enabled_p(p))			\
+			__ipipe_notify_kevent(IPIPE_KEVT_EXIT, p);	\
+	} while (0)
+
+#define __ipipe_report_setsched(p)					\
+	do {								\
+		if (ipipe_notifier_enabled_p(p))			\
+			__ipipe_notify_kevent(IPIPE_KEVT_SETSCHED, p); \
+	} while (0)
+
+#define __ipipe_report_schedule(prev, next)				\
+do {									\
+	if (ipipe_notifier_enabled_p(next) ||				\
+	    ipipe_notifier_enabled_p(prev)) {				\
+		__this_cpu_write(ipipe_percpu.rqlock_owner, prev);	\
+		__ipipe_notify_kevent(IPIPE_KEVT_SCHEDULE, next);	\
+	}								\
+} while (0)
+
+#define __ipipe_report_cleanup(mm)					\
+	__ipipe_notify_kevent(IPIPE_KEVT_CLEANUP, mm)
+
+#define __ipipe_report_clockfreq_update(freq)				\
+	__ipipe_notify_kevent(IPIPE_KEVT_CLOCKFREQ, &(freq))
+
+int __ipipe_notify_syscall(struct pt_regs *regs);
+
+int __ipipe_notify_trap(int exception, struct pt_regs *regs);
+
+#define __ipipe_report_trap(exception, regs)				\
+	__ipipe_notify_trap(exception, regs)
+
+void __ipipe_call_mayday(struct pt_regs *regs);
+
 #define __ipipe_serial_debug(__fmt, __args...)	raw_printk(__fmt, ##__args)
 
 #else /* !CONFIG_IPIPE */
@@ -117,6 +181,19 @@ static inline void __ipipe_init(void) { }
 static inline void __ipipe_init_proc(void) { }
 
 static inline void __ipipe_idle(void) { }
+
+static inline void __ipipe_report_sigwake(struct task_struct *p) { }
+
+static inline void __ipipe_report_setaffinity(struct task_struct *p,
+					      int dest_cpu) { }
+
+static inline void __ipipe_report_setsched(struct task_struct *p) { }
+
+static inline void __ipipe_report_exit(struct task_struct *p) { }
+
+static inline void __ipipe_report_cleanup(struct mm_struct *mm) { }
+
+#define __ipipe_report_trap(exception, regs)  0
 
 #define hard_preempt_disable()		({ preempt_disable(); 0; })
 #define hard_preempt_enable(flags)	({ preempt_enable(); (void)(flags); })
