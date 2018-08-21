@@ -2654,13 +2654,7 @@ static void ftrace_run_update_code(int command)
 	 * is safe. The stop_machine() is the safest, but also
 	 * produces the most overhead.
 	 */
-#ifdef CONFIG_IPIPE
-	flags = ipipe_critical_enter(NULL);
-	__ftrace_modify_code(&command);
-	ipipe_critical_exit(flags);
-#else  /* !CONFIG_IPIPE */
 	arch_ftrace_update_code(command);
-#endif /* !CONFIG_IPIPE */
 
 	ret = ftrace_arch_code_modify_post_process();
 	FTRACE_WARN_ON(ret);
