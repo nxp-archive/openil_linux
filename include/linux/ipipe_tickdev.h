@@ -64,7 +64,8 @@ struct ipipe_timer {
 	const char *name;
 	unsigned rating;
 	unsigned long freq;
-	unsigned min_delay_ticks;
+	unsigned long min_delay_ticks;
+	unsigned long max_delay_ticks;
 	const struct cpumask *cpumask;
 
 	/* For internal use */

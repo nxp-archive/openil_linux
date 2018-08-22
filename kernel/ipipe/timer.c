@@ -133,6 +133,10 @@ void ipipe_host_timer_register(struct clock_event_device *evtdev)
 		timer->min_delay_ticks =
 			(evtdev->min_delta_ns * evtdev->mult) >> evtdev->shift;
 
+	if (timer->max_delay_ticks == 0)
+		timer->max_delay_ticks =
+			(evtdev->max_delta_ns * evtdev->mult) >> evtdev->shift;
+
 	if (timer->cpumask == NULL)
 		timer->cpumask = evtdev->cpumask;
 
@@ -499,6 +503,8 @@ void ipipe_timer_set(unsigned long cdelay)
 		tdelay += ((unsigned long long)cdelay * t->c2t_frac) >> 32;
 	if (tdelay < t->min_delay_ticks)
 		tdelay = t->min_delay_ticks;
+	if (tdelay > t->max_delay_ticks)
+		tdelay = t->max_delay_ticks;
 
 	if (t->set(tdelay, t->timer_set) < 0)
 		ipipe_raise_irq(t->irq);
