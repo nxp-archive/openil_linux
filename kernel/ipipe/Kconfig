@@ -1,5 +1,6 @@
 
 config HAVE_IPIPE_SUPPORT
+       depends on GENERIC_CLOCKEVENTS
        bool
 
 config IPIPE
