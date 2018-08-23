@@ -4,6 +4,7 @@
  * Copyright (c) 2007 Freescale Semiconductor, Inc.
  * Copyright (c) 2009 MontaVista Software, Inc.
  * Copyright (c) 2010 Pengutronix e.K.
+ * Copyright 2018-2019 NXP
  *   Author: Wolfram Sang <w.sang@pengutronix.de>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -60,6 +61,7 @@
 /* Tuning Block Control Register */
 #define ESDHC_TBCTL			0x120
 #define ESDHC_TB_EN			0x00000004
+#define ESDHC_TBPTR			0x128
 
 /* Control Register for DMA transfer */
 #define ESDHC_DMA_SYSCTL		0x40c
