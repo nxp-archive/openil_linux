@@ -207,10 +207,14 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
 
 	/*
 	 * A co-kernel running on the head stage of the IRQ pipeline
-	 * may deny this switch.
+	 * may deny switching to a deeper C-state. If so, call the
+	 * default idle routine instead. If the co-kernel cannot bear
+	 * with the latency induced by the default idling operation,
+	 * then CPUIDLE is not usable and should be disabled at build
+	 * time.
 	 */
 	if (!ipipe_enter_cpuidle(dev, target_state)) {
-		ipipe_exit_cpuidle();
+		default_idle_call();
 		return -EBUSY;
 	}
 
@@ -238,6 +242,7 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
 
 	stop_critical_timings();
 	entered_state = target_state->enter(dev, drv, index);
+	hard_cond_local_irq_enable();
 	start_critical_timings();
 
 	sched_clock_idle_wakeup_event();
@@ -273,8 +278,6 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
 	} else {
 		dev->last_residency = 0;
 	}
-
-	ipipe_exit_cpuidle();
 
 	return entered_state;
 }

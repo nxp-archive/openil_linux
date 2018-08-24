@@ -30,6 +30,8 @@
 #include <linux/tick.h>
 #include <linux/interrupt.h>
 #include <linux/uaccess.h>
+#include <linux/cpuidle.h>
+#include <linux/sched/idle.h>
 #ifdef CONFIG_PROC_FS
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
@@ -1914,43 +1916,38 @@ bool __weak ipipe_cpuidle_control(struct cpuidle_device *dev,
 				  struct cpuidle_state *state)
 {
 	/*
-	 * Allow entering the idle state by default, matching the
-	 * original behavior when CPU_IDLE is turned
-	 * on. ipipe_cpuidle_control() should be overriden by the
-	 * client domain code for determining whether the CPU may
-	 * actually enter the idle state.
+	 * By default, always deny entering sleep state if this
+	 * entails stopping the timer (i.e. C3STOP misfeature),
+	 * Xenomai could not deal with this case.
 	 */
+	if (state && (state->flags & CPUIDLE_FLAG_TIMER_STOP))
+		return false;
+
+	/* Otherwise, allow switching to idle state. */
 	return true;
-}
-
-bool __ipipe_enter_cpuidle(void)
-{
-	struct ipipe_percpu_domain_data *p;
-
-	/*
-	 * We may go idle if no interrupt is waiting delivery from the
-	 * root stage.
-	 */
-	hard_local_irq_disable();
-	p = ipipe_this_cpu_root_context();
-
-	return !__ipipe_ipending_p(p);
 }
 
 bool ipipe_enter_cpuidle(struct cpuidle_device *dev,
 			 struct cpuidle_state *state)
 {
-	/*
-	 * Pending IRQs or a co-kernel may deny the transition to
-	 * idle.
-	 */
-	return __ipipe_enter_cpuidle() && ipipe_cpuidle_control(dev, state);
-}
+	struct ipipe_percpu_domain_data *p;
 
-void ipipe_exit_cpuidle(void)
-{
-	/* unstall and re-enable hw IRQs too. */
-	local_irq_enable();
+	WARN_ON_ONCE(hard_irqs_disabled());
+	WARN_ON_ONCE(!irqs_disabled());
+
+	hard_local_irq_disable();
+	p = ipipe_this_cpu_root_context();
+
+	/*
+	 * Pending IRQ(s) waiting for delivery to the root stage, or
+	 * the arbitrary decision of a co-kernel may deny the
+	 * transition to a deeper C-state. Note that we return from
+	 * this call with hard irqs off, so that we won't allow any
+	 * interrupt to sneak into the IRQ log until we reach the
+	 * processor idling code, or leave the CPU idle framework
+	 * without sleeping.
+	 */
+	return !__ipipe_ipending_p(p) && ipipe_cpuidle_control(dev, state);
 }
 
 #if defined(CONFIG_DEBUG_ATOMIC_SLEEP) || defined(CONFIG_PROVE_LOCKING) || \
