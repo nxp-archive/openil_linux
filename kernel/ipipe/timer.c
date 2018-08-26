@@ -387,6 +387,9 @@ static int do_set_shutdown(struct clock_event_device *cdev)
 	return 0;
 }
 
+int clockevents_program_event(struct clock_event_device *dev,
+			      ktime_t expires, bool force);
+
 int ipipe_timer_start(void (*tick_handler)(void),
 		      void (*emumode)(enum clock_event_mode mode,
 				      struct clock_event_device *cdev),
@@ -441,6 +444,13 @@ int ipipe_timer_start(void (*tick_handler)(void),
 	desc = irq_to_desc(timer->irq);
 	if (desc && irqd_irq_disabled(&desc->irq_data))
 		ipipe_enable_irq(timer->irq);
+
+	local_irq_save(flags);
+
+	if (evtdev->ipipe_stolen && clockevent_state_oneshot(evtdev))
+		ret = clockevents_program_event(evtdev,
+						evtdev->next_event, true);
+	local_irq_restore(flags);
 
 	return ret;
 }
