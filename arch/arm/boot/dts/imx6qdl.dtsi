@@ -183,6 +183,7 @@
 			interrupts = <1 11 0xf01>;
 			interrupt-parent = <&intc>;
 			clocks = <&clks IMX6QDL_CLK_TWD>;
+			status = "disabled";
 		};
 
 		L2: l2-cache@00a02000 {
