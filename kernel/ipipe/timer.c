@@ -390,30 +390,35 @@ static int do_set_shutdown(struct clock_event_device *cdev)
 int clockevents_program_event(struct clock_event_device *dev,
 			      ktime_t expires, bool force);
 
-int ipipe_timer_start(void (*tick_handler)(void),
-		      void (*emumode)(enum clock_event_mode mode,
-				      struct clock_event_device *cdev),
-		      int (*emutick)(unsigned long evt,
-				     struct clock_event_device *cdev),
-		      unsigned cpu)
+struct grab_timer_data {
+	void (*tick_handler)(void);
+	void (*emumode)(enum clock_event_mode mode,
+			struct clock_event_device *cdev);
+	int (*emutick)(unsigned long evt,
+		       struct clock_event_device *cdev);
+	int retval;
+};
+
+static void grab_timer(void *arg)
 {
+	struct grab_timer_data *data = arg;
 	struct clock_event_device *evtdev;
 	struct ipipe_timer *timer;
 	struct irq_desc *desc;
 	unsigned long flags;
 	int steal, ret;
 
-	timer = per_cpu(percpu_timer, cpu);
+	flags = hard_local_irq_save();
+
+	timer = this_cpu_read(percpu_timer);
 	evtdev = timer->host_timer;
-
-	flags = ipipe_critical_enter(NULL);
-
 	ret = ipipe_request_irq(ipipe_head_domain, timer->irq,
-				(ipipe_irq_handler_t)tick_handler,
+				(ipipe_irq_handler_t)data->tick_handler,
 				NULL, __ipipe_ack_hrtimer_irq);
 	if (ret < 0 && ret != -EBUSY) {
-		ipipe_critical_exit(flags);
-		return ret;
+		hard_local_irq_restore(flags);
+		data->retval = ret;
+		return;
 	}
 
 	steal = evtdev != NULL && !clockevent_state_detached(evtdev);
@@ -425,7 +430,7 @@ int ipipe_timer_start(void (*tick_handler)(void),
 		timer->orig_set_state_oneshot_stopped = evtdev->set_state_oneshot_stopped;
 		timer->orig_set_state_shutdown = evtdev->set_state_shutdown;
 		timer->orig_set_next_event = evtdev->set_next_event;
-		timer->mode_handler = emumode;
+		timer->mode_handler = data->emumode;
 		evtdev->mult = 1;
 		evtdev->shift = 0;
 		evtdev->max_delta_ns = UINT_MAX;
@@ -433,60 +438,83 @@ int ipipe_timer_start(void (*tick_handler)(void),
 		evtdev->set_state_oneshot = do_set_oneshot;
 		evtdev->set_state_oneshot_stopped = do_set_oneshot;
 		evtdev->set_state_shutdown = do_set_shutdown;
-		evtdev->set_next_event = emutick;
+		evtdev->set_next_event = data->emutick;
 		evtdev->ipipe_stolen = 1;
 	}
 
-	ret = get_dev_mode(evtdev);
+	hard_local_irq_restore(flags);
 
-	ipipe_critical_exit(flags);
+	data->retval = get_dev_mode(evtdev);
 
 	desc = irq_to_desc(timer->irq);
 	if (desc && irqd_irq_disabled(&desc->irq_data))
 		ipipe_enable_irq(timer->irq);
 
-	local_irq_save(flags);
-
-	if (evtdev->ipipe_stolen && clockevent_state_oneshot(evtdev))
+	if (evtdev->ipipe_stolen && clockevent_state_oneshot(evtdev)) {
 		ret = clockevents_program_event(evtdev,
 						evtdev->next_event, true);
-	local_irq_restore(flags);
-
-	return ret;
+		if (ret)
+			data->retval = ret;
+	}
 }
 
-void ipipe_timer_stop(unsigned cpu)
+int ipipe_timer_start(void (*tick_handler)(void),
+		      void (*emumode)(enum clock_event_mode mode,
+				      struct clock_event_device *cdev),
+		      int (*emutick)(unsigned long evt,
+				     struct clock_event_device *cdev),
+		      unsigned int cpu)
 {
-	unsigned long __maybe_unused flags;
+	struct grab_timer_data data;
+	int ret;
+
+	data.tick_handler = tick_handler;
+	data.emutick = emutick;
+	data.emumode = emumode;
+	data.retval = -EINVAL;
+	ret = smp_call_function_single(cpu, grab_timer, &data, true);
+
+	return ret ?: data.retval;
+}
+
+static void release_timer(void *arg)
+{
 	struct clock_event_device *evtdev;
 	struct ipipe_timer *timer;
 	struct irq_desc *desc;
+	unsigned long flags;
 
-	timer = per_cpu(percpu_timer, cpu);
-	evtdev = timer->host_timer;
+	flags = hard_local_irq_save();
+
+	timer = this_cpu_read(percpu_timer);
 
 	desc = irq_to_desc(timer->irq);
 	if (desc && irqd_irq_disabled(&desc->irq_data))
 		ipipe_disable_irq(timer->irq);
 
-	if (evtdev) {
-		flags = ipipe_critical_enter(NULL);
-
-		if (evtdev->ipipe_stolen) {
-			evtdev->mult = timer->real_mult;
-			evtdev->shift = timer->real_shift;
-			evtdev->set_state_periodic = timer->orig_set_state_periodic;
-			evtdev->set_state_oneshot = timer->orig_set_state_oneshot;
-			evtdev->set_state_oneshot_stopped = timer->orig_set_state_oneshot_stopped;
-			evtdev->set_state_shutdown = timer->orig_set_state_shutdown;
-			evtdev->set_next_event = timer->orig_set_next_event;
-			evtdev->ipipe_stolen = 0;
-		}
-
-		ipipe_critical_exit(flags);
-	}
-
 	ipipe_free_irq(ipipe_head_domain, timer->irq);
+
+	evtdev = timer->host_timer;
+	if (evtdev && evtdev->ipipe_stolen) {
+		evtdev->mult = timer->real_mult;
+		evtdev->shift = timer->real_shift;
+		evtdev->set_state_periodic = timer->orig_set_state_periodic;
+		evtdev->set_state_oneshot = timer->orig_set_state_oneshot;
+		evtdev->set_state_oneshot_stopped = timer->orig_set_state_oneshot_stopped;
+		evtdev->set_state_shutdown = timer->orig_set_state_shutdown;
+		evtdev->set_next_event = timer->orig_set_next_event;
+		evtdev->ipipe_stolen = 0;
+		hard_local_irq_restore(flags);
+		if (clockevent_state_oneshot(evtdev))
+			clockevents_program_event(evtdev,
+						  evtdev->next_event, true);
+	} else
+		hard_local_irq_restore(flags);
+}
+
+void ipipe_timer_stop(unsigned int cpu)
+{
+	smp_call_function_single(cpu, release_timer, NULL, true);
 }
 
 void ipipe_timer_set(unsigned long cdelay)
