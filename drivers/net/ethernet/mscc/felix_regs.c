@@ -2,7 +2,7 @@
 /*
  * Microsemi Ocelot Switch driver
  *
- * Copyright (c) 2017 Microsemi Corporation
+ * Copyright 2017 Microsemi Corporation
  * Copyright 2017-2019 NXP
  */
 #include <linux/phy.h>
