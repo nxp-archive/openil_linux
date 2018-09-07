@@ -32,7 +32,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "enetc.h"
 #include <linux/tcp.h>
 #include <linux/udp.h>
