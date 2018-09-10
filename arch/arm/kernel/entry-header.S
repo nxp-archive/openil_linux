@@ -208,7 +208,11 @@
 #ifdef CONFIG_TRACE_IRQFLAGS
 	@ The parent context IRQs must have been enabled to get here in
 	@ the first place, so there's no point checking the PSR I bit.
+#ifdef CONFIG_IPIPE
+	bl	trace_hardirqs_on_virt
+#else
 	bl	trace_hardirqs_on
+#endif
 #endif
 	.else
 	@ IRQs off again before pulling preserved data off the stack

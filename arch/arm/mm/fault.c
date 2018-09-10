@@ -31,37 +31,66 @@
 #ifdef CONFIG_MMU
 
 #ifdef CONFIG_IPIPE
-
-static inline unsigned long ipipe_fault_entry(void)
+/*
+ * We need to synchronize the virtual interrupt state with the hard
+ * interrupt state we received on entry, then turn hardirqs back on to
+ * allow code which does not require strict serialization to be
+ * preempted by an out-of-band activity.
+ *
+ * TRACING: the entry code already told lockdep and tracers about the
+ * hard interrupt state on entry to fault handlers, so no need to
+ * reflect changes to that state via calls to trace_hardirqs_*
+ * helpers. From the main kernel's point of view, there is no change.
+ */
+static inline
+unsigned long fault_entry(struct pt_regs *regs)
 {
 	unsigned long flags;
-	int s;
+	int nosync = 1;
 
 	flags = hard_local_irq_save();
-	s = __test_and_set_bit(IPIPE_STALL_FLAG, &__ipipe_root_status);
+	if (hard_irqs_disabled_flags(flags))
+		nosync = __test_and_set_bit(IPIPE_STALL_FLAG,
+					    &__ipipe_root_status);
 	hard_local_irq_enable();
 
-	return arch_mangle_irq_bits(s, flags);
+	return arch_mangle_irq_bits(flags, nosync);
 }
 
-static inline void ipipe_fault_exit(unsigned long x)
+static inline void fault_exit(unsigned long flags)
 {
-	if (!arch_demangle_irq_bits(&x))
-		local_irq_enable();
-	else
-		hard_local_irq_restore(x);
+	int nosync;
+
+	IPIPE_WARN_ONCE(hard_irqs_disabled());
+
+	/*
+	 * '!nosync' here means that we had to turn on the stall bit
+	 * in fault_entry() to mirror the hard interrupt state,
+	 * because hard irqs were off but the stall bit was
+	 * clear. Conversely, nosync in fault_exit() means that the
+	 * stall bit state currently reflects the hard interrupt state
+	 * we received on fault_entry().
+	 */
+	nosync = arch_demangle_irq_bits(&flags);
+	if (!nosync) {
+		hard_local_irq_disable();
+		__clear_bit(IPIPE_STALL_FLAG, &__ipipe_root_status);
+		if (!hard_irqs_disabled_flags(flags))
+			hard_local_irq_enable();
+	} else if (hard_irqs_disabled_flags(flags))
+		hard_local_irq_disable();
 }
 
 #else
 
-static inline unsigned long ipipe_fault_entry(void)
+static inline unsigned long fault_entry(struct pt_regs *regs)
 {
 	return 0;
 }
 
-static inline void ipipe_fault_exit(unsigned long x) { }
+static inline void fault_exit(unsigned long x) { }
 
-#endif
+#endif	/* !CONFIG_IPIPE */
 
 #ifdef CONFIG_KPROBES
 static inline int notify_page_fault(struct pt_regs *regs, unsigned int fsr)
@@ -305,7 +334,7 @@ do_page_fault(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 	if (__ipipe_report_trap(IPIPE_TRAP_ACCESS, regs))
 		return 0;
 
-	irqflags = ipipe_fault_entry();
+	irqflags = fault_entry(regs);
 
 	if (notify_page_fault(regs, fsr))
 		goto out;
@@ -439,7 +468,7 @@ retry:
 no_context:
 	__do_kernel_fault(mm, addr, fsr, regs);
 out:
-	ipipe_fault_exit(irqflags);
+	fault_exit(irqflags);
 
 	return 0;
 }
@@ -535,11 +564,11 @@ bad_area:
 	if (__ipipe_report_trap(IPIPE_TRAP_ACCESS, regs))
 		return 0;
 
-	irqflags = ipipe_fault_entry();
+	irqflags = fault_entry(regs);
 
 	do_bad_area(addr, fsr, regs);
 
-	ipipe_fault_exit(irqflags);
+	fault_exit(irqflags);
 
 	return 0;
 }
@@ -565,11 +594,11 @@ do_sect_fault(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 	if (__ipipe_report_trap(IPIPE_TRAP_SECTION, regs))
 		return 0;
 
-	irqflags = ipipe_fault_entry();
+	irqflags = fault_entry(regs);
 
 	do_bad_area(addr, fsr, regs);
 
-	ipipe_fault_exit(irqflags);
+	fault_exit(irqflags);
 
 	return 0;
 }
@@ -630,7 +659,7 @@ do_DataAbort(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 	if (__ipipe_report_trap(IPIPE_TRAP_UNKNOWN, regs))
 		return;
 
-	irqflags = ipipe_fault_entry();
+	irqflags = fault_entry(regs);
 
 	pr_alert("Unhandled fault: %s (0x%03x) at 0x%08lx\n",
 		inf->name, fsr, addr);
@@ -643,7 +672,7 @@ do_DataAbort(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 	info.si_addr  = (void __user *)addr;
 	arm_notify_die("", regs, &info, fsr, 0);
 
-	ipipe_fault_exit(irqflags);
+	fault_exit(irqflags);
 }
 
 void __init
@@ -672,7 +701,7 @@ do_PrefetchAbort(unsigned long addr, unsigned int ifsr, struct pt_regs *regs)
 	if (__ipipe_report_trap(IPIPE_TRAP_UNKNOWN, regs))
 		return;
 
-	irqflags = ipipe_fault_entry();
+	irqflags = fault_entry(regs);
 
 	pr_alert("Unhandled prefetch abort: %s (0x%03x) at 0x%08lx\n",
 		inf->name, ifsr, addr);
@@ -684,7 +713,7 @@ do_PrefetchAbort(unsigned long addr, unsigned int ifsr, struct pt_regs *regs)
 	info.si_addr  = (void __user *)addr;
 	arm_notify_die("", regs, &info, ifsr, 0);
 
-	ipipe_fault_exit(irqflags);
+	fault_exit(irqflags);
 }
 
 /*
