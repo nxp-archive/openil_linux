@@ -93,9 +93,12 @@ void __cpuidle default_idle_call(void)
 	if (current_clr_polling_and_test()) {
 		local_irq_enable_full();
 	} else {
-		stop_critical_timings();
-		arch_cpu_idle();
-		start_critical_timings();
+		if (ipipe_enter_cpuidle(NULL, NULL)) {
+			stop_critical_timings();
+			arch_cpu_idle();
+			start_critical_timings();
+		} else
+			local_irq_enable_full();
 	}
 }
 
