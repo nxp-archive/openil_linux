@@ -1932,7 +1932,6 @@ bool ipipe_enter_cpuidle(struct cpuidle_device *dev,
 {
 	struct ipipe_percpu_domain_data *p;
 
-	WARN_ON_ONCE(hard_irqs_disabled());
 	WARN_ON_ONCE(!irqs_disabled());
 
 	hard_local_irq_disable();
