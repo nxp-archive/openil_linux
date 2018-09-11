@@ -734,7 +734,9 @@ asmlinkage int __exception do_debug_exception(unsigned long addr,
 	unsigned long irqflags;
 	struct siginfo info;
 	int rv;
-
+	
+	if (__ipipe_report_trap(IPIPE_TRAP_BREAK, regs))
+		return 1;
 	/*
 	 * Tell lockdep we disabled irqs in entry.S. Do nothing if they were
 	 * already disabled to preserve the last enabled/disabled addresses.
