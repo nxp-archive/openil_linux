@@ -146,7 +146,7 @@ static int __init bcm2835_timer_init(struct device_node *node)
 		pr_err("Can't remap registers\n");
 		return -ENXIO;
 	}
-
+#ifdef CONFIG_IPIPE
         if (IS_ENABLED(CONFIG_IPIPE)) {
                 struct resource res;
                 int ret;
@@ -157,7 +157,7 @@ static int __init bcm2835_timer_init(struct device_node *node)
                 t_base = base;
                 t_pbase = res.start;
         }
-
+#endif
 	ret = of_property_read_u32(node, "clock-frequency", &freq);
 	if (ret) {
 		pr_err("Can't read clock-frequency\n");
@@ -195,7 +195,7 @@ static int __init bcm2835_timer_init(struct device_node *node)
 	timer->act.flags = IRQF_TIMER;
 	timer->act.dev_id = timer;
 	timer->act.handler = bcm2835_time_interrupt;
-
+#ifdef CONFIG_IPIPE
         if (IS_ENABLED(CONFIG_IPIPE)) {
                 bcm2835_ipipe_cs_setup(freq);
                 bcm2835_ipipe_evt_setup(&timer->evt, freq);
@@ -206,7 +206,7 @@ static int __init bcm2835_timer_init(struct device_node *node)
         } else {
                 timer->act.flags |= IRQF_SHARED;
         }
-	
+#endif
         ret = setup_irq(irq, &timer->act);
 	if (ret) {
 		pr_err("Can't set up timer IRQ\n");
