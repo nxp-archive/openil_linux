@@ -744,12 +744,17 @@ static void do_signal(struct pt_regs *regs)
 asmlinkage void do_notify_resume(struct pt_regs *regs,
 				 unsigned int thread_flags)
 {
+#ifdef CONFIG_IPIPE
+	local_irq_disable();
+	hard_local_irq_enable();
+#else
 	/*
 	 * The assembly code enters us with IRQs off, but it hasn't
 	 * informed the tracing code of that for efficiency reasons.
 	 * Update the trace code with the current status.
 	 */
 	trace_hardirqs_off();
+#endif
 
 	do {
 		/* Check valid user FS if needed */
@@ -778,4 +783,9 @@ asmlinkage void do_notify_resume(struct pt_regs *regs,
 		local_irq_disable();
 		thread_flags = READ_ONCE(current_thread_info()->flags);
 	} while (thread_flags & _TIF_WORK_MASK);
+
+#ifdef CONFIG_IPIPE
+	local_irq_enable();
+	hard_local_irq_disable();
+#endif
 }

@@ -21,6 +21,7 @@
 #include <asm/alternative.h>
 #include <asm/kernel-pgtable.h>
 #include <asm/sysreg.h>
+#include <asm/ipipe.h>
 
 /*
  * User space memory access functions
@@ -297,7 +298,7 @@ do {									\
 #define __get_user_check(x, ptr, err)					\
 ({									\
 	__typeof__(*(ptr)) __user *__p = (ptr);				\
-	might_fault();							\
+	__ipipe_uaccess_might_fault();					\
 	if (access_ok(VERIFY_READ, __p, sizeof(*__p))) {		\
 		__p = uaccess_mask_ptr(__p);				\
 		__get_user_err((x), __p, (err));			\
@@ -366,7 +367,7 @@ do {									\
 #define __put_user_check(x, ptr, err)					\
 ({									\
 	__typeof__(*(ptr)) __user *__p = (ptr);				\
-	might_fault();							\
+	__ipipe_uaccess_might_fault();					\
 	if (access_ok(VERIFY_WRITE, __p, sizeof(*__p))) {		\
 		__p = uaccess_mask_ptr(__p);				\
 		__put_user_err((x), __p, (err));			\
