@@ -429,7 +429,7 @@ static int fm_eth_rx_port_parameter_init(struct fm_im_private *priv,
 	val = muram_readw(&rxqd->gen);
 	buf = virt_to_phys(rx_bd_ring_base);
 	TRACE("------rxqd bdring phys addr: 0x%0llx, virtual addr %p ------\n",
-           buf, rx_bd_ring_base);
+		buf, rx_bd_ring_base);
 	muram_writew(&rxqd->bd_ring_base_hi, (buf >> 32) & 0xffff);
 	fm_im_write(&rxqd->bd_ring_base_lo, (u32)(buf & 0xffffffff));
 	muram_writew(&rxqd->bd_ring_size,
@@ -623,6 +623,9 @@ static void memac_set_interface_mode(struct fsl_enet_mac *mac,
 	case PHY_INTERFACE_MODE_RGMII:
 		if_mode |= (IF_MODE_GMII | IF_MODE_RG);
 		break;
+	case PHY_INTERFACE_MODE_RGMII_TXID:
+		if_mode |= (IF_MODE_GMII | IF_MODE_RG);
+		break;
 	case PHY_INTERFACE_MODE_RMII:
 		if_mode |= (IF_MODE_GMII | IF_MODE_RM);
 		break;
@@ -641,7 +644,8 @@ static void memac_set_interface_mode(struct fsl_enet_mac *mac,
 	if (type != PHY_INTERFACE_MODE_XGMII)
 		if_mode |= IF_MODE_EN_AUTO;
 
-	if (type == PHY_INTERFACE_MODE_RGMII) {
+	if ((type == PHY_INTERFACE_MODE_RGMII) ||
+			(type == PHY_INTERFACE_MODE_RGMII_TXID)) {
 		if_mode &= ~IF_MODE_EN_AUTO;
 		if_mode &= ~IF_MODE_SETSP_MASK;
 		switch (speed) {
@@ -729,9 +733,10 @@ static void adjust_link(struct net_device *dev)
 		}
 
 		if (phydev->speed != priv->oldspeed &&
-			priv->interface == PHY_INTERFACE_MODE_RGMII) {
-			new_state = 1;
+			priv->interface == PHY_INTERFACE_MODE_RGMII ||
+			priv->interface == PHY_INTERFACE_MODE_RGMII_TXID) {
 
+			new_state = 1;
 			/* Configure RGMII in manual mode */
 			tmp &= ~IF_MODE_EN_AUTO;
 			tmp &= ~IF_MODE_SETSP_MASK;
@@ -1440,6 +1445,8 @@ static int fm_im_probe(struct platform_device *of_dev)
 	ctype = of_get_property(mac_node, "phy-connection-type", NULL);
 	if (ctype && !strcmp(ctype, "rgmii-id"))
 		priv->interface = PHY_INTERFACE_MODE_RGMII_ID;
+	else if (ctype && !strcmp(ctype, "rgmii-txid"))
+		priv->interface = PHY_INTERFACE_MODE_RGMII_TXID;
 	else if (ctype && !strcmp(ctype, "rgmii"))
 		priv->interface = PHY_INTERFACE_MODE_RGMII;
 	else if (ctype && !strcmp(ctype, "sgmii"))
