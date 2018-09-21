@@ -435,10 +435,14 @@ static void grab_timer(void *arg)
 		evtdev->mult = 1;
 		evtdev->shift = 0;
 		evtdev->max_delta_ns = UINT_MAX;
-		evtdev->set_state_periodic = do_set_periodic;
-		evtdev->set_state_oneshot = do_set_oneshot;
-		evtdev->set_state_oneshot_stopped = do_set_oneshot;
-		evtdev->set_state_shutdown = do_set_shutdown;
+		if (timer->orig_set_state_periodic)
+			evtdev->set_state_periodic = do_set_periodic;
+		if (timer->orig_set_state_oneshot)
+			evtdev->set_state_oneshot = do_set_oneshot;
+		if (timer->orig_set_state_oneshot_stopped)
+			evtdev->set_state_oneshot_stopped = do_set_oneshot;
+		if (timer->orig_set_state_shutdown)
+			evtdev->set_state_shutdown = do_set_shutdown;
 		evtdev->set_next_event = data->emutick;
 		evtdev->ipipe_stolen = 1;
 	}
