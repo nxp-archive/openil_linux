@@ -364,6 +364,7 @@ static int do_set_oneshot(struct clock_event_device *cdev)
 {
 	struct ipipe_timer *timer = __ipipe_raw_cpu_read(percpu_timer);
 
+	timer->orig_set_state_oneshot(cdev);
 	timer->mode_handler(CLOCK_EVT_MODE_ONESHOT, cdev);
 
 	return 0;
