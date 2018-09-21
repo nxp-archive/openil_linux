@@ -370,6 +370,15 @@ static int do_set_oneshot(struct clock_event_device *cdev)
 	return 0;
 }
 
+static int do_set_oneshot_stopped(struct clock_event_device *cdev)
+{
+	struct ipipe_timer *timer = __ipipe_raw_cpu_read(percpu_timer);
+
+	timer->mode_handler(CLOCK_EVT_MODE_SHUTDOWN, cdev);
+
+	return 0;
+}
+
 static int do_set_periodic(struct clock_event_device *cdev)
 {
 	struct ipipe_timer *timer = __ipipe_raw_cpu_read(percpu_timer);
@@ -440,7 +449,7 @@ static void grab_timer(void *arg)
 		if (timer->orig_set_state_oneshot)
 			evtdev->set_state_oneshot = do_set_oneshot;
 		if (timer->orig_set_state_oneshot_stopped)
-			evtdev->set_state_oneshot_stopped = do_set_oneshot;
+			evtdev->set_state_oneshot_stopped = do_set_oneshot_stopped;
 		if (timer->orig_set_state_shutdown)
 			evtdev->set_state_shutdown = do_set_shutdown;
 		evtdev->set_next_event = data->emutick;
