@@ -318,7 +318,7 @@ static void mall_stats_hw_filter(struct tcf_proto *tp,
 	cls_mall.command = TC_CLSMATCHALL_STATS;
 	cls_mall.cookie = cookie;
 
-	tc_setup_cb_call(block, TC_SETUP_CLSMATCHALL, &cls_mall, false);
+	tc_setup_cb_call(block, NULL, TC_SETUP_CLSMATCHALL, &cls_mall, false);
 
 	tcf_exts_stats_update(&head->exts, cls_mall.stats.bytes,
 			      cls_mall.stats.pkts, cls_mall.stats.lastused);
