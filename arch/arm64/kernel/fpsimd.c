@@ -833,6 +833,9 @@ asmlinkage void do_sve_acc(unsigned int esr, struct pt_regs *regs)
  */
 asmlinkage void do_fpsimd_acc(unsigned int esr, struct pt_regs *regs)
 {
+	if (__ipipe_report_trap(IPIPE_TRAP_FPU_ACC, regs))
+		return;
+
 	/* TODO: implement lazy context saving/restoring */
 	WARN_ON(1);
 }
@@ -844,6 +847,9 @@ asmlinkage void do_fpsimd_exc(unsigned int esr, struct pt_regs *regs)
 {
 	siginfo_t info;
 	unsigned int si_code = FPE_FLTUNK;
+
+	if (__ipipe_report_trap(IPIPE_TRAP_FPU_EXC, regs))
+		return;
 
 	if (esr & ESR_ELx_FP_EXC_TFV) {
 		if (esr & FPEXC_IOF)
