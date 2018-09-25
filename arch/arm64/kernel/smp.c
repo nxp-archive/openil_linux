@@ -59,6 +59,8 @@
 #include <asm/tlbflush.h>
 #include <asm/ptrace.h>
 #include <asm/virt.h>
+#include <asm/exception.h>
+#include <asm/ipipe.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/ipi.h>
@@ -82,7 +84,7 @@ enum ipi_msg_type {
 	IPI_CPU_CRASH_STOP,
 	IPI_TIMER,
 	IPI_IRQ_WORK,
-	IPI_WAKEUP
+	IPI_WAKEUP,
 };
 
 #ifdef CONFIG_HOTPLUG_CPU
@@ -751,12 +753,6 @@ static const char *ipi_types[NR_IPI] __tracepoint_string = {
 	S(IPI_WAKEUP, "CPU wake-up interrupts"),
 };
 
-static void smp_cross_call(const struct cpumask *target, unsigned int ipinr)
-{
-	trace_ipi_raise(target, ipi_types[ipinr]);
-	__smp_cross_call(target, ipinr);
-}
-
 void show_ipi_list(struct seq_file *p, int prec)
 {
 	unsigned int cpu, i;
@@ -781,6 +777,127 @@ u64 smp_irq_stat_cpu(unsigned int cpu)
 
 	return sum;
 }
+
+#ifdef CONFIG_IPIPE
+
+static DEFINE_PER_CPU(unsigned long, ipi_messages);
+
+#define noipipe_irq_enter()			\
+	do {					\
+	} while (0)
+#define noipipe_irq_exit()			\
+	do {					\
+	} while (0)
+
+
+static void  __ipipe_do_IPI(unsigned int virq, void *cookie)
+{
+	unsigned int ipinr = virq - IPIPE_IPI_BASE;
+
+	handle_IPI(ipinr, raw_cpu_ptr(&ipipe_percpu.tick_regs));
+}
+
+void __ipipe_ipis_alloc(void)
+{
+	unsigned int virq, ipi;
+	static bool done;
+
+	if (done)
+		return;
+
+	/*
+	 * We have to get virtual IRQs in the range
+	 * [ IPIPE_IPI_BASE..IPIPE_IPI_BASE + NR_IPI + IPIPE_OOB_IPI_NR - 1 ],
+	 * otherwise something is wrong (likely someone would have
+	 * allocated virqs before we do, and this would break our
+	 * fixed numbering scheme for IPIs).
+	 */
+	for (ipi = 0; ipi < NR_IPI + IPIPE_OOB_IPI_NR; ipi++) {
+		virq = ipipe_alloc_virq();
+		WARN_ON_ONCE(virq != IPIPE_IPI_BASE + ipi);
+	}
+
+	done = true;
+}
+
+void __ipipe_ipis_request(void)
+{
+	unsigned int virq;
+
+	/*
+	 * Attach a handler to each VIRQ mapping an IPI which might be
+	 * posted by __ipipe_grab_ipi(). This handler will invoke
+	 * handle_IPI() from the root stage in turn, passing it the
+	 * corresponding IPI message number.
+	 */
+	for (virq = IPIPE_IPI_BASE;
+	     virq < IPIPE_IPI_BASE + NR_IPI + IPIPE_OOB_IPI_NR; virq++)
+		ipipe_request_irq(ipipe_root_domain,
+				  virq,
+				  (ipipe_irq_handler_t)__ipipe_do_IPI,
+				  NULL, NULL);
+}
+
+static void smp_cross_call(const struct cpumask *target, unsigned int ipinr)
+{
+	unsigned int cpu, sgi;
+
+	if (ipinr < NR_IPI) {
+		/* regular in-band IPI (multiplexed over SGI0). */
+		trace_ipi_raise_rcuidle(target, ipi_types[ipinr]);
+		for_each_cpu(cpu, target)
+			set_bit(ipinr, &per_cpu(ipi_messages, cpu));
+		smp_mb();
+		sgi = 0;
+	} else  /* out-of-band IPI (SGI1-3). */
+		sgi = ipinr - NR_IPI + 1;
+
+	__smp_cross_call(target, sgi);
+}
+
+void ipipe_send_ipi(unsigned int ipi, cpumask_t cpumask)
+{
+	unsigned int ipinr = ipi - IPIPE_IPI_BASE;
+
+	smp_cross_call(&cpumask, ipinr);
+}
+EXPORT_SYMBOL_GPL(ipipe_send_ipi);
+
+ /* hw IRQs off */
+asmlinkage void __ipipe_grab_ipi(unsigned int sgi, struct pt_regs *regs)
+{
+	unsigned int ipinr, irq;
+	unsigned long *pmsg;
+
+	if (sgi) {		/* SGI1-3, OOB messages. */
+		irq = sgi + NR_IPI - 1 + IPIPE_IPI_BASE;
+		__ipipe_dispatch_irq(irq, IPIPE_IRQF_NOACK);
+	} else {
+		/* In-band IPI (0..NR_IPI-1) multiplexed over SGI0. */
+		pmsg = raw_cpu_ptr(&ipi_messages);
+		while (*pmsg) {
+			ipinr = ffs(*pmsg) - 1;
+			clear_bit(ipinr, pmsg);
+			irq = IPIPE_IPI_BASE + ipinr;
+			__ipipe_dispatch_irq(irq, IPIPE_IRQF_NOACK);
+		}
+	}
+
+	__ipipe_exit_irq(regs);
+}
+
+#else
+
+#define noipipe_irq_enter()	irq_enter()
+#define noipipe_irq_exit()	irq_exit()
+
+static void smp_cross_call(const struct cpumask *target, unsigned int ipinr)
+{
+	trace_ipi_raise(target, ipi_types[ipinr]);
+	__smp_cross_call(target, ipinr);
+}
+
+#endif /* CONFIG_IPIPE */
 
 void arch_send_call_function_ipi_mask(const struct cpumask *mask)
 {
@@ -864,15 +981,15 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 		break;
 
 	case IPI_CALL_FUNC:
-		irq_enter();
+		noipipe_irq_enter();
 		generic_smp_call_function_interrupt();
-		irq_exit();
+		noipipe_irq_exit();
 		break;
 
 	case IPI_CPU_STOP:
-		irq_enter();
+		noipipe_irq_enter();
 		ipi_cpu_stop(cpu);
-		irq_exit();
+		noipipe_irq_exit();
 		break;
 
 	case IPI_CPU_CRASH_STOP:
@@ -886,17 +1003,20 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 
 #ifdef CONFIG_GENERIC_CLOCKEVENTS_BROADCAST
 	case IPI_TIMER:
-		irq_enter();
+		noipipe_irq_enter();
+#ifdef CONFIG_IPIPE
+		__ipipe_mach_update_tsc();
+#endif
 		tick_receive_broadcast();
-		irq_exit();
+		noipipe_irq_exit();
 		break;
 #endif
 
 #ifdef CONFIG_IRQ_WORK
 	case IPI_IRQ_WORK:
-		irq_enter();
+		noipipe_irq_enter();
 		irq_work_run();
-		irq_exit();
+		noipipe_irq_exit();
 		break;
 #endif
 
