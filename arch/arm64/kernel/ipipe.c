@@ -165,21 +165,8 @@ void __ipipe_enable_pipeline(void)
 
 void __ipipe_exit_irq(struct pt_regs *regs)
 {
-	/*
-	 * Testing for user_regs() eliminates foreign stack contexts,
-	 * including from legacy domains which did not set the foreign
-	 * stack bit (foreign stacks are always kernel-based).
-	 */
-	if (user_mode(regs) &&
-	    ipipe_test_thread_flag(TIP_MAYDAY)) {
-		/*
-		 * MAYDAY is never raised under normal circumstances,
-		 * so prefer test then maybe clear over
-		 * test_and_clear.
-		 */
-		ipipe_clear_thread_flag(TIP_MAYDAY);
-		__ipipe_notify_trap(IPIPE_TRAP_MAYDAY, regs);
-	}
+	if (user_mode(regs) && ipipe_test_thread_flag(TIP_MAYDAY))
+		__ipipe_call_mayday(regs);
 }
 
 /* hw irqs off */
