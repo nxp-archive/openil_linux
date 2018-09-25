@@ -212,6 +212,20 @@ static void __ipipe_do_IRQ(unsigned irq, void *cookie)
 	__handle_domain_irq(NULL, irq, false, regs);
 }
 
+void __ipipe_root_sync(void)
+{
+	struct ipipe_percpu_domain_data *p;
+	unsigned long flags;
+
+	flags = hard_local_irq_save();
+
+	p = ipipe_this_cpu_root_context();
+	if (__ipipe_ipending_p(p))
+		__ipipe_sync_stage();
+
+	hard_local_irq_restore(flags);
+}
+
 static struct __ipipe_tscinfo tsc_info;
 
 void __init __ipipe_tsc_register(struct __ipipe_tscinfo *info)
