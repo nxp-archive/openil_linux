@@ -53,6 +53,9 @@
 
 static void __ipipe_do_IRQ(unsigned irq, void *cookie);
 
+/* irq_nesting tracks the interrupt nesting level for a CPU. */
+DEFINE_PER_CPU(int, irq_nesting);
+
 #ifdef CONFIG_IPIPE_DEBUG_INTERNAL
 void (*__ipipe_mach_hrtimer_debug)(unsigned irq);
 #endif
@@ -237,6 +240,10 @@ void __ipipe_mach_get_tscinfo(struct __ipipe_tscinfo *info)
 
 EXPORT_SYMBOL_GPL(do_munmap);
 EXPORT_SYMBOL_GPL(show_stack);
+EXPORT_SYMBOL_GPL(init_mm);
+#ifndef MULTI_CPU
+EXPORT_SYMBOL_GPL(cpu_do_switch_mm);
+#endif
 #if defined(CONFIG_SMP) || defined(CONFIG_DEBUG_SPINLOCK)
 EXPORT_SYMBOL_GPL(tasklist_lock);
 #endif /* CONFIG_SMP || CONFIG_DEBUG_SPINLOCK */

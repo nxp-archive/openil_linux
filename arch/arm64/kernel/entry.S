@@ -368,6 +368,21 @@ alternative_insn eret, nop, ARM64_UNMAP_KERNEL_AT_EL0
 	.macro	irq_stack_entry
 	mov	x19, sp			// preserve the original sp
 
+#ifdef CONFIG_IPIPE
+	/*
+	 * When the pipeline is enabled, context switches over the irq
+	 * stack are allowed (for the co-kernel), and more interrupts
+	 * can be taken over sibling stack contexts. So we need a not so
+	 * subtle way of figuring out whether the irq stack was actually
+	 * exited, which cannot depend on the current task pointer.
+	 */
+	adr_this_cpu x25, irq_nesting, x26
+	ldr	w26, [x25]
+	cmp	w26, #0
+	add	w26, w26, #1
+	str	w26, [x25]
+	b.ne	9998f
+#else
 	/*
 	 * Compare sp with the base of the task stack.
 	 * If the top ~(THREAD_SIZE - 1) bits match, we are on a task stack,
@@ -377,6 +392,7 @@ alternative_insn eret, nop, ARM64_UNMAP_KERNEL_AT_EL0
 	eor	x25, x25, x19
 	and	x25, x25, #~(THREAD_SIZE - 1)
 	cbnz	x25, 9998f
+#endif
 
 	ldr_this_cpu x25, irq_stack_ptr, x26
 	mov	x26, #IRQ_STACK_SIZE
@@ -389,10 +405,16 @@ alternative_insn eret, nop, ARM64_UNMAP_KERNEL_AT_EL0
 
 	/*
 	 * x19 should be preserved between irq_stack_entry and
-	 * irq_stack_exit.
+	 * irq_stack_exit. I-pipe: have to preserve w0 too.
 	 */
 	.macro	irq_stack_exit
 	mov	sp, x19
+#ifdef CONFIG_IPIPE
+	adr_this_cpu x1, irq_nesting, x2
+	ldr	w2, [x1]
+	add	w2, w2, #-1
+	str	w2, [x1]
+#endif
 	.endm
 
 /*

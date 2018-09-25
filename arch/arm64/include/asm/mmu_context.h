@@ -30,6 +30,7 @@
 #include <asm/cpufeature.h>
 #include <asm/proc-fns.h>
 #include <asm-generic/mm_hooks.h>
+#include <asm-generic/ipipe.h>
 #include <asm/cputype.h>
 #include <asm/pgtable.h>
 #include <asm/sysreg.h>
@@ -57,9 +58,13 @@ static inline void cpu_set_reserved_ttbr0(void)
 
 static inline void cpu_switch_mm(pgd_t *pgd, struct mm_struct *mm)
 {
+	unsigned long flags;
+
 	BUG_ON(pgd == swapper_pg_dir);
+	flags = hard_cond_local_irq_save();
 	cpu_set_reserved_ttbr0();
 	cpu_do_switch_mm(virt_to_phys(pgd),mm);
+	hard_cond_local_irq_restore(flags);
 }
 
 /*
@@ -220,7 +225,7 @@ static inline void __switch_mm(struct mm_struct *next)
 }
 
 static inline void
-switch_mm(struct mm_struct *prev, struct mm_struct *next,
+do_switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	  struct task_struct *tsk)
 {
 	if (prev != next)
@@ -235,8 +240,28 @@ switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	update_saved_ttbr0(tsk, next);
 }
 
+static inline void
+switch_mm(struct mm_struct *prev, struct mm_struct *next,
+	  struct task_struct *tsk)
+{
+	unsigned long flags;
+
+	flags = hard_cond_local_irq_save();
+	do_switch_mm(prev, next, tsk);
+	hard_cond_local_irq_restore(flags);
+}
+
 #define deactivate_mm(tsk,mm)	do { } while (0)
 #define activate_mm(prev,next)	switch_mm(prev, next, current)
+
+#ifdef CONFIG_IPIPE
+static inline void
+ipipe_switch_mm_head(struct mm_struct *prev, struct mm_struct *next,
+			   struct task_struct *tsk)
+{
+	do_switch_mm(prev, next, tsk);
+}
+#endif
 
 void verify_cpu_asid_bits(void);
 void post_ttbr_update_workaround(void);
