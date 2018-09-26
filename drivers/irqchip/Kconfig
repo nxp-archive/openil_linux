@@ -311,6 +311,10 @@ config STM32_EXTI
 	bool
 	select IRQ_DOMAIN
 
+config BAREMETAL
+	bool
+	depends on ARM_GIC
+
 config QCOM_IRQ_COMBINER
 	bool "QCOM IRQ combiner support"
 	depends on ARCH_QCOM && ACPI
