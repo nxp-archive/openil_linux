@@ -354,10 +354,13 @@ static void __ipipe_ack_hrtimer_irq(struct irq_desc *desc)
 
 	if (desc)
 		desc->ipipe_ack(desc);
-	if (timer->ack)
-		timer->ack();
-	if (desc)
-		desc->ipipe_end(desc);
+
+	if (timer->host_timer->ipipe_stolen) {
+		if (timer->ack)
+			timer->ack();
+		if (desc)
+			desc->ipipe_end(desc);
+	}
 }
 
 static int do_set_oneshot(struct clock_event_device *cdev)
