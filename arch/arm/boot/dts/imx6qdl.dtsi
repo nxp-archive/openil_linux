@@ -1,13 +1,10 @@
 /*
  * Copyright 2011 Freescale Semiconductor, Inc.
  * Copyright 2011 Linaro Ltd.
+ * Copyright 2018 NXP
  *
- * The code contained herein is licensed under the GNU General Public
- * License. You may obtain a copy of the GNU General Public License
- * Version 2 or later at the following locations:
+ * SPDX-License-Identifier: GPL-2.0+
  *
- * http://www.opensource.org/licenses/gpl-license.html
- * http://www.gnu.org/copyleft/gpl.html
  */
 
 #include <dt-bindings/clock/imx6qdl-clock.h>
@@ -175,7 +172,6 @@
 			interrupts = <1 13 0xf01>;
 			interrupt-parent = <&intc>;
 			clocks = <&clks IMX6QDL_CLK_TWD>;
-			status = "disabled";
 		};
 
 		intc: interrupt-controller@00a01000 {
