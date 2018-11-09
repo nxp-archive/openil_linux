@@ -1,7 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
  * caam - Freescale FSL CAAM support for ahash functions of crypto API
  *
- * Copyright 2011 Freescale Semiconductor, Inc.
+ * Copyright 2017-2019 NXP
  *
  * Based on caamalg.c crypto API driver.
  *
