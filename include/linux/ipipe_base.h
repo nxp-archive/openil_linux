@@ -175,6 +175,8 @@ void __ipipe_call_mayday(struct pt_regs *regs);
 
 void __ipipe_notify_vm_preemption(void);
 
+int __ipipe_notify_user_intreturn(void);
+
 #define __ipipe_serial_debug(__fmt, __args...)	raw_printk(__fmt, ##__args)
 
 #else /* !CONFIG_IPIPE */
@@ -225,6 +227,8 @@ static inline void __ipipe_report_cleanup(struct mm_struct *mm) { }
 static inline void __ipipe_exit_vm(void) { }
 
 static inline void __ipipe_notify_vm_preemption(void) { }
+
+#define __ipipe_notify_user_intreturn()	0
 
 #define __ipipe_serial_debug(__fmt, __args...)	do { } while (0)
 

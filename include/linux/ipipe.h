@@ -409,6 +409,15 @@ int ipipe_test_ti_thread_flag(struct thread_info *ti, int flag)
 			ipipe_set_ti_thread_flag(ti, TIP_MAYDAY);	\
 	} while (0)
 
+#define ipipe_enable_user_intret_notifier()				\
+	ipipe_set_thread_flag(TIP_USERINTRET)
+
+#define ipipe_disable_user_intret_notifier()				\
+	ipipe_clear_thread_flag(TIP_USERINTRET)
+
+#define ipipe_user_intret_notifier_enabled(ti)				\
+	ipipe_test_ti_thread_flag(ti, TIP_USERINTRET)
+
 #ifdef CONFIG_IPIPE_TRACE
 void __ipipe_tracer_hrclock_initialized(void);
 #else /* !CONFIG_IPIPE_TRACE */
@@ -472,6 +481,8 @@ bool ipipe_enter_cpuidle(struct cpuidle_device *dev,
 {
 	return true;
 }
+
+#define ipipe_user_intret_notifier_enabled(ti)	0
 
 #endif	/* !CONFIG_IPIPE */
 

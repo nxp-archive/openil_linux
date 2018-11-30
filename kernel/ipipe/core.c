@@ -1164,6 +1164,13 @@ out:
 	return ret;
 }
 
+int __ipipe_notify_user_intreturn(void)
+{
+	__ipipe_notify_kevent(IPIPE_KEVT_USERINTRET, current);
+
+	return !ipipe_root_p;
+}
+
 int __weak ipipe_kevent_hook(int kevent, void *data)
 {
 	return 0;
