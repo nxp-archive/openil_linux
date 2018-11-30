@@ -35,6 +35,7 @@
 #include "entry-header.S"
 #include <asm/entry-macro-multi.S>
 #include <asm/probes.h>
+#include <asm/ipipe_base.h>
 
 /*
  * Interrupt handling.
@@ -287,7 +288,7 @@ __und_svc:
 #endif
 
 #ifdef CONFIG_IPIPE
-	mov	r0, #7				@ r0 = IPIPE_TRAP_UNDEFINSTR
+	mov	r0, #IPIPE_TRAP_UNDEFINSTR
 	mov	r1, sp				@ r1 = &regs
 	bl	__ipipe_notify_trap		@ branch to trap handler
 	cmp	r0, #0
@@ -515,7 +516,7 @@ __und_usr:
 	usr_entry uaccess=0
 
 #ifdef CONFIG_IPIPE
-	mov	r0, #7				@ r0 = IPIPE_TRAP_UNDEFINSTR
+	mov	r0, #IPIPE_TRAP_UNDEFINSTR
 	mov	r1, sp				@ r1 = &regs
 	bl	__ipipe_notify_trap		@ branch to trap handler
 	cmp	r0, #0

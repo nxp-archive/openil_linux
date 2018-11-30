@@ -23,9 +23,13 @@
 #ifndef __ASM_ARM_IPIPE_BASE_H
 #define __ASM_ARM_IPIPE_BASE_H
 
+#ifndef __ASSEMBLY__
 #include <asm-generic/ipipe.h>
+#endif
 
 #ifdef CONFIG_IPIPE
+
+#ifndef __ASSEMBLY__
 
 #ifdef CONFIG_SMP
 
@@ -71,6 +75,8 @@ unsigned __ipipe_processor_id(void);
 #else /* !CONFIG_SMP */
 #define ipipe_processor_id()  (0)
 #endif /* !CONFIG_IPIPE */
+
+#endif /* !__ASSEMBLY__ */
 
 #define IPIPE_TRAP_MAYDAY        0	/* Internal recovery trap */
 
