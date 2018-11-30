@@ -55,7 +55,7 @@ static void __ipipe_tsc_update_fn(struct timer_list *t)
 	mod_timer(&ipipe_tsc_update_timer.timer, jiffies + upt->period);
 }
 
-void __init __ipipe_tsc_register(struct __ipipe_tscinfo *info)
+void __ipipe_tsc_register(struct __ipipe_tscinfo *info)
 {
 	struct ipipe_tsc_value_t *vector_tsc_value;
 	unsigned long long wrap_ms;
