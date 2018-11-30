@@ -93,6 +93,7 @@ struct ipipe_vm_notifier;
 #define IPIPE_KEVT_HOSTRT	6
 #define IPIPE_KEVT_CLOCKFREQ	7
 #define IPIPE_KEVT_USERINTRET	8
+#define IPIPE_KEVT_PTRESUME	9
 
 typedef void (*ipipe_irq_ackfn_t)(struct irq_desc *desc);
 

@@ -164,6 +164,21 @@ do {									\
 #define __ipipe_report_clockfreq_update(freq)				\
 	__ipipe_notify_kevent(IPIPE_KEVT_CLOCKFREQ, &(freq))
 
+struct ipipe_ptrace_resume_data {
+	struct task_struct *task;
+	long request;
+};
+
+#define __ipipe_report_ptrace_resume(__p, __request)			\
+	do {								\
+		struct ipipe_ptrace_resume_data d = {			\
+			.task = (__p),					\
+			.request = (__request),				\
+		};							\
+		if (ipipe_notifier_enabled_p(__p))			\
+			__ipipe_notify_kevent(IPIPE_KEVT_PTRESUME, &d); \
+	} while (0)
+
 int __ipipe_notify_syscall(struct pt_regs *regs);
 
 int __ipipe_notify_trap(int exception, struct pt_regs *regs);
@@ -202,6 +217,9 @@ static inline void __ipipe_report_setsched(struct task_struct *p) { }
 static inline void __ipipe_report_exit(struct task_struct *p) { }
 
 static inline void __ipipe_report_cleanup(struct mm_struct *mm) { }
+
+static inline void __ipipe_report_ptrace_resume(struct task_struct *p,
+						long request) { }
 
 #define __ipipe_report_trap(exception, regs)  0
 
