@@ -179,10 +179,12 @@ extern int vfp_restore_user_hwstate(struct user_vfp *,
 #define TIP_MAYDAY	0	/* MAYDAY call is pending */
 #define TIP_NOTIFY	1	/* Notify head domain about kernel events */
 #define TIP_HEAD	2	/* Runs in head domain */
+#define TIP_USERINTRET	3	/* Notify on IRQ/trap return to root userspace */
 
 #define _TIP_MAYDAY	(1 << TIP_MAYDAY)
 #define _TIP_NOTIFY	(1 << TIP_NOTIFY)
 #define _TIP_HEAD	(1 << TIP_HEAD)
+#define _TIP_USERINTRET	(1 << TIP_USERINTRET)
 
 #endif /* __KERNEL__ */
 #endif /* __ASM_ARM_THREAD_INFO_H */

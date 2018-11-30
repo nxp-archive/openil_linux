@@ -168,8 +168,25 @@ ENTRY(ret_to_user_from_irq)
 	tst	r1, #_TIF_WORK_MASK
 	bne	slow_work_pending
 no_work_pending:
+#ifdef CONFIG_IPIPE
+	get_thread_info tsk
+	ldr	r1, [tsk, #TI_IPIPE]
+	tst	r1, #_TIP_USERINTRET
+	bne	call_user_intret_notifier
+goto_user:
+#endif
 	asm_trace_hardirqs_on save = 0
 	slow_restore_user_regs
+
+#ifdef CONFIG_IPIPE
+call_user_intret_notifier:
+	enable_irq_notrace
+	bl	__ipipe_notify_user_intreturn
+	cmp	r0, #0
+	beq	ret_slow_syscall
+	disable_irq_notrace
+	b	goto_user
+#endif
 ENDPROC(ret_to_user_from_irq)
 ENDPROC(ret_to_user)
 
