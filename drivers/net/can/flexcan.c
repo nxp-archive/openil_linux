@@ -1029,8 +1029,7 @@ static void flexcan_set_bittiming(struct net_device *dev)
 				       FLEXCAN_FDCTRL_TDCFAIL);
 
 			/* offset should be within the can FD bit timings */
-			tdcoff = (data_bt->phase_seg1 + data_bt->prop_seg) *
-				  data_bt->brp;
+			tdcoff = data_bt->phase_seg1 + data_bt->prop_seg;
 
 			reg_fdctrl |= FLEXCAN_FDCTRL_TDCOFF(tdcoff);
 			reg_fdctrl |= FLEXCAN_FDCTRL_MBDSR0(3) |
