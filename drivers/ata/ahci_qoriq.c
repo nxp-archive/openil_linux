@@ -205,7 +205,6 @@ static int ahci_qoriq_phy_init(struct ahci_host_priv *hpriv)
 		break;
 
 	case AHCI_LS1046A:
-	case AHCI_LS1028A:
 		if (!qpriv->ecc_addr)
 			return -EINVAL;
 		writel(readl(qpriv->ecc_addr) | ECC_DIS_ARMV8_CH2,
@@ -219,6 +218,7 @@ static int ahci_qoriq_phy_init(struct ahci_host_priv *hpriv)
 		break;
 
 	case AHCI_LS1088A:
+	case AHCI_LS1028A:
 		if (!qpriv->ecc_addr)
 			return -EINVAL;
 		writel(readl(qpriv->ecc_addr) | ECC_DIS_LS1088A,
