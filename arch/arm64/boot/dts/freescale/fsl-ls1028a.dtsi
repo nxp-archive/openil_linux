@@ -512,7 +512,7 @@
 		};
 
 		esdhc: esdhc@2140000 {
-			compatible = "fsl,ls1088a-esdhc", "fsl,esdhc";
+			compatible = "fsl,ls1028a-esdhc", "fsl,esdhc";
 			reg = <0x0 0x2140000 0x0 0x10000>;
 			interrupts = <0 28 0x4>; /* Level high type */
 			clock-frequency = <0>;
@@ -523,7 +523,7 @@
 		};
 
 		esdhc1: esdhc@2150000 {
-			compatible = "fsl,ls1088a-esdhc", "fsl,esdhc";
+			compatible = "fsl,ls1028a-esdhc", "fsl,esdhc";
 			reg = <0x0 0x2150000 0x0 0x10000>;
 			interrupts = <0 63 0x4>; /* Level high type */
 			clock-frequency = <0>;
