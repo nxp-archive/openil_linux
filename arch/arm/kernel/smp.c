@@ -633,7 +633,7 @@ void __ipipe_ipis_alloc(void)
 	if (__ipipe_first_ipi)
 		return;
 
-	last_ipi = NR_IPI + IPIPE_LAST_IPI;
+	last_ipi = NR_IPI + IPIPE_LAST_IPI + 1; /* count CPU_BACKTRACE in */
 	for (ipi = 0; ipi <= last_ipi; ipi++) {
 		virq = ipipe_alloc_virq();
 		if (ipi == IPI_IPIPE_FIRST)
