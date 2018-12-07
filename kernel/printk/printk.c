@@ -1967,6 +1967,15 @@ int __ipipe_log_printk(const char *fmt, va_list args)
 	return ret;
 }
 
+static void do_deferred_vprintk(const char *fmt, ...)
+{
+	va_list args;
+
+	va_start(args, fmt);
+	vprintk_func(fmt, args);
+	va_end(args);
+}
+
 void __ipipe_flush_printk (unsigned virq, void *cookie)
 {
 	char *p = __ipipe_printk_buf;
@@ -1980,13 +1989,12 @@ start:
 		lmax = __ipipe_printk_fill;
 		while (out < lmax) {
 			len = strlen(p) + 1;
-			printk("%s",p);
+			do_deferred_vprintk("%s", p);
 			p += len;
 			out += len;
 		}
 		raw_spin_lock_irqsave(&__ipipe_printk_lock, flags);
-	}
-	while (__ipipe_printk_fill != lmax);
+	} while (__ipipe_printk_fill != lmax);
 
 	__ipipe_printk_fill = 0;
 
