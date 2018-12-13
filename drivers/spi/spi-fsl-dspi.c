@@ -2,6 +2,7 @@
  * drivers/spi/spi-fsl-dspi.c
  *
  * Copyright 2013 Freescale Semiconductor, Inc.
+ * Copyright 2018-2019 NXP
  *
  * Freescale DSPI driver
  * This file contains a driver for the Freescale DSPI
@@ -1014,8 +1015,8 @@ static int dspi_probe(struct platform_device *pdev)
 		goto out_master_put;
 	}
 
-	ret = devm_request_irq(&pdev->dev, dspi->irq, dspi_interrupt, 0,
-			pdev->name, dspi);
+	ret = devm_request_irq(&pdev->dev, dspi->irq, dspi_interrupt,
+			       IRQF_SHARED, pdev->name, dspi);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Unable to attach DSPI interrupt\n");
 		goto out_master_put;
