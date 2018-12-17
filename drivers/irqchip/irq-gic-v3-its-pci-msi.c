@@ -20,6 +20,7 @@
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <linux/of_pci.h>
+#include <linux/ipipe.h>
 
 static void its_mask_msi_irq(struct irq_data *d)
 {
@@ -33,10 +34,26 @@ static void its_unmask_msi_irq(struct irq_data *d)
 	irq_chip_unmask_parent(d);
 }
 
+#ifdef CONFIG_IPIPE
+static void its_hold_msi_irq(struct irq_data *d)
+{
+	its_mask_msi_irq(d);
+}
+static void its_release_msi_irq(struct irq_data *d)
+{
+	its_unmask_msi_irq(d);
+}
+#endif
+
 static struct irq_chip its_msi_irq_chip = {
 	.name			= "ITS-MSI",
 	.irq_unmask		= its_unmask_msi_irq,
 	.irq_mask		= its_mask_msi_irq,
+#ifdef CONFIG_IPIPE
+	.irq_hold       = its_hold_msi_irq,
+	.irq_release    = its_release_msi_irq,
+	.flags			= IRQCHIP_PIPELINE_SAFE,
+#endif
 	.irq_eoi		= irq_chip_eoi_parent,
 	.irq_write_msi_msg	= pci_msi_domain_write_msg,
 };
