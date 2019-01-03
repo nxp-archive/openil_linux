@@ -2,11 +2,12 @@
  *
  * TSN_SWITCH driver
  *
- * Copyright 2018 NXP
+ * Copyright 2018-2019 NXP
  */
 
 #ifndef _MSCC_FELIX_SWITCH_TSN_H_
 #define _MSCC_FELIX_SWITCH_TSN_H_
+#include <net/tsn.h>
 
 #define TRUE 1
 #define FALSE 0
