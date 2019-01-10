@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2010 OMICRON electronics GmbH
- * Copyright 2018 NXP
+ * Copyright 2018-2019 NXP
  */
 #ifndef __PTP_QORIQ_H__
 #define __PTP_QORIQ_H__
@@ -133,6 +133,8 @@ struct qoriq_ptp_registers {
 #define DEFAULT_TMR_PRSC	2
 #define DEFAULT_FIPER1_PERIOD	1000000000
 #define DEFAULT_FIPER2_PERIOD	100000
+
+#define ENETC_DEV_ID_PTP	0xee02
 
 struct qoriq_ptp {
 	void __iomem *base;
