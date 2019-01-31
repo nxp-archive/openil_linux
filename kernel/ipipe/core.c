@@ -1018,6 +1018,7 @@ int ipipe_handle_syscall(struct thread_info *ti,
 			 unsigned long nr, struct pt_regs *regs)
 {
 	unsigned long local_flags = READ_ONCE(ti->ipipe_flags);
+	unsigned int nr_syscalls = ipipe_root_nr_syscalls(ti);
 	int ret;
 
 	/*
@@ -1051,7 +1052,7 @@ int ipipe_handle_syscall(struct thread_info *ti,
 	 * system call handler.
 	 */
 
-	if (nr >= NR_syscalls && (local_flags & _TIP_HEAD)) {
+	if (nr >= nr_syscalls && (local_flags & _TIP_HEAD)) {
 		ipipe_fastcall_hook(regs);
 		local_flags = READ_ONCE(ti->ipipe_flags);
 		if (local_flags & _TIP_HEAD) {
@@ -1064,7 +1065,7 @@ int ipipe_handle_syscall(struct thread_info *ti,
 		}
 	}
 
-	if ((local_flags & _TIP_NOTIFY) || nr >= NR_syscalls) {
+	if ((local_flags & _TIP_NOTIFY) || nr >= nr_syscalls) {
 		ret =__ipipe_notify_syscall(regs);
 		local_flags = READ_ONCE(ti->ipipe_flags);
 		if (local_flags & _TIP_HEAD)

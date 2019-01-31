@@ -194,6 +194,10 @@ int __ipipe_notify_user_intreturn(void);
 
 #define __ipipe_serial_debug(__fmt, __args...)	raw_printk(__fmt, ##__args)
 
+#ifndef ipipe_root_nr_syscalls
+#define ipipe_root_nr_syscalls(ti)	NR_syscalls
+#endif
+
 #else /* !CONFIG_IPIPE */
 
 struct task_struct;
