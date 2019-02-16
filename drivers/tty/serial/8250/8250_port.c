@@ -2039,6 +2039,7 @@ void clear_ier(struct uart_8250_port *up)
 	}
 	console_atomic_unlock(flags);
 }
+EXPORT_SYMBOL_GPL(clear_ier);
 
 void restore_ier(struct uart_8250_port *up)
 {
@@ -2050,6 +2051,7 @@ void restore_ier(struct uart_8250_port *up)
 		serial_port_out(port, UART_IER, atomic_read(&ier_value));
 	console_atomic_unlock(flags);
 }
+EXPORT_SYMBOL_GPL(restore_ier);
 
 #ifdef CONFIG_CONSOLE_POLL
 /*
