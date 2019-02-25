@@ -145,6 +145,21 @@ void ipipe_host_timer_register(struct clock_event_device *evtdev)
 	ipipe_timer_register(timer);
 }
 
+#ifdef CONFIG_HOTPLUG_CPU
+void ipipe_host_timer_cleanup(struct clock_event_device *evtdev)
+{
+	struct ipipe_timer *timer = evtdev->ipipe_timer;
+	unsigned long flags;
+
+	if (timer == NULL)
+		return;
+
+	raw_spin_lock_irqsave(&lock, flags);
+	list_del(&timer->link);
+	raw_spin_unlock_irqrestore(&lock, flags);
+}
+#endif /* CONFIG_HOTPLUG_CPU */
+
 /*
  * register a timer: maintain them in a list sorted by rating
  */

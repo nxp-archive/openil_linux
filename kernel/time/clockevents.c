@@ -641,8 +641,10 @@ void tick_cleanup_dead_cpu(int cpu)
 	 * Unregister the clock event devices which were
 	 * released from the users in the notify chain.
 	 */
-	list_for_each_entry_safe(dev, tmp, &clockevents_released, list)
+	list_for_each_entry_safe(dev, tmp, &clockevents_released, list) {
 		list_del(&dev->list);
+		ipipe_host_timer_cleanup(dev);
+	}
 	/*
 	 * Now check whether the CPU has left unused per cpu devices
 	 */
@@ -652,6 +654,7 @@ void tick_cleanup_dead_cpu(int cpu)
 		    !tick_is_broadcast_device(dev)) {
 			BUG_ON(!clockevent_state_detached(dev));
 			list_del(&dev->list);
+			ipipe_host_timer_cleanup(dev);
 		}
 	}
 	raw_spin_unlock_irqrestore(&clockevents_lock, flags);

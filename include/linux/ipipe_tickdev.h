@@ -103,6 +103,11 @@ extern unsigned long __ipipe_hrtimer_freq;
 void ipipe_host_timer_register(struct clock_event_device *clkevt);
 
 /*
+ * Called by tick_cleanup_dead_cpu, to drop per-CPU timer devices
+ */
+void ipipe_host_timer_cleanup(struct clock_event_device *clkevt);
+
+/*
  * Register a standalone ipipe timer
  */
 void ipipe_timer_register(struct ipipe_timer *timer);
