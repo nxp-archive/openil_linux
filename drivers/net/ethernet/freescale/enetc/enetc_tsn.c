@@ -9,37 +9,6 @@
 #include <linux/irqflags.h>
 #include <linux/preempt.h>
 
-void DUMP_CBDR(struct enetc_cbd *cbdr)
-{
-	int i;
-	char *data;
-
-	printk("addrl: %04x", cbdr->addr[0]);
-	printk("addrh: %04x\n", cbdr->addr[1]);
-
-	data = (char *)cbdr;
-
-	for (i = 0; i < 8; i++) {
-		printk("%02x %02x %02x %02x\n",
-				*(data + i*4 + 3), *(data + i*4 + 2), *(data + i*4 + 1), *(data + i*4));
-	}
-	printk("\n");
-}
-
-void DUMP_DATA(char *data, int size)
-{
-	int i;
-
-	printk("data memory: \n");
-
-	for (i = 0; i < size / 4; i++) {
-		printk("%02x %02x %02x %02x\n",
-				*(data + i*4 + 3), *(data + i*4 + 2), *(data + i*4 + 1), *(data + i*4));
-	}
-
-	printk("\n");
-}
-
 static int alloc_cbdr(struct enetc_si *si, struct enetc_cbd **curr_cbd)
 {
 	struct enetc_cbdr *ring = &si->cbd_ring;
@@ -47,7 +16,6 @@ static int alloc_cbdr(struct enetc_si *si, struct enetc_cbd **curr_cbd)
 
 	i = ring->next_to_use;
 	*curr_cbd = ENETC_CBD(*ring, i);
-	printk("cbd: %p\n", *curr_cbd);
 
 	memset(*curr_cbd, 0, sizeof(struct enetc_cbd));
 	return i;
@@ -135,10 +103,7 @@ int enetc_qci_fmi_counters_get(struct net_device *ndev, u32 index,
 	cbdr->addr[0] = lower_32_bits(dma);
 	cbdr->addr[1] = upper_32_bits(dma);
 
-	DUMP_CBDR(cbdr);
 	xmit_cbdr(priv->si, curr_cbd);
-	DUMP_CBDR(cbdr);
-	DUMP_DATA((char *)fmi_data, data_size);
 
 	memcpy(counters, fmi_data, sizeof(struct fmi_query_stat_resp));
 
@@ -262,12 +227,9 @@ int enetc_qbv_set(struct net_device *ndev, struct tsn_qbv_conf *admin_conf)
 	 */
 	cbdr->status_flags = 0;
 
-	DUMP_CBDR(cbdr);
 	xmit_cbdr(priv->si, curr_cbd);
 	 /* config change time could be read in the, but up layer could not get it
-	 * */
-	DUMP_CBDR(cbdr);
-	DUMP_DATA((char *)gcl_data, data_size);
+	 */
 	memset(cbdr, 0, sizeof(struct enetc_cbd));
 	dma_unmap_single(&priv->si->pdev->dev, dma, data_size, DMA_TO_DEVICE);
 	kfree(gcl_data);
@@ -559,8 +521,7 @@ int enetc_cb_streamid_set(struct net_device *ndev, u32 index,
 	si_conf->oui[0] = 0xC2;
 
 	xmit_cbdr(priv->si, curr_cbd);
-	DUMP_CBDR(cbdr);
-	DUMP_DATA((char *)si_data, data_size);
+
 	memset(cbdr, 0, sizeof(*cbdr));
 	kfree(si_data);
 
@@ -637,10 +598,7 @@ int enetc_cb_streamid_set(struct net_device *ndev, u32 index,
 			((((u16)(streamid->para.sid.tagged) & 0x3) << 14) | ENETC_CBDR_SID_VIDM));
 	}
 
-	DUMP_CBDR(cbdr);
 	xmit_cbdr(priv->si, curr_cbd);
-	DUMP_CBDR(cbdr);
-	DUMP_DATA((char *)si_data, data_size);
 
 	memset(cbdr, 0, sizeof(*cbdr));
 	kfree(si_data);
@@ -690,10 +648,7 @@ int enetc_cb_streamid_get(struct net_device *ndev, u32 index,
 	cbdr->addr[0] = lower_32_bits(dma);
 	cbdr->addr[1] = upper_32_bits(dma);
 
-	DUMP_CBDR(cbdr);
 	xmit_cbdr(priv->si, curr_cbd);
-	DUMP_CBDR(cbdr);
-	DUMP_DATA((char *)si_data, data_size);
 
 	streamid->type = si_data->id_type;
 
@@ -814,9 +769,7 @@ int enetc_qci_sfi_set(struct net_device *ndev, u32 index, bool en,
 	if (tsn_qci_sfi->block_oversize)
 		sfi_config->multi |= 0x10;
 
-	DUMP_CBDR(cbdr);
 	xmit_cbdr(priv->si, curr_cbd);
-	DUMP_CBDR(cbdr);
 
 	memset(cbdr, 0, sizeof(*cbdr));
 	return 0;
@@ -975,9 +928,9 @@ int enetc_qci_sgi_set(struct net_device *ndev, u32 index,
 	cbdr->cmd = 0;
 	cbdr->cls = BDCR_CMD_STREAM_GCL;
 	cbdr->status_flags = 0x80;
-	DUMP_CBDR(cbdr);
+
 	xmit_cbdr(priv->si, curr_cbd);
-	DUMP_CBDR(cbdr);
+
 	if (!tsn_qci_sgi->gate_enabled) {
 		memset(cbdr, 0, sizeof(*cbdr));
 		return 0;
@@ -1012,9 +965,7 @@ int enetc_qci_sgi_set(struct net_device *ndev, u32 index,
 	if (tsn_qci_sgi->block_octets_exceeded_enable)
 		sgi_config->gset |= 0x20;
 
-	DUMP_CBDR(cbdr);
 	xmit_cbdr(priv->si, curr_cbd);
-	DUMP_CBDR(cbdr);
 
 	if (tsn_qci_sgi->admin.control_list_length == 0)
 		goto exit;
@@ -1094,11 +1045,7 @@ int enetc_qci_sgi_set(struct net_device *ndev, u32 index,
 		sgcl_data->btl = cpu_to_le32(lower_32_bits(tsn_qci_sgi->admin.base_time));
 	}
 
-	DUMP_CBDR(cbdr_sgcl);
-	DUMP_DATA((char *)sgcl_data, data_size);
 	xmit_cbdr(priv->si, curr_cbd);
-	DUMP_CBDR(cbdr_sgcl);
-	DUMP_DATA((char *)sgcl_data, data_size);
 
 	memset(cbdr_sgcl, 0, sizeof(*cbdr_sgcl));
 	kfree(sgcl_data);
@@ -1132,9 +1079,7 @@ int enetc_qci_sgi_get(struct net_device *ndev, u32 index,
 	cbdr->cls = BDCR_CMD_STREAM_GCL;
 	cbdr->status_flags = 0x80;
 
-	DUMP_CBDR(cbdr);
 	xmit_cbdr(priv->si, curr_cbd);
-	DUMP_CBDR(cbdr);
 
 	sgi_config = &cbdr->sgi_table;
 
@@ -1193,10 +1138,7 @@ int enetc_qci_sgi_get(struct net_device *ndev, u32 index,
 	cbdr_sgcl->addr[0] = lower_32_bits(dma);
 	cbdr_sgcl->addr[1] = upper_32_bits(dma);
 
-	DUMP_CBDR(cbdr_sgcl);
 	xmit_cbdr(priv->si, curr_cbd);
-	DUMP_CBDR(cbdr_sgcl);
-	DUMP_DATA((char *)sgcl_data, data_size);
 
 	sgce = (struct sgce *)(sgcl_data + 1);
 
@@ -1291,9 +1233,7 @@ int enetc_qci_sgi_status_get(struct net_device *ndev, u16 index,
 		goto cmd2quit;
 	}
 
-	DUMP_CBDR(cbdr_sgi);
 	xmit_cbdr(priv->si, curr_cbd);
-	DUMP_CBDR(cbdr_sgi);
 
 	curr_cbd = alloc_cbdr(priv->si, &cbdr_sgcl);
 
@@ -1327,10 +1267,7 @@ int enetc_qci_sgi_status_get(struct net_device *ndev, u16 index,
 	cbdr_sgcl->addr[0] = lower_32_bits(dma);
 	cbdr_sgcl->addr[1] = upper_32_bits(dma);
 
-	DUMP_CBDR(cbdr_sgcl);
 	xmit_cbdr(priv->si, curr_cbd);
-	DUMP_CBDR(cbdr_sgcl);
-	DUMP_DATA((char *)sgcl_data, data_size);
 
 	sgce = (struct sgce *)(sgcl_data + 1);
 
@@ -1418,9 +1355,9 @@ int enetc_qci_fmi_set(struct net_device *ndev, u32 index, bool enable,
 	cbdr->cmd = 0;
 	cbdr->cls = BDCR_CMD_FLOW_METER;
 	cbdr->status_flags = 0x80;
-	DUMP_CBDR(cbdr);
+
 	xmit_cbdr(priv->si, curr_cbd);
-	DUMP_CBDR(cbdr);
+
 	if (!enable) {
 		memset(cbdr, 0, sizeof(*cbdr));
 		return 0;
@@ -1465,9 +1402,7 @@ int enetc_qci_fmi_set(struct net_device *ndev, u32 index, bool enable,
 	if (tsn_qci_fmi->cf)
 		fmi_config->conf |= 0x10;
 
-	DUMP_CBDR(cbdr);
 	xmit_cbdr(priv->si, curr_cbd);
-	DUMP_CBDR(cbdr);
 
 	memset(cbdr, 0, sizeof(*cbdr));
 	return 0;
@@ -1554,7 +1489,6 @@ int enetc_qci_fmi_get(struct net_device *ndev, u32 index,
 	cbdr->length = dma_size;
 
 	xmit_cbdr(priv->si, curr_cbd);
-	DUMP_DATA((char *)fmi_counter_data, data_size);
 
 	memcpy(counters, fmi_counter_data, sizeof(*counters));
 
