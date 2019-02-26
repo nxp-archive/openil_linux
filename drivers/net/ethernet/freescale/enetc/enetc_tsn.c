@@ -297,6 +297,13 @@ int enetc_qbv_get(struct net_device *ndev, struct tsn_qbv_conf *admin_conf)
 	u64 temp;
 	int i;
 
+	if (enetc_rd(&priv->si->hw, QBV_PTGCR_OFFSET) & QBV_TGE) {
+		admin_conf->gate_enabled = true;
+	} else {
+		admin_conf->gate_enabled = false;
+		return 0;
+	}
+
 	curr_cbd = alloc_cbdr(priv->si, &cbdr);
 
 	gcl_query =  &cbdr->gcl_query;
@@ -359,11 +366,6 @@ int enetc_qbv_get(struct net_device *ndev, struct tsn_qbv_conf *admin_conf)
 		temp_entry->time_interval = le32_to_cpu(temp_gce->period);
 	}
 
-	if (enetc_rd(&priv->si->hw, QBV_PTGCR_OFFSET) & QBV_TGE)
-		admin_conf->gate_enabled = true;
-	else
-		admin_conf->gate_enabled = false;
-
 	/* Updated by ENETC on completion of the configuration
 	 * command. A zero value indicates success.
 	 */
@@ -376,7 +378,7 @@ int enetc_qbv_get(struct net_device *ndev, struct tsn_qbv_conf *admin_conf)
 }
 
 int enetc_qbv_get_status(struct net_device *ndev,
-							struct tsn_qbv_status *status)
+			 struct tsn_qbv_status *status)
 {
 	struct enetc_cbd *cbdr;
 	struct tgs_gcl_resp *gcl_data;
@@ -401,6 +403,9 @@ int enetc_qbv_get_status(struct net_device *ndev,
 
 	oper_basic = &status->oper;
 	priv = netdev_priv(ndev);
+
+	if (!(enetc_rd(&priv->si->hw, QBV_PTGCR_OFFSET) & QBV_TGE))
+		return -EINVAL;
 
 	curr_cbd = alloc_cbdr(priv->si, &cbdr);
 
@@ -645,7 +650,7 @@ int enetc_cb_streamid_set(struct net_device *ndev, u32 index,
 
 /* CBD Class 7: Stream Identity Entry Query Descriptor - Long Format */
 int enetc_cb_streamid_get(struct net_device *ndev, u32 index,
-							struct tsn_cb_streamid *streamid)
+			  struct tsn_cb_streamid *streamid)
 {
 	struct enetc_cbd *cbdr;
 	struct streamid_query_resp *si_data;
@@ -728,7 +733,7 @@ int enetc_cb_streamid_get(struct net_device *ndev, u32 index,
 
 /*  CBD Class 7: Stream Identity Statistics Query Descriptor - Long Format */
 int enetc_cb_streamid_counters_get(struct net_device *ndev, u32 index,
-				struct tsn_cb_streamid_counters *counters)
+				   struct tsn_cb_streamid_counters *counters)
 {
 	return 0;
 }
