@@ -58,6 +58,7 @@ const struct tsn_ops switch_tsn_ops = {
 	.cbgen_set			= switch_seq_gen_set,
 	.cbrec_set			= switch_seq_rec_set,
 	.pcpmap_set			= switch_pcp_map_set,
+	.dscp_set			= switch_dscp_set,
 };
 #endif
 
