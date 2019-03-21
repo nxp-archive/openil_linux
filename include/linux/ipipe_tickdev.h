@@ -153,6 +153,8 @@ void __ipipe_timer_refresh_freq(unsigned int hrclock_freq);
 
 #define ipipe_host_timer_register(clkevt) do { } while (0)
 
+#define ipipe_host_timer_cleanup(clkevt) do { } while (0)
+
 #endif /* !CONFIG_IPIPE */
 
 #ifdef CONFIG_IPIPE_HAVE_HOSTRT
