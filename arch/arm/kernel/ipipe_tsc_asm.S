@@ -37,7 +37,7 @@
 	that the PC relative operations are computed correctly.
 */
 
-	.section	.init.text, "ax", %progbits
+	.section	.text, "ax", %progbits
  THUMB(	.arm	)
 
 	.align 5

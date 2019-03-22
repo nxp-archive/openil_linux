@@ -882,7 +882,9 @@ ENTRY(__switch_to)
  UNWIND(.fnend		)
 ENDPROC(__switch_to)
 
+#ifndef CONFIG_IPIPE
 	__INIT
+#endif
 
 /*
  * User helpers.
