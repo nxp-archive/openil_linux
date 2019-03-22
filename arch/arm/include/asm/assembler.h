@@ -135,7 +135,7 @@
 #endif
 
 	.macro asm_trace_hardirqs_off, save=1
-#if defined(CONFIG_TRACE_IRQFLAGS) && !defined(CONFIG_IPIPE)
+#if defined(CONFIG_TRACE_IRQFLAGS)
 	.if \save
 	stmdb   sp!, {r0-r3, ip, lr}
 	.endif
@@ -147,7 +147,7 @@
 	.endm
 
 	.macro asm_trace_hardirqs_on, cond=al, save=1
-#if defined(CONFIG_TRACE_IRQFLAGS) && !defined(CONFIG_IPIPE)
+#if defined(CONFIG_TRACE_IRQFLAGS)
 	/*
 	 * actually the registers should be pushed and pop'd conditionally, but
 	 * after bl the flags are certainly clobbered

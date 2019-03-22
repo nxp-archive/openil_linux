@@ -219,7 +219,11 @@
 	disable_irq_notrace
 #ifdef CONFIG_TRACE_IRQFLAGS
 	tst	\rpsr, #PSR_I_BIT
+#ifdef CONFIG_IPIPE
+	bleq	trace_hardirqs_on_virt
+#else
 	bleq	trace_hardirqs_on
+#endif
 	tst	\rpsr, #PSR_I_BIT
 	blne	trace_hardirqs_off
 #endif

@@ -206,8 +206,9 @@ ENDPROC(ret_from_fork)
 
 #ifdef CONFIG_IPIPE
 __ipipe_ret_to_user:
-	disable_irq				@ disable interrupts
+	disable_irq_notrace			@ disable interrupts
 ENTRY(__ipipe_ret_to_user_irqs_disabled)
+	asm_trace_hardirqs_on save = 0
 	slow_restore_user_regs
 ENDPROC(__ipipe_ret_to_user_irqs_disabled)
 #endif
