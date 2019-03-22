@@ -869,11 +869,7 @@ ENTRY(__switch_to)
 	add	r4, r2, #TI_CPU_SAVE
 	ldr	r0, =thread_notify_head
 	mov	r1, #THREAD_NOTIFY_SWITCH
-#ifdef CONFIG_IPIPE
-	bl	__ipipe_switch_to_notifier_call_chain
-#else /* CONFIG_IPIPE */
 	bl	atomic_notifier_call_chain
-#endif /* CONFIG_IPIPE */
 #if defined(CONFIG_STACKPROTECTOR) && !defined(CONFIG_SMP)
 	str	r7, [r8]
 #endif
