@@ -675,7 +675,7 @@
 			clock-names = "apb_pclk", "wdog_clk";
 		};
 
-		pcie@1f0000000 { /* rcie_enetc */
+		enetc_pcie: pcie@1f0000000 { /* rcie_enetc */
 			compatible = "pci-host-ecam-generic";
 			reg = <0x01 0xf0000000 0x0 0x100000>;
 			#address-cells = <3>;

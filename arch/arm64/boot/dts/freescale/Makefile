@@ -6,6 +6,7 @@ dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-ls1012a-rdb.dtb
 dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-ls1012a-2g5rdb.dtb
 dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-ls1028a-qds.dtb
 dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-ls1028a-rdb.dtb
+dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-ls1028a-rdb-sdk-bm.dtb
 dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-ls1028a-simu.dtb
 dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-ls1028a-pxp.dtb
 dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-ls1028a-cfp.dtb
