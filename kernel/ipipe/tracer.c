@@ -842,7 +842,7 @@ __ipipe_print_delay(struct seq_file *m, struct ipipe_trace_point *point)
 {
 	unsigned long delay = 0;
 	int next;
-	char *mark = "	";
+	char *mark = "  ";
 
 	next = WRAP_POINT_NO(point+1 - print_path->point);
 
@@ -916,12 +916,12 @@ static void __ipipe_print_headline(struct seq_file *m)
 			   " +----- Hard IRQs ('|': locked)\n"
 			   " |+-- %s\n"
 			   " ||+- %s%s\n"
-			   " |||			  +---------- "
+		           " |||                        +---------- "
 			       "Delay flag ('+': > %d us, '!': > %d us)\n"
-			   " |||			  |	   +- "
+			   " |||                        |        +- "
 			       "NMI noise ('N')\n"
-			   " |||			  |	   |\n"
-			   "	  Type	  User Val.   Time    Delay  Function "
+			   " |||                        |        |\n"
+			   "    Type    User Val.   Time    Delay  Function "
 			       "(Parent)\n",
 			   name[1], name[0],
 			   " ('*': domain stalled, '+': current, "
@@ -930,9 +930,9 @@ static void __ipipe_print_headline(struct seq_file *m)
 	} else
 		seq_printf(m,
 			   " +--------------- Hard IRQs ('|': locked)\n"
-			   " |		   +- Delay flag "
+			   " |             +- Delay flag "
 			       "('+': > %d us, '!': > %d us)\n"
-			   " |		   |\n"
+			   " |             |\n"
 			   "  Type     Time   Function (Parent)\n",
 			   IPIPE_DELAY_NOTE/1000, IPIPE_DELAY_WARN/1000);
 }
