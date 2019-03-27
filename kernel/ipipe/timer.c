@@ -452,7 +452,7 @@ static void grab_timer(void *arg)
 		return;
 	}
 
-	steal = evtdev != NULL && !clockevent_state_detached(evtdev);
+	steal = !clockevent_state_detached(evtdev);
 	if (steal && evtdev->ipipe_stolen == 0) {
 		timer->real_mult = evtdev->mult;
 		timer->real_shift = evtdev->shift;
