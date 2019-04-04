@@ -56,8 +56,8 @@ config XENO_DRIVERS_NET_DRV_ENETC
     ---help---
 	Supports MDIO as an integrated PCI endpoint, on SoCs with ENETC.
 	It also enables the collection of worst-case command delays in real-time
-    contexts in order to reduce the command timeout (which, effectively, will
-    also reduce the worst-case transmission latency).
+    	contexts in order to reduce the command timeout (which, effectively, will
+    	also reduce the worst-case transmission latency).
 
 config XENO_DRIVERS_NET_DRV_E1000
     depends on XENO_DRIVERS_NET && PCI
