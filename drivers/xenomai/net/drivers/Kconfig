@@ -49,6 +49,16 @@ config XENO_DRIVERS_NET_DRV_FMAN_IM
     contexts in order to reduce the command timeout (which, effectively, will
     also reduce the worst-case transmission latency).
 
+config XENO_DRIVERS_NET_DRV_ENETC
+    depends on XENO_DRIVERS_NET
+    tristate "ENETC"
+    default y
+    ---help---
+	Supports MDIO as an integrated PCI endpoint, on SoCs with ENETC.
+	It also enables the collection of worst-case command delays in real-time
+    contexts in order to reduce the command timeout (which, effectively, will
+    also reduce the worst-case transmission latency).
+
 config XENO_DRIVERS_NET_DRV_E1000
     depends on XENO_DRIVERS_NET && PCI
     tristate "Intel(R) PRO/1000 (Gigabit)"

@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0
+config XENO_DRIVERS_NET_DRV_ENETC
+	tristate "ENETC PF driver"
+	depends on PCI && PCI_MSI
+	depends on !MSCC_FELIX_SWITCH
+	---help---
+	  TBD
+
