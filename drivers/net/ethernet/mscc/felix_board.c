@@ -296,6 +296,8 @@ static rx_handler_result_t felix_frm_ext_handler(struct sk_buff **pskb)
 		shhwtstamps->hwtstamp = tstamp_in_ns;
 	}
 
+	if (ocelot->bridge_mask & BIT(p))
+		skb->offload_fwd_mark = 1;
 	netif_rx(skb);
 
 	return RX_HANDLER_CONSUMED;
