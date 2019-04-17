@@ -17,7 +17,6 @@
 static struct genl_family tsn_family;
 
 LIST_HEAD(port_list);
-
 enum TSN_REPLY_VALUE {
 	TSN_SUCCESS = 0,
 	TSN_NODEVOPS,
@@ -231,6 +230,67 @@ static const struct nla_policy dscp_policy[] = {
 	[TSN_DSCP_ATTR_COS]		= { .type = NLA_U32},
 	[TSN_DSCP_ATTR_DPL]		= { .type = NLA_U32},
 };
+
+static ATOMIC_NOTIFIER_HEAD(tsn_notif_chain);
+
+/**
+ *	register_tsn_notifier - Register notifier
+ *	@nb: notifier_block
+ *
+ *	Register switch device notifier.
+ */
+int register_tsn_notifier(struct notifier_block *nb)
+{
+	return atomic_notifier_chain_register(&tsn_notif_chain, nb);
+}
+EXPORT_SYMBOL_GPL(register_tsn_notifier);
+
+/**
+ *	unregister_tsn_notifier - Unregister notifier
+ *	@nb: notifier_block
+ *
+ *	Unregister switch device notifier.
+ */
+int unregister_tsn_notifier(struct notifier_block *nb)
+{
+	return atomic_notifier_chain_unregister(&tsn_notif_chain, nb);
+}
+EXPORT_SYMBOL_GPL(unregister_tsn_notifier);
+
+/**
+ *	call_tsn_notifiers - Call notifiers
+ *	@val: value passed unmodified to notifier function
+ *	@dev: port device
+ *	@info: notifier information data
+ *
+ *	Call all network notifier blocks.
+ */
+int call_tsn_notifiers(unsigned long val, struct net_device *dev,
+		       struct tsn_notifier_info *info)
+{
+	info->dev = dev;
+	return atomic_notifier_call_chain(&tsn_notif_chain, val, info);
+}
+EXPORT_SYMBOL_GPL(call_tsn_notifiers);
+
+struct tsn_port *tsn_get_port(struct net_device *ndev)
+{
+	struct tsn_port *port;
+	bool tsn_found = false;
+
+	list_for_each_entry(port, &port_list, list) {
+		if (port->netdev == ndev) {
+			tsn_found = true;
+			break;
+		}
+	}
+
+	if (!tsn_found)
+		return NULL;
+
+	return port;
+}
+EXPORT_SYMBOL_GPL(tsn_get_port);
 
 static int tsn_prepare_reply(struct genl_info *info, u8 cmd,
 			     struct sk_buff **skbp, size_t size)
@@ -3288,6 +3348,11 @@ static const struct genl_ops tsnnl_ops[] = {
 	},
 };
 
+static const struct genl_multicast_group tsn_mcgrps[] = {
+	[TSN_MCGRP_QBV] = { .name = TSN_MULTICAST_GROUP_QBV},
+	[TSN_MCGRP_QCI] = { .name = TSN_MULTICAST_GROUP_QCI},
+};
+
 static struct genl_family tsn_family = {
 	.name		= TSN_GENL_NAME,
 	.version	= TSN_GENL_VERSION,
@@ -3295,6 +3360,8 @@ static struct genl_family tsn_family = {
 	.module		= THIS_MODULE,
 	.ops		= tsnnl_ops,
 	.n_ops		= ARRAY_SIZE(tsnnl_ops),
+	.mcgrps		= tsn_mcgrps,
+	.n_mcgrps	= ARRAY_SIZE(tsn_mcgrps),
 };
 
 int tsn_port_register(struct net_device *netdev,
@@ -3320,6 +3387,7 @@ int tsn_port_register(struct net_device *netdev,
 	port->netdev = netdev;
 	port->groupid = groupid;
 	port->tsnops = tsnops;
+	port->nd.dev = netdev;
 
 	if (groupid < GROUP_OFFSET_SWITCH)
 		port->type = TSN_ENDPOINT;
@@ -3353,6 +3421,115 @@ void tsn_port_unregister(struct net_device *netdev)
 }
 EXPORT_SYMBOL(tsn_port_unregister);
 
+static int tsn_multicast_to_user(unsigned long event,
+				struct tsn_notifier_info *tsn_info)
+{
+	struct sk_buff *skb;
+	struct genlmsghdr *nlh;
+	int res;
+	struct tsn_qbv_conf *qbvdata;
+
+	/* If new attributes are added, please revisit this allocation */
+	skb = genlmsg_new(sizeof(*tsn_info), GFP_KERNEL);
+	if (!skb) {
+		pr_err("Allocation failure.\n");
+		return -ENOMEM;
+	}
+
+	switch (event) {
+	case TSN_QBV_CONFIGCHANGETIME_ARRIVE:
+		nlh = genlmsg_put(skb, 0, 1, &tsn_family,
+				  GFP_KERNEL, TSN_CMD_QBV_SET);
+		qbvdata = &tsn_info->ntdata.qbv_notify;
+		res = NLA_PUT_U64(skb, TSN_QBV_ATTR_CTRL_BASETIME,
+				  qbvdata->admin.base_time);
+
+		if (res) {
+			pr_err("put data failure!\n");
+			goto done;
+		}
+
+		res = nla_put_u32(skb, TSN_QBV_ATTR_CTRL_CYCLETIME,
+				  qbvdata->admin.cycle_time);
+		if (res) {
+			pr_err("put data failure!\n");
+			goto done;
+		}
+
+		if (qbvdata->gate_enabled)
+			res = nla_put_flag(skb, TSN_QBV_ATTR_ENABLE +
+					   TSN_QBV_ATTR_CTRL_MAX);
+		else
+			res = nla_put_flag(skb, TSN_QBV_ATTR_DISABLE +
+					   TSN_QBV_ATTR_CTRL_MAX);
+		if (res) {
+			pr_err("put data failure!\n");
+			goto done;
+		}
+
+		res = nla_put_u32(skb, TSN_QBV_ATTR_CTRL_UNSPEC,
+				  tsn_info->dev->ifindex);
+		if (res) {
+			pr_err("put data failure!\n");
+			goto done;
+		}
+
+		break;
+	default:
+		pr_info("event not supportted!\n");
+		break;
+	}
+
+	(void)genlmsg_end(skb, nlh);
+
+	res = genlmsg_multicast_allns(&tsn_family, skb, 0,
+				      TSN_MCGRP_QBV, GFP_KERNEL);
+	skb = NULL;
+	if (res && res != -ESRCH) {
+		pr_err("genlmsg_multicast_allns error: %d\n", res);
+		goto done;
+	}
+
+	if (res == -ESRCH)
+		res = 0;
+
+done:
+	if (skb) {
+		nlmsg_free(skb);
+		skb = NULL;
+	}
+
+	return res;
+}
+
+/* called with RTNL or RCU */
+static int tsn_event(struct notifier_block *unused,
+		     unsigned long event, void *ptr)
+{
+	struct tsn_notifier_info *tsn_info;
+	int err = NOTIFY_DONE;
+
+	switch (event) {
+	case TSN_QBV_CONFIGCHANGETIME_ARRIVE:
+		tsn_info = ptr;
+		err = tsn_multicast_to_user(event, tsn_info);
+		if (err) {
+			err = notifier_from_errno(err);
+			break;
+		}
+		break;
+	default:
+		pr_info("event not supportted!\n");
+		break;
+	}
+
+	return err;
+}
+
+static struct notifier_block tsn_notifier = {
+	.notifier_call = tsn_event,
+};
+
 static int __init tsn_genetlink_init(void)
 {
 	int ret;
@@ -3366,6 +3543,8 @@ static int __init tsn_genetlink_init(void)
 		return ret;
 	}
 
+	register_tsn_notifier(&tsn_notifier);
+
 	return 0;
 }
 
@@ -3376,6 +3555,8 @@ static void __exit tsn_genetlink_exit(void)
 	ret = genl_unregister_family(&tsn_family);
 	if (ret != 0)
 		pr_info("failed to unregister family:%i\n", ret);
+
+	unregister_tsn_notifier(&tsn_notifier);
 }
 
 module_init(tsn_genetlink_init);

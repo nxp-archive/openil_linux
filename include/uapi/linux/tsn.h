@@ -16,6 +16,16 @@
 #define NUM_MSCC_QOS_PRIO 8
 #define MSCC_QOS_PRIO_MAX (NUM_MSCC_QOS_PRIO - 1)
 
+#define TSN_MULTICAST_GROUP_QBV	"qbv"
+#define TSN_MULTICAST_GROUP_QCI	"qci"
+
+/* multicast groups */
+enum tsn_multicast_groups {
+	TSN_MCGRP_QBV,
+	TSN_MCGRP_QCI,
+	TSN_MCGRP_MAX
+};
+
 enum tsn_capability {
 	TSN_CAP_QBV = 0x1,
 	TSN_CAP_QCI = 0x2,

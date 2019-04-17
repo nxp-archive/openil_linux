@@ -134,6 +134,7 @@ int enetc_qbv_set(struct net_device *ndev, struct tsn_qbv_conf *admin_conf)
 	int curr_cbd;
 	struct tsn_qbv_basic *admin_basic = &admin_conf->admin;
 	struct enetc_ndev_priv *priv = netdev_priv(ndev);
+	struct tsn_notifier_info notify_info;
 
 	u32 temp;
 
@@ -233,6 +234,10 @@ int enetc_qbv_set(struct net_device *ndev, struct tsn_qbv_conf *admin_conf)
 	memset(cbdr, 0, sizeof(struct enetc_cbd));
 	dma_unmap_single(&priv->si->pdev->dev, dma, data_size, DMA_TO_DEVICE);
 	kfree(gcl_data);
+
+	notify_info.dev = ndev;
+	call_tsn_notifiers(TSN_QBV_CONFIGCHANGETIME_ARRIVE,
+			   ndev, &notify_info);
 
 	return 0;
 }
@@ -1870,5 +1875,6 @@ void enetc_tsn_pf_init(struct net_device *netdev, struct pci_dev *pdev)
 void enetc_tsn_pf_deinit(struct net_device *netdev)
 {
 	tsn_port_unregister(netdev);
+
 }
 #endif	/* #if IS_ENABLED(CONFIG_ENETC_TSN) */
