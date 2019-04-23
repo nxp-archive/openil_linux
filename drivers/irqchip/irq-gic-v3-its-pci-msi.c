@@ -24,14 +24,22 @@
 
 static void its_mask_msi_irq(struct irq_data *d)
 {
+	unsigned long flags;
+
+	flags = hard_local_irq_save();
 	pci_msi_mask_irq(d);
 	irq_chip_mask_parent(d);
+	hard_local_irq_restore(flags);
 }
 
 static void its_unmask_msi_irq(struct irq_data *d)
 {
+	unsigned long flags;
+
+	flags = hard_local_irq_save();
 	pci_msi_unmask_irq(d);
 	irq_chip_unmask_parent(d);
+	hard_local_irq_restore(flags);
 }
 
 #ifdef CONFIG_IPIPE
