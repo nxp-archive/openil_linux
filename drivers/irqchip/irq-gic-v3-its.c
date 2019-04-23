@@ -89,7 +89,11 @@ struct its_baser {
  * list of devices writing to it.
  */
 struct its_node {
+#ifdef CONFIG_IPIPE
+	ipipe_spinlock_t	lock;
+#else
 	raw_spinlock_t		lock;
+#endif
 	struct list_head	entry;
 	void __iomem		*base;
 	phys_addr_t		phys_base;
@@ -141,7 +145,11 @@ struct its_device {
 };
 
 static struct {
+#ifdef CONFIG_IPIPE
+	ipipe_spinlock_t	lock;
+#else
 	raw_spinlock_t		lock;
+#endif
 	struct its_device	*dev;
 	struct its_vpe		**vpes;
 	int			next_victim;
