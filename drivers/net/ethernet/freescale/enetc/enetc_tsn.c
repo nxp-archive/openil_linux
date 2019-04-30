@@ -134,9 +134,15 @@ int enetc_qbv_set(struct net_device *ndev, struct tsn_qbv_conf *admin_conf)
 	int curr_cbd;
 	struct tsn_qbv_basic *admin_basic = &admin_conf->admin;
 	struct enetc_ndev_priv *priv = netdev_priv(ndev);
-	struct tsn_notifier_info notify_info;
-
 	u32 temp;
+	u64 tempclock;
+	struct tsn_port *port;
+
+	port = tsn_get_port(ndev);
+	if (!port) {
+		netdev_err(priv->si->ndev, "TSN device not registered!\n");
+		return -ENODEV;
+	}
 
 	gcl_len = admin_basic->control_list_length;
 	if (gcl_len > enetc_get_max_gcl_len(&priv->si->hw))
@@ -149,6 +155,9 @@ int enetc_qbv_set(struct net_device *ndev, struct tsn_qbv_conf *admin_conf)
 		enetc_wr(&priv->si->hw, QBV_PTGCR_OFFSET, temp | QBV_TGE);
 	} else if (!admin_conf->gate_enabled) {
 		enetc_wr(&priv->si->hw, QBV_PTGCR_OFFSET, temp & (~QBV_TGE));
+		memcpy(&port->nd.ntdata, admin_conf, sizeof(*admin_conf));
+		call_tsn_notifiers(TSN_QBV_CONFIGCHANGETIME_ARRIVE,
+				   ndev, &port->nd);
 		return 0;
 	}
 
@@ -229,15 +238,21 @@ int enetc_qbv_set(struct net_device *ndev, struct tsn_qbv_conf *admin_conf)
 	cbdr->status_flags = 0;
 
 	xmit_cbdr(priv->si, curr_cbd);
+
+	memcpy(&port->nd.ntdata, admin_conf, sizeof(*admin_conf));
+
+	tempclock = ((u64)le32_to_cpu(gcl_config->ccth)) << 32;
+	port->nd.ntdata.qbv_notify.admin.base_time =
+		le32_to_cpu(gcl_config->cctl) + tempclock;
+
 	 /* config change time could be read in the, but up layer could not get it
 	 */
 	memset(cbdr, 0, sizeof(struct enetc_cbd));
 	dma_unmap_single(&priv->si->pdev->dev, dma, data_size, DMA_TO_DEVICE);
 	kfree(gcl_data);
 
-	notify_info.dev = ndev;
 	call_tsn_notifiers(TSN_QBV_CONFIGCHANGETIME_ARRIVE,
-			   ndev, &notify_info);
+			   ndev, &port->nd);
 
 	return 0;
 }
