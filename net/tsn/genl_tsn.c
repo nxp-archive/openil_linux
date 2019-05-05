@@ -3358,6 +3358,7 @@ static struct genl_family tsn_family = {
 	.version	= TSN_GENL_VERSION,
 	.maxattr	= TSN_CMD_ATTR_MAX,
 	.module		= THIS_MODULE,
+	.netnsok	= true,
 	.ops		= tsnnl_ops,
 	.n_ops		= ARRAY_SIZE(tsnnl_ops),
 	.mcgrps		= tsn_mcgrps,
