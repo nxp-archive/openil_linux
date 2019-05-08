@@ -540,7 +540,7 @@ struct ocelot {
 	u16 bridge_fwd_mask;
 
 	struct workqueue_struct *ocelot_wq;
-	struct work_struct tx_clean_work;
+	struct work_struct irq_handle_work;
 	struct list_head skbs;
 
 	int shared_queue_sz;

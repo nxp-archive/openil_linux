@@ -356,10 +356,6 @@ static netdev_tx_t felix_cpu_inj_handler(struct sk_buff *skb,
 	skb->dev = pair_ndev;
 	dev_queue_xmit(skb);
 
-	if (do_tstamp)
-		queue_work(port->ocelot->ocelot_wq,
-			   &port->ocelot->tx_clean_work);
-
 	return NETDEV_TX_OK;
 }
 
@@ -500,18 +496,15 @@ static void felix_get_hwtimestamp(struct ocelot *ocelot, struct timespec64 *ts)
 		ts->tv_sec--;
 }
 
-static void felix_tx_clean_work(struct work_struct *work)
+static bool felix_tx_tstamp_avail(struct ocelot *ocelot)
 {
-	struct ocelot *ocelot = container_of(work, struct ocelot,
-					     tx_clean_work);
-	bool tstamp_handled = false;
-	ktime_t timeout;
+	return (!list_empty(&ocelot->skbs)) &&
+	       (ocelot_read(ocelot, SYS_PTP_STATUS) &
+		SYS_PTP_STATUS_PTP_MESS_VLD);
+}
 
-	/* No cleaning up needed if ocelot->skbs list is empty. */
-	if (unlikely(list_empty(&ocelot->skbs)))
-		return;
-
-	timeout = ktime_add_us(ktime_get(), 10);
+static void felix_tx_clean(struct ocelot *ocelot)
+{
 	do {
 		struct list_head *pos, *tmp;
 		struct ocelot_skb *entry;
@@ -521,17 +514,6 @@ static void felix_tx_clean_work(struct work_struct *work)
 		u32 val, id, port;
 
 		val = ocelot_read(ocelot, SYS_PTP_STATUS);
-		if (!(val & SYS_PTP_STATUS_PTP_MESS_VLD)) {
-			/* Exit if tstamp had been handled or timeout */
-			if (ktime_after(ktime_get(), timeout) ||
-			    tstamp_handled)
-				return;
-
-			udelay(1);
-			continue;
-		}
-
-		tstamp_handled = true;
 
 		id = SYS_PTP_STATUS_PTP_MESS_ID_X(val);
 		port = SYS_PTP_STATUS_PTP_MESS_TXPORT_X(val);
@@ -558,7 +540,36 @@ static void felix_tx_clean_work(struct work_struct *work)
 
 		/* Next tstamp */
 		ocelot_write(ocelot, SYS_PTP_NXT_PTP_NXT, SYS_PTP_NXT);
-	} while (true);
+
+	} while (ocelot_read(ocelot, SYS_PTP_STATUS) &
+		 SYS_PTP_STATUS_PTP_MESS_VLD);
+}
+
+static void felix_irq_handle_work(struct work_struct *work)
+{
+	struct ocelot *ocelot = container_of(work, struct ocelot,
+					     irq_handle_work);
+	struct pci_dev *pdev = container_of(ocelot->dev, struct pci_dev, dev);
+
+	/* TODO: TSN preemption handling
+	 * The INTB interrupt is also for preemption event. So there will be
+	 * interrupt storm if preemption is triggered without cleaning
+	 * interrupt status in ISR.
+	 */
+	if (felix_tx_tstamp_avail(ocelot))
+		felix_tx_clean(ocelot);
+
+	enable_irq(pdev->irq);
+}
+
+static irqreturn_t felix_isr(int irq, void *data)
+{
+	struct ocelot *ocelot = (struct ocelot *)data;
+
+	disable_irq_nosync(irq);
+	queue_work(ocelot->ocelot_wq, &ocelot->irq_handle_work);
+
+	return IRQ_HANDLED;
 }
 
 static int felix_ports_init(struct pci_dev *pdev)
@@ -757,13 +768,17 @@ static int felix_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	pci_set_drvdata(pdev, ocelot);
 	ocelot->dev = &pdev->dev;
 
+	err = request_irq(pdev->irq, &felix_isr, 0, "felix-intb", ocelot);
+	if (err)
+		goto err_alloc_irq;
+
 	ocelot->ocelot_wq = alloc_workqueue("ocelot_wq", 0, 0);
 	if (!ocelot->ocelot_wq) {
 		err = -ENOMEM;
 		goto err_alloc_wq;
 	}
 
-	INIT_WORK(&ocelot->tx_clean_work, felix_tx_clean_work);
+	INIT_WORK(&ocelot->irq_handle_work, felix_irq_handle_work);
 
 	INIT_LIST_HEAD(&ocelot->skbs);
 
@@ -829,6 +844,8 @@ err_iomap:
 err_resource_len:
 	destroy_workqueue(ocelot->ocelot_wq);
 err_alloc_wq:
+	free_irq(pdev->irq, ocelot);
+err_alloc_irq:
 	kfree(ocelot);
 err_alloc_ocelot:
 err_dma:
@@ -845,6 +862,8 @@ static void felix_pci_remove(struct pci_dev *pdev)
 
 	/* stop workqueue thread */
 	ocelot_deinit(ocelot);
+
+	free_irq(pdev->irq, ocelot);
 
 	unregister_netdevice_notifier(&ocelot_netdevice_nb);
 
