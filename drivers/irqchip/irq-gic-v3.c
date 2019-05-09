@@ -419,12 +419,7 @@ static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs
 				/* FIXME: use the fixed source coreID from core1 */
 				irqsrc = 1;
 				ipi_baremetal_handle(irqnr, irqsrc);
-			} else {
-#ifdef CONFIG_SMP
-				ipipe_handle_multi_ipi(irqnr, regs);
-#else
-				WARN_ONCE(true, "Unexpected SGI received!\n");
-#endif
+				handle_IPI(irqnr, regs);
 			}
 #else
 #ifdef CONFIG_SMP
