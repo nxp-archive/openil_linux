@@ -61,4 +61,12 @@ int switch_cb_get(struct net_device *ndev, u32 index,
 int switch_pcp_map_set(struct net_device *ndev, bool enable);
 int switch_dscp_set(struct net_device *ndev, bool enable, const u8 dscp_ix,
 		    struct tsn_qos_switch_dscp_conf *c);
+
+static inline void ocelot_port_rmwl(struct ocelot_port *port, u32 val,
+				    u32 mask, u32 reg)
+{
+	u32 cur = ocelot_port_readl(port, reg);
+
+	ocelot_port_writel(port, (cur & (~mask)) | val, reg);
+}
 #endif

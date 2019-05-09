@@ -29,12 +29,6 @@
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 #endif
 
-static void ocelot_port_rmwl(struct ocelot_port *port, u32 val, u32 mask, u32 reg)
-{
-	u32 cur = ocelot_port_readl(port, reg);
-	ocelot_port_writel(port, (cur & (~mask)) | val, reg);
-}
-
 static int qos_port_tas_gcl_set(struct net_device *ndev,
 				struct ocelot *ocelot, const u8 gcl_ix,
 				struct tsn_qbv_entry *control_list,
