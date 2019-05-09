@@ -2,6 +2,8 @@
  * Copyright (C) 2013-2017 ARM Limited, All Rights Reserved.
  * Author: Marc Zyngier <marc.zyngier@arm.com>
  *
+ * Copyright 2018-2019 NXP
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -33,6 +35,8 @@
 #include <linux/irqchip/arm-gic-common.h>
 #include <linux/irqchip/arm-gic-v3.h>
 #include <linux/irqchip/irq-partition-percpu.h>
+
+#include <linux/ipi_baremetal.h>
 
 #include <asm/cputype.h>
 #include <asm/exception.h>
@@ -403,6 +407,26 @@ static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs
 			gic_write_eoir(irqnr);
 			if (static_key_true(&supports_deactivate))
 				gic_write_dir(irqnr);
+
+#ifdef CONFIG_BAREMETAL
+			if (irqnr == ipi_baremetal()) {
+				int irqsrc;
+
+				/*
+				 * for baremetal inter-core communication,
+				 * the IPI source should be got
+				 */
+				/* FIXME: use the fixed source coreID from core1 */
+				irqsrc = 1;
+				ipi_baremetal_handle(irqnr, irqsrc);
+			} else {
+#ifdef CONFIG_SMP
+				ipipe_handle_multi_ipi(irqnr, regs);
+#else
+				WARN_ONCE(true, "Unexpected SGI received!\n");
+#endif
+			}
+#else
 #ifdef CONFIG_SMP
 			/*
 			 * Unlike GICv2, we don't need an smp_rmb() here.
@@ -414,6 +438,7 @@ static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs
 			ipipe_handle_multi_ipi(irqnr, regs);
 #else
 			WARN_ONCE(true, "Unexpected SGI received!\n");
+#endif
 #endif
 			continue;
 		}
