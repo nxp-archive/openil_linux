@@ -272,7 +272,7 @@ void get_operparam(struct ocelot *ocelot, struct tsn_qbv_basic *oper)
 		ocelot_field_write(ocelot,
 				   QSYS_GCL_STATUS_REG_1_GCL_ENTRY_NUM_0, i);
 		val = ocelot_read(ocelot, QSYS_GCL_STATUS_REG_2);
-		oper->control_list->time_interval = val;
+		glist->time_interval = val;
 		val = ocelot_read(ocelot, QSYS_GCL_STATUS_REG_1);
 		glist->gate_state = QSYS_GCL_STATUS_REG_1_GATE_STATE_X(val);
 
@@ -624,8 +624,9 @@ int switch_qci_sfi_get(struct net_device *ndev, u32 index,
 	struct ocelot_port *port = netdev_priv(ndev);
 	struct ocelot *ocelot = port->ocelot;
 	u32 val, reg, fmeter_id, max_sdu;
+	u32 sfid = index * 2;
 
-	ocelot_field_write(ocelot, ANA_TABLES_SFIDTIDX_SFID_INDEX_0, index);
+	ocelot_field_write(ocelot, ANA_TABLES_SFIDTIDX_SFID_INDEX_0, sfid);
 
 	ocelot_write(ocelot,
 		     ANA_TABLES_SFIDACCESS_SFID_TBL_CMD(SFIDACCESS_CMD_READ),
@@ -693,7 +694,7 @@ int switch_qci_sfi_counters_get(struct net_device *ndev, u32 index,
 {
 	struct ocelot_port *port = netdev_priv(ndev);
 	struct ocelot *ocelot = port->ocelot;
-	u32 sfid = index;
+	u32 sfid = index * 2;
 	u32 match, not_pass, not_pass_sdu, red;
 
 	ocelot_field_write(ocelot, SYS_STAT_CFG_STAT_VIEW_0, sfid);
@@ -810,7 +811,7 @@ int switch_qci_sgi_set(struct net_device *ndev, u32 index,
 	} while (ocelot_read(ocelot, ANA_SG_ACCESS_CTRL) &
 		 ANA_SG_ACCESS_CTRL_CONFIG_CHANGE);
 
-	return SUCCESS;
+	return 0;
 }
 
 void get_list(struct ocelot *ocelot, struct tsn_qci_psfp_gcl *gcl, uint32_t num)
@@ -1000,9 +1001,13 @@ int switch_qci_fmi_get(struct net_device *ndev, u32 index,
 	reg = ocelot_read_gix(ocelot, ANA_POL_CIR_CFG, index);
 
 	fmi->eir = ANA_POL_PIR_CFG_PIR_RATE_X(val);
+	fmi->eir = fmi->eir * 100 / 3;
 	fmi->ebs = ANA_POL_PIR_CFG_PIR_BURST(val);
+	fmi->ebs *= 4096;
 	fmi->cir = ANA_POL_CIR_CFG_CIR_RATE_X(reg);
+	fmi->cir = fmi->cir * 100 / 3;
 	fmi->cbs = ANA_POL_CIR_CFG_CIR_BURST(reg);
+	fmi->cbs *= 4096;
 	if (!(fmi->eir | fmi->ebs | fmi->cir | fmi->cbs))
 		fmi->mark_red = TRUE;
 	else
