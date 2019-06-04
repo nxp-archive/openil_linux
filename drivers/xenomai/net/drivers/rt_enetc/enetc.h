@@ -189,6 +189,7 @@ struct enetc_int_vector {
 	int count_tx_rings;
 	struct napi_struct napi;
 	char name[IFNAMSIZ + 8];
+	rtdm_irq_t irq_handle;
 
 	struct enetc_bdr rx_ring ____cacheline_aligned_in_smp;
 	struct enetc_bdr tx_ring[0];
