@@ -21,9 +21,10 @@ static void enetc_add_rx_buff_to_skb(struct enetc_bdr *rx_ring, int i,
 static void enetc_process_skb(struct enetc_bdr *rx_ring, struct rtskb *skb);
 static int enetc_clean_rx_ring(struct enetc_bdr *rx_ring);
 
-static irqreturn_t enetc_msix(int irq, void *data)
+static int enetc_msix(rtdm_irq_t *irq_handle)
 {
-	struct enetc_int_vector	*v = data;
+	struct enetc_int_vector	*v =
+		rtdm_irq_get_arg(irq_handle, struct enetc_int_vector);
 	int j;
 
 	for (j = 0; j < v->count_tx_rings; j++)
@@ -31,7 +32,7 @@ static irqreturn_t enetc_msix(int irq, void *data)
 
 	enetc_clean_rx_ring(&v->rx_ring);
 
-	return IRQ_HANDLED;
+	return RTDM_IRQ_HANDLED;
 }
 
 /* max number of fragments + optional extension BD */
@@ -961,9 +962,10 @@ int enetc_setup_irqs(struct enetc_ndev_priv *priv)
 		struct enetc_hw *hw = &priv->si->hw;
 
 		sprintf(v->name, "%s-rxtx%d", priv->ndev->name, i);
-		err = request_irq(irq, enetc_msix, 0, v->name, v);
+		err = rtdm_irq_request(&v->irq_handle, irq,
+				enetc_msix, 0, v->name, v);
 		if (err) {
-			dev_err(priv->dev, "request_irq() failed!\n");
+			dev_err(priv->dev, "rtdm_irq_request() failed!\n");
 			goto irq_err;
 		}
 
