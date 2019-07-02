@@ -44,8 +44,8 @@ static int qos_port_tas_gcl_set(struct net_device *ndev,
 		netdev_info(ndev, "Invalid gcl ix %u\n", gcl_ix);
 		return -EINVAL;
 	}
-	if (!control_list->time_interval ||
-	    (control_list->time_interval > 1000000000)) {
+	if (control_list->time_interval < 1000 ||
+	    control_list->time_interval > 1000000000) {
 		netdev_info(ndev, "Invalid time_interval %u\n",
 			    control_list->time_interval);
 		return -EINVAL;
