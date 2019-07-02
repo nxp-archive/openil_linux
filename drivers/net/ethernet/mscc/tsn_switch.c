@@ -22,12 +22,15 @@
 #define SE_IX_PORT 64
 #define MSCC_QOS_DSCP_MAX 63
 #define MSCC_QOS_DP_MAX 1
+#define NUM_OUT_PORT 4
 #ifndef MIN
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 #endif
 #ifndef MAX
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 #endif
+
+int Streamhandle_map[256] = {0};
 
 static int qos_port_tas_gcl_set(struct net_device *ndev,
 				struct ocelot *ocelot, const u8 gcl_ix,
@@ -480,13 +483,15 @@ int switch_cb_streamid_get(struct net_device *ndev, u32 index,
 {
 	struct ocelot_port *ocelot_port = netdev_priv(ndev);
 	struct ocelot *ocelot = ocelot_port->ocelot;
-
-	u32 m_index = index / 4;
-	u32 bucket =  index % 4;
+	u32 m_index;
+	u32 bucket;
 	u32 val, dst, reg;
 	u64 dmac;
 	u32 ldmac, hdmac;
 
+	index = Streamhandle_map[index];
+	m_index = index / 4;
+	bucket =  index % 4;
 	streamid->type = 1;
 	regmap_field_write(ocelot->regfields[ANA_TABLES_MACTINDX_BUCKET],
 			   bucket);
@@ -523,53 +528,83 @@ int switch_cb_streamid_get(struct net_device *ndev, u32 index,
 
 	return 0;
 }
-u32 lookup_pgid(u32 mask, struct ocelot *ocelot)
+
+int lookup_mactable(struct ocelot *ocelot, u16 vid, u64 mac)
 {
-	int i;
-	u32 val, port_mask;
+	u32 mach, macl;
+	u32 reg1, reg2;
+	u32 index, bucket;
 
-	for (i = 0; i < PGID_AGGR; i++) {
-		val = ocelot_read_rix(ocelot, ANA_PGID_PGID, i);
-		port_mask = ANA_PGID_PGID_PGID(val);
-		if (mask == port_mask)
-			return i;
-	}
-	if (i == PGID_AGGR)
-		return PGID_UC;
+	macl = mac & 0xffffffff;
+	mach = (mac >> 32) & 0xffff;
+	ocelot_write(ocelot, macl, ANA_TABLES_MACLDATA);
+	ocelot_write(ocelot, ANA_TABLES_MACHDATA_VID(vid) |
+		     ANA_TABLES_MACHDATA_MACHDATA(mach),
+		     ANA_TABLES_MACHDATA);
 
-	return 0;
+	ocelot_write(ocelot, ANA_TABLES_MACACCESS_VALID |
+		     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(
+				MACACCESS_CMD_READ),
+		     ANA_TABLES_MACACCESS);
+
+	reg1 = ocelot_read(ocelot, ANA_TABLES_MACLDATA);
+	reg2 = ocelot_read(ocelot, ANA_TABLES_MACHDATA);
+	if (reg1 == 0 && reg2 == 0)
+		return -1;
+
+	regmap_field_read(ocelot->regfields[ANA_TABLES_MACTINDX_BUCKET],
+			  &bucket);
+	regmap_field_read(ocelot->regfields[ANA_TABLES_MACTINDX_M_INDEX],
+			  &index);
+
+	index = index * 4 + bucket;
+
+	return index;
 }
 int switch_cb_streamid_set(struct net_device *ndev, u32 index, bool enable,
 			   struct tsn_cb_streamid *streamid)
 {
 	struct ocelot_port *port = netdev_priv(ndev);
 	struct ocelot *ocelot = port->ocelot;
-	u32 macl, mach;
 	u16 vid;
 	u64 mac;
+	u32 macl, mach;
 	u32 dst_idx;
+	int idx;
+	u32 reg;
 	int sfid, ssid;
-	u32 m_index = index / 4;
-	u32 bucket =  index % 4;
+	u32 m_index, bucket;
 
-	regmap_field_write(ocelot->regfields[ANA_TABLES_MACTINDX_BUCKET],
-			   bucket);
-	regmap_field_write(ocelot->regfields[ANA_TABLES_MACTINDX_M_INDEX],
-			   m_index);
 	if (streamid->type != 1)
 		return -EINVAL;
 
-	if (enable) {
-		netdev_dbg(ndev, "index=%d mac=0x%llx vid=0x%x sfid=%d dst=%d\n",
-			   index, streamid->para.nid.dmac,
-			   streamid->para.nid.vid,
-			   streamid->handle,
-			   port->chip_port);
+	mac = streamid->para.nid.dmac;
+	macl = mac & 0xffffffff;
+	mach = (mac >> 32) & 0xffff;
+	vid = streamid->para.nid.vid;
 
-		mac = streamid->para.nid.dmac;
-		macl = mac & 0xffffffff;
-		mach = (mac >> 32) & 0xffff;
-		vid = streamid->para.nid.vid;
+	idx = lookup_mactable(ocelot, vid, mac);
+
+	if (!enable) {
+		netdev_info(ndev, "disable stream set\n");
+		ocelot_write(ocelot, macl, ANA_TABLES_MACLDATA);
+		ocelot_write(ocelot, ANA_TABLES_MACHDATA_VID(vid) |
+			     ANA_TABLES_MACHDATA_MACHDATA(mach),
+			     ANA_TABLES_MACHDATA);
+
+		ocelot_write(ocelot,
+			     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(
+				    MACACCESS_CMD_FORGET),
+			     ANA_TABLES_MACACCESS);
+
+		if (idx >= 0)
+			Streamhandle_map[streamid->handle] = 0;
+
+		return 0;
+	}
+
+	idx = lookup_mactable(ocelot, vid, mac);
+	if (idx < 0) {
 		ocelot_write(ocelot, macl, ANA_TABLES_MACLDATA);
 		ocelot_write(ocelot, ANA_TABLES_MACHDATA_VID(vid) |
 			     ANA_TABLES_MACHDATA_MACHDATA(mach),
@@ -589,31 +624,114 @@ int switch_cb_streamid_set(struct net_device *ndev, u32 index, bool enable,
 			     ANA_TABLES_MACACCESS_ENTRYTYPE(1) |
 			     ANA_TABLES_MACACCESS_DEST_IDX(dst_idx) |
 			     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(
-				    MACACCESS_CMD_WRITE),
+				    MACACCESS_CMD_LEARN),
 			     ANA_TABLES_MACACCESS);
 
 		ocelot_write(ocelot, ANA_TABLES_MACACCESS_VALID |
-			     ANA_TABLES_MACACCESS_ENTRYTYPE(1) |
-			     ANA_TABLES_MACACCESS_DEST_IDX(dst_idx) |
 			     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(
-				    MACACCESS_CMD_LEARN),
+				MACACCESS_CMD_READ),
 			     ANA_TABLES_MACACCESS);
-	} else {
-		netdev_info(ndev, "disable stream set\n");
-		mac = streamid->para.nid.dmac;
-		macl = mac & 0xffffffff;
-		mach = (mac >> 32) & 0xffff;
-		vid = streamid->para.nid.vid;
-		ocelot_write(ocelot, macl, ANA_TABLES_MACLDATA);
-		ocelot_write(ocelot, ANA_TABLES_MACHDATA_VID(vid) |
-			     ANA_TABLES_MACHDATA_MACHDATA(mach),
-			     ANA_TABLES_MACHDATA);
 
-		ocelot_write(ocelot,
-			     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(
-				    MACACCESS_CMD_FORGET),
-			     ANA_TABLES_MACACCESS);
+		regmap_field_read(
+			ocelot->regfields[ANA_TABLES_MACTINDX_BUCKET],
+			&bucket);
+		regmap_field_read(
+			ocelot->regfields[ANA_TABLES_MACTINDX_M_INDEX],
+			&m_index);
+
+		m_index = m_index * 4 + bucket;
+		Streamhandle_map[streamid->handle] = m_index;
+
+		return 0;
 	}
+
+	reg = ocelot_read(ocelot, ANA_TABLES_MACACCESS);
+	dst_idx = ANA_TABLES_MACACCESS_DEST_IDX_X(reg);
+	ocelot_write(ocelot, ANA_TABLES_MACACCESS_VALID |
+		     ANA_TABLES_MACACCESS_ENTRYTYPE(1) |
+		     ANA_TABLES_MACACCESS_DEST_IDX(dst_idx) |
+		     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(
+			 MACACCESS_CMD_WRITE),
+		     ANA_TABLES_MACACCESS);
+
+	Streamhandle_map[streamid->handle] = idx;
+
+	return 0;
+}
+
+static int streamid_multi_forward_set(struct ocelot *ocelot, u32 index,
+				      u8 fwdmask)
+{
+	u32 m_index;
+	u32 bucket;
+	u32 val;
+	int m, n, i;
+	u8 pgid_val, fwdport;
+	u32 dst_idx;
+
+	m_index = index / 4;
+	bucket =  index % 4;
+
+	regmap_field_write(ocelot->regfields[ANA_TABLES_MACTINDX_BUCKET],
+			   bucket);
+	regmap_field_write(ocelot->regfields[ANA_TABLES_MACTINDX_M_INDEX],
+			   m_index);
+
+	/*READ command MACACCESS.VALID(11 bit) must be 0 */
+	ocelot_write(ocelot,
+		     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(
+			    MACACCESS_CMD_READ),
+		     ANA_TABLES_MACACCESS);
+
+	val = ocelot_read(ocelot, ANA_TABLES_MACACCESS);
+	fwdport = ANA_TABLES_MACACCESS_DEST_IDX_X(val);
+
+	if (fwdport >= NUM_OUT_PORT) {
+		dst_idx = fwdport;
+		return 0;
+	}
+
+	fwdmask |= (1 << fwdport);
+
+	m = ocelot->num_phys_ports - 1;
+	for (i = m; i >= NUM_OUT_PORT; i--) {
+		if (fwdmask & (1 << i)) {
+			dst_idx = PGID_MCRED + (m - i) * NUM_OUT_PORT +
+				  fwdport;
+			pgid_val = (1 << i) | (1 << fwdport);
+			break;
+		}
+	}
+
+	if (i < NUM_OUT_PORT) {
+		m = PGID_MCRED +
+		    (ocelot->num_phys_ports - NUM_OUT_PORT) * NUM_OUT_PORT;
+		for (; i > 0; i--) {
+			if (fwdmask & (1 << i))
+				break;
+
+			m = m + (1 << i) - 1;
+		}
+		n = fwdmask & ((1 << i) - 1);
+		if (n) {
+			dst_idx = m + n;
+			pgid_val = fwdmask & ((1 << NUM_OUT_PORT) - 1);
+		} else {
+			dst_idx = fwdport;
+		}
+	}
+
+	if (dst_idx < PGID_MCRED)
+		return 0;
+
+	ocelot_write(ocelot, ANA_TABLES_MACACCESS_VALID |
+		     ANA_TABLES_MACACCESS_ENTRYTYPE(1) |
+		     ANA_TABLES_MACACCESS_DEST_IDX(dst_idx) |
+		     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(
+			MACACCESS_CMD_WRITE),
+		     ANA_TABLES_MACACCESS);
+
+	ocelot_write_rix(ocelot, pgid_val, ANA_PGID_PGID, dst_idx);
 
 	return 0;
 }
@@ -1039,6 +1157,10 @@ int switch_seq_gen_set(struct net_device *ndev, u32 index,
 	netdev_dbg(ndev, "iport_mask=0x%x split_mask=0x%x seq_len=%d seq_num=%d\n",
 		   sg_conf->iport_mask, sg_conf->split_mask,
 		   sg_conf->seq_len, sg_conf->seq_num);
+
+	streamid_multi_forward_set(ocelot,
+				   Streamhandle_map[index],
+				   sg_conf->split_mask);
 
 	ocelot_write(ocelot,
 		     ANA_TABLES_SEQ_MASK_SPLIT_MASK(split_mask) |
