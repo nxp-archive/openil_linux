@@ -132,6 +132,9 @@ int switch_qbv_set(struct net_device *ndev, struct tsn_qbv_conf *shaper_config)
 			       QSYS_TAG_CONFIG, port->chip_port);
 	}
 
+	if (!shaper_config->gate_enabled)
+		admin_basic->gate_states = 0xff;
+
 	ocelot_rmw_rix(ocelot,
 		    (shaper_config->gate_enabled ? QSYS_TAG_CONFIG_ENABLE : 0) |
 		    QSYS_TAG_CONFIG_INIT_GATE_STATE(admin_basic->gate_states) |
