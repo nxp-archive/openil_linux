@@ -67,6 +67,14 @@ static int xmit_cbdr(struct enetc_si *si, int i)
 	return 0;
 }
 
+static inline u64 get_current_time(struct enetc_si *si)
+{
+	u64 tmp = 0;
+
+	tmp = (u64)enetc_rd(&si->hw, ENETC_SICTR0);
+	return ((u64)enetc_rd(&si->hw, ENETC_SICTR1) << 32) + tmp;
+}
+
 /* Class 10: Flow Meter Instance Statistics Query Descriptor - Long Format */
 int enetc_qci_fmi_counters_get(struct net_device *ndev, u32 index,
 			struct fmi_query_stat_resp *counters)
@@ -449,8 +457,7 @@ int enetc_qbv_get_status(struct net_device *ndev,
 	status->tick_granularity = enetc_rd(&priv->si->hw, ENETC_SITGTGR);
 
 	/* current time */
-	temp = ((u64)enetc_rd(&priv->si->hw, ENETC_SICTR1)) << 32;
-	status->current_time = enetc_rd(&priv->si->hw, ENETC_SICTR0) + temp;
+	status->current_time = get_current_time(priv->si);
 
 	status->supported_list_max = maxlen;
 
@@ -1230,7 +1237,6 @@ int enetc_qci_sgi_status_get(struct net_device *ndev, u16 index,
 	dma_addr_t dma;
 	u16 data_size, dma_size, gcl_data_stat = 0;
 	u8 oper_len = 0;
-	u64 temp;
 	int curr_cbd, i;
 
 	curr_cbd = alloc_cbdr(priv->si, &cbdr_sgi);
@@ -1350,8 +1356,7 @@ cmd2quit:
 	status->tick_granularity = enetc_rd(&priv->si->hw, ENETC_SITGTGR);
 
 	/* current time */
-	temp = ((u64)enetc_rd(&priv->si->hw, ENETC_SICTR1)) << 32;
-	status->current_time = enetc_rd(&priv->si->hw, ENETC_SICTR0) + temp;
+	status->current_time = get_current_time(priv->si);
 
 	memset(cbdr_sgi, 0, sizeof(*cbdr_sgi));
 
@@ -1738,9 +1743,6 @@ static int enetc_get_cbs(struct net_device *ndev, u8 tc)
 
 	return cbs[tc].bw;
 }
-
-#define GET_CURRENT_TIME(si) (enetc_rd(&(si)->hw, ENETC_SICTR0) \
-		| ((u64)enetc_rd(&(si)->hw, ENETC_SICTR1) << 32))
 
 static int enetc_set_tsd(struct net_device *ndev, struct tsn_tsd *ttsd)
 {
