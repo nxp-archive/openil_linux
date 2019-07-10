@@ -3209,6 +3209,12 @@ static int switch_acl_add(struct sk_buff *skb, struct genl_info *info)
 	char *portname;
 	bool tsn_found = false;
 
+	if (!info->attrs[SWITCH_ACL_ATTR_IFNAME]) {
+		tsn_simple_reply(info, TSN_CMD_REPLY,
+				 "no portname", -TSN_ATTRERR);
+		return NULL;
+	}
+
 	portname = (char *)nla_data(info->attrs[SWITCH_ACL_ATTR_IFNAME]);
 
 	netdev = __dev_get_by_name(genl_info_net(info), portname);
@@ -3242,6 +3248,12 @@ static int switch_acl_add(struct sk_buff *skb, struct genl_info *info)
 		return -1;
 	}
 
+	if (!info->attrs[SWITCH_ACL_ATTR_ID])
+		return -EINVAL;
+
+	if (!info->attrs[SWITCH_ACL_ATTR_ACE])
+		return -EINVAL;
+
 	id = nla_get_u32(info->attrs[SWITCH_ACL_ATTR_ID]);
 
 	nla_memcpy(&ace, info->attrs[SWITCH_ACL_ATTR_ACE], sizeof(ace));
@@ -3267,6 +3279,12 @@ static int switch_acl_del(struct sk_buff *skb, struct genl_info *info)
 	struct tsn_port *port;
 	char *portname;
 	bool tsn_found = false;
+
+	if (!info->attrs[SWITCH_ACL_ATTR_IFNAME]) {
+		tsn_simple_reply(info, TSN_CMD_REPLY,
+				 "no portname", -TSN_ATTRERR);
+		return NULL;
+	}
 
 	portname = (char *)nla_data(info->attrs[SWITCH_ACL_ATTR_IFNAME]);
 
@@ -3301,6 +3319,9 @@ static int switch_acl_del(struct sk_buff *skb, struct genl_info *info)
 		return -1;
 	}
 
+	if (!info->attrs[SWITCH_ACL_ATTR_ID])
+		return -EINVAL;
+
 	id = nla_get_u32(info->attrs[SWITCH_ACL_ATTR_ID]);
 
 	ret = tsnops->ace_del(netdev, id);
@@ -3327,6 +3348,12 @@ static int switch_acl_get(struct sk_buff *skb, struct genl_info *info)
 	u32 cnt;
 	struct sk_buff *rep_skb;
 	struct genlmsghdr *genlhdr;
+
+	if (!info->attrs[SWITCH_ACL_ATTR_IFNAME]) {
+		tsn_simple_reply(info, TSN_CMD_REPLY,
+				 "no portname", -TSN_ATTRERR);
+		return NULL;
+	}
 
 	portname = (char *)nla_data(info->attrs[SWITCH_ACL_ATTR_IFNAME]);
 
@@ -3360,6 +3387,9 @@ static int switch_acl_get(struct sk_buff *skb, struct genl_info *info)
 				 netdev->name, -TSN_NODEVOPS);
 		return -1;
 	}
+
+	if (!info->attrs[SWITCH_ACL_ATTR_ID])
+		return -EINVAL;
 
 	id = nla_get_u32(info->attrs[SWITCH_ACL_ATTR_ID]);
 
