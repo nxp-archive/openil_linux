@@ -400,19 +400,6 @@ static void __exception_irq_entry gic_handle_irq(struct pt_regs *regs)
 	do {
 		irqstat = readl_relaxed(cpu_base + GIC_CPU_INTACK);
 		irqnr = irqstat & GICC_IAR_INT_ID_MASK;
-#ifdef CONFIG_BAREMETAL
-#define GICC_IAR_MASK	0x1fff
-		int irqsrc;
-
-		if (irqnr == ipi_baremetal()) {
-			/*
-			 * for baremetal inter-core communication,
-			 * the IPI source should be got
-			 */
-			irqsrc = (irqstat & GICC_IAR_MASK) >> 10;
-			ipi_baremetal_handle(irqnr, irqsrc);
-		}
-#endif
 
 		if (likely(irqnr > 15 && irqnr < 1020)) {
 			if (static_key_true(&supports_deactivate))
@@ -425,6 +412,21 @@ static void __exception_irq_entry gic_handle_irq(struct pt_regs *regs)
 			writel_relaxed(irqstat, cpu_base + GIC_CPU_EOI);
 			if (static_key_true(&supports_deactivate))
 				writel_relaxed(irqstat, cpu_base + GIC_CPU_DEACTIVATE);
+
+#ifdef CONFIG_BAREMETAL
+#define GICC_IAR_MASK	0x1fff
+		int irqsrc;
+
+		if (irqnr == ipi_baremetal()) {
+			/*
+			 * for baremetal inter-core communication,
+			 * the IPI source should be got
+			 */
+			irqsrc = (irqstat & GICC_IAR_MASK) >> 10;
+			ipi_baremetal_handle(irqnr, irqsrc);
+			handle_IPI(irqnr, regs);
+		}
+#else
 #ifdef CONFIG_SMP
 			/*
 			 * Ensure any shared data written by the CPU sending
@@ -435,6 +437,7 @@ static void __exception_irq_entry gic_handle_irq(struct pt_regs *regs)
 			 */
 			smp_rmb();
 			ipipe_handle_multi_ipi(irqnr, regs);
+#endif
 #endif
 			continue;
 		}
