@@ -433,12 +433,12 @@ void ipipe_prepare_panic(void);
 #ifndef ipipe_smp_p
 #define ipipe_smp_p (1)
 #endif
-void ipipe_set_irq_affinity(unsigned int irq, cpumask_t cpumask);
+int ipipe_set_irq_affinity(unsigned int irq, cpumask_t cpumask);
 void ipipe_send_ipi(unsigned int ipi, cpumask_t cpumask);
 #else  /* !CONFIG_SMP */
 #define ipipe_smp_p (0)
 static inline
-void ipipe_set_irq_affinity(unsigned int irq, cpumask_t cpumask) { }
+int ipipe_set_irq_affinity(unsigned int irq, cpumask_t cpumask) { return 0; }
 static inline void ipipe_send_ipi(unsigned int ipi, cpumask_t cpumask) { }
 static inline void ipipe_disable_smp(void) { }
 #endif	/* CONFIG_SMP */
