@@ -2841,9 +2841,6 @@ static void __trace_hardirqs_on_caller(unsigned long ip)
 
 void lockdep_hardirqs_on(unsigned long ip)
 {
-	if (!ipipe_root_p)
-		return;
-
 	if (unlikely(!debug_locks || current->lockdep_recursion))
 		return;
 
@@ -2889,9 +2886,6 @@ void lockdep_hardirqs_on(unsigned long ip)
 void lockdep_hardirqs_off(unsigned long ip)
 {
 	struct task_struct *curr;
-
-	if (!ipipe_root_p)
-		return;
 
 	curr = current;
 
