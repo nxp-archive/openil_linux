@@ -66,6 +66,17 @@ __visible void trace_hardirqs_on_caller(unsigned long caller_addr)
 }
 EXPORT_SYMBOL(trace_hardirqs_on_caller);
 
+__visible void trace_hardirqs_on_virt_caller(unsigned long ip)
+{
+	/*
+	 * The IRQ tracing logic only applies to the root domain, and
+	 * must consider the virtual disable flag exclusively when
+	 * leaving an interrupt/fault context.
+	 */
+	if (ipipe_root_p && !irqs_disabled())
+		trace_hardirqs_on_caller(ip);
+}
+
 __visible void trace_hardirqs_on_virt(void)
 {
 	/*
