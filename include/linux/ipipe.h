@@ -475,7 +475,7 @@ static inline struct ipipe_threadinfo *ipipe_current_threadinfo(void)
 
 #define ipipe_task_threadinfo(p) (&task_thread_info(p)->ipipe_data)
 
-void ipipe_enable_irq(unsigned int irq);
+int ipipe_enable_irq(unsigned int irq);
 
 static inline void ipipe_disable_irq(unsigned int irq)
 {

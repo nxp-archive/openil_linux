@@ -1088,7 +1088,7 @@ __fixup_irq_handler(struct irq_desc *desc, irq_flow_handler_t handle, int is_cha
 	return handle;
 }
 
-void ipipe_enable_irq(unsigned int irq)
+int ipipe_enable_irq(unsigned int irq)
 {
 	struct irq_desc *desc;
 	struct irq_chip *chip;
@@ -1096,7 +1096,7 @@ void ipipe_enable_irq(unsigned int irq)
 
 	desc = irq_to_desc(irq);
 	if (desc == NULL)
-		return;
+		return -EINVAL;
 
 	chip = irq_desc_get_chip(desc);
 
@@ -1111,16 +1111,18 @@ void ipipe_enable_irq(unsigned int irq)
 		}
 		raw_spin_unlock_irqrestore(&desc->lock, flags);
 
-		return;
+		return 0;
 	}
 
-	if (WARN_ON_ONCE(chip->irq_enable == NULL && chip->irq_unmask == NULL))
-		return;
+	if (chip->irq_enable == NULL && chip->irq_unmask == NULL)
+		return -ENOSYS;
 
 	if (chip->irq_enable)
 		chip->irq_enable(&desc->irq_data);
 	else
 		chip->irq_unmask(&desc->irq_data);
+
+	return 0;
 }
 EXPORT_SYMBOL_GPL(ipipe_enable_irq);
 
