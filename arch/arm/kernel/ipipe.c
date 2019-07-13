@@ -115,17 +115,17 @@ void __ipipe_hook_critical_ipi(struct ipipe_domain *ipd)
 	hook_internal_ipi(ipd, IPIPE_SERVICE_VNMI, __ipipe_do_vnmi);
 }
 
-void ipipe_set_irq_affinity(unsigned int irq, cpumask_t cpumask)
+int ipipe_set_irq_affinity(unsigned int irq, cpumask_t cpumask)
 {
 	if (ipipe_virtual_irq_p(irq) ||
 	    irq_get_chip(irq)->irq_set_affinity == NULL)
-		return;
+		return 0;
 
 	cpumask_and(&cpumask, &cpumask, cpu_online_mask);
 	if (WARN_ON_ONCE(cpumask_empty(&cpumask)))
-		return;
+		return 0;
 
-	irq_get_chip(irq)->irq_set_affinity(irq_get_irq_data(irq), &cpumask, true);
+	return irq_get_chip(irq)->irq_set_affinity(irq_get_irq_data(irq), &cpumask, true);
 }
 EXPORT_SYMBOL_GPL(ipipe_set_irq_affinity);
 
