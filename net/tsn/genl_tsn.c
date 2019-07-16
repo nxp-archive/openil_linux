@@ -3208,8 +3208,8 @@ static int switch_acl_add(struct sk_buff *skb, struct genl_info *info)
 
 	if (!info->attrs[SWITCH_ACL_ATTR_IFNAME]) {
 		tsn_simple_reply(info, TSN_CMD_REPLY,
-				 "no portname", -TSN_ATTRERR);
-		return NULL;
+				 "no portname", -ENODEV);
+		return -ENODEV;
 	}
 
 	portname = (char *)nla_data(info->attrs[SWITCH_ACL_ATTR_IFNAME]);
@@ -3279,8 +3279,8 @@ static int switch_acl_del(struct sk_buff *skb, struct genl_info *info)
 
 	if (!info->attrs[SWITCH_ACL_ATTR_IFNAME]) {
 		tsn_simple_reply(info, TSN_CMD_REPLY,
-				 "no portname", -TSN_ATTRERR);
-		return NULL;
+				 "no portname", -ENODEV);
+		return -ENODEV;
 	}
 
 	portname = (char *)nla_data(info->attrs[SWITCH_ACL_ATTR_IFNAME]);
@@ -3348,8 +3348,8 @@ static int switch_acl_get(struct sk_buff *skb, struct genl_info *info)
 
 	if (!info->attrs[SWITCH_ACL_ATTR_IFNAME]) {
 		tsn_simple_reply(info, TSN_CMD_REPLY,
-				 "no portname", -TSN_ATTRERR);
-		return NULL;
+				 "no portname", -ENODEV);
+		return -ENODEV;
 	}
 
 	portname = (char *)nla_data(info->attrs[SWITCH_ACL_ATTR_IFNAME]);
