@@ -1582,17 +1582,15 @@ int switch_cb_get(struct net_device *ndev, u32 index, struct tsn_cb_status *c)
 	return 0;
 }
 
-int switch_pcp_map_set(struct net_device *ndev, bool enable)
+static int pcp_map_enable(struct ocelot *ocelot, u8 port)
 {
-	struct ocelot_port *port = netdev_priv(ndev);
-	struct ocelot *ocelot = port->ocelot;
 	int i;
 
 	ocelot_rmw_gix(ocelot,
-		       (enable ? ANA_PORT_QOS_CFG_QOS_PCP_ENA : 0),
+		       ANA_PORT_QOS_CFG_QOS_PCP_ENA,
 		       ANA_PORT_QOS_CFG_QOS_PCP_ENA,
 		       ANA_PORT_QOS_CFG,
-		       port->chip_port);
+		       port);
 
 	for (i = 0; i < NUM_MSCC_QOS_PRIO * 2; i++) {
 		ocelot_rmw_ix(ocelot,
@@ -1601,7 +1599,7 @@ int switch_pcp_map_set(struct net_device *ndev, bool enable)
 			      ANA_PORT_PCP_DEI_MAP_DP_PCP_DEI_VAL |
 			      ANA_PORT_PCP_DEI_MAP_QOS_PCP_DEI_VAL_M,
 			      ANA_PORT_PCP_DEI_MAP,
-			      port->chip_port, i);
+			      port, i);
 	}
 
 	return 0;
@@ -1651,4 +1649,12 @@ int switch_dscp_set(struct net_device *ndev,
 	ocelot_write_rix(ocelot, val, ANA_DSCP_CFG, ri);
 
 	return 0;
+}
+
+void switch_tsn_init(struct net_device *ndev)
+{
+	struct ocelot_port *port = netdev_priv(ndev);
+	struct ocelot *ocelot = port->ocelot;
+
+	pcp_map_enable(ocelot, port->chip_port);
 }

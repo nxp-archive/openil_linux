@@ -36,7 +36,6 @@ static const struct nla_policy tsn_cmd_policy[TSN_CMD_ATTR_MAX + 1] = {
 	[TSN_ATTR_CBGEN]		= { .type = NLA_NESTED },
 	[TSN_ATTR_CBREC]		= { .type = NLA_NESTED },
 	[TSN_ATTR_CBSTAT]               = { .type = NLA_NESTED },
-	[TSN_ATTR_PCPMAP]		= { .type = NLA_NESTED },
 	[TSN_ATTR_DSCP]                 = { .type = NLA_NESTED },
 	[SWITCH_ATTR_ACL]               = { .type = NLA_NESTED },
 };
@@ -70,10 +69,6 @@ static const struct nla_policy cbstat_policy[TSN_CBSTAT_ATTR_MAX + 1] = {
 	[TSN_CBSTAT_ATTR_PORT_MASK]	= { .type = NLA_U8 },
 	[TSN_CBSTAT_ATTR_HIS_LEN]       = { .type = NLA_U8 },
 	[TSN_CBSTAT_ATTR_SEQ_HIS]       = { .type = NLA_U32 },
-};
-
-static const struct nla_policy pcpmap_policy[TSN_PCPMAP_ATTR_MAX + 1] = {
-	[TSN_PCPMAP_ATTR_ENABLE]	= { .type = NLA_FLAG},
 };
 
 static const struct nla_policy qbu_policy[TSN_QBU_ATTR_MAX + 1] = {
@@ -3084,58 +3079,6 @@ static int tsn_cbstatus_get(struct sk_buff *skb, struct genl_info *info)
 	return tsn_send_reply(rep_skb, info);
 }
 
-static int tsn_pcpmap_set(struct sk_buff *skb, struct genl_info *info)
-{
-	struct nlattr *na;
-	struct nlattr *pcpmapa[TSN_PCPMAP_ATTR_MAX + 1];
-	struct net_device *netdev;
-	const struct tsn_ops *tsnops;
-	int ret;
-	bool enable = 0;
-	struct tsn_port *port;
-
-	port = tsn_init_check(info, &netdev);
-	if (!port)
-		return -ENODEV;
-
-	tsnops = port->tsnops;
-
-	if (!info->attrs[TSN_ATTR_PCPMAP]) {
-		tsn_simple_reply(info, TSN_CMD_REPLY,
-				 netdev->name, -EINVAL);
-		return -EINVAL;
-	}
-
-	na = info->attrs[TSN_ATTR_PCPMAP];
-
-	if (!tsnops->pcpmap_set) {
-		tsn_simple_reply(info, TSN_CMD_REPLY,
-				 netdev->name, -EPERM);
-		return -1;
-	}
-
-	ret = NLA_PARSE_NESTED(pcpmapa, TSN_PCPMAP_ATTR_MAX,
-			       na, pcpmap_policy);
-	if (ret) {
-		tsn_simple_reply(info, TSN_CMD_REPLY,
-				 netdev->name, -EINVAL);
-		return -EINVAL;
-	}
-
-	enable = nla_get_flag(pcpmapa[TSN_PCPMAP_ATTR_ENABLE]);
-	ret = tsnops->pcpmap_set(netdev, enable);
-	if (ret < 0) {
-		tsn_simple_reply(info, TSN_CMD_REPLY,
-				 netdev->name, ret);
-		return ret;
-	}
-
-	tsn_simple_reply(info, TSN_CMD_REPLY,
-			 netdev->name, 0);
-
-	return 0;
-}
-
 static int tsn_dscp_set(struct sk_buff *skb, struct genl_info *info)
 {
 	struct nlattr *na;
@@ -3555,12 +3498,6 @@ static const struct genl_ops tsnnl_ops[] = {
 	{
 		.cmd		= TSN_CMD_CBSTAT_GET,
 		.doit		= tsn_cbstatus_get,
-		.policy		= tsn_cmd_policy,
-		.flags		= GENL_ADMIN_PERM,
-	},
-	{
-		.cmd		= TSN_CMD_PCPMAP_SET,
-		.doit		= tsn_pcpmap_set,
 		.policy		= tsn_cmd_policy,
 		.flags		= GENL_ADMIN_PERM,
 	},
