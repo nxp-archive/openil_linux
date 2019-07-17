@@ -924,27 +924,97 @@ struct tsn_qci_psfp_fmi_counters {
 	uint64_t remark_red;
 };
 
+/* 802.1cb */
 struct tsn_seq_gen_conf {
+
+	/* The InputPortMask parameter contains a port mask.
+	 * If the packet is from input port belonging to this
+	 * port mask then it's on known stream and sequence
+	 * generation parameters can be applied.
+	 */
 	uint8_t iport_mask;
+
+	/* The SplitMask parameter contains a output port mask
+	 * used to add redundant paths.
+	 */
 	uint8_t split_mask;
+
+	/* The SequenceSpaceLenLog parameter is a value to specifies
+	 * number of bits to be used for sequence number.
+	 */
 	uint8_t seq_len;
+
+	/* The SequenceNumber parameter is a value to used for
+	 * outgoing packet's sequence number generation.
+	 */
 	uint32_t seq_num;
 };
 
 struct tsn_seq_rec_conf {
+
+	/* The SequenceSpaceLenLog parameter is a value to specifies
+	 * number of bits to be used for sequence number.
+	 */
 	uint8_t seq_len;
+
+	/* The HistorySpaceLenLog parameter is a value to specifies
+	 * number of bits to be used for history register.
+	 */
 	uint8_t his_len;
+
+	/* The RTagPopEnable parameter contains a bool to enable removal
+	 * of redundancy tag from the packet.
+	 */
 	bool rtag_pop_en;
 };
 
 struct tsn_cb_status {
+
+	/* The GenRecover parameter contains a value specifies type
+	 * of stream sequence parameters:
+	 *	0: Stream sequence parameters are for generation.
+	 *	1: Stream sequence parameters are for recovery.
+	 */
 	uint8_t gen_rec;
+
+	/* The ErrStatus parameter indicates stream's error status
+	 * 1: This switch is expected to sequence the stream,
+	 *    but the incoming packet has sequence number.
+	 * 2: This switch is expected to recover the stream,
+	 *    but the incoming packet is NONSEQ.
+	 */
 	uint8_t err;
+
+	/* The SequenceNumber parameter is a value to used for
+	 * outgoing packet's sequence number generation.
+	 */
 	uint32_t seq_num;
+
+	/* The SequenceSpaceLenLog parameter is a value to specifies
+	 * number of bits to be used for sequence number.
+	 */
 	uint8_t seq_len;
+
+	/* The SplitMask parameter contains a output port mask
+	 * used to add redundant paths.
+	 */
 	uint8_t split_mask;
+
+	/* The InputPortMask parameter contains a port mask.
+	 * If the packet is from input port belonging to this
+	 * port mask then it's on known stream and sequence
+	 * generation parameters can be applied.
+	 */
 	uint8_t iport_mask;
+
+	/* The HistorySpaceLenLog parameter is a value to specifies
+	 * number of bits to be used for history register.
+	 */
 	uint8_t his_len;
+
+	/* The SequenceHistory parameter Maintains history of sequence
+	 * numbers of received packets.
+	 */
 	uint32_t seq_his;
 };
 

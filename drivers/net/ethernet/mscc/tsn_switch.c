@@ -1519,10 +1519,6 @@ int switch_seq_rec_set(struct net_device *ndev, u32 index,
 		return -EINVAL;
 	}
 
-	ocelot_rmw_rix(ocelot, ANA_PORT_MODE_REDTAG_PARSE_CFG,
-		       ANA_PORT_MODE_REDTAG_PARSE_CFG,
-		       ANA_PORT_MODE, port->chip_port);
-
 	ocelot_write(ocelot,
 		     ANA_TABLES_STREAMTIDX_S_INDEX(index) |
 		     ANA_TABLES_STREAMTIDX_FORCE_SF_BEHAVIOUR |
@@ -1605,6 +1601,17 @@ static int pcp_map_enable(struct ocelot *ocelot, u8 port)
 	return 0;
 }
 
+static int rtag_parse_enable(struct ocelot *ocelot, u8 port)
+{
+	ocelot_rmw_rix(ocelot,
+		       ANA_PORT_MODE_REDTAG_PARSE_CFG,
+		       ANA_PORT_MODE_REDTAG_PARSE_CFG,
+		       ANA_PORT_MODE,
+		       port);
+
+	return 0;
+}
+
 int switch_dscp_set(struct net_device *ndev,
 		    bool enable,
 		    const u8 dscp_ix,
@@ -1657,4 +1664,5 @@ void switch_tsn_init(struct net_device *ndev)
 	struct ocelot *ocelot = port->ocelot;
 
 	pcp_map_enable(ocelot, port->chip_port);
+	rtag_parse_enable(ocelot, port->chip_port);
 }
