@@ -148,6 +148,12 @@ enum enetc_bdr_type {TX, RX};
 #define ENETC_PORT_BASE		0x10000
 #define ENETC_PMR		0x0000
 #define ENETC_PMR_EN	GENMASK(18, 16)
+#define ENETC_PMR_PSPEED_MASK GENMASK(11, 8)
+#define ENETC_PMR_PSPEED_10M 0x000
+#define ENETC_PMR_PSPEED_100M 0x100
+#define ENETC_PMR_PSPEED_1000M 0x200
+#define ENETC_PMR_PSPEED_2500M 0x400
+
 #define ENETC_PSR		0x0004 /* RO */
 #define ENETC_PSIPMR		0x0018
 #define ENETC_PSIPMR_SET_UP(n)	BIT(n) /* n = SI index */
