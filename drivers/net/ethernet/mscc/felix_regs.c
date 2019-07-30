@@ -295,12 +295,23 @@ static const u32 felix_gcb_regmap[] = {
 	REG(GCB_SOFT_RST,		   0x000004),
 };
 
+static const u32 felix_is2_regmap[] = {
+	REG(S2_CORE_UPDATE_CTRL,	   0x000000),
+	REG(S2_CORE_MV_CFG,		   0x000004),
+	REG(S2_CACHE_ENTRY_DAT,		   0x000008),
+	REG(S2_CACHE_MASK_DAT,		   0x000108),
+	REG(S2_CACHE_ACTION_DAT,	   0x000208),
+	REG(S2_CACHE_CNT_DAT,		   0x000308),
+	REG(S2_CACHE_TG_DAT,		   0x000388),
+};
+
 static const u32 *felix_regmap[] = {
 	[ANA] = felix_ana_regmap,
 	[QS] = felix_qs_regmap,
 	[QSYS] = felix_qsys_regmap,
 	[REW] = felix_rew_regmap,
 	[SYS] = felix_sys_regmap,
+	[IS2] = felix_is2_regmap,
 	[PTP] = felix_ptp_regmap,
 	[GCB] = felix_gcb_regmap,
 };

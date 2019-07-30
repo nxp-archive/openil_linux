@@ -62,6 +62,10 @@ int switch_pcp_map_set(struct net_device *ndev, bool enable);
 int switch_dscp_set(struct net_device *ndev, bool enable, const u8 dscp_ix,
 		    struct tsn_qos_switch_dscp_conf *c);
 
+int switch_ace_add(struct net_device *ndev, struct felix_ace_t *ace);
+int switch_ace_del(struct net_device *ndev, u16 id);
+int switch_ace_get(struct net_device *ndev, u16 id, int clear);
+
 static inline void ocelot_port_rmwl(struct ocelot_port *port, u32 val,
 				    u32 mask, u32 reg)
 {

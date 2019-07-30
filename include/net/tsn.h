@@ -6,6 +6,8 @@
 
 #include <linux/notifier.h>
 #include <uapi/linux/tsn.h>
+#include <uapi/linux/acl.h>
+
 enum tsn_notifier_type {
 	TSN_QBV_CONFIGCHANGETIME_ARRIVE = 1,
 };
@@ -84,6 +86,9 @@ struct tsn_ops {
 	int (*dscp_set)(struct net_device *ndev, bool enable,
 			const u8 dscp_ix,
 			struct tsn_qos_switch_dscp_conf *c);
+	int (*ace_add)(struct net_device *ndev, struct felix_ace_t *ace);
+	int (*ace_del)(struct net_device *ndev, uint16_t id);
+	int (*ace_get)(struct net_device *ndev, uint16_t id, int clear);
 };
 
 enum ethdev_type {

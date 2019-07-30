@@ -72,6 +72,9 @@ enum {
 	TSN_CMD_CBSTAT_GET,
 	TSN_CMD_PCPMAP_SET,
 	TSN_CMD_DSCP_SET,
+	SWITCH_CMD_ACL_ADD,
+	SWITCH_CMD_ACL_DEL,
+	SWITCH_CMD_ACL_GET,
 	TSN_CMD_ECHO,			/* user->kernel request/get-response */
 	TSN_CMD_REPLY,			/* kernel->user event */
 	__TSN_CMD_MAX,
@@ -100,6 +103,7 @@ enum {
 	TSN_ATTR_CBSTAT,                 /* 802.1CB status */
 	TSN_ATTR_PCPMAP,		/* map queue number to PCP tag */
 	TSN_ATTR_DSCP,
+	SWITCH_ATTR_ACL,
 	__TSN_CMD_ATTR_MAX,
 };
 #define TSN_CMD_ATTR_MAX (__TSN_CMD_ATTR_MAX - 1)
@@ -351,6 +355,17 @@ enum {
 	TSN_DSCP_ATTR_DPL,
 	__TSN_DSCP_ATTR_MAX,
 	TSN_DSCP_ATTR_MAX = __TSN_DSCP_ATTR_MAX - 1,
+};
+
+enum {
+	SWITCH_ACL_ATTR_UNSPEC,
+	SWITCH_ACL_ATTR_IFNAME,
+	SWITCH_ACL_ATTR_ID,
+	SWITCH_ACL_ATTR_ACTION,
+	SWITCH_ACL_ATTR_CNT,
+	SWITCH_ACL_ATTR_ACE,
+	__SWITCH_ACL_ATTR_MAX,
+	SWITCH_ACL_ATTR_MAX = __SWITCH_ACL_ATTR_MAX - 1,
 };
 
 #define ptptime_t uint64_t

@@ -44,6 +44,7 @@ static const struct nla_policy tsn_cmd_policy[TSN_CMD_ATTR_MAX + 1] = {
 	[TSN_ATTR_CBSTAT]               = { .type = NLA_NESTED },
 	[TSN_ATTR_PCPMAP]		= { .type = NLA_NESTED },
 	[TSN_ATTR_DSCP]                 = { .type = NLA_NESTED },
+	[SWITCH_ATTR_ACL]               = { .type = NLA_NESTED },
 };
 
 static const struct nla_policy ct_policy[TSN_CT_ATTR_MAX + 1] = {
@@ -291,6 +292,20 @@ struct tsn_port *tsn_get_port(struct net_device *ndev)
 	return port;
 }
 EXPORT_SYMBOL_GPL(tsn_get_port);
+
+static const struct nla_policy acl_policy[] = {
+	[SWITCH_ACL_ATTR_IFNAME] = { .type = NLA_STRING },
+	[SWITCH_ACL_ATTR_ID] = { .type = NLA_U32 },
+	[SWITCH_ACL_ATTR_ACTION] = {
+		.type = NLA_BINARY,
+		.len = sizeof(struct felix_acl_action_t),
+	},
+	[SWITCH_ACL_ATTR_CNT] = { .type = NLA_U32 },
+	[SWITCH_ACL_ATTR_ACE] = {
+		.type = NLA_BINARY,
+		.len = sizeof(struct felix_ace_t),
+	},
+};
 
 static int tsn_prepare_reply(struct genl_info *info, u8 cmd,
 			     struct sk_buff **skbp, size_t size)
@@ -3183,6 +3198,188 @@ static int tsn_dscp_set(struct sk_buff *skb, struct genl_info *info)
 	return 0;
 }
 
+static int switch_acl_add(struct sk_buff *skb, struct genl_info *info)
+{
+	struct net_device *netdev;
+	const struct tsn_ops *tsnops;
+	int ret;
+	u32 id;
+	struct felix_ace_t ace;
+	struct tsn_port *port;
+	char *portname;
+	bool tsn_found = false;
+
+	portname = (char *)nla_data(info->attrs[SWITCH_ACL_ATTR_IFNAME]);
+
+	netdev = __dev_get_by_name(genl_info_net(info), portname);
+	if (!netdev) {
+		tsn_simple_reply(info, TSN_CMD_REPLY,
+				 "error device", -TSN_NODEVOPS);
+		return -ENODEV;
+	}
+
+	list_for_each_entry(port, &port_list, list) {
+		if (port->netdev == netdev) {
+			tsn_found = true;
+			break;
+		}
+	}
+
+	if (!tsn_found) {
+		tsn_simple_reply(info, TSN_CMD_REPLY,
+				 netdev->name, -TSN_NODEVOPS);
+		return -ENODEV;
+	}
+
+	if (!port)
+		return -ENODEV;
+
+	tsnops = port->tsnops;
+
+	if (!tsnops->ace_add) {
+		tsn_simple_reply(info, TSN_CMD_REPLY,
+				 netdev->name, -TSN_NODEVOPS);
+		return -1;
+	}
+
+	id = nla_get_u32(info->attrs[SWITCH_ACL_ATTR_ID]);
+
+	nla_memcpy(&ace, info->attrs[SWITCH_ACL_ATTR_ACE], sizeof(ace));
+
+	ret = tsnops->ace_add(netdev, &ace);
+	if (ret < 0) {
+		tsn_simple_reply(info, TSN_CMD_REPLY,
+				 netdev->name, -TSN_DEVRETERR);
+		return -EINVAL;
+	}
+
+	tsn_simple_reply(info, TSN_CMD_REPLY,
+			 netdev->name, TSN_SUCCESS);
+	return 0;
+}
+
+static int switch_acl_del(struct sk_buff *skb, struct genl_info *info)
+{
+	struct net_device *netdev;
+	const struct tsn_ops *tsnops;
+	int ret;
+	u32 id;
+	struct tsn_port *port;
+	char *portname;
+	bool tsn_found = false;
+
+	portname = (char *)nla_data(info->attrs[SWITCH_ACL_ATTR_IFNAME]);
+
+	netdev = __dev_get_by_name(genl_info_net(info), portname);
+	if (!netdev) {
+		tsn_simple_reply(info, TSN_CMD_REPLY,
+				 "error device", -TSN_NODEVOPS);
+		return -ENODEV;
+	}
+
+	list_for_each_entry(port, &port_list, list) {
+		if (port->netdev == netdev) {
+			tsn_found = true;
+			break;
+		}
+	}
+
+	if (!tsn_found) {
+		tsn_simple_reply(info, TSN_CMD_REPLY,
+				 netdev->name, -TSN_NODEVOPS);
+		return -ENODEV;
+	}
+
+	if (!port)
+		return -ENODEV;
+
+	tsnops = port->tsnops;
+
+	if (!tsnops->ace_del) {
+		tsn_simple_reply(info, TSN_CMD_REPLY,
+				 netdev->name, -TSN_NODEVOPS);
+		return -1;
+	}
+
+	id = nla_get_u32(info->attrs[SWITCH_ACL_ATTR_ID]);
+
+	ret = tsnops->ace_del(netdev, id);
+	if (ret < 0) {
+		tsn_simple_reply(info, TSN_CMD_REPLY,
+				 netdev->name, -TSN_DEVRETERR);
+		return -EINVAL;
+	}
+
+	tsn_simple_reply(info, TSN_CMD_REPLY,
+			 netdev->name, TSN_SUCCESS);
+	return 0;
+}
+
+static int switch_acl_get(struct sk_buff *skb, struct genl_info *info)
+{
+	struct net_device *netdev;
+	const struct tsn_ops *tsnops;
+	int ret;
+	u32 id;
+	struct tsn_port *port;
+	char *portname;
+	bool tsn_found = false;
+	u32 cnt;
+	struct sk_buff *rep_skb;
+	struct genlmsghdr *genlhdr;
+
+	portname = (char *)nla_data(info->attrs[SWITCH_ACL_ATTR_IFNAME]);
+
+	netdev = __dev_get_by_name(genl_info_net(info), portname);
+	if (!netdev) {
+		tsn_simple_reply(info, TSN_CMD_REPLY,
+				 "error device", -TSN_NODEVOPS);
+		return -ENODEV;
+	}
+
+	list_for_each_entry(port, &port_list, list) {
+		if (port->netdev == netdev) {
+			tsn_found = true;
+			break;
+		}
+	}
+
+	if (!tsn_found) {
+		tsn_simple_reply(info, TSN_CMD_REPLY,
+				 netdev->name, -TSN_NODEVOPS);
+		return -ENODEV;
+	}
+
+	if (!port)
+		return -ENODEV;
+
+	tsnops = port->tsnops;
+
+	if (!tsnops->ace_get) {
+		tsn_simple_reply(info, TSN_CMD_REPLY,
+				 netdev->name, -TSN_NODEVOPS);
+		return -1;
+	}
+
+	id = nla_get_u32(info->attrs[SWITCH_ACL_ATTR_ID]);
+
+	cnt = tsnops->ace_get(netdev, id, 0);
+
+	genlhdr = info->genlhdr;
+	ret = tsn_prepare_reply(info, genlhdr->cmd,
+				&rep_skb, NLMSG_ALIGN(MAX_ATTR_SIZE));
+
+	if (ret < 0)
+		return ret;
+
+	if (nla_put_u32(rep_skb, SWITCH_ACL_ATTR_CNT, cnt))
+		return -EMSGSIZE;
+
+	tsn_send_reply(rep_skb, info);
+
+	return 0;
+}
+
 static const struct genl_ops tsnnl_ops[] = {
 	{
 		.cmd		= TSN_CMD_ECHO,
@@ -3343,6 +3540,24 @@ static const struct genl_ops tsnnl_ops[] = {
 	{
 		.cmd		= TSN_CMD_DSCP_SET,
 		.doit		= tsn_dscp_set,
+		.policy		= tsn_cmd_policy,
+		.flags		= GENL_ADMIN_PERM,
+	},
+	{
+		.cmd		= SWITCH_CMD_ACL_ADD,
+		.doit		= switch_acl_add,
+		.policy		= tsn_cmd_policy,
+		.flags		= GENL_ADMIN_PERM,
+	},
+	{
+		.cmd		= SWITCH_CMD_ACL_DEL,
+		.doit		= switch_acl_del,
+		.policy		= tsn_cmd_policy,
+		.flags		= GENL_ADMIN_PERM,
+	},
+	{
+		.cmd		= SWITCH_CMD_ACL_GET,
+		.doit		= switch_acl_get,
 		.policy		= tsn_cmd_policy,
 		.flags		= GENL_ADMIN_PERM,
 	},

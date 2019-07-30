@@ -26,6 +26,7 @@
 #include "ocelot_sys.h"
 #include "ocelot_qs.h"
 #include "ocelot_ptp.h"
+#include "ocelot_s2.h"
 
 #define PGID_AGGR    64
 #define PGID_SRC     80
@@ -77,6 +78,7 @@ enum ocelot_target {
 	QSYS,
 	REW,
 	SYS,
+	IS2,
 	GCB,
 	HSIO,
 	TARGET_MAX,
@@ -436,6 +438,13 @@ enum ocelot_reg {
 	HSIO_TEMP_SENSOR_CFG,
 	HSIO_TEMP_SENSOR_STAT,
 	GCB_SOFT_RST = GCB << TARGET_OFFSET,
+	S2_CORE_UPDATE_CTRL = IS2 << TARGET_OFFSET,
+	S2_CORE_MV_CFG,
+	S2_CACHE_ENTRY_DAT,
+	S2_CACHE_MASK_DAT,
+	S2_CACHE_ACTION_DAT,
+	S2_CACHE_CNT_DAT,
+	S2_CACHE_TG_DAT,
 };
 
 enum ocelot_regfield {

@@ -61,6 +61,9 @@ const struct tsn_ops switch_tsn_ops = {
 	.cb_get				= switch_cb_get,
 	.pcpmap_set			= switch_pcp_map_set,
 	.dscp_set			= switch_dscp_set,
+	.ace_add                        = switch_ace_add,
+	.ace_del                        = switch_ace_del,
+	.ace_get                        = switch_ace_get,
 };
 #endif
 
@@ -103,6 +106,12 @@ static struct resource felix_switch_res[] = {
 		.start = 0x0010000,
 		.end = 0x001ffff,
 		.name = "sys",
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = 0x0060000,
+		.end = 0x006ffff,
+		.name = "IS2",
 		.flags = IORESOURCE_MEM,
 	},
 	{
