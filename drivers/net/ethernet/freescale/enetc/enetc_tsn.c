@@ -1601,6 +1601,33 @@ u32 enetc_tsn_get_capability(struct net_device *ndev)
 	return __enetc_tsn_get_cap(priv->si);
 }
 
+static int  __enetc_get_max_cap(struct enetc_si *si,
+				struct tsn_qci_psfp_stream_param *stream_para)
+{
+	u32 reg = 0;
+
+	/* Port stream filter capability */
+	reg = enetc_port_rd(&si->hw, ENETC_PSFCAPR);
+	stream_para->max_sf_instance = reg & ENETC_PSFCAPR_MSK;
+	/* Port stream filter capability */
+	reg = enetc_port_rd(&si->hw, ENETC_PSGCAPR);
+	stream_para->max_sg_instance = (reg & ENETC_PSGCAPR_SGIT_MSK);
+	stream_para->supported_list_max = (reg & ENETC_PSGCAPR_GCL_MSK) >> 16;
+	/* Port flow meter capability */
+	reg = enetc_port_rd(&si->hw, ENETC_PFMCAPR);
+	stream_para->max_fm_instance = reg & ENETC_PFMCAPR_MSK;
+
+	return 0;
+}
+
+int enetc_get_max_cap(struct net_device *ndev,
+		      struct tsn_qci_psfp_stream_param *stream_para)
+{
+	struct enetc_ndev_priv *priv = netdev_priv(ndev);
+
+	return __enetc_get_max_cap(priv->si, stream_para);
+}
+
 static int enetc_set_cbs(struct net_device *ndev, u8 tc, u8 bw)
 {
 	struct enetc_ndev_priv *priv = netdev_priv(ndev);
@@ -1847,6 +1874,7 @@ static struct tsn_ops enetc_tsn_ops_full = {
 	.cb_streamid_set = enetc_cb_streamid_set,
 	.cb_streamid_get = enetc_cb_streamid_get,
 	.cb_streamid_counters_get = enetc_cb_streamid_counters_get,
+	.qci_get_maxcap = enetc_get_max_cap,
 	.qci_sfi_set = enetc_qci_sfi_set,
 	.qci_sfi_get = enetc_qci_sfi_get,
 	.qci_sfi_counters_get = enetc_qci_sfi_counters_get,
@@ -1870,6 +1898,7 @@ static struct tsn_ops enetc_tsn_ops_part = {
 	.cb_streamid_set = enetc_cb_streamid_set,
 	.cb_streamid_get = enetc_cb_streamid_get,
 	.cb_streamid_counters_get = enetc_cb_streamid_counters_get,
+	.qci_get_maxcap = enetc_get_max_cap,
 	.qci_sfi_set = enetc_qci_sfi_set,
 	.qci_sfi_get = enetc_qci_sfi_get,
 	.qci_sfi_counters_get = enetc_qci_sfi_counters_get,

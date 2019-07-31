@@ -31,6 +31,7 @@ enum tsn_capability {
 	TSN_CAP_CBS = 0x8, /* Credit-based Shapter Qav */
 	TSN_CAP_CB  = 0x10, /* 8021CB redundancy and replication */
 	TSN_CAP_TBS = 0x20, /* Time Based schedule */
+	TSN_CAP_CTH = 0x40, /* cut through */
 };
 
 /*
@@ -41,6 +42,7 @@ enum tsn_capability {
 
 enum {
 	TSN_CMD_UNSPEC = 0,	/* Reserved */
+	TSN_CMD_CAP_GET,
 	TSN_CMD_QBV_SET,
 	TSN_CMD_QBV_GET,
 	TSN_CMD_QBV_GET_STATUS,
@@ -85,6 +87,7 @@ enum {
 	TSN_CMD_ATTR_DATA,		/* demo data */
 	TSN_ATTR_IFNAME,
 	TSN_ATTR_PORT_NUMBER,
+	TSN_ATTR_CAP,		/* TSN capbility */
 	TSN_ATTR_QBV,
 	TSN_ATTR_STREAM_IDENTIFY, /* stream identify */
 	TSN_ATTR_QCI_SP,		/* psfp port capbility parameters */
@@ -103,6 +106,19 @@ enum {
 	__TSN_CMD_ATTR_MAX,
 };
 #define TSN_CMD_ATTR_MAX (__TSN_CMD_ATTR_MAX - 1)
+
+enum {
+	TSN_CAP_ATTR_UNSPEC,
+	TSN_CAP_ATTR_QBV,
+	TSN_CAP_ATTR_QCI,
+	TSN_CAP_ATTR_QBU,
+	TSN_CAP_ATTR_CBS,
+	TSN_CAP_ATTR_CB,
+	TSN_CAP_ATTR_TBS,
+	TSN_CAP_ATTR_CTH,
+	__TSN_CAP_ATTR_MAX,
+	TSN_CAP_ATTR_MAX = __TSN_CAP_ATTR_MAX - 1,
+};
 
 enum {
 	TSN_QBU_ATTR_UNSPEC,
@@ -159,6 +175,16 @@ enum {
 	TSN_STREAMID_ATTR_COUNTERS_PSPPO,
 	__TSN_STREAMID_ATTR_MAX,
 	TSN_STREAMID_ATTR_MAX = __TSN_STREAMID_ATTR_MAX - 1,
+};
+
+enum {
+	TSN_QCI_STREAM_ATTR_UNSPEC = 0,
+	TSN_QCI_STREAM_ATTR_MAX_SFI,
+	TSN_QCI_STREAM_ATTR_MAX_SGI,
+	TSN_QCI_STREAM_ATTR_MAX_FMI,
+	TSN_QCI_STREAM_ATTR_SLM,
+	__TSN_QCI_STREAM_ATTR_MAX,
+	TSN_QCI_STREAM_ATTR_MAX = __TSN_QCI_STREAM_ATTR_MAX - 1,
 };
 
 enum {

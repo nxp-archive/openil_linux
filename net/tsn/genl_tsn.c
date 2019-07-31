@@ -23,6 +23,7 @@ static const struct nla_policy tsn_cmd_policy[TSN_CMD_ATTR_MAX + 1] = {
 	[TSN_CMD_ATTR_DATA]		= { .type = NLA_S32 },
 	[TSN_ATTR_IFNAME]		= { .type = NLA_STRING },
 	[TSN_ATTR_PORT_NUMBER]		= { .type = NLA_U8 },
+	[TSN_ATTR_CAP]			= { .type = NLA_NESTED	},
 	[TSN_ATTR_QBV]			= { .type = NLA_NESTED },
 	[TSN_ATTR_STREAM_IDENTIFY]	= { .type = NLA_NESTED },
 	[TSN_ATTR_QCI_SP]		= { .type = NLA_NESTED },
@@ -38,6 +39,23 @@ static const struct nla_policy tsn_cmd_policy[TSN_CMD_ATTR_MAX + 1] = {
 	[TSN_ATTR_CBSTAT]               = { .type = NLA_NESTED },
 	[TSN_ATTR_DSCP]                 = { .type = NLA_NESTED },
 	[SWITCH_ATTR_ACL]               = { .type = NLA_NESTED },
+};
+
+static const struct nla_policy tsn_cap_policy[TSN_CAP_ATTR_MAX + 1] = {
+	[TSN_CAP_ATTR_QBV]		= { .type = NLA_FLAG },
+	[TSN_CAP_ATTR_QCI]		= { .type = NLA_FLAG },
+	[TSN_CAP_ATTR_QBU]		= { .type = NLA_FLAG },
+	[TSN_CAP_ATTR_CBS]		= { .type = NLA_FLAG },
+	[TSN_CAP_ATTR_CB]		= { .type = NLA_FLAG },
+	[TSN_CAP_ATTR_TBS]		= { .type = NLA_FLAG },
+	[TSN_CAP_ATTR_CTH]		= { .type = NLA_FLAG },
+};
+
+static const struct nla_policy qci_cap_policy[TSN_QCI_STREAM_ATTR_MAX + 1] = {
+	[TSN_QCI_STREAM_ATTR_MAX_SFI]	= { .type = NLA_U32 },
+	[TSN_QCI_STREAM_ATTR_MAX_SGI]	= { .type = NLA_U32 },
+	[TSN_QCI_STREAM_ATTR_MAX_FMI]	= { .type = NLA_U32 },
+	[TSN_QCI_STREAM_ATTR_SLM]	= { .type = NLA_U32 },
 };
 
 static const struct nla_policy ct_policy[TSN_CT_ATTR_MAX + 1] = {
@@ -490,6 +508,100 @@ struct tsn_port *tsn_init_check(struct genl_info *info,
 	return port;
 }
 
+static int tsn_cap_get(struct sk_buff *skb, struct genl_info *info)
+{
+	struct sk_buff *rep_skb;
+	struct nlattr *tsn_cap_arrt;
+	int ret;
+	int cap = 0;
+	struct net_device *netdev;
+	struct genlmsghdr *genlhdr;
+	const struct tsn_ops *tsnops;
+	struct tsn_port *port;
+
+	port = tsn_init_check(info, &netdev);
+	if (!port) {
+		ret = -ENODEV;
+		goto out;
+	}
+
+	tsnops = port->tsnops;
+	genlhdr = info->genlhdr;
+	if (!tsnops->get_capability) {
+		ret = -EOPNOTSUPP;
+		goto out;
+	}
+
+	cap = tsnops->get_capability(netdev);
+	if (cap < 0) {
+		ret = cap;
+		goto out;
+	}
+
+	/* Pad netlink reply data */
+	ret = tsn_prepare_reply(info, genlhdr->cmd,
+				&rep_skb, NLMSG_ALIGN(MAX_ATTR_SIZE));
+	if (ret < 0)
+		goto out;
+
+	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name)) {
+		ret = -EMSGSIZE;
+		goto err;
+	}
+
+	tsn_cap_arrt = nla_nest_start(rep_skb, TSN_ATTR_CAP);
+	if (!tsn_cap_arrt) {
+		ret = -EMSGSIZE;
+		goto err;
+	}
+
+	if (cap & TSN_CAP_QBV) {
+		if (nla_put_flag(rep_skb, TSN_CAP_ATTR_QBV))
+			goto err;
+	}
+
+	if (cap & TSN_CAP_QCI) {
+		if (nla_put_flag(rep_skb, TSN_CAP_ATTR_QCI))
+			goto err;
+	}
+
+	if (cap & TSN_CAP_QBU) {
+		if (nla_put_flag(rep_skb, TSN_CAP_ATTR_QBU))
+			goto err;
+	}
+
+	if (cap & TSN_CAP_CBS) {
+		if (nla_put_flag(rep_skb, TSN_CAP_ATTR_CBS))
+			goto err;
+	}
+
+	if (cap & TSN_CAP_CB) {
+		if (nla_put_flag(rep_skb, TSN_CAP_ATTR_CB))
+			goto err;
+	}
+
+	if (cap & TSN_CAP_TBS) {
+		if (nla_put_flag(rep_skb, TSN_CAP_ATTR_TBS))
+			goto err;
+	}
+
+	if (cap & TSN_CAP_CTH) {
+		if (nla_put_flag(rep_skb, TSN_CAP_ATTR_CTH))
+			goto err;
+	}
+
+	nla_nest_end(rep_skb, tsn_cap_arrt);
+
+	tsn_send_reply(rep_skb, info);
+	return 0;
+err:
+	nlmsg_free(rep_skb);
+out:
+	if (ret < 0)
+		tsn_simple_reply(info, TSN_CMD_REPLY, netdev->name, ret);
+	return ret;
+}
+
 static int cmd_cb_streamid_set(struct genl_info *info)
 {
 	struct nlattr *na, *sid[TSN_STREAMID_ATTR_MAX + 1];
@@ -808,6 +920,78 @@ static int tsn_cb_streamid_counters_get(struct sk_buff *skb,
 	}
 
 	return -1;
+}
+
+static int tsn_qci_cap_get(struct sk_buff *skb, struct genl_info *info)
+{
+	struct nlattr *qci_cap;
+	struct sk_buff *rep_skb;
+	int ret;
+	struct net_device *netdev;
+	struct genlmsghdr *genlhdr;
+	struct tsn_qci_psfp_stream_param qci_cap_status;
+	const struct tsn_ops *tsnops;
+	struct tsn_port *port;
+
+	port = tsn_init_check(info, &netdev);
+	if (!port) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	tsnops = port->tsnops;
+
+	genlhdr = info->genlhdr;
+
+	memset(&qci_cap_status, 0, sizeof(qci_cap_status));
+
+	if (!tsnops->qci_get_maxcap) {
+		ret = -EOPNOTSUPP;
+		goto out;
+	}
+	ret = tsnops->qci_get_maxcap(netdev, &qci_cap_status);
+
+	if (ret < 0)
+		goto out;
+
+	/* Pad netlink reply data */
+	ret = tsn_prepare_reply(info, genlhdr->cmd,
+				&rep_skb, NLMSG_ALIGN(MAX_ATTR_SIZE));
+	if (ret < 0)
+		goto out;
+
+	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name)) {
+		ret = -EMSGSIZE;
+		goto err;
+	}
+
+	qci_cap = nla_nest_start(rep_skb, TSN_ATTR_QCI_SP);
+	if (!qci_cap) {
+		ret = -EMSGSIZE;
+		goto err;
+	}
+	if (nla_put_u32(rep_skb, TSN_QCI_STREAM_ATTR_MAX_SFI,
+			qci_cap_status.max_sf_instance) ||
+		nla_put_u32(rep_skb, TSN_QCI_STREAM_ATTR_MAX_SGI,
+			    qci_cap_status.max_sg_instance) ||
+		nla_put_u32(rep_skb, TSN_QCI_STREAM_ATTR_MAX_FMI,
+			    qci_cap_status.max_fm_instance) ||
+		nla_put_u32(rep_skb, TSN_QCI_STREAM_ATTR_SLM,
+			    qci_cap_status.supported_list_max)) {
+		ret = -EMSGSIZE;
+		goto err;
+	}
+
+	nla_nest_end(rep_skb, qci_cap);
+
+	tsn_send_reply(rep_skb, info);
+	return 0;
+err:
+	nlmsg_free(rep_skb);
+out:
+	if (ret < 0)
+		tsn_simple_reply(info, TSN_CMD_REPLY, netdev->name, ret);
+	return ret;
 }
 
 static int cmd_qci_sfi_set(struct genl_info *info)
@@ -3358,6 +3542,12 @@ static const struct genl_ops tsnnl_ops[] = {
 		.flags		= GENL_ADMIN_PERM,
 	},
 	{
+		.cmd		= TSN_CMD_CAP_GET,
+		.doit		= tsn_cap_get,
+		.policy		= tsn_cmd_policy,
+		.flags		= GENL_ADMIN_PERM,
+	},
+	{
 		.cmd		= TSN_CMD_QBV_SET,
 		.doit		= tsn_qbv_set,
 		.policy		= tsn_cmd_policy,
@@ -3390,6 +3580,12 @@ static const struct genl_ops tsnnl_ops[] = {
 	{
 		.cmd		= TSN_CMD_CB_STREAMID_GET_COUNTS,
 		.doit		= tsn_cb_streamid_counters_get,
+		.policy		= tsn_cmd_policy,
+		.flags		= GENL_ADMIN_PERM,
+	},
+	{
+		.cmd		= TSN_CMD_QCI_CAP_GET,
+		.doit		= tsn_qci_cap_get,
 		.policy		= tsn_cmd_policy,
 		.flags		= GENL_ADMIN_PERM,
 	},
