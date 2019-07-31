@@ -11,13 +11,36 @@
 
 #define TRUE 1
 #define FALSE 0
-#define SUCCESS 1
-#define FAILED 0
 
-#define SWITCH_TAS_GCL_MAX 64
-#define SWITCH_TAS_CT_MAX 1000000000
-#define SWITCH_TAS_CT_MIN 100
-#define SWITCH_TAS_CTE_MAX 999999999
+struct mscc_switch_capa {
+	u8 num_tas_gcl; /* Number of TAS Gate Control Lists */
+	u32 tas_ct_min; /* Minimum supported TAS CycleTime in nS */
+	u32 tas_ct_max; /* Maximum supported TAS CycleTime in nS */
+	u32 tas_cte_max; /* Maximum supported TAS CycleTimeExtension in nS
+			  */
+	u32 tas_it_max;
+	u32 tas_it_min;
+	u8 num_hsch;
+	u8 num_psfp_sfid;
+	u8 num_frer_ssid;
+	u8 num_psfp_sgid;
+	u16 psfp_fmi_max;
+	u16 psfp_fmi_min;
+	u8 num_sgi_gcl;
+	u32 sgi_ct_min;
+	u32 sgi_ct_max;
+	u32 sgi_cte_max;
+	u16 qos_pol_max;
+	u8 pol_cbs_max;
+	u8 pol_pbs_max;
+	u8 frer_seq_len_min;
+	u8 frer_seq_len_max;
+	u8 frer_his_len_min;
+	u8 frer_his_len_max;
+	u8 qos_dscp_max;
+	u8 qos_cos_max;
+	u8 qos_dp_max;
+};
 
 int switch_qbv_set(struct net_device *ndev,
 		   struct tsn_qbv_conf *shaper_config);
