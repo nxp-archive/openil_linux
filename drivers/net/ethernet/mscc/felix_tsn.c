@@ -61,6 +61,16 @@ static struct mscc_switch_capa capa __ro_after_init = {
 	.qos_dp_max	= 1,
 };
 
+u32 felix_tsn_get_cap(struct net_device *ndev)
+{
+	u32 cap;
+
+	cap = (TSN_CAP_QBV | TSN_CAP_QCI | TSN_CAP_QBU | TSN_CAP_CBS |
+	       TSN_CAP_CB | TSN_CAP_TBS | TSN_CAP_CTH);
+
+	return cap;
+}
+
 static int qos_port_tas_gcl_set(struct net_device *ndev,
 				struct ocelot *ocelot, const u8 gcl_ix,
 				struct tsn_qbv_entry *control_list)
@@ -851,6 +861,22 @@ static int streamid_multi_forward_set(struct ocelot *ocelot, u32 index,
 		     ANA_TABLES_MACACCESS);
 
 	ocelot_write_rix(ocelot, pgid_val, ANA_PGID_PGID, dst_idx);
+
+	return 0;
+}
+
+int felix_qci_max_cap_get(struct net_device *ndev,
+			  struct tsn_qci_psfp_stream_param *stream_para)
+{
+	/* MaxStreamFilterInstances */
+	stream_para->max_sf_instance = capa.num_psfp_sfid;
+	/* MaxStreamGateInstances */
+	stream_para->max_sg_instance = capa.num_psfp_sgid;
+	/* MaxFlowMeterInstances */
+	stream_para->max_fm_instance = capa.psfp_fmi_max -
+		capa.psfp_fmi_min + 1;
+	/* SupportedListMax */
+	stream_para->supported_list_max = capa.num_sgi_gcl;
 
 	return 0;
 }

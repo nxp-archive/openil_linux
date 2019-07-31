@@ -42,6 +42,7 @@ struct mscc_switch_capa {
 	u8 qos_dp_max;
 };
 
+u32 felix_tsn_get_cap(struct net_device *ndev);
 int felix_qbv_set(struct net_device *ndev,
 		  struct tsn_qbv_conf *shaper_config);
 int felix_qbv_get(struct net_device *ndev,
@@ -53,6 +54,8 @@ int felix_cbs_set(struct net_device *ndev, u8 tc, u8 bw);
 int felix_cbs_get(struct net_device *ndev, u8 tc);
 int felix_qbu_set(struct net_device *ndev, u8 preemptible);
 int felix_qbu_get(struct net_device *ndev, struct tsn_preempt_status *c);
+int felix_qci_max_cap_get(struct net_device *ndev,
+			  struct tsn_qci_psfp_stream_param *stream_para);
 int felix_cb_streamid_get(struct net_device *ndev, u32 index,
 			  struct tsn_cb_streamid *streamid);
 int felix_cb_streamid_set(struct net_device *ndev, u32 index,
