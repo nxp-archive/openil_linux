@@ -82,7 +82,6 @@ struct tsn_ops {
 			 struct tsn_seq_rec_conf *seqrec);
 	int (*cb_get)(struct net_device *ndev, u32 index,
 		      struct tsn_cb_status  *c);
-	int (*pcpmap_set)(struct net_device *ndev, bool enable);
 	int (*dscp_set)(struct net_device *ndev, bool enable,
 			const u8 dscp_ix,
 			struct tsn_qos_switch_dscp_conf *c);

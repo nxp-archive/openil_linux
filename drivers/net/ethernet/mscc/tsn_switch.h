@@ -11,14 +11,38 @@
 
 #define TRUE 1
 #define FALSE 0
-#define SUCCESS 1
-#define FAILED 0
 
-#define SWITCH_TAS_GCL_MAX 64
-#define SWITCH_TAS_CT_MAX 1000000000
-#define SWITCH_TAS_CT_MIN 100
-#define SWITCH_TAS_CTE_MAX 999999999
+struct mscc_switch_capa {
+	u8 num_tas_gcl; /* Number of TAS Gate Control Lists */
+	u32 tas_ct_min; /* Minimum supported TAS CycleTime in nS */
+	u32 tas_ct_max; /* Maximum supported TAS CycleTime in nS */
+	u32 tas_cte_max; /* Maximum supported TAS CycleTimeExtension in nS
+			  */
+	u32 tas_it_max;
+	u32 tas_it_min;
+	u8 num_hsch;
+	u8 num_psfp_sfid;
+	u8 num_frer_ssid;
+	u8 num_psfp_sgid;
+	u16 psfp_fmi_max;
+	u16 psfp_fmi_min;
+	u8 num_sgi_gcl;
+	u32 sgi_ct_min;
+	u32 sgi_ct_max;
+	u32 sgi_cte_max;
+	u16 qos_pol_max;
+	u8 pol_cbs_max;
+	u8 pol_pbs_max;
+	u8 frer_seq_len_min;
+	u8 frer_seq_len_max;
+	u8 frer_his_len_min;
+	u8 frer_his_len_max;
+	u8 qos_dscp_max;
+	u8 qos_cos_max;
+	u8 qos_dp_max;
+};
 
+u32 switch_tsn_get_cap(struct net_device *ndev);
 int switch_qbv_set(struct net_device *ndev,
 		   struct tsn_qbv_conf *shaper_config);
 int switch_qbv_get(struct net_device *ndev,
@@ -27,8 +51,11 @@ int switch_qbv_get_status(struct net_device *ndev,
 			  struct tsn_qbv_status *qbvstatus);
 int switch_cut_thru_set(struct net_device *ndev, u8 cut_thru);
 int switch_cbs_set(struct net_device *ndev, u8 tc, u8 bw);
+int switch_cbs_get(struct net_device *ndev, u8 tc);
 int switch_qbu_set(struct net_device *ndev, u8 preemptable);
 int switch_qbu_get(struct net_device *ndev, struct tsn_preempt_status *c);
+int switch_qci_max_cap_get(struct net_device *ndev,
+			   struct tsn_qci_psfp_stream_param *stream_para);
 int switch_cb_streamid_get(struct net_device *ndev, u32 index,
 			   struct tsn_cb_streamid *streamid);
 int switch_cb_streamid_set(struct net_device *ndev, u32 index,
@@ -58,7 +85,6 @@ int switch_seq_rec_set(struct net_device *ndev, u32 index,
 		       struct tsn_seq_rec_conf *sr_conf);
 int switch_cb_get(struct net_device *ndev, u32 index,
 		  struct tsn_cb_status  *c);
-int switch_pcp_map_set(struct net_device *ndev, bool enable);
 int switch_dscp_set(struct net_device *ndev, bool enable, const u8 dscp_ix,
 		    struct tsn_qos_switch_dscp_conf *c);
 
@@ -73,4 +99,6 @@ static inline void ocelot_port_rmwl(struct ocelot_port *port, u32 val,
 
 	ocelot_port_writel(port, (cur & (~mask)) | val, reg);
 }
+
+void switch_tsn_init(struct net_device *ndev);
 #endif

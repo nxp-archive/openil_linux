@@ -67,6 +67,14 @@ static int xmit_cbdr(struct enetc_si *si, int i)
 	return 0;
 }
 
+static inline u64 get_current_time(struct enetc_si *si)
+{
+	u64 tmp = 0;
+
+	tmp = (u64)enetc_rd(&si->hw, ENETC_SICTR0);
+	return ((u64)enetc_rd(&si->hw, ENETC_SICTR1) << 32) + tmp;
+}
+
 /* Class 10: Flow Meter Instance Statistics Query Descriptor - Long Format */
 int enetc_qci_fmi_counters_get(struct net_device *ndev, u32 index,
 			struct fmi_query_stat_resp *counters)
@@ -449,8 +457,7 @@ int enetc_qbv_get_status(struct net_device *ndev,
 	status->tick_granularity = enetc_rd(&priv->si->hw, ENETC_SITGTGR);
 
 	/* current time */
-	temp = ((u64)enetc_rd(&priv->si->hw, ENETC_SICTR1)) << 32;
-	status->current_time = enetc_rd(&priv->si->hw, ENETC_SICTR0) + temp;
+	status->current_time = get_current_time(priv->si);
 
 	status->supported_list_max = maxlen;
 
@@ -1230,7 +1237,6 @@ int enetc_qci_sgi_status_get(struct net_device *ndev, u16 index,
 	dma_addr_t dma;
 	u16 data_size, dma_size, gcl_data_stat = 0;
 	u8 oper_len = 0;
-	u64 temp;
 	int curr_cbd, i;
 
 	curr_cbd = alloc_cbdr(priv->si, &cbdr_sgi);
@@ -1350,8 +1356,7 @@ cmd2quit:
 	status->tick_granularity = enetc_rd(&priv->si->hw, ENETC_SITGTGR);
 
 	/* current time */
-	temp = ((u64)enetc_rd(&priv->si->hw, ENETC_SICTR1)) << 32;
-	status->current_time = enetc_rd(&priv->si->hw, ENETC_SICTR0) + temp;
+	status->current_time = get_current_time(priv->si);
 
 	memset(cbdr_sgi, 0, sizeof(*cbdr_sgi));
 
@@ -1596,6 +1601,33 @@ u32 enetc_tsn_get_capability(struct net_device *ndev)
 	return __enetc_tsn_get_cap(priv->si);
 }
 
+static int  __enetc_get_max_cap(struct enetc_si *si,
+				struct tsn_qci_psfp_stream_param *stream_para)
+{
+	u32 reg = 0;
+
+	/* Port stream filter capability */
+	reg = enetc_port_rd(&si->hw, ENETC_PSFCAPR);
+	stream_para->max_sf_instance = reg & ENETC_PSFCAPR_MSK;
+	/* Port stream filter capability */
+	reg = enetc_port_rd(&si->hw, ENETC_PSGCAPR);
+	stream_para->max_sg_instance = (reg & ENETC_PSGCAPR_SGIT_MSK);
+	stream_para->supported_list_max = (reg & ENETC_PSGCAPR_GCL_MSK) >> 16;
+	/* Port flow meter capability */
+	reg = enetc_port_rd(&si->hw, ENETC_PFMCAPR);
+	stream_para->max_fm_instance = reg & ENETC_PFMCAPR_MSK;
+
+	return 0;
+}
+
+int enetc_get_max_cap(struct net_device *ndev,
+		      struct tsn_qci_psfp_stream_param *stream_para)
+{
+	struct enetc_ndev_priv *priv = netdev_priv(ndev);
+
+	return __enetc_get_max_cap(priv->si, stream_para);
+}
+
 static int enetc_set_cbs(struct net_device *ndev, u8 tc, u8 bw)
 {
 	struct enetc_ndev_priv *priv = netdev_priv(ndev);
@@ -1739,9 +1771,6 @@ static int enetc_get_cbs(struct net_device *ndev, u8 tc)
 	return cbs[tc].bw;
 }
 
-#define GET_CURRENT_TIME(si) (enetc_rd(&(si)->hw, ENETC_SICTR0) \
-		| ((u64)enetc_rd(&(si)->hw, ENETC_SICTR1) << 32))
-
 static int enetc_set_tsd(struct net_device *ndev, struct tsn_tsd *ttsd)
 {
 	return 0;
@@ -1845,6 +1874,7 @@ static struct tsn_ops enetc_tsn_ops_full = {
 	.cb_streamid_set = enetc_cb_streamid_set,
 	.cb_streamid_get = enetc_cb_streamid_get,
 	.cb_streamid_counters_get = enetc_cb_streamid_counters_get,
+	.qci_get_maxcap = enetc_get_max_cap,
 	.qci_sfi_set = enetc_qci_sfi_set,
 	.qci_sfi_get = enetc_qci_sfi_get,
 	.qci_sfi_counters_get = enetc_qci_sfi_counters_get,
@@ -1868,6 +1898,7 @@ static struct tsn_ops enetc_tsn_ops_part = {
 	.cb_streamid_set = enetc_cb_streamid_set,
 	.cb_streamid_get = enetc_cb_streamid_get,
 	.cb_streamid_counters_get = enetc_cb_streamid_counters_get,
+	.qci_get_maxcap = enetc_get_max_cap,
 	.qci_sfi_set = enetc_qci_sfi_set,
 	.qci_sfi_get = enetc_qci_sfi_get,
 	.qci_sfi_counters_get = enetc_qci_sfi_counters_get,

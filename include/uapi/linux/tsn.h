@@ -13,8 +13,6 @@
 #define MAX_ENTRY_SIZE 2048
 #define MAX_ENTRY_NUMBER 128
 #define MAX_IFNAME_COUNT 64
-#define NUM_MSCC_QOS_PRIO 8
-#define MSCC_QOS_PRIO_MAX (NUM_MSCC_QOS_PRIO - 1)
 
 #define TSN_MULTICAST_GROUP_QBV	"qbv"
 #define TSN_MULTICAST_GROUP_QCI	"qci"
@@ -33,6 +31,7 @@ enum tsn_capability {
 	TSN_CAP_CBS = 0x8, /* Credit-based Shapter Qav */
 	TSN_CAP_CB  = 0x10, /* 8021CB redundancy and replication */
 	TSN_CAP_TBS = 0x20, /* Time Based schedule */
+	TSN_CAP_CTH = 0x40, /* cut through */
 };
 
 /*
@@ -43,6 +42,7 @@ enum tsn_capability {
 
 enum {
 	TSN_CMD_UNSPEC = 0,	/* Reserved */
+	TSN_CMD_CAP_GET,
 	TSN_CMD_QBV_SET,
 	TSN_CMD_QBV_GET,
 	TSN_CMD_QBV_GET_STATUS,
@@ -70,7 +70,6 @@ enum {
 	TSN_CMD_CBGEN_SET,
 	TSN_CMD_CBREC_SET,
 	TSN_CMD_CBSTAT_GET,
-	TSN_CMD_PCPMAP_SET,
 	TSN_CMD_DSCP_SET,
 	SWITCH_CMD_ACL_ADD,
 	SWITCH_CMD_ACL_DEL,
@@ -88,6 +87,7 @@ enum {
 	TSN_CMD_ATTR_DATA,		/* demo data */
 	TSN_ATTR_IFNAME,
 	TSN_ATTR_PORT_NUMBER,
+	TSN_ATTR_CAP,		/* TSN capbility */
 	TSN_ATTR_QBV,
 	TSN_ATTR_STREAM_IDENTIFY, /* stream identify */
 	TSN_ATTR_QCI_SP,		/* psfp port capbility parameters */
@@ -101,12 +101,24 @@ enum {
 	TSN_ATTR_CBGEN,			/* 802.1CB sequence generate */
 	TSN_ATTR_CBREC,			/* 802.1CB sequence recover */
 	TSN_ATTR_CBSTAT,                 /* 802.1CB status */
-	TSN_ATTR_PCPMAP,		/* map queue number to PCP tag */
 	TSN_ATTR_DSCP,
 	SWITCH_ATTR_ACL,
 	__TSN_CMD_ATTR_MAX,
 };
 #define TSN_CMD_ATTR_MAX (__TSN_CMD_ATTR_MAX - 1)
+
+enum {
+	TSN_CAP_ATTR_UNSPEC,
+	TSN_CAP_ATTR_QBV,
+	TSN_CAP_ATTR_QCI,
+	TSN_CAP_ATTR_QBU,
+	TSN_CAP_ATTR_CBS,
+	TSN_CAP_ATTR_CB,
+	TSN_CAP_ATTR_TBS,
+	TSN_CAP_ATTR_CTH,
+	__TSN_CAP_ATTR_MAX,
+	TSN_CAP_ATTR_MAX = __TSN_CAP_ATTR_MAX - 1,
+};
 
 enum {
 	TSN_QBU_ATTR_UNSPEC,
@@ -163,6 +175,16 @@ enum {
 	TSN_STREAMID_ATTR_COUNTERS_PSPPO,
 	__TSN_STREAMID_ATTR_MAX,
 	TSN_STREAMID_ATTR_MAX = __TSN_STREAMID_ATTR_MAX - 1,
+};
+
+enum {
+	TSN_QCI_STREAM_ATTR_UNSPEC = 0,
+	TSN_QCI_STREAM_ATTR_MAX_SFI,
+	TSN_QCI_STREAM_ATTR_MAX_SGI,
+	TSN_QCI_STREAM_ATTR_MAX_FMI,
+	TSN_QCI_STREAM_ATTR_SLM,
+	__TSN_QCI_STREAM_ATTR_MAX,
+	TSN_QCI_STREAM_ATTR_MAX = __TSN_QCI_STREAM_ATTR_MAX - 1,
 };
 
 enum {
@@ -338,13 +360,6 @@ enum {
 	TSN_CBSTAT_ATTR_SEQ_HIS,
 	__TSN_CBSTAT_ATTR_MAX,
 	TSN_CBSTAT_ATTR_MAX = __TSN_CBSTAT_ATTR_MAX - 1,
-};
-
-enum {
-	TSN_PCPMAP_ATTR_UNSPEC,
-	TSN_PCPMAP_ATTR_ENABLE,
-	__TSN_PCPMAP_ATTR_MAX,
-	TSN_PCPMAP_ATTR_MAX = __TSN_PCPMAP_ATTR_MAX - 1,
 };
 
 enum {
@@ -935,27 +950,97 @@ struct tsn_qci_psfp_fmi_counters {
 	uint64_t remark_red;
 };
 
+/* 802.1cb */
 struct tsn_seq_gen_conf {
+
+	/* The InputPortMask parameter contains a port mask.
+	 * If the packet is from input port belonging to this
+	 * port mask then it's on known stream and sequence
+	 * generation parameters can be applied.
+	 */
 	uint8_t iport_mask;
+
+	/* The SplitMask parameter contains a output port mask
+	 * used to add redundant paths.
+	 */
 	uint8_t split_mask;
+
+	/* The SequenceSpaceLenLog parameter is a value to specifies
+	 * number of bits to be used for sequence number.
+	 */
 	uint8_t seq_len;
+
+	/* The SequenceNumber parameter is a value to used for
+	 * outgoing packet's sequence number generation.
+	 */
 	uint32_t seq_num;
 };
 
 struct tsn_seq_rec_conf {
+
+	/* The SequenceSpaceLenLog parameter is a value to specifies
+	 * number of bits to be used for sequence number.
+	 */
 	uint8_t seq_len;
+
+	/* The HistorySpaceLenLog parameter is a value to specifies
+	 * number of bits to be used for history register.
+	 */
 	uint8_t his_len;
+
+	/* The RTagPopEnable parameter contains a bool to enable removal
+	 * of redundancy tag from the packet.
+	 */
 	bool rtag_pop_en;
 };
 
 struct tsn_cb_status {
+
+	/* The GenRecover parameter contains a value specifies type
+	 * of stream sequence parameters:
+	 *	0: Stream sequence parameters are for generation.
+	 *	1: Stream sequence parameters are for recovery.
+	 */
 	uint8_t gen_rec;
+
+	/* The ErrStatus parameter indicates stream's error status
+	 * 1: This switch is expected to sequence the stream,
+	 *    but the incoming packet has sequence number.
+	 * 2: This switch is expected to recover the stream,
+	 *    but the incoming packet is NONSEQ.
+	 */
 	uint8_t err;
+
+	/* The SequenceNumber parameter is a value to used for
+	 * outgoing packet's sequence number generation.
+	 */
 	uint32_t seq_num;
+
+	/* The SequenceSpaceLenLog parameter is a value to specifies
+	 * number of bits to be used for sequence number.
+	 */
 	uint8_t seq_len;
+
+	/* The SplitMask parameter contains a output port mask
+	 * used to add redundant paths.
+	 */
 	uint8_t split_mask;
+
+	/* The InputPortMask parameter contains a port mask.
+	 * If the packet is from input port belonging to this
+	 * port mask then it's on known stream and sequence
+	 * generation parameters can be applied.
+	 */
 	uint8_t iport_mask;
+
+	/* The HistorySpaceLenLog parameter is a value to specifies
+	 * number of bits to be used for history register.
+	 */
 	uint8_t his_len;
+
+	/* The SequenceHistory parameter Maintains history of sequence
+	 * numbers of received packets.
+	 */
 	uint32_t seq_his;
 };
 
