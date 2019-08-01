@@ -9,6 +9,8 @@
 #include <linux/irqflags.h>
 #include <linux/preempt.h>
 
+static u32 get_ndev_speed(struct net_device *netdev);
+
 static int alloc_cbdr(struct enetc_si *si, struct enetc_cbd **curr_cbd)
 {
 	struct enetc_cbdr *ring = &si->cbd_ring;
@@ -125,6 +127,53 @@ u16 enetc_get_max_gcl_len(struct enetc_hw *hw)
 	return (enetc_rd(hw, QBV_PTGCAPR_OFFSET) & QBV_MAX_GCL_LEN_MASK);
 }
 
+void enetc_sched_speed_set(struct net_device *ndev)
+{
+	u32 speed, pspeed;
+	u32 difflag = 0;
+	struct enetc_ndev_priv *priv = netdev_priv(ndev);
+
+	speed = get_ndev_speed(ndev);
+	pspeed = enetc_port_rd(&priv->si->hw, ENETC_PMR)
+		& ENETC_PMR_PSPEED_MASK;
+	switch (speed) {
+	case SPEED_1000:
+		if (pspeed != ENETC_PMR_PSPEED_1000M) {
+			difflag = 1;
+			pspeed = ENETC_PMR_PSPEED_1000M;
+		}
+		break;
+	case SPEED_2500:
+		if (pspeed != ENETC_PMR_PSPEED_2500M) {
+			difflag = 1;
+			pspeed = ENETC_PMR_PSPEED_2500M;
+		}
+
+		break;
+	case SPEED_100:
+		if (pspeed != ENETC_PMR_PSPEED_100M) {
+			difflag = 1;
+			pspeed = ENETC_PMR_PSPEED_100M;
+		}
+		break;
+	case SPEED_10:
+		if (pspeed != ENETC_PMR_PSPEED_10M) {
+			difflag = 1;
+			pspeed = ENETC_PMR_PSPEED_10M;
+		}
+		break;
+	default:
+		netdev_err(ndev, "not support speed\n");
+	}
+
+	if (difflag) {
+		enetc_port_wr(&priv->si->hw, ENETC_PMR,
+			      (enetc_port_rd(&priv->si->hw, ENETC_PMR)
+			      & (~ENETC_PMR_PSPEED_MASK))
+			      | pspeed);
+	}
+}
+
 /*
  * CBD Class 5: Time Gated Scheduling Gate Control List configuration
  * Descriptor - Long Format
@@ -151,6 +200,8 @@ int enetc_qbv_set(struct net_device *ndev, struct tsn_qbv_conf *admin_conf)
 		netdev_err(priv->si->ndev, "TSN device not registered!\n");
 		return -ENODEV;
 	}
+
+	enetc_sched_speed_set(ndev);
 
 	gcl_len = admin_basic->control_list_length;
 	if (gcl_len > enetc_get_max_gcl_len(&priv->si->hw))
@@ -1836,7 +1887,10 @@ static void enetc_cbs_init(struct enetc_si *si)
 static void enetc_qbv_init(struct enetc_hw *hw)
 {
 	/* Set PSPEED to be 1Gbps */
-	enetc_port_wr(hw, ENETC_PMR, (enetc_port_rd(hw, ENETC_PMR) & (~0xf00)) | 0x200);
+	enetc_port_wr(hw, ENETC_PMR,
+		      (enetc_port_rd(hw, ENETC_PMR)
+		      & (~ENETC_PMR_PSPEED_MASK))
+		      | ENETC_PMR_PSPEED_1000M);
 }
 
 void enetc_tsn_init(struct net_device *ndev)
