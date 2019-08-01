@@ -511,9 +511,9 @@ struct tsn_port *tsn_init_check(struct genl_info *info,
 static int tsn_cap_get(struct sk_buff *skb, struct genl_info *info)
 {
 	struct sk_buff *rep_skb;
-	struct nlattr *tsn_cap_arrt;
+	struct nlattr *tsn_cap_attr;
 	int ret;
-	int cap = 0;
+	u32 cap = 0;
 	struct net_device *netdev;
 	struct genlmsghdr *genlhdr;
 	const struct tsn_ops *tsnops;
@@ -549,8 +549,8 @@ static int tsn_cap_get(struct sk_buff *skb, struct genl_info *info)
 		goto err;
 	}
 
-	tsn_cap_arrt = nla_nest_start(rep_skb, TSN_ATTR_CAP);
-	if (!tsn_cap_arrt) {
+	tsn_cap_attr = nla_nest_start(rep_skb, TSN_ATTR_CAP);
+	if (!tsn_cap_attr) {
 		ret = -EMSGSIZE;
 		goto err;
 	}
@@ -590,7 +590,7 @@ static int tsn_cap_get(struct sk_buff *skb, struct genl_info *info)
 			goto err;
 	}
 
-	nla_nest_end(rep_skb, tsn_cap_arrt);
+	nla_nest_end(rep_skb, tsn_cap_attr);
 
 	tsn_send_reply(rep_skb, info);
 	return 0;
@@ -949,8 +949,8 @@ static int tsn_qci_cap_get(struct sk_buff *skb, struct genl_info *info)
 		ret = -EOPNOTSUPP;
 		goto out;
 	}
-	ret = tsnops->qci_get_maxcap(netdev, &qci_cap_status);
 
+	ret = tsnops->qci_get_maxcap(netdev, &qci_cap_status);
 	if (ret < 0)
 		goto out;
 
@@ -970,6 +970,7 @@ static int tsn_qci_cap_get(struct sk_buff *skb, struct genl_info *info)
 		ret = -EMSGSIZE;
 		goto err;
 	}
+
 	if (nla_put_u32(rep_skb, TSN_QCI_STREAM_ATTR_MAX_SFI,
 			qci_cap_status.max_sf_instance) ||
 		nla_put_u32(rep_skb, TSN_QCI_STREAM_ATTR_MAX_SGI,
@@ -985,12 +986,14 @@ static int tsn_qci_cap_get(struct sk_buff *skb, struct genl_info *info)
 	nla_nest_end(rep_skb, qci_cap);
 
 	tsn_send_reply(rep_skb, info);
+
 	return 0;
 err:
 	nlmsg_free(rep_skb);
 out:
 	if (ret < 0)
 		tsn_simple_reply(info, TSN_CMD_REPLY, netdev->name, ret);
+
 	return ret;
 }
 
