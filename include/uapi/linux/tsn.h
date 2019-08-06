@@ -42,7 +42,6 @@ enum tsn_capability {
 
 enum {
 	TSN_CMD_UNSPEC = 0,	/* Reserved */
-	TSN_CMD_CAP_GET,
 	TSN_CMD_QBV_SET,
 	TSN_CMD_QBV_GET,
 	TSN_CMD_QBV_GET_STATUS,
@@ -70,12 +69,14 @@ enum {
 	TSN_CMD_CBGEN_SET,
 	TSN_CMD_CBREC_SET,
 	TSN_CMD_CBSTAT_GET,
+	TSN_CMD_PCPMAP_SET_UNUSE,
 	TSN_CMD_DSCP_SET,
+	TSN_CMD_ECHO,			/* user->kernel request/get-response */
+	TSN_CMD_REPLY,			/* kernel->user event */
+	TSN_CMD_CAP_GET,
 	SWITCH_CMD_ACL_ADD,
 	SWITCH_CMD_ACL_DEL,
 	SWITCH_CMD_ACL_GET,
-	TSN_CMD_ECHO,			/* user->kernel request/get-response */
-	TSN_CMD_REPLY,			/* kernel->user event */
 	__TSN_CMD_MAX,
 };
 #define TSN_CMD_MAX (__TSN_CMD_MAX - 1)
@@ -87,7 +88,6 @@ enum {
 	TSN_CMD_ATTR_DATA,		/* demo data */
 	TSN_ATTR_IFNAME,
 	TSN_ATTR_PORT_NUMBER,
-	TSN_ATTR_CAP,		/* TSN capbility */
 	TSN_ATTR_QBV,
 	TSN_ATTR_STREAM_IDENTIFY, /* stream identify */
 	TSN_ATTR_QCI_SP,		/* psfp port capbility parameters */
@@ -101,7 +101,9 @@ enum {
 	TSN_ATTR_CBGEN,			/* 802.1CB sequence generate */
 	TSN_ATTR_CBREC,			/* 802.1CB sequence recover */
 	TSN_ATTR_CBSTAT,                 /* 802.1CB status */
+	TSN_ATTR_PCPMAP_UNUSE,
 	TSN_ATTR_DSCP,
+	TSN_ATTR_CAP,		/* TSN capbility */
 	SWITCH_ATTR_ACL,
 	__TSN_CMD_ATTR_MAX,
 };
