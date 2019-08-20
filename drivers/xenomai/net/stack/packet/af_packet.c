@@ -318,10 +318,7 @@ rt_packet_recvmsg(struct rtdm_fd *fd, struct user_msghdr *u_msg, int msg_flags)
     socklen_t namelen;
     struct iovec iov_fast[RTDM_IOV_FASTMAX], *iov;
 
-    msg = rtnet_get_arg(fd, &_msg, u_msg, sizeof(_msg));
-    if (IS_ERR(msg))
-	    return PTR_ERR(msg);
-   
+    msg = u_msg;
     if (msg->msg_iovlen < 0)
 	    return -EINVAL;
 
@@ -364,14 +361,9 @@ rt_packet_recvmsg(struct rtdm_fd *fd, struct user_msghdr *u_msg, int msg_flags)
 	/* Ethernet specific - we rather need some parse handler here */
 	memcpy(sll.sll_addr, rtskb->mac.ethernet->h_source, ETH_ALEN);
 	sll.sll_halen = ETH_ALEN;
-	ret = rtnet_put_arg(fd, msg->msg_name, &sll, sizeof(sll));
-	if (ret)
-		goto fail;
-
 	namelen = sizeof(sll);
-	ret = rtnet_put_arg(fd, &u_msg->msg_namelen, &namelen, sizeof(namelen));
-	if (ret)
-		goto fail;
+	memcpy(msg->msg_name, &sll, sizeof(sll));
+	memcpy(&msg->msg_namelen, &namelen, sizeof(namelen));
     }
 
     /* Include the header in raw delivery */
@@ -389,9 +381,7 @@ rt_packet_recvmsg(struct rtdm_fd *fd, struct user_msghdr *u_msg, int msg_flags)
     if (copy_len > len) {
 	copy_len = len;
 	flags = msg->msg_flags | MSG_TRUNC;
-	ret = rtnet_put_arg(fd, &u_msg->msg_flags, &flags, sizeof(flags));
-	if (ret)
-		goto fail;
+	memcpy(&msg->msg_flags, &flags, sizeof(flags));
     }
 
     copy_len = rtnet_write_to_iov(fd, iov, msg->msg_iovlen, rtskb->data, copy_len);
@@ -406,9 +396,6 @@ out:
     rtdm_drop_iovec(iov, iov_fast);
 
     return copy_len;
-fail:
-    copy_len = ret;
-    goto out;
 }
 
 
@@ -428,17 +415,12 @@ rt_packet_sendmsg(struct rtdm_fd *fd, const struct user_msghdr *msg, int msg_fla
     unsigned char       *addr;
     int                 ifindex;
     ssize_t             ret;
-    struct user_msghdr _msg;
     struct iovec iov_fast[RTDM_IOV_FASTMAX], *iov;
 
     if (msg_flags & MSG_OOB)    /* Mirror BSD error message compatibility */
 	return -EOPNOTSUPP;
     if (msg_flags & ~MSG_DONTWAIT)
 	return -EINVAL;
-
-    msg = rtnet_get_arg(fd, &_msg, msg, sizeof(*msg));
-    if (IS_ERR(msg))
-	    return PTR_ERR(msg);
 
     if (msg->msg_iovlen < 0)
 	    return -EINVAL;
