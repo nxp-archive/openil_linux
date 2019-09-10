@@ -268,7 +268,7 @@ int switch_qbv_get(struct net_device *ndev,
 	ocelot_field_write(ocelot,
 			   QSYS_TAS_PARAM_CFG_CTRL_PORT_NUM_0, p_num);
 
-	val = ocelot_read(ocelot, QSYS_TAG_CONFIG);
+	val = ocelot_read_rix(ocelot, QSYS_TAG_CONFIG, port->chip_port);
 	shaper_config->gate_enabled = (val & QSYS_TAG_CONFIG_ENABLE);
 	admin->gate_states = QSYS_TAG_CONFIG_INIT_GATE_STATE_X(val);
 
@@ -365,6 +365,9 @@ int switch_qbv_get_status(struct net_device *ndev,
 	u8 p_num = port->chip_port;
 	u32 val;
 	ptptime_t cur_time;
+
+	val = ocelot_read_rix(ocelot, QSYS_TAG_CONFIG, port->chip_port);
+	qbvstatus->gate_enabled = (val & QSYS_TAG_CONFIG_ENABLE);
 
 	ocelot_field_write(ocelot,
 			   QSYS_TAS_PARAM_CFG_CTRL_PORT_NUM_0,
