@@ -1306,6 +1306,9 @@ int switch_qci_sgi_get(struct net_device *ndev, u32 index,
 	else
 		admin->init_ipv = -1;
 
+	if (val & ANA_SG_CONFIG_REG_3_GATE_ENABLE)
+		sgi_conf->gate_enabled = TRUE;
+
 	admin->control_list_length =
 		ANA_SG_CONFIG_REG_3_LIST_LENGTH_X(val);
 
