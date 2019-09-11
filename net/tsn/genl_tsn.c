@@ -1131,6 +1131,7 @@ static int cmd_qci_sfi_get(struct genl_info *info)
 	struct tsn_qci_psfp_sfi_counters sficount;
 	const struct tsn_ops *tsnops;
 	struct tsn_port *port;
+	u8 enable;
 
 	port = tsn_init_check(info, &netdev);
 	if (!port)
@@ -1163,14 +1164,17 @@ static int cmd_qci_sfi_get(struct genl_info *info)
 				 netdev->name, -EPERM);
 		ret = -EINVAL;
 		goto exit;
-	} else {
-		valid = tsnops->qci_sfi_get(netdev, sfi_handle, &sficonf);
-		if (valid < 0) {
-			tsn_simple_reply(info, TSN_CMD_REPLY,
-					 netdev->name, valid);
-			return valid;
-		}
+	}
 
+	valid = tsnops->qci_sfi_get(netdev, sfi_handle, &sficonf);
+	if (valid < 0) {
+		tsn_simple_reply(info, TSN_CMD_REPLY,
+				 netdev->name, valid);
+		return valid;
+	}
+
+	if (valid) {
+		enable = 1;
 		valid = tsnops->qci_sfi_counters_get(netdev, sfi_handle,
 						     &sficount);
 		if (valid < 0) {
@@ -1178,6 +1182,8 @@ static int cmd_qci_sfi_get(struct genl_info *info)
 					 netdev->name, valid);
 			return valid;
 		}
+	} else {
+		enable = 0;
 	}
 
 	ret = tsn_prepare_reply(info, genlhdr->cmd,
@@ -1199,7 +1205,7 @@ static int cmd_qci_sfi_get(struct genl_info *info)
 	if (nla_put_u32(rep_skb, TSN_QCI_SFI_ATTR_INDEX, sfi_handle))
 		return -EMSGSIZE;
 
-	if (valid) {
+	if (enable) {
 		if (nla_put_flag(rep_skb, TSN_QCI_SFI_ATTR_ENABLE))
 			return -EMSGSIZE;
 	} else {

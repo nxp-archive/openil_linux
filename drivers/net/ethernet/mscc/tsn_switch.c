@@ -989,7 +989,7 @@ int switch_qci_sfi_get(struct net_device *ndev, u32 index,
 
 	val = ocelot_read(ocelot, ANA_TABLES_SFIDTIDX);
 	if (!(val & ANA_TABLES_SFIDTIDX_SGID_VALID))
-		return -EINVAL;
+		return 0;
 
 	sfi->stream_gate_instance_id = ANA_TABLES_SFIDTIDX_SGID_X(val);
 	fmeter_id = ANA_TABLES_SFIDTIDX_POL_IDX_X(val);
@@ -1004,7 +1004,7 @@ int switch_qci_sfi_get(struct net_device *ndev, u32 index,
 	else
 		netdev_info(ndev, "priority not enable\n");
 
-	return 0;
+	return 1;
 }
 
 int switch_qci_sfi_set(struct net_device *ndev, u32 index, bool enable,
@@ -1028,6 +1028,16 @@ int switch_qci_sfi_set(struct net_device *ndev, u32 index, bool enable,
 		netdev_info(ndev, "Invalid index %u, maximum:%u\n",
 			    sfid, capa.num_psfp_sfid);
 		return -EINVAL;
+	}
+
+	if (!enable) {
+		ocelot_write(ocelot, ANA_TABLES_SFIDTIDX_SFID_INDEX(sfid),
+			     ANA_TABLES_SFIDTIDX);
+		ocelot_write(ocelot,
+			     ANA_TABLES_SFIDACCESS_SFID_TBL_CMD(
+			     SFIDACCESS_CMD_WRITE),
+			     ANA_TABLES_SFIDACCESS);
+		return 0;
 	}
 
 	if (sgid >= capa.num_psfp_sgid) {
