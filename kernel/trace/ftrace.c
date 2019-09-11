@@ -6309,7 +6309,7 @@ __ftrace_ops_list_func(unsigned long ip, unsigned long parent_ip,
 	} while_for_each_ftrace_op(op);
 out:
 #ifdef CONFIG_IPIPE
-	if (hard_irqs_disabled() || !__ipipe_root_p)
+	if (hard_irqs_disabled() || !ipipe_root_p)
 		/*
 		 * Nothing urgent to schedule here. At latest the timer tick
 		 * will pick up whatever the tracing functions kicked off.
