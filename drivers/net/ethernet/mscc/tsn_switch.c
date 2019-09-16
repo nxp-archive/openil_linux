@@ -268,7 +268,7 @@ int switch_qbv_get(struct net_device *ndev,
 	ocelot_field_write(ocelot,
 			   QSYS_TAS_PARAM_CFG_CTRL_PORT_NUM_0, p_num);
 
-	val = ocelot_read(ocelot, QSYS_TAG_CONFIG);
+	val = ocelot_read_rix(ocelot, QSYS_TAG_CONFIG, port->chip_port);
 	shaper_config->gate_enabled = (val & QSYS_TAG_CONFIG_ENABLE);
 	admin->gate_states = QSYS_TAG_CONFIG_INIT_GATE_STATE_X(val);
 
@@ -365,6 +365,9 @@ int switch_qbv_get_status(struct net_device *ndev,
 	u8 p_num = port->chip_port;
 	u32 val;
 	ptptime_t cur_time;
+
+	val = ocelot_read_rix(ocelot, QSYS_TAG_CONFIG, port->chip_port);
+	qbvstatus->gate_enabled = (val & QSYS_TAG_CONFIG_ENABLE);
 
 	ocelot_field_write(ocelot,
 			   QSYS_TAS_PARAM_CFG_CTRL_PORT_NUM_0,
@@ -986,7 +989,7 @@ int switch_qci_sfi_get(struct net_device *ndev, u32 index,
 
 	val = ocelot_read(ocelot, ANA_TABLES_SFIDTIDX);
 	if (!(val & ANA_TABLES_SFIDTIDX_SGID_VALID))
-		return -EINVAL;
+		return 0;
 
 	sfi->stream_gate_instance_id = ANA_TABLES_SFIDTIDX_SGID_X(val);
 	fmeter_id = ANA_TABLES_SFIDTIDX_POL_IDX_X(val);
@@ -1001,7 +1004,7 @@ int switch_qci_sfi_get(struct net_device *ndev, u32 index,
 	else
 		netdev_info(ndev, "priority not enable\n");
 
-	return 0;
+	return 1;
 }
 
 int switch_qci_sfi_set(struct net_device *ndev, u32 index, bool enable,
@@ -1025,6 +1028,16 @@ int switch_qci_sfi_set(struct net_device *ndev, u32 index, bool enable,
 		netdev_info(ndev, "Invalid index %u, maximum:%u\n",
 			    sfid, capa.num_psfp_sfid);
 		return -EINVAL;
+	}
+
+	if (!enable) {
+		ocelot_write(ocelot, ANA_TABLES_SFIDTIDX_SFID_INDEX(sfid),
+			     ANA_TABLES_SFIDTIDX);
+		ocelot_write(ocelot,
+			     ANA_TABLES_SFIDACCESS_SFID_TBL_CMD(
+			     SFIDACCESS_CMD_WRITE),
+			     ANA_TABLES_SFIDACCESS);
+		return 0;
 	}
 
 	if (sgid >= capa.num_psfp_sgid) {
@@ -1302,6 +1315,9 @@ int switch_qci_sgi_get(struct net_device *ndev, u32 index,
 		admin->init_ipv = ANA_SG_CONFIG_REG_3_INIT_IPV_X(val);
 	else
 		admin->init_ipv = -1;
+
+	if (val & ANA_SG_CONFIG_REG_3_GATE_ENABLE)
+		sgi_conf->gate_enabled = TRUE;
 
 	admin->control_list_length =
 		ANA_SG_CONFIG_REG_3_LIST_LENGTH_X(val);
