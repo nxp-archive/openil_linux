@@ -377,7 +377,7 @@ int switch_qbv_get_status(struct net_device *ndev,
 
 	val = ocelot_read(ocelot, QSYS_PARAM_STATUS_REG_8);
 	qbvstatus->config_pending =
-		(val & QSYS_PARAM_STATUS_REG_8_CONFIG_PENDING);
+		(val & QSYS_PARAM_STATUS_REG_8_CONFIG_PENDING) ? TRUE : FALSE;
 
 	qbvstatus->config_change_time =
 		ocelot_read(ocelot, QSYS_PARAM_STATUS_REG_7);
