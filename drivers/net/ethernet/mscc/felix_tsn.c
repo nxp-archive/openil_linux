@@ -877,7 +877,7 @@ int felix_qci_sfi_get(struct net_device *ndev, u32 index,
 
 	val = ocelot_read(ocelot, ANA_TABLES_SFIDTIDX);
 	if (!(val & ANA_TABLES_SFIDTIDX_SGID_VALID))
-		return -EINVAL;
+		return 0;
 
 	sfi->stream_gate_instance_id = ANA_TABLES_SFIDTIDX_SGID_X(val);
 	fmeter_id = ANA_TABLES_SFIDTIDX_POL_IDX_X(val);
@@ -892,7 +892,7 @@ int felix_qci_sfi_get(struct net_device *ndev, u32 index,
 	else
 		netdev_info(ndev, "priority not enable\n");
 
-	return 0;
+	return 1;
 }
 
 int felix_qci_sfi_set(struct net_device *ndev, u32 index, bool enable,
