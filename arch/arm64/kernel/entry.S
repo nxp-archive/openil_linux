@@ -955,7 +955,22 @@ finish_ret_to_user:
 #ifdef CONFIG_GCC_PLUGIN_STACKLEAK
 	bl	stackleak_erase
 #endif
+#ifdef CONFIG_IPIPE
+	ldr	x0, [tsk, #TSK_TI_IPIPE]
+	tst	x0, #_TIP_USERINTRET
+	b.ne	call_user_intret_notifier
+exit_head:
+#endif
 	kernel_exit 0
+#ifdef CONFIG_IPIPE
+call_user_intret_notifier:
+	enable_daif
+	bl     	__ipipe_notify_user_intreturn
+	disable_daif
+	cmp    	x0, #0
+	b.ne    exit_head
+	b	ret_to_user_noirq
+#endif
 ENDPROC(ret_to_user)
 
 /*
