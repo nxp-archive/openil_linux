@@ -65,6 +65,7 @@ static struct irq_chip ls_scfg_msi_irq_chip = {
 	.name = "MSI",
 	.irq_mask	= pci_msi_mask_irq,
 	.irq_unmask	= pci_msi_unmask_irq,
+	.flags      = IRQCHIP_PIPELINE_SAFE,
 };
 
 static struct msi_domain_info ls_scfg_msi_domain_info = {
