@@ -973,9 +973,6 @@ asmlinkage int __exception do_debug_exception(unsigned long addr_if_watchpoint,
 	if (cortex_a76_erratum_1463225_debug_handler(regs))
 		return 0;
 
-	if (__ipipe_report_trap(IPIPE_TRAP_BREAK, regs))
-		return 1;
-
 	/*
 	 * Tell lockdep we disabled irqs in entry.S. Do nothing if they were
 	 * already disabled to preserve the last enabled/disabled addresses.
@@ -986,12 +983,15 @@ asmlinkage int __exception do_debug_exception(unsigned long addr_if_watchpoint,
 	if (user_mode(regs) && pc > TASK_SIZE)
 		arm64_apply_bp_hardening();
 
+	if (__ipipe_report_trap(IPIPE_TRAP_BREAK, regs))
+		return 1;
+
+	irqflags = fault_entry(regs);
+
 	if (!inf->fn(addr_if_watchpoint, esr, regs)) {
 		rv = 1;
 	} else {
 		struct siginfo info;
-
-		irqflags = fault_entry(regs);
 
 		clear_siginfo(&info);
 		info.si_signo = inf->sig;
@@ -999,12 +999,17 @@ asmlinkage int __exception do_debug_exception(unsigned long addr_if_watchpoint,
 		info.si_code  = inf->code;
 		info.si_addr  = (void __user *)pc;
 		arm64_notify_die(inf->name, regs, &info, esr);
-		fault_exit(irqflags);
 		rv = 0;
 	}
 
-	if (interrupts_enabled(regs))
-		trace_hardirqs_on();
+	fault_exit(irqflags);
+
+	if (interrupts_enabled(regs)) {
+		if (IS_ENABLED(CONFIG_IPIPE))
+			local_irq_enable();
+		else
+			trace_hardirqs_on();
+	}
 
 	return rv;
 }
