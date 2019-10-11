@@ -1221,7 +1221,7 @@ static void cdns_uart_console_write(struct console *co, const char *s,
 static void cdns_uart_console_write_raw(struct console *co, const char *s,
 					unsigned int count)
 {
-	struct uart_port *port = &cdns_uart_port[co->index];
+	struct uart_port *port = console_port;
 	unsigned int imr, ctrl;
 
 	imr = readl(port->membase + CDNS_UART_IMR);
