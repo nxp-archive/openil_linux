@@ -33,7 +33,7 @@
 #include <linux/ipipe_trace.h>
 #include <linux/ipipe_debug.h>
 
-#define IPIPE_CORE_RELEASE	2
+#define IPIPE_CORE_RELEASE	4
 
 struct ipipe_domain;
 
