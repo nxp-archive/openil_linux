@@ -86,7 +86,7 @@ unsigned long fault_entry(struct pt_regs *regs)
 					    &__ipipe_root_status);
 	hard_local_irq_enable();
 
-	return arch_mangle_irq_bits(flags, nosync);
+	return arch_mangle_irq_bits(nosync, flags);
 }
 
 static inline void fault_exit(unsigned long flags)
