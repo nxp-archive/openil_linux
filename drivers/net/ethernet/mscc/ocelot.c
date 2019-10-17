@@ -930,6 +930,13 @@ static int ocelot_set_features(struct net_device *dev,
 	struct ocelot_port *port = netdev_priv(dev);
 	netdev_features_t changed = dev->features ^ features;
 
+	if ((dev->features & NETIF_F_HW_TC) > (features & NETIF_F_HW_TC) &&
+	    port->tc.offload_cnt) {
+		netdev_err(dev,
+			   "Cannot disable HW TC offload while offloads active\n");
+		return -EBUSY;
+	}
+
 	if (changed & NETIF_F_HW_VLAN_CTAG_FILTER)
 		ocelot_vlan_mode(port, features);
 
@@ -1008,6 +1015,7 @@ static const struct net_device_ops ocelot_port_netdev_ops = {
 	.ndo_vlan_rx_kill_vid		= ocelot_vlan_rx_kill_vid,
 	.ndo_set_features		= ocelot_set_features,
 	.ndo_do_ioctl			= ocelot_ioctl,
+	.ndo_setup_tc                   = ocelot_setup_tc,
 };
 
 static void ocelot_get_strings(struct net_device *netdev, u32 sset, u8 *data)
@@ -1716,8 +1724,9 @@ int ocelot_probe_port(struct ocelot *ocelot, u8 port,
 	dev->ethtool_ops = &ocelot_ethtool_ops;
 	dev->switchdev_ops = &ocelot_port_switchdev_ops;
 
-	dev->hw_features |= NETIF_F_HW_VLAN_CTAG_FILTER;
-	dev->features |= NETIF_F_HW_VLAN_CTAG_FILTER;
+	dev->hw_features |= NETIF_F_HW_VLAN_CTAG_FILTER | NETIF_F_RXFCS |
+			    NETIF_F_HW_TC;
+	dev->features |= NETIF_F_HW_VLAN_CTAG_FILTER | NETIF_F_HW_TC;
 
 	memcpy(dev->dev_addr, ocelot->base_mac, ETH_ALEN);
 	dev->dev_addr[ETH_ALEN - 1] += port;

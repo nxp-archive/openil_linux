@@ -26,6 +26,7 @@
 #include "ocelot_sys.h"
 #include "ocelot_qs.h"
 #include "ocelot_dev_gmii.h"
+#include "ocelot_tc.h"
 
 #define PGID_AGGR    64
 #define PGID_SRC     80
@@ -611,6 +612,7 @@ struct ocelot_port {
 	u64 *stats;
 	phy_interface_t phy_mode;
 
+	struct ocelot_port_tc tc;
 	/* cpu frame injection handler */
 	netdev_tx_t (*cpu_inj_handler)(struct sk_buff *skb,
 				       struct net_device *dev);
