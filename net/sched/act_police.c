@@ -155,12 +155,9 @@ static int tcf_police_init(struct net *net, struct nlattr *nla,
 	}
 
 	new->tcfp_burst = PSCHED_TICKS2NS(parm->burst);
-	new->tcfp_toks = new->tcfp_burst;
-	if (new->peak_present) {
+	if (new->peak_present)
 		new->tcfp_mtu_ptoks = (s64)psched_l2t_ns(&new->peak,
 							 new->tcfp_mtu);
-		new->tcfp_ptoks = new->tcfp_mtu_ptoks;
-	}
 
 	if (tb[TCA_POLICE_AVRATE])
 		new->tcfp_ewma_rate = nla_get_u32(tb[TCA_POLICE_AVRATE]);
@@ -176,7 +173,12 @@ static int tcf_police_init(struct net *net, struct nlattr *nla,
 	}
 
 	spin_lock_bh(&police->tcf_lock);
-	new->tcfp_t_c = ktime_get_ns();
+	spin_lock_bh(&police->tcfp_lock);
+	police->tcfp_t_c = ktime_get_ns();
+	police->tcfp_toks = new->tcfp_burst;
+	if (new->peak_present)
+		police->tcfp_ptoks = new->tcfp_mtu_ptoks;
+	spin_unlock_bh(&police->tcfp_lock);
 	police->tcf_action = parm->action;
 	rcu_swap_protected(police->params,
 			   new,
@@ -226,26 +228,28 @@ static int tcf_police_act(struct sk_buff *skb, const struct tc_action *a,
 		}
 
 		now = ktime_get_ns();
-		toks = min_t(s64, now - p->tcfp_t_c,
+		spin_lock_bh(&police->tcfp_lock);
+		toks = min_t(s64, now - police->tcfp_t_c,
 			     p->tcfp_burst);
 		if (p->peak_present) {
-			ptoks = toks + p->tcfp_ptoks;
+			ptoks = toks + police->tcfp_ptoks;
 			if (ptoks > p->tcfp_mtu_ptoks)
 				ptoks = p->tcfp_mtu_ptoks;
 			ptoks -= (s64) psched_l2t_ns(&p->peak,
 						     qdisc_pkt_len(skb));
 		}
-		toks += p->tcfp_toks;
+		toks += police->tcfp_toks;
 		if (toks > p->tcfp_burst)
 			toks = p->tcfp_burst;
 		toks -= (s64) psched_l2t_ns(&p->rate, qdisc_pkt_len(skb));
 		if ((toks|ptoks) >= 0) {
-			p->tcfp_t_c = now;
-			p->tcfp_toks = toks;
-			p->tcfp_ptoks = ptoks;
+			police->tcfp_t_c = now;
+			police->tcfp_toks = toks;
+			police->tcfp_ptoks = ptoks;
 			ret = p->tcfp_result;
 			goto inc_drops;
 		}
+		spin_unlock_bh(&police->tcfp_lock);
 	}
 
 inc_overlimits:
