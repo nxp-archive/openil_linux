@@ -64,7 +64,7 @@ enum {
 #define TC_ACT_EXT_OPCODE_MAX	TC_ACT_GOTO_CHAIN
 
 /* Action type identifiers*/
-enum {
+enum tca_id {
 	TCA_ID_UNSPEC=0,
 	TCA_ID_POLICE=1,
 	/* other actions go here */

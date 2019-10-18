@@ -335,7 +335,7 @@ MODULE_LICENSE("GPL");
 
 static struct tc_action_ops act_police_ops = {
 	.kind		=	"police",
-	.type		=	TCA_ID_POLICE,
+	.id		=	TCA_ID_POLICE,
 	.owner		=	THIS_MODULE,
 	.stats_update	=	tcf_police_stats_update,
 	.act		=	tcf_police_act,

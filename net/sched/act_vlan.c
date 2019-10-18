@@ -308,7 +308,7 @@ static size_t tcf_vlan_get_fill_size(const struct tc_action *act)
 
 static struct tc_action_ops act_vlan_ops = {
 	.kind		=	"vlan",
-	.type		=	TCA_ACT_VLAN,
+	.id		=	TCA_ID_VLAN,
 	.owner		=	THIS_MODULE,
 	.act		=	tcf_vlan_act,
 	.dump		=	tcf_vlan_dump,
