@@ -183,8 +183,8 @@ struct ocelot_ace_rule *ocelot_ace_rule_create(struct tc_cls_flower_offload *f,
 	if (!rule)
 		return NULL;
 
-	rule->port = block->port;
-	rule->chip_port = block->port->chip_port;
+	rule->ocelot = block->port->ocelot;
+	rule->ingress_port = BIT(block->port->chip_port);
 	return rule;
 }
 
@@ -219,7 +219,7 @@ static int ocelot_flower_destroy(struct tc_cls_flower_offload *f,
 	int ret;
 
 	rule.prio = get_prio(f->common.prio);
-	rule.port = port_block->port;
+	rule.ocelot = port_block->port->ocelot;
 	rule.id = f->cookie;
 
 	ret = ocelot_ace_rule_offload_del(&rule);
@@ -237,7 +237,7 @@ static int ocelot_flower_stats_update(struct tc_cls_flower_offload *f,
 	int ret;
 
 	rule.prio = get_prio(f->common.prio);
-	rule.port = port_block->port;
+	rule.ocelot = port_block->port->ocelot;
 	rule.id = f->cookie;
 	ret = ocelot_ace_rule_stats_update(&rule);
 	if (ret)
