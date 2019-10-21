@@ -128,6 +128,9 @@ struct dsa_switch_tree {
 	 */
 	struct dsa_port		*cpu_dp;
 
+	/* List of switch ports */
+	struct list_head ports;
+
 	/*
 	 * Data for the individual switch chips.
 	 */
@@ -202,6 +205,8 @@ struct dsa_port {
 	struct devlink_port	devlink_port;
 	struct phylink		*pl;
 	struct phylink_config	pl_config;
+
+	struct list_head list;
 
 	/*
 	 * Give the switch driver somewhere to hang its per-port private data
