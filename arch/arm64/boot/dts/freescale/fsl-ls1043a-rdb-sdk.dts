@@ -90,6 +90,29 @@ pcie@3600000 {
 	compatible = "fsl,fman", "simple-bus";
 };
 
+&fsldpaa {
+	ethernet@0 {
+		compatible = "fsl,im-ethernet";
+		fsl,fman-mac = <&enet0>;
+		fpmevt-sel = <0>;
+	};
+	ethernet@1 {
+		compatible = "fsl,im-ethernet";
+		fsl,fman-mac = <&enet1>;
+		fpmevt-sel = <1>;
+	};
+	ethernet@3 {
+		compatible = "fsl,im-ethernet";
+		fsl,fman-mac = <&enet4>;
+		fpmevt-sel = <2>;
+	};
+	ethernet@4 {
+		compatible = "fsl,im-ethernet";
+		fsl,fman-mac = <&enet5>;
+		fpmevt-sel = <3>;
+	};
+};
+
 &clockgen {
 	dma-coherent;
 };
