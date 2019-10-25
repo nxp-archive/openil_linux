@@ -39,6 +39,13 @@ config XENO_DRIVERS_NET_DRV_EEPRO100_DBG
     also reduce the worst-case transmission latency).
 
 
+config XENO_DRIVERS_NET_DRV_FMAN_IM
+    depends on XENO_DRIVERS_NET
+    tristate "FMAN independent mode"
+    default y
+    ---help---
+    This option switches on internal debugging code of the Fman driver,
+
 config XENO_DRIVERS_NET_DRV_E1000
     depends on XENO_DRIVERS_NET && PCI
     tristate "Intel(R) PRO/1000 (Gigabit)"
