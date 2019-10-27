@@ -9,10 +9,13 @@
 #include "ocelot_ace.h"
 #include "ocelot_vcap.h"
 #include "ocelot_s2.h"
+#include "ocelot_police.h"
 
 #define OCELOT_POLICER_DISCARD 0x17f
 
 static struct ocelot_acl_block *acl_block;
+static int pol_ix;
+int qos_policer_conf_set(struct ocelot_port *port, u32 pol_ix, struct qos_policer_conf *conf);
 
 struct vcap_props {
 	const char *name; /* Symbolic name */
@@ -304,9 +307,14 @@ static void vcap_action_set(struct vcap_data *data, u32 offset, u32 width,
 #define VCAP_ACT_SET(fld, val) \
 	vcap_action_set(data, IS2_AO_##fld, IS2_AL_##fld, val)
 
-static void is2_action_set(struct vcap_data *data,
-			   enum ocelot_ace_action action)
+static void is2_action_set(struct ocelot *ocelot,
+			   struct vcap_data *data,
+			   struct ocelot_ace_rule *ace)
 {
+	struct ocelot_port *ocelot_port = ocelot->ports[0];
+	enum ocelot_ace_action action = ace->action;
+	struct qos_policer_conf pp;
+
 	switch (action) {
 	case OCELOT_ACL_ACTION_DROP:
 		VCAP_ACT_SET(PORT_MASK, 0x0);
@@ -323,6 +331,20 @@ static void is2_action_set(struct vcap_data *data,
 		VCAP_ACT_SET(POLICE_IDX, 0x0);
 		VCAP_ACT_SET(CPU_QU_NUM, 0x0);
 		VCAP_ACT_SET(CPU_COPY_ENA, 0x1);
+		break;
+	case OCELOT_ACL_ACTION_POLICE:
+		VCAP_ACT_SET(PORT_MASK, 0x0);
+		VCAP_ACT_SET(MASK_MODE, 0x0);
+		VCAP_ACT_SET(POLICE_ENA, 0x1);
+		VCAP_ACT_SET(POLICE_IDX, pol_ix);
+		VCAP_ACT_SET(CPU_QU_NUM, 0x0);
+		VCAP_ACT_SET(CPU_COPY_ENA, 0x0);
+		memset(&pp, 0, sizeof(pp));
+		pp.mode = MSCC_QOS_RATE_MODE_DATA;
+		pp.pir = ace->pol.rate;
+		pp.pbs = ace->pol.burst;
+		qos_policer_conf_set(ocelot_port, pol_ix, &pp);
+		pol_ix--;
 		break;
 	}
 }
@@ -562,7 +584,7 @@ static void is2_entry_set(struct ocelot *ocelot, int ix,
 	}
 
 	VCAP_KEY_SET(TYPE, type, type_mask);
-	is2_action_set(&data, ace->action);
+	is2_action_set(ocelot, &data, ace);
 	vcap_data_set(data.counter, data.counter_offset, vcap_is2.counter_width,
 		      ace->stats.pkts);
 
@@ -649,6 +671,8 @@ int ocelot_ace_rule_offload_add(struct ocelot_ace_rule *rule)
 
 	/* Get the index of the inserted rule */
 	index = ocelot_ace_rule_get_index_id(acl_block, rule);
+
+	pol_ix = OCELOT_POLICER_DISCARD - 1;
 
 	/* Move down the rules to make place for the new rule */
 	for (i = acl_block->count - 1; i > index; i--) {

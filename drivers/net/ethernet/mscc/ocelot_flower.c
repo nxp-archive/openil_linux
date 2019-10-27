@@ -36,6 +36,11 @@ static int ocelot_flower_parse_action(struct tc_cls_flower_offload *f,
 		case FLOW_ACTION_TRAP:
 			rule->action = OCELOT_ACL_ACTION_TRAP;
 			break;
+		case FLOW_ACTION_POLICE:
+			rule->action = OCELOT_ACL_ACTION_POLICE;
+			rule->pol.rate = (u32)div_u64(a->police.rate_bytes_ps, 1000) * 8;
+			rule->pol.burst = (u32)div_u64(a->police.rate_bytes_ps * PSCHED_NS2TICKS(a->police.burst), PSCHED_TICKS_PER_SEC);
+			break;
 		default:
 			return -EOPNOTSUPP;
 		}
