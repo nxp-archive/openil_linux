@@ -46,6 +46,15 @@ config XENO_DRIVERS_NET_DRV_FMAN_IM
     ---help---
     This option switches on internal debugging code of the Fman driver,
 
+config XENO_DRIVERS_NET_DRV_ENETC
+    depends on XENO_DRIVERS_NET
+    tristate "ENETC"
+    default y
+    ---help---
+    This driver supports NXP ENETC gigabit ethernet controller PCIe
+    physical function (PF) devices, managing ENETC Ports at a privileged
+    level.
+
 config XENO_DRIVERS_NET_DRV_E1000
     depends on XENO_DRIVERS_NET && PCI
     tristate "Intel(R) PRO/1000 (Gigabit)"
