@@ -212,6 +212,7 @@ struct ocelot_ace_rule {
 		struct ocelot_ace_frame_ipv6 ipv6;
 	} frame;
 	struct ocelot_policer pol;
+	u32 pol_ix;
 };
 
 struct ocelot_acl_block {
