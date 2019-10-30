@@ -3,12 +3,12 @@
  * Copyright (c) 2019 Microsemi Corporation
  */
 
-#ifndef _OCELOT_VCAP_H__
+#ifndef _OCELOT_VCAP_H_
 #define _OCELOT_VCAP_H_
 
-/* ================================================================= *
+/* =================================================================
  *  VCAP Common
- * ================================================================= *
+ * =================================================================
  */
 
 /* VCAP Type-Group values */
@@ -17,14 +17,15 @@
 #define VCAP_TG_HALF 2 /* Half entry */
 #define VCAP_TG_QUARTER 3 /* Quarter entry */
 
-/* ================================================================= *
+/* =================================================================
  *  VCAP IS2
- * ================================================================= *
+ * =================================================================
  */
 
-#define VCAP_IS2_CNT 1024
-#define VCAP_IS2_ENTRY_WIDTH 384
-#define VCAP_IS2_ACTION_WIDTH 89
+#define VCAP_IS2_CNT 64
+#define VCAP_IS2_ENTRY_WIDTH 376
+#define VCAP_IS2_ACTION_WIDTH 99
+/* TODO: Support different VCAP_PORT_CNT values */
 #define VCAP_PORT_CNT 6
 
 /* IS2 half key types */
@@ -61,9 +62,9 @@
 #define IS2_ACT_REW_OP_PTP_ONE_SUB_DELAY_1 (IS2_ACT_REW_OP_PTP_ONE | (1 << 3))
 #define IS2_ACT_REW_OP_PTP_ONE_SUB_DELAY_2 (IS2_ACT_REW_OP_PTP_ONE | (2 << 3))
 #define IS2_ACT_REW_OP_PTP_ONE_ADD_DELAY (IS2_ACT_REW_OP_PTP_ONE | (1 << 5))
-#define IS2_ACT_REW_OP_PTP_ONE_ADD_SUB BIT(1 << 7)
+#define IS2_ACT_REW_OP_PTP_ONE_ADD_SUB BIT(7)
 
-#define VCAP_PORT_WIDTH 3
+#define VCAP_PORT_WIDTH 4
 
 /* IS2 quarter key - SMAC_SIP4 */
 #define IS2_QKO_IGR_PORT 0
@@ -389,8 +390,6 @@
 #define IS2_AL_ISDX_ENA 1
 #define IS2_AO_ACL_ID (IS2_AO_ISDX_ENA + IS2_AL_ISDX_ENA)
 #define IS2_AL_ACL_ID 6
-#define IS2_AO_HIT_CNT (IS2_AO_ACL_ID + IS2_AL_ACL_ID)
-#define IS2_AL_HIT_CNT 32
 
 /* IS2 action - SMAC_SIP */
 #define IS2_AO_SMAC_SIP_CPU_COPY_ENA 0
