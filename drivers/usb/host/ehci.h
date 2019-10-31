@@ -694,6 +694,9 @@ ehci_port_speed(struct ehci_hcd *ehci, unsigned int portsc)
 #if defined(CONFIG_PPC_85xx)
 /* Some Freescale processors have an erratum (USB A-005275) in which
  * incoming packets get corrupted in HS mode
+ * Some Freescale processors have an erratum (USB A-005697) in which
+ * we need to wait for 10ms for bus to fo into suspend mode after
+ * setting SUSP bit
  */
 #define ehci_has_fsl_hs_errata(e)	((e)->has_fsl_hs_errata)
 #else
