@@ -34,22 +34,43 @@ int mycoreid;
 
 #ifndef IPI_BAREMETAL_SIGNAL
 void __iomem *share_base;
+#ifdef CONFIG_SOC_IMX6Q_BAREMETAL
+#define GICD_BASE		0x00A01000
+#define GICD_SIZE		0x1000
+#define GICC_BASE		0x00A00100
+#define GICC_SIZE		0x1000
+#define GIC_DIST_IGROUP		0x080
+#define GIC_DIST_CTRL		0x000
+#define GIC_CPU_CTRL		0x00
+#define GICD_ENABLE		0x3
+#define GICC_ENABLE		0x7
+#endif
 #if defined(CONFIG_LS1021A_BAREMETAL) || defined(CONFIG_LS1028A_BAREMETAL)
 #define CONFIG_MAX_CPUS 2
 #else
 #define CONFIG_MAX_CPUS 4
 #endif
+#if defined(CONFIG_SOC_IMX6Q_BAREMETAL)
+#define CONFIG_SYS_DDR_SDRAM_BASE       0x10000000UL
+#define CONFIG_SYS_DDR_SDRAM_SLAVE_SIZE        (128 * 1024 * 1024)
+#define CONFIG_SYS_DDR_SDRAM_MASTER_SIZE       (512 * 1024 * 1024)
+#else
 #define CONFIG_SYS_DDR_SDRAM_BASE       0x80000000UL
 #define CONFIG_SYS_DDR_SDRAM_SLAVE_SIZE        (256 * 1024 * 1024)
 #define CONFIG_SYS_DDR_SDRAM_MASTER_SIZE       (512 * 1024 * 1024)
-
+#endif
 #define CONFIG_SYS_DDR_SDRAM_SHARE_BASE \
 	(CONFIG_SYS_DDR_SDRAM_BASE + CONFIG_SYS_DDR_SDRAM_MASTER_SIZE \
 	+ CONFIG_SYS_DDR_SDRAM_SLAVE_SIZE * (CONFIG_MAX_CPUS - 1))
 
 #define CONFIG_SYS_DDR_SDRAM_SHARE_RESERVE_SIZE (16 * 1024 * 1024)
+#if defined(CONFIG_SOC_IMX6Q_BAREMETAL)
+#define CONFIG_SYS_DDR_SDRAM_SHARE_SIZE \
+	((128 * 1024 * 1024) - CONFIG_SYS_DDR_SDRAM_SHARE_RESERVE_SIZE)
+#else
 #define CONFIG_SYS_DDR_SDRAM_SHARE_SIZE \
 	((256 * 1024 * 1024) - CONFIG_SYS_DDR_SDRAM_SHARE_RESERVE_SIZE)
+#endif
 #define CONFIG_SYS_DDR_SDRAM_SHARE_RESERVE_BASE \
 	(CONFIG_SYS_DDR_SDRAM_SHARE_BASE + CONFIG_SYS_DDR_SDRAM_SHARE_SIZE)
 
@@ -268,7 +289,7 @@ static int shd_mmap_mem(struct file *file, struct vm_area_struct *vma)
 {
 	size_t size = vma->vm_end - vma->vm_start;
 
-#ifdef CONFIG_LS1021A_BAREMETAL
+#if defined(CONFIG_LS1021A_BAREMETAL) || defined(CONFIG_SOC_IMX6Q_BAREMETAL)
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 #else
 	vma->vm_page_prot = pgprot_cached(vma->vm_page_prot);
@@ -304,13 +325,37 @@ static struct miscdevice ipi_bm_misc = {
 	.fops = &ipi_bm_ops,
 };
 
+#ifdef CONFIG_SOC_IMX6Q_BAREMETAL
+void gic_enable_dist(void)
+{
+	void __iomem *gicd_base, *gicc_base;
+
+	gicd_base = ioremap((phys_addr_t)GICD_BASE, GICD_SIZE);
+	if (!gicd_base) {
+		pr_err("failed to remap gicd base for ICC\n");
+		return -ENOMEM;
+	}
+	gicc_base = ioremap((phys_addr_t)GICC_BASE, GICC_SIZE);
+	if (!gicc_base) {
+		pr_err("failed to remap gicc base for ICC\n");
+		return -ENOMEM;
+	}
+	/* set the SGI interrupts for this core to group 1 */
+	writel(0xffffffff, gicd_base + GIC_DIST_IGROUP);
+	writel(GICD_ENABLE, gicd_base + GIC_DIST_CTRL);
+	writel(GICC_ENABLE, gicc_base + GIC_CPU_CTRL);
+	iounmap(gicd_base);
+	iounmap(gicc_base);
+}
+#endif
+
 static int __init ipi_baremetal_init(void)
 {
 	int ret;
 
 	pr_info("NXP inter-core communiction IRQ driver\n");
 #ifndef IPI_BAREMETAL_SIGNAL
-#ifdef CONFIG_LS1021A_BAREMETAL
+#if defined(CONFIG_LS1021A_BAREMETAL) || defined(CONFIG_SOC_IMX6Q_BAREMETAL)
 	share_base = ioremap((phys_addr_t)CONFIG_SYS_DDR_SDRAM_SHARE_BASE,
 				CONFIG_SYS_DDR_SDRAM_SHARE_SIZE);
 #else
@@ -324,6 +369,9 @@ static int __init ipi_baremetal_init(void)
 		return -ENOMEM;
 	}
 	mycoreid = 0;
+#ifdef CONFIG_SOC_IMX6Q_BAREMETAL
+	gic_enable_dist();
+#endif
 #endif
 	ret = misc_register(&ipi_bm_misc);
 	if (ret < 0) {
