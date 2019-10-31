@@ -148,6 +148,7 @@ static int ipi_baremetal_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
+#ifdef CONFIG_LS1028A_BAREMETAL
 static long ipi_baremetal_ioctl(struct file *file,
 		unsigned int cmd, unsigned long arg)
 {
@@ -161,6 +162,7 @@ static long ipi_baremetal_ioctl(struct file *file,
 	}
 	return 0;
 }
+#endif
 
 static int icc_ring_empty(struct icc_ring *ring)
 {
@@ -291,7 +293,9 @@ const struct file_operations ipi_bm_ops = {
 	.read = ipi_baremetal_read,
 	.write = ipi_baremetal_write,
 	.mmap = shd_mmap_mem,
+#ifdef CONFIG_LS1028A_BAREMETAL
 	.unlocked_ioctl = ipi_baremetal_ioctl,
+#endif
 };
 
 static struct miscdevice ipi_bm_misc = {
