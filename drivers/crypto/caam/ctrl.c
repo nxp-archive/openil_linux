@@ -509,6 +509,7 @@ static int caam_probe(struct platform_device *pdev)
 	u8 rng_vid;
 	int pg_size;
 	int BLOCK_OFFSET = 0;
+	u8 dma_bit;
 
 	ctrlpriv = devm_kzalloc(&pdev->dev, sizeof(*ctrlpriv), GFP_KERNEL);
 	if (!ctrlpriv)
@@ -702,9 +703,23 @@ static int caam_probe(struct platform_device *pdev)
 		if (caam_dpaa2)
 			ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(49));
 		else if (of_device_is_compatible(nprop, "fsl,sec-v5.0"))
-			ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(40));
+			dma_bit = 40;
 		else
-			ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(36));
+			dma_bit = 36;
+		ret = dma_set_coherent_mask(dev, DMA_BIT_MASK(dma_bit));
+		if (ret) {
+			dev_err(dev, "set DMA mask failed\n");
+			goto caam_remove;
+		}
+		if (!dev->dma_mask)
+			dev->dma_mask = &dev->coherent_dma_mask;
+		else {
+			ret = dma_set_mask(dev, DMA_BIT_MASK(dma_bit));
+			if (ret) {
+				dev_err(dev, "set DMA mask failed\n");
+				goto caam_remove;
+			}
+		}
 	} else {
 		ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
 	}
