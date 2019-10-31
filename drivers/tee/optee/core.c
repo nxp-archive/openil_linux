@@ -689,6 +689,7 @@ static int __init optee_driver_init(void)
 	struct device_node *fw_np;
 	struct device_node *np;
 	struct optee *optee;
+	const char *p_s;
 
 	/* Node is supposed to be below /firmware */
 	fw_np = of_find_node_by_name(NULL, "firmware");
@@ -698,6 +699,11 @@ static int __init optee_driver_init(void)
 	np = of_find_matching_node(fw_np, optee_match);
 	if (!np)
 		return -ENODEV;
+
+	if (!of_property_read_string(np, "status", &p_s)) {
+		if (!strcmp(p_s, "disabled"))
+			return -ENODEV;
+	}
 
 	optee = optee_probe(np);
 	of_node_put(np);
