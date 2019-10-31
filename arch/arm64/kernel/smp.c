@@ -242,6 +242,9 @@ asmlinkage notrace void secondary_start_kernel(void)
 	complete(&cpu_running);
 
 	local_daif_restore(DAIF_PROCCTX);
+#ifdef CONFIG_IPIPE
+	local_irq_enable();
+#endif
 
 	/*
 	 * OK, it's off to the idle thread for us
