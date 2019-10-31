@@ -292,3 +292,7 @@
 &sata {
 	status = "okay";
 };
+
+&esdhc {
+	status = "okay";
+};
