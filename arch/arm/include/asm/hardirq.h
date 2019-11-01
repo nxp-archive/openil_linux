@@ -7,7 +7,12 @@
 #include <asm/irq.h>
 
 /* number of IPIS _not_ including IPI_CPU_BACKTRACE */
-#define NR_IPI	7
+#ifdef CONFIG_BAREMETAL
+/* the IPI for baremetal is number 8 */
+#define NR_IPI	9
+#else
+#define NR_IPI 7
+#endif
 
 typedef struct {
 	unsigned int __softirq_pending;
