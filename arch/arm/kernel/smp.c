@@ -77,11 +77,22 @@ enum ipi_msg_type {
 	 * not be usable by the kernel. Please keep the above limited
 	 * to at most 8 entries.
 	 */
+#ifdef CONFIG_BAREMETAL
+	IPI_BAREMETAL_COMM,
+#endif
 };
 
 static DECLARE_COMPLETION(cpu_running);
 
 static struct smp_operations smp_ops __ro_after_init;
+
+#ifdef CONFIG_BAREMETAL
+inline int ipi_baremetal(void)
+{
+	return IPI_BAREMETAL_COMM;
+}
+EXPORT_SYMBOL_GPL(ipi_baremetal);
+#endif
 
 void __init smp_set_ops(const struct smp_operations *ops)
 {
@@ -515,6 +526,9 @@ static const char *ipi_types[NR_IPI] __tracepoint_string = {
 	S(IPI_CPU_STOP, "CPU stop interrupts"),
 	S(IPI_IRQ_WORK, "IRQ work interrupts"),
 	S(IPI_COMPLETION, "completion interrupts"),
+#ifdef CONFIG_BAREMETAL
+	S(IPI_BAREMETAL_COMM, "Baremetal inter-core interrupts"),
+#endif
 };
 
 static void smp_cross_call(const struct cpumask *target, unsigned int ipinr)
@@ -684,6 +698,10 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 		irq_exit();
 		printk_nmi_exit();
 		break;
+#ifdef CONFIG_BAREMETAL
+	case IPI_BAREMETAL_COMM:
+		break;
+#endif
 
 	default:
 		pr_crit("CPU%u: Unknown IPI message 0x%x\n",
