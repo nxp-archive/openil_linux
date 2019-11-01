@@ -36,6 +36,7 @@
 #include <linux/percpu.h>
 #include <linux/slab.h>
 #include <linux/irqchip.h>
+#include <linux/ipi_baremetal.h>
 #include <linux/irqchip/chained_irq.h>
 #include <linux/irqchip/arm-gic.h>
 
@@ -364,6 +365,19 @@ static void __exception_irq_entry gic_handle_irq(struct pt_regs *regs)
 	do {
 		irqstat = readl_relaxed(cpu_base + GIC_CPU_INTACK);
 		irqnr = irqstat & GICC_IAR_INT_ID_MASK;
+#ifdef CONFIG_BAREMETAL
+#define GICC_IAR_MASK	0x1fff
+		int irqsrc;
+
+		if (irqnr == ipi_baremetal()) {
+			/*
+			 * for baremetal inter-core communication,
+			 * the IPI source should be got
+			 */
+			irqsrc = (irqstat & GICC_IAR_MASK) >> 10;
+			ipi_baremetal_handle(irqnr, irqsrc);
+		}
+#endif
 
 		if (likely(irqnr > 15 && irqnr < 1020)) {
 			if (static_branch_likely(&supports_deactivate_key))

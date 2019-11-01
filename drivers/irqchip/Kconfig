@@ -301,8 +301,8 @@ config KEYSTONE_IRQ
 	tristate "Keystone 2 IRQ controller IP"
 	depends on ARCH_KEYSTONE
 	help
-		Support for Texas Instruments Keystone 2 IRQ controller IP which
-		is part of the Keystone 2 IPC mechanism
+	  Support for Texas Instruments Keystone 2 IRQ controller IP which
+	  is part of the Keystone 2 IPC mechanism
 
 config MIPS_GIC
 	bool
@@ -388,6 +388,10 @@ config STM32_EXTI
 	bool
 	select IRQ_DOMAIN
 	select GENERIC_IRQ_CHIP
+
+config BAREMETAL
+	bool
+	depends on ARM_GIC
 
 config QCOM_IRQ_COMBINER
 	bool "QCOM IRQ combiner support"
