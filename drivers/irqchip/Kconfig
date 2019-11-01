@@ -391,7 +391,7 @@ config STM32_EXTI
 
 config BAREMETAL
 	bool
-	depends on ARM_GIC
+	depends on ARM_GIC || ARM_GIC_V3
 
 config QCOM_IRQ_COMBINER
 	bool "QCOM IRQ combiner support"

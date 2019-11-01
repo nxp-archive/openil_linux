@@ -34,7 +34,7 @@ int mycoreid;
 
 #ifndef IPI_BAREMETAL_SIGNAL
 void __iomem *share_base;
-#ifdef CONFIG_LS1021A_BAREMETAL
+#if defined(CONFIG_LS1021A_BAREMETAL) || defined(CONFIG_LS1028A_BAREMETAL)
 #define CONFIG_MAX_CPUS 2
 #else
 #define CONFIG_MAX_CPUS 4
@@ -95,6 +95,8 @@ void __iomem *share_base;
 	(((void *)x - ICC_CORE_MEM_BASE(mycoreid)) \
 	 + ICC_CORE_MEM_BASE_PHY(mycoreid))
 
+#define IPIDEV_IOCIRQ 1
+
 struct icc_desc {
 	unsigned long block_addr;	/* block address */
 	unsigned int byte_count;	/* available bytes */
@@ -115,14 +117,12 @@ struct icc_ring {
 
 int ipi_baremetal_open(struct inode *inode, struct file *filp)
 {
-	pr_info("ipi_bm device open!\n");
 	return 0;
 }
 
 ssize_t ipi_baremetal_read(struct file *file,
 	char __user *buff, size_t count, loff_t *offp)
 {
-	pr_info("ipi_bm device read!\n");
 	return 0;
 }
 
@@ -139,14 +139,26 @@ ssize_t ipi_baremetal_write(struct file *file,
 	ret = kstrtoint(mybuf, 0, &pid);
 	if (ret)
 		return -EINVAL;
-	pr_info("ipi_bm device write. pid = %d\n", pid);
 
 	return 0;
 }
 
 static int ipi_baremetal_release(struct inode *inode, struct file *file)
 {
-	pr_info("ipi_bm device close!\n");
+	return 0;
+}
+
+static long ipi_baremetal_ioctl(struct file *file,
+		unsigned int cmd, unsigned long arg)
+{
+	unsigned long val = *(unsigned long *)arg | 1 << 40;
+	switch (cmd) {
+	case IPIDEV_IOCIRQ:
+		write_sysreg_s(val, SYS_ICC_SGI1R_EL1);
+		break;
+	default:
+		return -EINVAL;
+	}
 	return 0;
 }
 
@@ -279,6 +291,7 @@ const struct file_operations ipi_bm_ops = {
 	.read = ipi_baremetal_read,
 	.write = ipi_baremetal_write,
 	.mmap = shd_mmap_mem,
+	.unlocked_ioctl = ipi_baremetal_ioctl,
 };
 
 static struct miscdevice ipi_bm_misc = {
