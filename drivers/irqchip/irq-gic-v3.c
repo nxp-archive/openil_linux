@@ -1,18 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2013-2017 ARM Limited, All Rights Reserved.
  * Author: Marc Zyngier <marc.zyngier@arm.com>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * Copyright 2018-2019 NXP
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define pr_fmt(fmt)	"GICv3: " fmt
@@ -33,6 +25,8 @@
 #include <linux/irqchip/arm-gic-common.h>
 #include <linux/irqchip/arm-gic-v3.h>
 #include <linux/irqchip/irq-partition-percpu.h>
+
+#include <linux/ipi_baremetal.h>
 
 #include <asm/cputype.h>
 #include <asm/exception.h>
@@ -406,6 +400,21 @@ static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs
 			gic_write_eoir(irqnr);
 			if (static_branch_likely(&supports_deactivate_key))
 				gic_write_dir(irqnr);
+
+#ifdef CONFIG_BAREMETAL
+			if (irqnr == ipi_baremetal()) {
+				int irqsrc;
+
+				/*
+				 * for baremetal inter-core communication,
+				 * the IPI source should be got
+				 */
+				/* FIXME: use the fixed source coreID from core1 */
+				irqsrc = 1;
+				ipi_baremetal_handle(irqnr, irqsrc);
+				handle_IPI(irqnr, regs);
+			}
+#else
 #ifdef CONFIG_SMP
 			/*
 			 * Unlike GICv2, we don't need an smp_rmb() here.
@@ -417,6 +426,7 @@ static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs
 			ipipe_handle_multi_ipi(irqnr, regs);
 #else
 			WARN_ONCE(true, "Unexpected SGI received!\n");
+#endif
 #endif
 			continue;
 		}
