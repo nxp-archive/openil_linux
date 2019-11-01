@@ -62,6 +62,68 @@ static inline const struct fault_info *esr_to_fault_info(unsigned int esr)
 	return fault_info + (esr & 63);
 }
 
+#ifdef CONFIG_IPIPE
+/*
+ * We need to synchronize the virtual interrupt state with the hard
+ * interrupt state we received on entry, then turn hardirqs back on to
+ * allow code which does not require strict serialization to be
+ * preempted by an out-of-band activity.
+ *
+ * TRACING: the entry code already told lockdep and tracers about the
+ * hard interrupt state on entry to fault handlers, so no need to
+ * reflect changes to that state via calls to trace_hardirqs_*
+ * helpers. From the main kernel's point of view, there is no change.
+ */
+static inline
+unsigned long fault_entry(struct pt_regs *regs)
+{
+	unsigned long flags;
+	int nosync = 1;
+
+	flags = hard_local_irq_save();
+	if (hard_irqs_disabled_flags(flags))
+		nosync = __test_and_set_bit(IPIPE_STALL_FLAG,
+					    &__ipipe_root_status);
+	hard_local_irq_enable();
+
+	return arch_mangle_irq_bits(nosync, flags);
+}
+
+static inline void fault_exit(unsigned long flags)
+{
+	int nosync;
+
+	IPIPE_WARN_ONCE(hard_irqs_disabled());
+
+	/*
+	 * '!nosync' here means that we had to turn on the stall bit
+	 * in fault_entry() to mirror the hard interrupt state,
+	 * because hard irqs were off but the stall bit was
+	 * clear. Conversely, nosync in fault_exit() means that the
+	 * stall bit state currently reflects the hard interrupt state
+	 * we received on fault_entry().
+	 */
+	nosync = arch_demangle_irq_bits(&flags);
+	if (!nosync) {
+		hard_local_irq_disable();
+		__clear_bit(IPIPE_STALL_FLAG, &__ipipe_root_status);
+		if (!hard_irqs_disabled_flags(flags))
+			hard_local_irq_enable();
+	} else if (hard_irqs_disabled_flags(flags))
+		hard_local_irq_disable();
+}
+
+#else
+
+static inline unsigned long fault_entry(struct pt_regs *regs)
+{
+	return 0;
+}
+
+static inline void fault_exit(unsigned long x) { }
+
+#endif	/* !CONFIG_IPIPE */
+
 #ifdef CONFIG_KPROBES
 static inline int notify_page_fault(struct pt_regs *regs, unsigned int esr)
 {
@@ -357,6 +419,11 @@ static void __do_user_fault(struct siginfo *info, unsigned int esr)
 
 static void do_bad_area(unsigned long addr, unsigned int esr, struct pt_regs *regs)
 {
+	unsigned long irqflags;
+
+	if (__ipipe_report_trap(IPIPE_TRAP_ACCESS, regs))
+		return;
+
 	/*
 	 * If we are in kernel mode at this point, we have no context to
 	 * handle this fault with.
@@ -370,8 +437,15 @@ static void do_bad_area(unsigned long addr, unsigned int esr, struct pt_regs *re
 		si.si_code	= inf->code;
 		si.si_addr	= (void __user *)addr;
 
+		irqflags = fault_entry(regs);
 		__do_user_fault(&si, esr);
+		fault_exit(irqflags);
 	} else {
+		/*
+		 * I-pipe: kernel faults are either quickly
+		 * recoverable via fixup, or lethal. In both cases, we
+		 * can skip the interrupt state synchronization.
+		 */
 		__do_kernel_fault(addr, esr, regs);
 	}
 }
@@ -428,11 +502,16 @@ static int __kprobes do_page_fault(unsigned long addr, unsigned int esr,
 	struct mm_struct *mm;
 	struct siginfo si;
 	vm_fault_t fault, major = 0;
-	unsigned long vm_flags = VM_READ | VM_WRITE;
+	unsigned long vm_flags = VM_READ | VM_WRITE, irqflags;
 	unsigned int mm_flags = FAULT_FLAG_ALLOW_RETRY | FAULT_FLAG_KILLABLE;
 
-	if (notify_page_fault(regs, esr))
+	if (__ipipe_report_trap(IPIPE_TRAP_ACCESS, regs))
 		return 0;
+
+	irqflags = fault_entry(regs);
+
+	if (notify_page_fault(regs, esr))
+		goto out;
 
 	tsk = current;
 	mm  = tsk->mm;
@@ -506,7 +585,7 @@ retry:
 		if (fatal_signal_pending(current)) {
 			if (!user_mode(regs))
 				goto no_context;
-			return 0;
+			goto out;
 		}
 
 		/*
@@ -542,7 +621,7 @@ retry:
 				      addr);
 		}
 
-		return 0;
+		goto out;
 	}
 
 	/*
@@ -559,7 +638,7 @@ retry:
 		 * oom-killed).
 		 */
 		pagefault_out_of_memory();
-		return 0;
+		goto out;
 	}
 
 	clear_siginfo(&si);
@@ -593,17 +672,22 @@ retry:
 	}
 
 	__do_user_fault(&si, esr);
+out:
+	fault_exit(irqflags);
+
 	return 0;
 
 no_context:
 	__do_kernel_fault(addr, esr, regs);
-	return 0;
+	goto out;
 }
 
 static int __kprobes do_translation_fault(unsigned long addr,
 					  unsigned int esr,
 					  struct pt_regs *regs)
 {
+	/* I-pipe: hard irqs may be on upon el1_sync. */
+
 	if (addr < TASK_SIZE)
 		return do_page_fault(addr, esr, regs);
 
@@ -627,6 +711,9 @@ static int do_sea(unsigned long addr, unsigned int esr, struct pt_regs *regs)
 {
 	struct siginfo info;
 	const struct fault_info *inf;
+	unsigned long irqflags;
+
+	irqflags = fault_entry(regs);
 
 	inf = esr_to_fault_info(esr);
 
@@ -654,6 +741,8 @@ static int do_sea(unsigned long addr, unsigned int esr, struct pt_regs *regs)
 	else
 		info.si_addr  = (void __user *)addr;
 	arm64_notify_die(inf->name, regs, &info, esr);
+
+	fault_exit(irqflags);
 
 	return 0;
 }
@@ -734,10 +823,13 @@ asmlinkage void __exception do_mem_abort(unsigned long addr, unsigned int esr,
 					 struct pt_regs *regs)
 {
 	const struct fault_info *inf = esr_to_fault_info(esr);
+	unsigned long irqflags;
 	struct siginfo info;
 
 	if (!inf->fn(addr, esr, regs))
 		return;
+
+	irqflags = fault_entry(regs);
 
 	if (!user_mode(regs)) {
 		pr_alert("Unhandled fault at 0x%016lx\n", addr);
@@ -751,11 +843,17 @@ asmlinkage void __exception do_mem_abort(unsigned long addr, unsigned int esr,
 	info.si_code  = inf->code;
 	info.si_addr  = (void __user *)addr;
 	arm64_notify_die(inf->name, regs, &info, esr);
+
+	fault_exit(irqflags);
 }
 
 asmlinkage void __exception do_el0_irq_bp_hardening(void)
 {
-	/* PC has already been checked in entry.S */
+	/*
+	 * PC has already been checked in entry.S
+	 * I-pipe: assume that branch predictor hardening
+	 * workarounds can safely run on any stage.
+	 */
 	arm64_apply_bp_hardening();
 }
 
@@ -771,7 +869,7 @@ asmlinkage void __exception do_el0_ia_bp_hardening(unsigned long addr,
 	if (addr > TASK_SIZE)
 		arm64_apply_bp_hardening();
 
-	local_irq_enable();
+	local_irq_enable_full();
 	do_mem_abort(addr, esr, regs);
 }
 
@@ -781,19 +879,25 @@ asmlinkage void __exception do_sp_pc_abort(unsigned long addr,
 					   struct pt_regs *regs)
 {
 	struct siginfo info;
+	unsigned long irqflags;
 
 	if (user_mode(regs)) {
 		if (instruction_pointer(regs) > TASK_SIZE)
 			arm64_apply_bp_hardening();
-		local_irq_enable();
+		local_irq_enable_full();
 	}
 
 	clear_siginfo(&info);
+
+	irqflags = fault_entry(regs);
+
 	info.si_signo = SIGBUS;
 	info.si_errno = 0;
 	info.si_code  = BUS_ADRALN;
 	info.si_addr  = (void __user *)addr;
 	arm64_notify_die("SP/PC alignment exception", regs, &info, esr);
+
+	fault_exit(irqflags);
 }
 
 int __init early_brk64(unsigned long addr, unsigned int esr,
@@ -863,6 +967,7 @@ asmlinkage int __exception do_debug_exception(unsigned long addr_if_watchpoint,
 {
 	const struct fault_info *inf = debug_fault_info + DBG_ESR_EVT(esr);
 	unsigned long pc = instruction_pointer(regs);
+	unsigned long irqflags;
 	int rv;
 
 	if (cortex_a76_erratum_1463225_debug_handler(regs))
@@ -878,6 +983,11 @@ asmlinkage int __exception do_debug_exception(unsigned long addr_if_watchpoint,
 	if (user_mode(regs) && pc > TASK_SIZE)
 		arm64_apply_bp_hardening();
 
+	if (__ipipe_report_trap(IPIPE_TRAP_BREAK, regs))
+		return 1;
+
+	irqflags = fault_entry(regs);
+
 	if (!inf->fn(addr_if_watchpoint, esr, regs)) {
 		rv = 1;
 	} else {
@@ -892,8 +1002,14 @@ asmlinkage int __exception do_debug_exception(unsigned long addr_if_watchpoint,
 		rv = 0;
 	}
 
-	if (interrupts_enabled(regs))
-		trace_hardirqs_on();
+	fault_exit(irqflags);
+
+	if (interrupts_enabled(regs)) {
+		if (IS_ENABLED(CONFIG_IPIPE))
+			local_irq_enable();
+		else
+			trace_hardirqs_on();
+	}
 
 	return rv;
 }

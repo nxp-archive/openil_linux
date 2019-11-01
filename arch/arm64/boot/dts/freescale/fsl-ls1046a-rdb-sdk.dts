@@ -95,6 +95,26 @@ pcie@3600000 {
 		fsl,fman-mac = <&enet7>;
 		dma-coherent;
 	};
+	ethernet@2 {
+		compatible = "fsl,im-ethernet", "fsl,dpa-ethernet";
+		fsl,fman-mac = <&enet2>;
+		fpmevt-sel = <0>;
+	};
+	ethernet@3 {
+		compatible = "fsl,im-ethernet", "fsl,dpa-ethernet";
+		fsl,fman-mac = <&enet3>;
+		fpmevt-sel = <1>;
+	};
+	ethernet@4 {
+		compatible = "fsl,im-ethernet", "fsl,dpa-ethernet";
+		fsl,fman-mac = <&enet4>;
+		fpmevt-sel = <2>;
+	};
+	ethernet@5 {
+		compatible = "fsl,im-ethernet", "fsl,dpa-ethernet";
+		fsl,fman-mac = <&enet5>;
+		fpmevt-sel = <3>;
+	};
 };
 
 &fman0 {

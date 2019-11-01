@@ -45,6 +45,16 @@ int arch_show_interrupts(struct seq_file *p, int prec)
 	return 0;
 }
 
+#ifdef CONFIG_IPIPE
+
+asmlinkage int handle_arch_irq_pipelined(struct pt_regs *regs)
+{
+	handle_arch_irq(regs);
+	return __ipipe_root_p && !irqs_disabled();
+}
+
+#endif
+
 #ifdef CONFIG_VMAP_STACK
 static void init_irq_stacks(void)
 {

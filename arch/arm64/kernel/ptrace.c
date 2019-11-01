@@ -190,6 +190,9 @@ static void ptrace_hbptriggered(struct perf_event *bp,
 	info.si_code	= TRAP_HWBKPT;
 	info.si_addr	= (void __user *)(bkpt->trigger);
 
+	if (__ipipe_report_trap(IPIPE_TRAP_BREAK, regs))
+		return;
+
 #ifdef CONFIG_COMPAT
 	if (is_compat_task()) {
 		int si_errno = 0;

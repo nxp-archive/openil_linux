@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2008 Peter Korsgaard <jacmet@sunsite.dk>
  * Copyright (C) 2016 Freescale Semiconductor Inc.
+ * Copyright 2018-2019 NXP
  *
  * This file is licensed under the terms of the GNU General Public License
  * version 2.  This program is licensed "as is" without any warranty of any
@@ -23,6 +24,7 @@
 #include <linux/gpio/driver.h>
 #include <linux/bitops.h>
 #include <linux/interrupt.h>
+#include <linux/ipipe.h>
 
 #define MPC8XXX_GPIO_PINS	32
 
@@ -137,7 +139,7 @@ static irqreturn_t mpc8xxx_gpio_irq_cascade(int irq, void *data)
 	mask = gc->read_reg(mpc8xxx_gc->regs + GPIO_IER)
 		& gc->read_reg(mpc8xxx_gc->regs + GPIO_IMR);
 	if (mask)
-		generic_handle_irq(irq_linear_revmap(mpc8xxx_gc->irq,
+		ipipe_handle_demuxed_irq(irq_linear_revmap(mpc8xxx_gc->irq,
 						     32 - ffs(mask)));
 
 	return IRQ_HANDLED;
@@ -266,6 +268,7 @@ static struct irq_chip mpc8xxx_irq_chip = {
 	.irq_ack	= mpc8xxx_irq_ack,
 	/* this might get overwritten in mpc8xxx_probe() */
 	.irq_set_type	= mpc8xxx_irq_set_type,
+	.flags          = IRQCHIP_PIPELINE_SAFE,
 };
 
 static int mpc8xxx_gpio_irq_map(struct irq_domain *h, unsigned int irq,

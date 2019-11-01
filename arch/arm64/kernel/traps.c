@@ -285,7 +285,7 @@ void arm64_skip_faulting_instruction(struct pt_regs *regs, unsigned long size)
 }
 
 static LIST_HEAD(undef_hook);
-static DEFINE_RAW_SPINLOCK(undef_lock);
+static IPIPE_DEFINE_RAW_SPINLOCK(undef_lock);
 
 void register_undef_hook(struct undef_hook *hook)
 {
@@ -409,6 +409,9 @@ asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 		return;
 
 	if (call_undef_hook(regs) == 0)
+		return;
+
+	if (__ipipe_report_trap(IPIPE_TRAP_UNDEFINSTR, regs))
 		return;
 
 	force_signal_inject(SIGILL, ILL_ILLOPC, regs->pc);
@@ -624,6 +627,9 @@ asmlinkage void bad_el0_sync(struct pt_regs *regs, int reason, unsigned int esr)
 {
 	siginfo_t info;
 	void __user *pc = (void __user *)instruction_pointer(regs);
+
+	if (__ipipe_report_trap(IPIPE_TRAP_UNKNOWN, regs))
+		return;
 
 	clear_siginfo(&info);
 	info.si_signo = SIGILL;

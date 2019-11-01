@@ -99,7 +99,11 @@ struct its_device;
  * list.
  */
 struct its_node {
+#ifdef CONFIG_IPIPE
+	ipipe_spinlock_t    lock;
+#else
 	raw_spinlock_t		lock;
+#endif
 	struct mutex		dev_alloc_lock;
 	struct list_head	entry;
 	void __iomem		*base;
@@ -161,7 +165,11 @@ struct its_device {
 };
 
 static struct {
+#ifdef CONFIG_IPIPE
+	ipipe_spinlock_t	lock;
+#else
 	raw_spinlock_t		lock;
+#endif
 	struct its_device	*dev;
 	struct its_vpe		**vpes;
 	int			next_victim;
