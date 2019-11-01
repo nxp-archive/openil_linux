@@ -33,7 +33,11 @@ int mycoreid;
 
 #ifndef IPI_BAREMETAL_SIGNAL
 void __iomem *share_base;
+#ifdef CONFIG_LS1021A_BAREMETAL
 #define CONFIG_MAX_CPUS 2
+#else
+#define CONFIG_MAX_CPUS 4
+#endif
 #define CONFIG_SYS_DDR_SDRAM_BASE       0x80000000UL
 #define CONFIG_SYS_DDR_SDRAM_SLAVE_SIZE        (256 * 1024 * 1024)
 #define CONFIG_SYS_DDR_SDRAM_MASTER_SIZE       (512 * 1024 * 1024)
