@@ -49,6 +49,7 @@ config NFC_PORT100
 
 	  If unsure, say N.
 
+source "drivers/nfc/pn5xx/Kconfig"
 source "drivers/nfc/fdp/Kconfig"
 source "drivers/nfc/pn544/Kconfig"
 source "drivers/nfc/pn533/Kconfig"
