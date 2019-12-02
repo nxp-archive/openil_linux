@@ -895,6 +895,9 @@ int felix_qci_sfi_get(struct net_device *ndev, u32 index,
 		return -EINVAL;
 	}
 
+	/* In switch, streamhandle and sfid are the same parameter */
+	sfi->stream_handle_spec = (s32)sfid;
+
 	ocelot_field_write(ocelot, ANA_TABLES_SFIDTIDX_SFID_INDEX_0, sfid);
 
 	ocelot_write(ocelot,
