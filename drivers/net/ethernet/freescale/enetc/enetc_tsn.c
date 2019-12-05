@@ -446,8 +446,11 @@ int enetc_qbv_get_status(struct net_device *ndev,
 	oper_basic = &status->oper;
 	priv = netdev_priv(ndev);
 
-	if (!(enetc_rd(&priv->si->hw, QBV_PTGCR_OFFSET) & QBV_TGE))
-		return -EINVAL;
+	if (!enetc_rd(&priv->si->hw, QBV_PTGCR_OFFSET) & QBV_TGE) {
+		status->gate_enabled = 0;
+		return 0;
+	}
+	status->gate_enabled = 1;
 
 	curr_cbd = alloc_cbdr(priv->si, &cbdr);
 
