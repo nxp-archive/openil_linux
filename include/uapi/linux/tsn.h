@@ -1124,6 +1124,12 @@ struct tsn_qbv_conf {
 
 /* 802.1Qbv (Time Aware Shaper) port status */
 struct tsn_qbv_status {
+	/* The GateEnabled parameter indicates whether traffic scheduling is
+	 * active (true) or inactive (false).  The value of this object MUST be
+	 * retained across reinitializations of the management system.
+	 */
+	__u8 gate_enabled;
+
 	/* The PTPtime at which the next config change is scheduled to occur.
 	 * The value is a representation of a PTPtime value, consisting of a
 	 * 48-bit integer number of seconds and a 32-bit integer number of
