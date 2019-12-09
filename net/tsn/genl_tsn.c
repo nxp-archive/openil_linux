@@ -2326,11 +2326,11 @@ static int cmd_qbv_get(struct genl_info *info)
 	if (!qbv)
 		return -EMSGSIZE;
 
-	qbvadminattr = nla_nest_start(rep_skb, TSN_QBV_ATTR_ADMINENTRY);
-	if (!qbvadminattr)
-		return -EMSGSIZE;
-
 	if (qbvconf.admin.control_list) {
+		qbvadminattr = nla_nest_start(rep_skb, TSN_QBV_ATTR_ADMINENTRY);
+		if (!qbvadminattr)
+			return -EMSGSIZE;
+
 		len = qbvconf.admin.control_list_length;
 		if (nla_put_u32(rep_skb, TSN_QBV_ATTR_CTRL_LISTCOUNT, len))
 			return -EMSGSIZE;
@@ -2377,12 +2377,10 @@ static int cmd_qbv_get(struct genl_info *info)
 				return -EMSGSIZE;
 
 		kfree(qbvconf.admin.control_list);
-
+		nla_nest_end(rep_skb, qbvadminattr);
 	} else {
-		pr_info("tsn: error get administrator data.");
+		pr_info("tsn: administrator data is empty.");
 	}
-
-	nla_nest_end(rep_skb, qbvadminattr);
 
 	if (qbvconf.gate_enabled) {
 		if (nla_put_flag(rep_skb, TSN_QBV_ATTR_ENABLE))
@@ -2454,11 +2452,11 @@ static int cmd_qbv_status_get(struct genl_info *info)
 	if (!qbv)
 		return -EMSGSIZE;
 
-	qbvoperattr = nla_nest_start(rep_skb, TSN_QBV_ATTR_OPERENTRY);
-	if (!qbvoperattr)
-		return -EMSGSIZE;
-
 	if (qbvstatus.oper.control_list) {
+		qbvoperattr = nla_nest_start(rep_skb, TSN_QBV_ATTR_OPERENTRY);
+		if (!qbvoperattr)
+			return -EMSGSIZE;
+
 		len = qbvstatus.oper.control_list_length;
 		if (nla_put_u32(rep_skb, TSN_QBV_ATTR_CTRL_LISTCOUNT, len)) {
 			nla_nest_cancel(rep_skb, qbvoperattr);
@@ -2513,11 +2511,19 @@ static int cmd_qbv_status_get(struct genl_info *info)
 		}
 
 		kfree(qbvstatus.oper.control_list);
+
+		nla_nest_end(rep_skb, qbvoperattr);
 	} else {
-		pr_info("tsn: error get operation list data.");
+		pr_info("tsn: operation list is empty.");
 	}
 
-	nla_nest_end(rep_skb, qbvoperattr);
+	if (qbvstatus.gate_enabled) {
+		if (nla_put_flag(rep_skb, TSN_QBV_ATTR_ENABLE))
+			return -EMSGSIZE;
+	} else {
+		if (nla_put_flag(rep_skb, TSN_QBV_ATTR_DISABLE))
+			return -EMSGSIZE;
+	}
 
 	if (qbvstatus.config_change_time) {
 		if (NLA_PUT_U64(rep_skb, TSN_QBV_ATTR_CONFIGCHANGETIME,
