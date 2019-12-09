@@ -906,6 +906,7 @@ int felix_qci_sfi_set(struct net_device *ndev, u32 index, bool enable,
 	int fmid = sfi->stream_filter.flow_meter_instance_id;
 	u16 max_sdu_len = sfi->stream_filter.maximum_sdu_size;
 	int sfid = index;
+	u32 val;
 
 	if (fmid == -1)
 		pol_idx = capa.psfp_fmi_max;
@@ -916,6 +917,14 @@ int felix_qci_sfi_set(struct net_device *ndev, u32 index, bool enable,
 		netdev_info(ndev, "Invalid index %u, maximum:%u\n",
 			    sfid, capa.num_psfp_sfid);
 		return -EINVAL;
+	}
+
+	if (!enable) {
+		val = ANA_TABLES_SFIDACCESS_SFID_TBL_CMD(SFIDACCESS_CMD_WRITE);
+		ocelot_write(ocelot, ANA_TABLES_SFIDTIDX_SFID_INDEX(sfid),
+			     ANA_TABLES_SFIDTIDX);
+		ocelot_write(ocelot, val, ANA_TABLES_SFIDACCESS);
+		return 0;
 	}
 
 	if (sgid >= capa.num_psfp_sgid) {
