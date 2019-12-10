@@ -1157,14 +1157,15 @@ static int cmd_qci_sfi_get(struct genl_info *info)
 			return valid;
 		}
 
-		valid = tsnops->qci_sfi_counters_get(netdev, sfi_handle,
+		ret = tsnops->qci_sfi_counters_get(netdev, sfi_handle,
 						     &sficount);
-		if (valid < 0) {
+		if (ret < 0) {
 			tsn_simple_reply(info, TSN_CMD_REPLY,
-					 netdev->name, valid);
-			return valid;
+					 netdev->name, ret);
+			return ret;
 		}
 	}
+
 
 	ret = tsn_prepare_reply(info, genlhdr->cmd,
 				&rep_skb, NLMSG_ALIGN(MAX_ATTR_SIZE));
