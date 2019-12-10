@@ -45,6 +45,7 @@ const struct tsn_ops switch_tsn_ops = {
 	.qbu_get                        = felix_qbu_get,
 	.cb_streamid_set		= felix_cb_streamid_set,
 	.cb_streamid_get		= felix_cb_streamid_get,
+	.cb_streamid_counters_get	= felix_cb_streamid_counters_get,
 	.qci_sfi_set			= felix_qci_sfi_set,
 	.qci_sfi_get			= felix_qci_sfi_get,
 	.qci_sfi_counters_get		= felix_qci_sfi_counters_get,

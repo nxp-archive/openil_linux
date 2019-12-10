@@ -578,6 +578,12 @@ int felix_qbu_get(struct net_device *ndev, struct tsn_preempt_status *c)
 	return 0;
 }
 
+int felix_cb_streamid_counters_get(struct net_device *ndev, u32 index,
+				   struct tsn_cb_streamid_counters *s_counters)
+{
+	return 0;
+}
+
 int felix_cb_streamid_get(struct net_device *ndev, u32 index,
 			  struct tsn_cb_streamid *streamid)
 {
