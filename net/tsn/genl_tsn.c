@@ -1620,6 +1620,7 @@ static int cmd_qci_sgi_get(struct genl_info *info)
 	} else {
 		if (nla_put_flag(rep_skb, TSN_QCI_SGI_ATTR_DISABLE))
 			return -EMSGSIZE;
+		goto out2;
 	}
 
 	if (sgiadmin.config_change)
@@ -1715,6 +1716,7 @@ out1:
 	/* End adminastration */
 	nla_nest_end(rep_skb, adminattr);
 
+out2:
 	nla_nest_end(rep_skb, sgiattr);
 
 	return tsn_send_reply(rep_skb, info);
