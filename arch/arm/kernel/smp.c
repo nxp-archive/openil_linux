@@ -86,11 +86,11 @@ enum ipi_msg_type {
 	 * not be usable by the kernel. Please keep the above limited
 	 * to at most 8 entries.
 	 */
-#ifdef CONFIG_IPIPE
-	IPI_IPIPE_FIRST,
-#endif
 #ifdef CONFIG_BAREMETAL
 	IPI_BAREMETAL_COMM,
+#endif
+#ifdef CONFIG_IPIPE
+	IPI_IPIPE_FIRST,
 #endif
 };
 
