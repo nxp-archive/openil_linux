@@ -3,6 +3,7 @@
  * Freescale Management Complex (MC) bus driver MSI support
  *
  * Copyright (C) 2015-2016 Freescale Semiconductor, Inc.
+ * Copyright 2020 NXP
  * Author: German Rivera <German.Rivera@freescale.com>
  *
  */
@@ -17,6 +18,7 @@
 
 static struct irq_chip its_msi_irq_chip = {
 	.name = "ITS-fMSI",
+	.flags = IRQCHIP_PIPELINE_SAFE,
 	.irq_mask = irq_chip_mask_parent,
 	.irq_unmask = irq_chip_unmask_parent,
 	.irq_eoi = irq_chip_eoi_parent,
