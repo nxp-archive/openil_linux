@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause) */
-/* Copyright 2017-2019 NXP */
+/* Copyright 2017-2020 NXP */
 
 #ifndef __UAPI_GENL_TSN_H
 #define __UAPI_GENL_TSN_H
@@ -42,7 +42,6 @@ enum tsn_capability {
 
 enum {
 	TSN_CMD_UNSPEC = 0,	/* Reserved */
-	TSN_CMD_CAP_GET,
 	TSN_CMD_QBV_SET,
 	TSN_CMD_QBV_GET,
 	TSN_CMD_QBV_GET_STATUS,
@@ -70,9 +69,11 @@ enum {
 	TSN_CMD_CBGEN_SET,
 	TSN_CMD_CBREC_SET,
 	TSN_CMD_CBSTAT_GET,
+	TSN_CMD_PCPMAP_SET_UNUSE,
 	TSN_CMD_DSCP_SET,
 	TSN_CMD_ECHO,			/* user->kernel request/get-response */
 	TSN_CMD_REPLY,			/* kernel->user event */
+	TSN_CMD_CAP_GET,
 	__TSN_CMD_MAX,
 };
 #define TSN_CMD_MAX (__TSN_CMD_MAX - 1)
