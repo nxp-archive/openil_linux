@@ -1448,6 +1448,11 @@ static struct irq_chip its_irq_chip = {
 	.irq_compose_msi_msg	= its_irq_compose_msi_msg,
 	.irq_set_irqchip_state	= its_irq_set_irqchip_state,
 	.irq_set_vcpu_affinity	= its_irq_set_vcpu_affinity,
+#ifdef CONFIG_IPIPE
+	.irq_hold		= irq_chip_hold_parent,
+	.irq_release		= irq_chip_release_parent,
+	.flags			= IRQCHIP_PIPELINE_SAFE,
+#endif
 };
 
 

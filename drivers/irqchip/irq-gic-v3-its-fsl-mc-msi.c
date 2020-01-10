@@ -18,7 +18,11 @@
 
 static struct irq_chip its_msi_irq_chip = {
 	.name = "ITS-fMSI",
-	.flags = IRQCHIP_PIPELINE_SAFE,
+#ifdef CONFIG_IPIPE
+	.irq_hold	= irq_chip_hold_parent,
+	.irq_release	= irq_chip_release_parent,
+	.flags		= IRQCHIP_PIPELINE_SAFE,
+#endif
 	.irq_mask = irq_chip_mask_parent,
 	.irq_unmask = irq_chip_unmask_parent,
 	.irq_eoi = irq_chip_eoi_parent,
