@@ -21,6 +21,7 @@
 #include <linux/timer.h>
 #include <linux/workqueue.h>
 #include <linux/mod_devicetable.h>
+#include <linux/u64_stats_sync.h>
 
 #include <linux/atomic.h>
 
@@ -208,6 +209,15 @@ struct device;
 struct phylink;
 struct sk_buff;
 
+struct mdio_bus_stats {
+	u64_stats_t transfers;
+	u64_stats_t errors;
+	u64_stats_t writes;
+	u64_stats_t reads;
+	/* Must be last, add new statistics above */
+	struct u64_stats_sync syncp;
+};
+
 /*
  * The Bus class for PHYs.  Devices which provide access to
  * PHYs should register using this structure
@@ -220,6 +230,7 @@ struct mii_bus {
 	int (*read)(struct mii_bus *bus, int addr, int regnum);
 	int (*write)(struct mii_bus *bus, int addr, int regnum, u16 val);
 	int (*reset)(struct mii_bus *bus);
+	struct mdio_bus_stats stats[PHY_MAX_ADDR];
 
 	/*
 	 * A lock to ensure that only one thing can read/write
