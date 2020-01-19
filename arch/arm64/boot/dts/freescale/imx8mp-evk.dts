@@ -232,6 +232,8 @@
 	pinctrl-0 = <&pinctrl_eqos>;
 	phy-mode = "rgmii-id";
 	phy-handle = <&ethphy0>;
+	snps,mtl-tx-config = <&txnode>;
+	snps,mtl-rx-config = <&rxnode>;
 	status = "okay";
 
 	mdio {
@@ -243,6 +245,46 @@
 			compatible = "ethernet-phy-ieee802.3-c22";
 			reg = <1>;
 			eee-broken-1000t;
+		};
+	};
+
+	txnode:txnode@1 {
+		snps,tx-queues-to-use = <5>;
+
+		txqueue0: txqueue@1 {
+			snps,priority = <0>;
+		};
+		txqueue1: txqueue@2 {
+			snps,priority = <1>;
+		};
+		txqueue2: txqueue@3 {
+			snps,priority = <2>;
+		};
+		txqueue3: txqueue@4 {
+			snps,priority = <3>;
+		};
+		txqueue4: txqueue@5 {
+			snps,priority = <4>;
+		};
+	};
+
+	rxnode:rxnode@1 {
+		snps,rx-queues-to-use = <5>;
+
+		rxqueue0: rxqueue@1 {
+			snps,priority = <0>;
+		};
+		rxqueue1: rxqueue@2 {
+			snps,priority = <1>;
+		};
+		rxqueue2: rxqueue@3 {
+			snps,priority = <2>;
+		};
+		rxqueue3: rxqueue@4 {
+			snps,priority = <3>;
+		};
+		rxqueue4: rxqueue@5 {
+			snps,priority = <4>;
 		};
 	};
 };
