@@ -8282,7 +8282,6 @@ void migrate_enable(void)
 
 		stop_one_cpu_nowait(task_cpu(p), migration_cpu_stop,
 				    arg, work);
-		__schedule(true);
 	}
 
 out:
