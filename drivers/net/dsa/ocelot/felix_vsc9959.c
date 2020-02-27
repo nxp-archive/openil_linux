@@ -1496,6 +1496,39 @@ static int vsc9959_qos_port_tas_set(struct ocelot *ocelot, int port,
 	return ret;
 }
 
+int vsc9959_qos_port_cbs_set(struct dsa_switch *ds, int port,
+			     struct tc_cbs_qopt_offload *cbs_qopt)
+{
+	struct ocelot *ocelot = ds->priv;
+	int port_ix = port * 8 + cbs_qopt->queue;
+	u32 cbs = 0;
+	u32 cir = 0;
+
+	if (cbs_qopt->queue >= ds->num_tx_queues)
+		return -EINVAL;
+
+	/* Rate unit is 100 kbps */
+	cir = DIV_ROUND_UP(cbs_qopt->idleslope, 100);
+	/* Burst unit is 4kB */
+	cbs = DIV_ROUND_UP(cbs_qopt->hicredit, 4096);
+	/* Avoid using zero burst size */
+	cbs = (cbs ? cbs : 1);
+	cbs = min_t(u32, GENMASK(5, 0), cbs);
+	ocelot_write_gix(ocelot,
+			 QSYS_CIR_CFG_CIR_RATE(cir) |
+			 QSYS_CIR_CFG_CIR_BURST(cbs),
+			 QSYS_CIR_CFG,
+			 port_ix);
+
+	ocelot_rmw_gix(ocelot,
+		       QSYS_SE_CFG_SE_AVB_ENA,
+		       QSYS_SE_CFG_SE_AVB_ENA,
+		       QSYS_SE_CFG,
+		       port_ix);
+
+	return 0;
+}
+
 static int vsc9959_port_setup_tc(struct dsa_switch *ds, int port,
 				 enum tc_setup_type type,
 				 void *type_data)
@@ -1505,6 +1538,8 @@ static int vsc9959_port_setup_tc(struct dsa_switch *ds, int port,
 	switch (type) {
 	case TC_SETUP_QDISC_TAPRIO:
 		return vsc9959_qos_port_tas_set(ocelot, port, type_data);
+	case TC_SETUP_QDISC_CBS:
+		return vsc9959_qos_port_cbs_set(ds, port, type_data);
 	default:
 		return -EOPNOTSUPP;
 	}
