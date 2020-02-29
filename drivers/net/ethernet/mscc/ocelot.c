@@ -2535,7 +2535,6 @@ void ocelot_deinit(struct ocelot *ocelot)
 	cancel_delayed_work(&ocelot->stats_work);
 	destroy_workqueue(ocelot->stats_queue);
 	mutex_destroy(&ocelot->stats_lock);
-	ocelot_ace_deinit();
 	if (ocelot->ptp_clock)
 		ptp_clock_unregister(ocelot->ptp_clock);
 
