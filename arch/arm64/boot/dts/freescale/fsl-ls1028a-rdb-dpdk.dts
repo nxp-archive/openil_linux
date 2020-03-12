@@ -22,6 +22,10 @@
 
 /delete-node/ &enetc_mdio_pf3;
 
+&mscc_felix {
+	status = "okay";
+};
+
 /* l2switch ports */
 &mscc_felix_ports {
 	port@0 {

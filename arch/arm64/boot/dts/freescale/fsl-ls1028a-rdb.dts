@@ -257,6 +257,10 @@
 	};
 };
 
+&mscc_felix {
+	status = "okay";
+};
+
 /* l2switch ports */
 &mscc_felix_ports {
 	port@0 {
