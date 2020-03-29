@@ -2535,11 +2535,10 @@ int ocelot_init(struct ocelot *ocelot)
 		}
 
 		/* Available on all ingress port except CPU port */
-		ptp_rule.ocelot = ocelot;
 		ptp_rule.ingress_port_mask =
 			GENMASK(ocelot->num_phys_ports - 1, 0);
-		ptp_rule.ingress_port_mask &= ~BIT(ocelot->cpu);
-		ocelot_ace_rule_offload_add(&ptp_rule);
+		ptp_rule.ingress_port_mask &= ~BIT(ocelot->npi);
+		ocelot_ace_rule_offload_add(ocelot, &ptp_rule);
 	}
 
 	return 0;
