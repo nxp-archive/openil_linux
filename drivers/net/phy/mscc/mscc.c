@@ -217,8 +217,6 @@ enum macsec_bank {
 #define MSCC_PHY_EXTENDED_INT_MS_EGR	  BIT(9)
 
 /* Extended Page 3 Registers */
-#define MSCC_PHY_SERDES_CON		  16
-#define MSCC_PHY_SERDES_ANEG		  BIT(7)
 #define MSCC_PHY_SERDES_TX_VALID_CNT	  21
 #define MSCC_PHY_SERDES_TX_CRC_ERR_CNT	  22
 #define MSCC_PHY_SERDES_RX_VALID_CNT	  28
@@ -3277,14 +3275,6 @@ static int vsc8514_config_init(struct phy_device *phydev)
 	}
 
 	mutex_unlock(&phydev->mdio.bus->mdio_lock);
-
-	ret = phy_write(phydev, MSCC_EXT_PAGE_ACCESS, MSCC_PHY_PAGE_EXTENDED_3);
-	if (ret)
-		return ret;
-
-	ret = phy_set_bits(phydev, MSCC_PHY_SERDES_CON, MSCC_PHY_SERDES_ANEG);
-	if (ret)
-		return ret;
 
 	ret = phy_write(phydev, MSCC_EXT_PAGE_ACCESS, MSCC_PHY_PAGE_STANDARD);
 
