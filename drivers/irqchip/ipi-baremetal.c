@@ -47,12 +47,18 @@ void __iomem *share_base;
 #endif
 #if defined(CONFIG_LS1021A_BAREMETAL) || defined(CONFIG_LS1028A_BAREMETAL)
 #define CONFIG_MAX_CPUS 2
+#elif defined(CONFIG_LX2160A_BAREMETAL)
+#define CONFIG_MAX_CPUS 16
 #else
 #define CONFIG_MAX_CPUS 4
 #endif
 #if defined(CONFIG_SOC_IMX6Q_BAREMETAL)
 #define CONFIG_SYS_DDR_SDRAM_BASE       0x10000000UL
 #define CONFIG_SYS_DDR_SDRAM_SLAVE_SIZE        (128 * 1024 * 1024)
+#define CONFIG_SYS_DDR_SDRAM_MASTER_SIZE       (512 * 1024 * 1024)
+#elif defined(CONFIG_LX2160A_BAREMETAL)
+#define CONFIG_SYS_DDR_SDRAM_BASE       0x80000000UL
+#define CONFIG_SYS_DDR_SDRAM_SLAVE_SIZE        (64 * 1024 * 1024)
 #define CONFIG_SYS_DDR_SDRAM_MASTER_SIZE       (512 * 1024 * 1024)
 #else
 #define CONFIG_SYS_DDR_SDRAM_BASE       0x80000000UL
@@ -67,6 +73,9 @@ void __iomem *share_base;
 #if defined(CONFIG_SOC_IMX6Q_BAREMETAL)
 #define CONFIG_SYS_DDR_SDRAM_SHARE_SIZE \
 	((128 * 1024 * 1024) - CONFIG_SYS_DDR_SDRAM_SHARE_RESERVE_SIZE)
+#elif defined(CONFIG_LX2160A_BAREMETAL)
+#define CONFIG_SYS_DDR_SDRAM_SHARE_SIZE \
+	((64 * 1024 * 1024) - CONFIG_SYS_DDR_SDRAM_SHARE_RESERVE_SIZE)
 #else
 #define CONFIG_SYS_DDR_SDRAM_SHARE_SIZE \
 	((256 * 1024 * 1024) - CONFIG_SYS_DDR_SDRAM_SHARE_RESERVE_SIZE)
@@ -169,11 +178,24 @@ static int ipi_baremetal_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-#ifdef CONFIG_LS1028A_BAREMETAL
+#if defined CONFIG_LS1028A_BAREMETAL || defined CONFIG_LX2160A_BAREMETAL
 static long ipi_baremetal_ioctl(struct file *file,
 		unsigned int cmd, unsigned long arg)
 {
+#if defined(CONFIG_LS1028A_BAREMETAL)
 	unsigned long val = *(unsigned long *)arg | 1 << 40;
+#elif defined(CONFIG_LX2160A_BAREMETAL)
+	unsigned long val = *(unsigned long *)arg;
+	unsigned long i, cluster, mask;
+
+	for (i = 0; i < 16; i++) {
+		if ((val >> i) & 0x1) {
+			cluster = i / 2;
+			mask = i % 2;
+			val |= (1 << mask) | (cluster << 16);
+		}
+	}
+#endif
 	switch (cmd) {
 	case IPIDEV_IOCIRQ:
 		write_sysreg_s(val, SYS_ICC_SGI1R_EL1);
@@ -314,7 +336,7 @@ const struct file_operations ipi_bm_ops = {
 	.read = ipi_baremetal_read,
 	.write = ipi_baremetal_write,
 	.mmap = shd_mmap_mem,
-#ifdef CONFIG_LS1028A_BAREMETAL
+#if defined CONFIG_LS1028A_BAREMETAL || defined CONFIG_LX2160A_BAREMETAL
 	.unlocked_ioctl = ipi_baremetal_ioctl,
 #endif
 };
