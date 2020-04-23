@@ -5,6 +5,7 @@
 
 #include <net/pkt_cls.h>
 #include <net/tc_act/tc_gact.h>
+#include <soc/mscc/ocelot_vcap.h>
 
 #include "ocelot_ace.h"
 
@@ -23,12 +24,15 @@ static int ocelot_flower_parse_action(struct flow_cls_offload *f,
 		switch (a->id) {
 		case FLOW_ACTION_DROP:
 			ace->action = OCELOT_ACL_ACTION_DROP;
+			ace->vcap_id = VCAP_IS2;
 			break;
 		case FLOW_ACTION_TRAP:
 			ace->action = OCELOT_ACL_ACTION_TRAP;
+			ace->vcap_id = VCAP_IS2;
 			break;
 		case FLOW_ACTION_POLICE:
 			ace->action = OCELOT_ACL_ACTION_POLICE;
+			ace->vcap_id = VCAP_IS2;
 			rate = a->police.rate_bytes_ps;
 			ace->pol.rate = div_u64(rate, 1000) * 8;
 			burst = rate * PSCHED_NS2TICKS(a->police.burst);

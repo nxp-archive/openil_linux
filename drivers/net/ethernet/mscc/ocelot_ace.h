@@ -191,6 +191,7 @@ struct ocelot_ace_rule {
 
 	u16 prio;
 	u32 id;
+	u8 vcap_id;
 
 	enum ocelot_ace_action action;
 	struct ocelot_ace_stats stats;
