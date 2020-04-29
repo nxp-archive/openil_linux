@@ -63,7 +63,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		compatible = "nxp,sja1105s";
-		dsa,member = <1 0>;
+		dsa,member = <1 1>;
 		/* 20 MHz */
 		spi-max-frequency = <20000000>;
 		/* Sample data on trailing clock edge */
@@ -121,7 +121,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		compatible = "nxp,sja1105s";
-		dsa,member = <2 0>;
+		dsa,member = <2 2>;
 		/* 20 MHz */
 		spi-max-frequency = <20000000>;
 		spi-cpha;
