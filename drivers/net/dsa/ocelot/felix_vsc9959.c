@@ -1567,6 +1567,7 @@ struct felix_info felix_info_vsc9959 = {
 	.num_stats		= ARRAY_SIZE(vsc9959_stats_layout),
 	.vcap			= vsc9959_vcap_props,
 	.shared_queue_sz	= 128 * 1024,
+	.num_mact_rows		= 2048,
 	.num_ports		= 6,
 	.num_tx_queues		= 8,
 	.switch_pci_bar		= 4,
