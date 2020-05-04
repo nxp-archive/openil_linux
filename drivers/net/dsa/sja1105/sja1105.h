@@ -125,6 +125,13 @@ struct sja1105_key {
 enum sja1105_rule_type {
 	SJA1105_RULE_BCAST_POLICER,
 	SJA1105_RULE_TC_POLICER,
+	SJA1105_RULE_VL,
+};
+
+enum sja1105_vl_type {
+	SJA1105_VL_NONCRITICAL,
+	SJA1105_VL_RATE_CONSTRAINED,
+	SJA1105_VL_TIME_TRIGGERED,
 };
 
 struct sja1105_rule {
@@ -134,6 +141,7 @@ struct sja1105_rule {
 	struct sja1105_key key;
 	enum sja1105_rule_type type;
 
+	/* Action */
 	union {
 		/* SJA1105_RULE_BCAST_POLICER */
 		struct {
@@ -144,12 +152,19 @@ struct sja1105_rule {
 		struct {
 			int sharindx;
 		} tc_pol;
+
+		/* SJA1105_RULE_VL */
+		struct {
+			unsigned long destports;
+			enum sja1105_vl_type type;
+		} vl;
 	};
 };
 
 struct sja1105_flow_block {
 	struct list_head rules;
 	bool l2_policer_used[SJA1105_NUM_L2_POLICERS];
+	int num_virtual_links;
 };
 
 struct sja1105_private {
@@ -186,6 +201,7 @@ enum sja1105_reset_reason {
 	SJA1105_AGEING_TIME,
 	SJA1105_SCHEDULING,
 	SJA1105_BEST_EFFORT_POLICING,
+	SJA1105_VIRTUAL_LINKS,
 };
 
 int sja1105_static_config_reload(struct sja1105_private *priv,
@@ -289,5 +305,7 @@ int sja1105_cls_flower_add(struct dsa_switch *ds, int port,
 			   struct flow_cls_offload *cls, bool ingress);
 void sja1105_flower_setup(struct dsa_switch *ds);
 void sja1105_flower_teardown(struct dsa_switch *ds);
+struct sja1105_rule *sja1105_rule_find(struct sja1105_private *priv,
+				       unsigned long cookie);
 
 #endif
