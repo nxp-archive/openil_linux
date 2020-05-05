@@ -93,6 +93,12 @@ struct ocelot_ace_vlan {
 	enum ocelot_vcap_bit tagged; /* Tagged/untagged frame */
 };
 
+struct ocelot_ace_action_vlan {
+	u16 vid;
+	u8 pcp;
+	u8 dei;
+};
+
 struct ocelot_ace_frame_etype {
 	struct ocelot_vcap_u48 dmac;
 	struct ocelot_vcap_u48 smac;
@@ -158,6 +164,7 @@ struct ocelot_ace_frame_ipv4 {
 struct ocelot_ace_frame_ipv6 {
 	struct ocelot_vcap_u8 proto; /* IPv6 protocol */
 	struct ocelot_vcap_u128 sip; /* IPv6 source (byte 0-7 ignored) */
+	struct ocelot_vcap_u128 dip; /* IPv6 destination (byte 0-7 ignored) */
 	enum ocelot_vcap_bit ttl;  /* TTL zero */
 	struct ocelot_vcap_u8 ds;
 	struct ocelot_vcap_u48 data; /* Not UDP/TCP: IP data */
@@ -178,6 +185,7 @@ enum ocelot_ace_action {
 	OCELOT_ACL_ACTION_DROP,
 	OCELOT_ACL_ACTION_TRAP,
 	OCELOT_ACL_ACTION_POLICE,
+	OCELOT_ACL_ACTION_VLAN_MODIFY,
 };
 
 struct ocelot_ace_stats {
@@ -200,6 +208,7 @@ struct ocelot_ace_rule {
 	enum ocelot_vcap_bit dmac_mc;
 	enum ocelot_vcap_bit dmac_bc;
 	struct ocelot_ace_vlan vlan;
+	struct ocelot_ace_action_vlan vlan_modify;
 
 	enum ocelot_ace_type type;
 	union {

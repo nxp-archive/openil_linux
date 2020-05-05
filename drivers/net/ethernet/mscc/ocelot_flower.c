@@ -38,6 +38,12 @@ static int ocelot_flower_parse_action(struct flow_cls_offload *f,
 			burst = rate * PSCHED_NS2TICKS(a->police.burst);
 			ace->pol.burst = div_u64(burst, PSCHED_TICKS_PER_SEC);
 			break;
+		case FLOW_ACTION_VLAN_MANGLE:
+			ace->vcap_id = VCAP_IS1;
+			ace->action = OCELOT_ACL_ACTION_VLAN_MODIFY;
+			ace->vlan_modify.vid = a->vlan.vid;
+			ace->vlan_modify.pcp = a->vlan.prio;
+			break;
 		default:
 			return -EOPNOTSUPP;
 		}
