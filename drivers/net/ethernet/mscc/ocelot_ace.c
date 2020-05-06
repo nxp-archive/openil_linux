@@ -834,6 +834,69 @@ static void is1_entry_set(struct ocelot *ocelot, int ix,
 	vcap_row_cmd(ocelot, vcap, row, VCAP_CMD_WRITE, VCAP_SEL_ALL);
 }
 
+static void es0_action_set(struct ocelot *ocelot, struct vcap_data *data,
+			   struct ocelot_ace_rule *ace)
+{
+	const struct vcap_props *vcap = &ocelot->vcap[VCAP_ES0];
+
+	switch (ace->action) {
+	case OCELOT_ACL_ACTION_VLAN_PUSH:
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_PUSH_OUTER_TAG, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_VID_SEL, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_VID_A_VAL,
+				ace->vlan_modify.vid);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_PCP_SEL, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_PCP_A_VAL,
+				ace->vlan_modify.pcp);
+		break;
+	default:
+		break;
+	}
+}
+
+static void es0_entry_set(struct ocelot *ocelot, int ix,
+			  struct ocelot_ace_rule *ace)
+{
+	const struct vcap_props *vcap = &ocelot->vcap[VCAP_ES0];
+	struct ocelot_ace_vlan *tag = &ace->vlan;
+	struct ocelot_vcap_u64 payload;
+	struct vcap_data data;
+	int row = ix;
+	u32 msk = 0x7;
+
+	memset(&payload, 0, sizeof(payload));
+	memset(&data, 0, sizeof(data));
+
+	/* Read row */
+	vcap_row_cmd(ocelot, vcap, row, VCAP_CMD_READ, VCAP_SEL_ALL);
+	vcap_cache2entry(ocelot, vcap, &data);
+	vcap_cache2action(ocelot, vcap, &data);
+
+	data.tg_sw = VCAP_TG_FULL;
+	data.type = ES0_ACTION_TYPE_NORMAL;
+	vcap_data_offset_get(vcap, &data, ix);
+	data.tg = (data.tg & ~data.tg_mask);
+	if (ace->prio != 0)
+		data.tg |= data.tg_value;
+
+	vcap_key_set(vcap, &data, VCAP_ES0_EGR_PORT, ace->egress_port, msk);
+	vcap_key_bit_set(vcap, &data, VCAP_ES0_L2_MC, ace->dmac_mc);
+	vcap_key_bit_set(vcap, &data, VCAP_ES0_L2_BC, ace->dmac_bc);
+	vcap_key_set(vcap, &data, VCAP_ES0_VID,
+		     tag->vid.value, tag->vid.mask);
+	vcap_key_set(vcap, &data, VCAP_ES0_PCP,
+		     tag->pcp.value[0], tag->pcp.mask[0]);
+
+	es0_action_set(ocelot, &data, ace);
+	vcap_data_set(data.counter, data.counter_offset,
+		      vcap->counter_width, ace->stats.pkts);
+
+	/* Write row */
+	vcap_entry2cache(ocelot, vcap, &data);
+	vcap_action2cache(ocelot, vcap, &data);
+	vcap_row_cmd(ocelot, vcap, row, VCAP_CMD_WRITE, VCAP_SEL_ALL);
+}
+
 static void vcap_entry_get(struct ocelot *ocelot, struct ocelot_ace_rule *rule,
 			   int ix)
 {
@@ -858,6 +921,9 @@ static void vcap_entry_set(struct ocelot *ocelot, int ix,
 			   struct ocelot_ace_rule *ace)
 {
 	switch (ace->vcap_id) {
+	case VCAP_ES0:
+		es0_entry_set(ocelot, ix, ace);
+		break;
 	case VCAP_IS1:
 		is1_entry_set(ocelot, ix, ace);
 		break;
@@ -932,8 +998,8 @@ int ocelot_ace_rule_get_vcap_id(struct ocelot_acl_block *block,
 	struct ocelot_ace_rule *tmp;
 	int i;
 
-	for (i = 0; i < VCAP_CORE_MAX; i++, block++)
-		list_for_each_entry(tmp, &block->rules, list)
+	for (i = rule->vcap_id; i > VCAP_ES0; i--)
+		list_for_each_entry(tmp, &block[i].rules, list)
 			if (rule->id == tmp->id) {
 				rule->vcap_id = i;
 				break;
@@ -1143,6 +1209,7 @@ int ocelot_ace_rule_offload_del(struct ocelot *ocelot,
 	}
 
 	/* Now delete the last rule, because it is duplicated */
+	del_ace.vcap_id = rule->vcap_id;
 	vcap_entry_set(ocelot, block->count, &del_ace);
 
 	return 0;
@@ -1191,6 +1258,7 @@ int ocelot_ace_init(struct ocelot *ocelot)
 {
 	struct ocelot_acl_block *block;
 
+	vcap_init(ocelot, &ocelot->vcap[VCAP_ES0]);
 	vcap_init(ocelot, &ocelot->vcap[VCAP_IS1]);
 	vcap_init(ocelot, &ocelot->vcap[VCAP_IS2]);
 
@@ -1211,6 +1279,7 @@ int ocelot_ace_init(struct ocelot *ocelot)
 
 	block = &ocelot->acl_block[VCAP_IS2];
 	block->pol_lpr = OCELOT_POLICER_DISCARD - 1;
+	INIT_LIST_HEAD(&ocelot->acl_block[VCAP_ES0].rules);
 	INIT_LIST_HEAD(&ocelot->acl_block[VCAP_IS1].rules);
 	INIT_LIST_HEAD(&ocelot->acl_block[VCAP_IS2].rules);
 

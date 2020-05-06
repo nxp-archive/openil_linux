@@ -186,6 +186,7 @@ enum ocelot_ace_action {
 	OCELOT_ACL_ACTION_TRAP,
 	OCELOT_ACL_ACTION_POLICE,
 	OCELOT_ACL_ACTION_VLAN_MODIFY,
+	OCELOT_ACL_ACTION_VLAN_PUSH,
 };
 
 struct ocelot_ace_stats {
@@ -204,6 +205,7 @@ struct ocelot_ace_rule {
 	enum ocelot_ace_action action;
 	struct ocelot_ace_stats stats;
 	unsigned long ingress_port_mask;
+	u8 egress_port;
 
 	enum ocelot_vcap_bit dmac_mc;
 	enum ocelot_vcap_bit dmac_bc;

@@ -44,6 +44,12 @@ static int ocelot_flower_parse_action(struct flow_cls_offload *f,
 			ace->vlan_modify.vid = a->vlan.vid;
 			ace->vlan_modify.pcp = a->vlan.prio;
 			break;
+		case FLOW_ACTION_VLAN_PUSH:
+			ace->vcap_id = VCAP_ES0;
+			ace->action = OCELOT_ACL_ACTION_VLAN_PUSH;
+			ace->vlan_modify.vid = a->vlan.vid;
+			ace->vlan_modify.pcp = a->vlan.prio;
+			break;
 		default:
 			return -EOPNOTSUPP;
 		}
@@ -183,6 +189,7 @@ finished_key_parsing:
 
 static
 struct ocelot_ace_rule *ocelot_ace_rule_create(struct ocelot *ocelot, int port,
+					       bool ingress,
 					       struct flow_cls_offload *f)
 {
 	struct ocelot_ace_rule *ace;
@@ -191,7 +198,10 @@ struct ocelot_ace_rule *ocelot_ace_rule_create(struct ocelot *ocelot, int port,
 	if (!ace)
 		return NULL;
 
-	ace->ingress_port_mask = BIT(port);
+	if (ingress)
+		ace->ingress_port_mask = BIT(port);
+	else
+		ace->egress_port = port;
 	return ace;
 }
 
@@ -201,7 +211,7 @@ int ocelot_cls_flower_replace(struct ocelot *ocelot, int port,
 	struct ocelot_ace_rule *ace;
 	int ret;
 
-	ace = ocelot_ace_rule_create(ocelot, port, f);
+	ace = ocelot_ace_rule_create(ocelot, port, ingress, f);
 	if (!ace)
 		return -ENOMEM;
 
@@ -222,6 +232,10 @@ int ocelot_cls_flower_destroy(struct ocelot *ocelot, int port,
 
 	ace.prio = f->common.prio;
 	ace.id = f->cookie;
+	if (ingress)
+		ace.vcap_id = VCAP_IS2;
+	else
+		ace.vcap_id = VCAP_ES0;
 
 	return ocelot_ace_rule_offload_del(ocelot, &ace);
 }
@@ -235,6 +249,11 @@ int ocelot_cls_flower_stats(struct ocelot *ocelot, int port,
 
 	ace.prio = f->common.prio;
 	ace.id = f->cookie;
+	if (ingress)
+		ace.vcap_id = VCAP_IS2;
+	else
+		ace.vcap_id = VCAP_ES0;
+
 	ret = ocelot_ace_rule_stats_update(ocelot, &ace);
 	if (ret)
 		return ret;
