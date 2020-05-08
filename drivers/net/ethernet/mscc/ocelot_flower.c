@@ -5,6 +5,7 @@
 
 #include <net/pkt_cls.h>
 #include <net/tc_act/tc_gact.h>
+#include <soc/mscc/ocelot_vcap.h>
 
 #include "ocelot_ace.h"
 
@@ -23,16 +24,31 @@ static int ocelot_flower_parse_action(struct flow_cls_offload *f,
 		switch (a->id) {
 		case FLOW_ACTION_DROP:
 			ace->action = OCELOT_ACL_ACTION_DROP;
+			ace->vcap_id = VCAP_IS2;
 			break;
 		case FLOW_ACTION_TRAP:
 			ace->action = OCELOT_ACL_ACTION_TRAP;
+			ace->vcap_id = VCAP_IS2;
 			break;
 		case FLOW_ACTION_POLICE:
 			ace->action = OCELOT_ACL_ACTION_POLICE;
+			ace->vcap_id = VCAP_IS2;
 			rate = a->police.rate_bytes_ps;
 			ace->pol.rate = div_u64(rate, 1000) * 8;
 			burst = rate * PSCHED_NS2TICKS(a->police.burst);
 			ace->pol.burst = div_u64(burst, PSCHED_TICKS_PER_SEC);
+			break;
+		case FLOW_ACTION_VLAN_MANGLE:
+			ace->vcap_id = VCAP_IS1;
+			ace->action = OCELOT_ACL_ACTION_VLAN_MODIFY;
+			ace->vlan_modify.vid = a->vlan.vid;
+			ace->vlan_modify.pcp = a->vlan.prio;
+			break;
+		case FLOW_ACTION_VLAN_PUSH:
+			ace->vcap_id = VCAP_ES0;
+			ace->action = OCELOT_ACL_ACTION_VLAN_PUSH;
+			ace->vlan_modify.vid = a->vlan.vid;
+			ace->vlan_modify.pcp = a->vlan.prio;
 			break;
 		default:
 			return -EOPNOTSUPP;
@@ -173,6 +189,7 @@ finished_key_parsing:
 
 static
 struct ocelot_ace_rule *ocelot_ace_rule_create(struct ocelot *ocelot, int port,
+					       bool ingress,
 					       struct flow_cls_offload *f)
 {
 	struct ocelot_ace_rule *ace;
@@ -181,7 +198,10 @@ struct ocelot_ace_rule *ocelot_ace_rule_create(struct ocelot *ocelot, int port,
 	if (!ace)
 		return NULL;
 
-	ace->ingress_port_mask = BIT(port);
+	if (ingress)
+		ace->ingress_port_mask = BIT(port);
+	else
+		ace->egress_port = port;
 	return ace;
 }
 
@@ -191,7 +211,7 @@ int ocelot_cls_flower_replace(struct ocelot *ocelot, int port,
 	struct ocelot_ace_rule *ace;
 	int ret;
 
-	ace = ocelot_ace_rule_create(ocelot, port, f);
+	ace = ocelot_ace_rule_create(ocelot, port, ingress, f);
 	if (!ace)
 		return -ENOMEM;
 
@@ -201,7 +221,7 @@ int ocelot_cls_flower_replace(struct ocelot *ocelot, int port,
 		return ret;
 	}
 
-	return ocelot_ace_rule_offload_add(ocelot, ace);
+	return ocelot_ace_rule_offload_add(ocelot, ace, f->common.extack);
 }
 EXPORT_SYMBOL_GPL(ocelot_cls_flower_replace);
 
@@ -212,6 +232,10 @@ int ocelot_cls_flower_destroy(struct ocelot *ocelot, int port,
 
 	ace.prio = f->common.prio;
 	ace.id = f->cookie;
+	if (ingress)
+		ace.vcap_id = VCAP_IS2;
+	else
+		ace.vcap_id = VCAP_ES0;
 
 	return ocelot_ace_rule_offload_del(ocelot, &ace);
 }
@@ -225,6 +249,11 @@ int ocelot_cls_flower_stats(struct ocelot *ocelot, int port,
 
 	ace.prio = f->common.prio;
 	ace.id = f->cookie;
+	if (ingress)
+		ace.vcap_id = VCAP_IS2;
+	else
+		ace.vcap_id = VCAP_ES0;
+
 	ret = ocelot_ace_rule_stats_update(ocelot, &ace);
 	if (ret)
 		return ret;

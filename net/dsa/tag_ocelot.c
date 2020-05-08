@@ -181,9 +181,16 @@ static struct sk_buff *ocelot_rcv(struct sk_buff *skb,
 				  struct net_device *netdev,
 				  struct packet_type *pt)
 {
+	struct dsa_port *cpu_dp = netdev->dsa_ptr;
+	struct dsa_switch *ds = cpu_dp->ds;
+	struct ocelot *ocelot = ds->priv;
+	struct ocelot_port *ocelot_port;
 	u64 src_port, qos_class;
 	u8 *start = skb->data;
+	struct ethhdr *hdr;
 	u8 *extraction;
+	u64 vlan_tci;
+	u16 vid;
 
 	/* Revert skb->data by the amount consumed by the DSA master,
 	 * so it points to the beginning of the frame.
@@ -211,6 +218,7 @@ static struct sk_buff *ocelot_rcv(struct sk_buff *skb,
 
 	packing(extraction, &src_port,  46, 43, OCELOT_TAG_LEN, UNPACK, 0);
 	packing(extraction, &qos_class, 19, 17, OCELOT_TAG_LEN, UNPACK, 0);
+	packing(extraction, &vlan_tci,  15,  0, OCELOT_TAG_LEN, UNPACK, 0);
 
 	skb->dev = dsa_master_find_slave(netdev, 0, src_port);
 	if (!skb->dev)
@@ -224,6 +232,27 @@ static struct sk_buff *ocelot_rcv(struct sk_buff *skb,
 
 	skb->offload_fwd_mark = 1;
 	skb->priority = qos_class;
+
+	/* The VID from the extraction header contains the classified VLAN. But
+	 * if VLAN awareness is off and no retagging is done via VCAP IS1, that
+	 * classified VID will always be the pvid of the src_port.
+	 * port. We want Linux to see the classified VID, but only if the switch
+	 * intended to send the packet as untagged, i.e. if the VID is different
+	 * than the CPU port's untagged (native) VID.
+	 */
+	vid = vlan_tci & VLAN_VID_MASK;
+	hdr = eth_hdr(skb);
+	ocelot_port = ocelot->ports[src_port];
+	if (hdr->h_proto == htons(ETH_P_8021Q) && vid != ocelot_port->pvid) {
+		u16 dummy_vlan_tci;
+
+		skb_push_rcsum(skb, ETH_HLEN);
+		__skb_vlan_pop(skb, &dummy_vlan_tci);
+		skb_pull_rcsum(skb, ETH_HLEN);
+		skb_reset_network_header(skb);
+		skb_reset_transport_header(skb);
+		__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q), vlan_tci);
+	}
 
 	return skb;
 }

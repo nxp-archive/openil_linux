@@ -109,6 +109,8 @@ enum ocelot_target {
 	QSYS,
 	REW,
 	SYS,
+	S0,
+	S1,
 	S2,
 	HSIO,
 	PTP,
@@ -378,13 +380,6 @@ enum ocelot_reg {
 	SYS_CM_DATA_RD,
 	SYS_CM_OP,
 	SYS_CM_DATA,
-	S2_CORE_UPDATE_CTRL = S2 << TARGET_OFFSET,
-	S2_CORE_MV_CFG,
-	S2_CACHE_ENTRY_DAT,
-	S2_CACHE_MASK_DAT,
-	S2_CACHE_ACTION_DAT,
-	S2_CACHE_CNT_DAT,
-	S2_CACHE_TG_DAT,
 	PTP_PIN_CFG = PTP << TARGET_OFFSET,
 	PTP_PIN_TOD_SEC_MSB,
 	PTP_PIN_TOD_SEC_LSB,
@@ -399,6 +394,18 @@ enum ocelot_reg {
 	PTP_CUR_SEC_LSB,
 	PTP_CUR_SEC_MSB,
 	GCB_SOFT_RST = GCB << TARGET_OFFSET,
+};
+
+enum {
+	/* VCAP_CORE_CFG */
+	VCAP_CORE_UPDATE_CTRL,
+	VCAP_CORE_MV_CFG,
+	/* VCAP_CORE_CACHE */
+	VCAP_CACHE_ENTRY_DAT,
+	VCAP_CACHE_MASK_DAT,
+	VCAP_CACHE_ACTION_DAT,
+	VCAP_CACHE_CNT_DAT,
+	VCAP_CACHE_TG_DAT,
 };
 
 enum ocelot_regfield {
@@ -540,10 +547,8 @@ struct ocelot {
 
 	struct list_head		multicast;
 
-	struct ocelot_acl_block		acl_block;
+	struct ocelot_acl_block		acl_block[3];
 
-	const struct vcap_field		*vcap_is2_keys;
-	const struct vcap_field		*vcap_is2_actions;
 	const struct vcap_props		*vcap;
 
 	/* Workqueue to check statistics for overflow with its lock */
@@ -583,6 +588,16 @@ struct ocelot_policer {
 #define ocelot_rmw_rix(ocelot, val, m, reg, ri) __ocelot_rmw_ix(ocelot, val, m, reg, reg##_RSZ * (ri))
 #define ocelot_rmw(ocelot, val, m, reg) __ocelot_rmw_ix(ocelot, val, m, reg, 0)
 
+#define ocelot_target_read_ix(ocelot, target, reg, gi, ri) __ocelot_target_read_ix(ocelot, target, reg, reg##_GSZ * (gi) + reg##_RSZ * (ri))
+#define ocelot_target_read_gix(ocelot, target, reg, gi) __ocelot_target_read_ix(ocelot, target, reg, reg##_GSZ * (gi))
+#define ocelot_target_read_rix(ocelot, target, reg, ri) __ocelot_target_read_ix(ocelot, target, reg, reg##_RSZ * (ri))
+#define ocelot_target_read(ocelot, target, reg) __ocelot_target_read_ix(ocelot, target, reg, 0)
+
+#define ocelot_target_write_ix(ocelot, target, val, reg, gi, ri) __ocelot_target_write_ix(ocelot, target, val, reg, reg##_GSZ * (gi) + reg##_RSZ * (ri))
+#define ocelot_target_write_gix(ocelot, target, val, reg, gi) __ocelot_target_write_ix(ocelot, target, val, reg, reg##_GSZ * (gi))
+#define ocelot_target_write_rix(ocelot, target, val, reg, ri) __ocelot_target_write_ix(ocelot, target, val, reg, reg##_RSZ * (ri))
+#define ocelot_target_write(ocelot, target, val, reg) __ocelot_target_write_ix(ocelot, target, val, reg, 0)
+
 /* I/O */
 u32 ocelot_port_readl(struct ocelot_port *port, u32 reg);
 void ocelot_port_writel(struct ocelot_port *port, u32 val, u32 reg);
@@ -590,6 +605,10 @@ u32 __ocelot_read_ix(struct ocelot *ocelot, u32 reg, u32 offset);
 void __ocelot_write_ix(struct ocelot *ocelot, u32 val, u32 reg, u32 offset);
 void __ocelot_rmw_ix(struct ocelot *ocelot, u32 val, u32 mask, u32 reg,
 		     u32 offset);
+u32 __ocelot_target_read_ix(struct ocelot *ocelot, enum ocelot_target target,
+			    u32 reg, u32 offset);
+void __ocelot_target_write_ix(struct ocelot *ocelot, enum ocelot_target target,
+			      u32 val, u32 reg, u32 offset);
 
 /* Hardware initialization */
 int ocelot_regfields_init(struct ocelot *ocelot,

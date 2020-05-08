@@ -136,6 +136,16 @@ static void ocelot_vcap_enable(struct ocelot *ocelot, int port)
 	ocelot_write_gix(ocelot, ANA_PORT_VCAP_S2_CFG_S2_ENA |
 			 ANA_PORT_VCAP_S2_CFG_S2_IP6_CFG(0xa),
 			 ANA_PORT_VCAP_S2_CFG, port);
+
+	ocelot_write_gix(ocelot, ANA_PORT_VCAP_CFG_S1_ENA,
+			 ANA_PORT_VCAP_CFG, port);
+	ocelot_write_gix(ocelot,
+			 ANA_PORT_VCAP_S1_KEY_CFG_S1_KEY_IP6_CFG(2) |
+			 ANA_PORT_VCAP_S1_KEY_CFG_S1_KEY_IP4_CFG(2),
+			 ANA_PORT_VCAP_S1_KEY_CFG, port);
+
+	ocelot_write_gix(ocelot, REW_PORT_CFG_ES0_EN,
+			 REW_PORT_CFG, port);
 }
 
 static inline u32 ocelot_vlant_read_vlanaccess(struct ocelot *ocelot)
@@ -2393,7 +2403,7 @@ int ocelot_init(struct ocelot *ocelot)
 		ptp_rule.ingress_port_mask =
 			GENMASK(ocelot->num_phys_ports - 1, 0);
 		ptp_rule.ingress_port_mask &= ~BIT(ocelot->npi);
-		ocelot_ace_rule_offload_add(ocelot, &ptp_rule);
+		ocelot_ace_rule_offload_add(ocelot, &ptp_rule, NULL);
 	}
 
 	return 0;

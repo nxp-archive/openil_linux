@@ -224,14 +224,16 @@ static const u32 ocelot_sys_regmap[] = {
 	REG(SYS_PTP_CFG,                   0x0006c4),
 };
 
-static const u32 ocelot_s2_regmap[] = {
-	REG(S2_CORE_UPDATE_CTRL,           0x000000),
-	REG(S2_CORE_MV_CFG,                0x000004),
-	REG(S2_CACHE_ENTRY_DAT,            0x000008),
-	REG(S2_CACHE_MASK_DAT,             0x000108),
-	REG(S2_CACHE_ACTION_DAT,           0x000208),
-	REG(S2_CACHE_CNT_DAT,              0x000308),
-	REG(S2_CACHE_TG_DAT,               0x000388),
+static const u32 ocelot_vcap_regmap[] = {
+	/* VCAP_CORE_CFG */
+	REG(VCAP_CORE_UPDATE_CTRL,         0x000000),
+	REG(VCAP_CORE_MV_CFG,              0x000004),
+	/* VCAP_CORE_CACHE */
+	REG(VCAP_CACHE_ENTRY_DAT,          0x000008),
+	REG(VCAP_CACHE_MASK_DAT,           0x000108),
+	REG(VCAP_CACHE_ACTION_DAT,         0x000208),
+	REG(VCAP_CACHE_CNT_DAT,            0x000308),
+	REG(VCAP_CACHE_TG_DAT,             0x000388),
 };
 
 static const u32 ocelot_ptp_regmap[] = {
@@ -252,7 +254,8 @@ static const u32 *ocelot_regmap[] = {
 	[QSYS] = ocelot_qsys_regmap,
 	[REW] = ocelot_rew_regmap,
 	[SYS] = ocelot_sys_regmap,
-	[S2] = ocelot_s2_regmap,
+	[S1] = ocelot_vcap_regmap,
+	[S2] = ocelot_vcap_regmap,
 	[PTP] = ocelot_ptp_regmap,
 };
 

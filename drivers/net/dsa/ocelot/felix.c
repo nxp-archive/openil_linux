@@ -283,6 +283,10 @@ static void felix_phylink_mac_config(struct dsa_switch *ds, int port,
 
 	if (felix->info->pcs_init)
 		felix->info->pcs_init(ocelot, port, link_an_mode, state);
+
+	if (felix->info->port_sched_speed_set)
+		felix->info->port_sched_speed_set(ocelot, port,
+						  state->speed);
 }
 
 static void felix_phylink_mac_an_restart(struct dsa_switch *ds, int port)
@@ -447,8 +451,6 @@ static int felix_init_structs(struct felix *felix, int num_phys_ports)
 	ocelot->stats_layout	= felix->info->stats_layout;
 	ocelot->num_stats	= felix->info->num_stats;
 	ocelot->shared_queue_sz	= felix->info->shared_queue_sz;
-	ocelot->vcap_is2_keys	= felix->info->vcap_is2_keys;
-	ocelot->vcap_is2_actions= felix->info->vcap_is2_actions;
 	ocelot->vcap		= felix->info->vcap;
 	ocelot->ops		= felix->info->ops;
 
@@ -719,7 +721,7 @@ static void felix_port_policer_del(struct dsa_switch *ds, int port)
 	ocelot_port_policer_del(ocelot, port);
 }
 
-static const struct dsa_switch_ops felix_switch_ops = {
+static struct dsa_switch_ops felix_switch_ops = {
 	.get_tag_protocol	= felix_get_tag_protocol,
 	.setup			= felix_setup,
 	.teardown		= felix_teardown,
@@ -831,6 +833,9 @@ static int felix_pci_probe(struct pci_dev *pdev,
 
 	ocelot->ptp = 1;
 
+	if (felix->info->port_setup_tc)
+		felix_switch_ops.port_setup_tc = felix->info->port_setup_tc;
+
 	ds = dsa_switch_alloc(&pdev->dev, felix->info->num_ports);
 	if (!ds) {
 		err = -ENOMEM;
@@ -840,6 +845,7 @@ static int felix_pci_probe(struct pci_dev *pdev,
 
 	ds->dev = &pdev->dev;
 	ds->num_ports = felix->info->num_ports;
+	ds->num_tx_queues = felix->info->num_tx_queues;
 	ds->ops = &felix_switch_ops;
 	ds->priv = ocelot;
 	felix->ds = ds;

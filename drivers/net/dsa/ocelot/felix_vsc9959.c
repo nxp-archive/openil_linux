@@ -4,8 +4,11 @@
  */
 #include <linux/fsl/enetc_mdio.h>
 #include <soc/mscc/ocelot_vcap.h>
+#include <soc/mscc/ocelot_qsys.h>
 #include <soc/mscc/ocelot_sys.h>
+#include <soc/mscc/ocelot_ptp.h>
 #include <soc/mscc/ocelot.h>
+#include <net/pkt_sched.h>
 #include <linux/iopoll.h>
 #include <linux/pci.h>
 #include "felix.h"
@@ -13,6 +16,9 @@
 #define VSC9959_VCAP_IS2_CNT		1024
 #define VSC9959_VCAP_IS2_ENTRY_WIDTH	376
 #define VSC9959_VCAP_PORT_CNT		6
+#define VSC9959_VCAP_IS1_CNT		256
+#define VSC9959_VCAP_IS1_ENTRY_WIDTH	376
+#define VSC9959_VCAP_ES0_CNT            1024
 
 /* TODO: should find a better place for these */
 #define USXGMII_BMCR_RESET		BIT(15)
@@ -26,6 +32,8 @@
 #define USXGMII_LPA_LNKS(lpa)		((lpa) >> 15)
 #define USXGMII_LPA_DUPLEX(lpa)		(((lpa) & GENMASK(12, 12)) >> 12)
 #define USXGMII_LPA_SPEED(lpa)		(((lpa) & GENMASK(11, 9)) >> 9)
+
+#define VSC9959_TAS_GCL_ENTRY_MAX	63
 
 enum usxgmii_speed {
 	USXGMII_SPEED_10	= 0,
@@ -151,14 +159,16 @@ static const u32 vsc9959_qs_regmap[] = {
 	REG_RESERVED(QS_INH_DBG),
 };
 
-static const u32 vsc9959_s2_regmap[] = {
-	REG(S2_CORE_UPDATE_CTRL,		0x000000),
-	REG(S2_CORE_MV_CFG,			0x000004),
-	REG(S2_CACHE_ENTRY_DAT,			0x000008),
-	REG(S2_CACHE_MASK_DAT,			0x000108),
-	REG(S2_CACHE_ACTION_DAT,		0x000208),
-	REG(S2_CACHE_CNT_DAT,			0x000308),
-	REG(S2_CACHE_TG_DAT,			0x000388),
+static const u32 vsc9959_vcap_regmap[] = {
+	/* VCAP_CORE_CFG */
+	REG(VCAP_CORE_UPDATE_CTRL,		0x000000),
+	REG(VCAP_CORE_MV_CFG,			0x000004),
+	/* VCAP_CORE_CACHE */
+	REG(VCAP_CACHE_ENTRY_DAT,		0x000008),
+	REG(VCAP_CACHE_MASK_DAT,		0x000108),
+	REG(VCAP_CACHE_ACTION_DAT,		0x000208),
+	REG(VCAP_CACHE_CNT_DAT,			0x000308),
+	REG(VCAP_CACHE_TG_DAT,			0x000388),
 };
 
 static const u32 vsc9959_qsys_regmap[] = {
@@ -334,7 +344,9 @@ static const u32 *vsc9959_regmap[] = {
 	[QSYS]	= vsc9959_qsys_regmap,
 	[REW]	= vsc9959_rew_regmap,
 	[SYS]	= vsc9959_sys_regmap,
-	[S2]	= vsc9959_s2_regmap,
+	[S0]	= vsc9959_vcap_regmap,
+	[S1]	= vsc9959_vcap_regmap,
+	[S2]	= vsc9959_vcap_regmap,
 	[PTP]	= vsc9959_ptp_regmap,
 	[GCB]	= vsc9959_gcb_regmap,
 };
@@ -367,6 +379,16 @@ static struct resource vsc9959_target_io_res[] = {
 		.start	= 0x0010000,
 		.end	= 0x001ffff,
 		.name	= "sys",
+	},
+	[S0] = {
+		.start	= 0x0040000,
+		.end	= 0x00403ff,
+		.name	= "s0",
+	},
+	[S1] = {
+		.start	= 0x0050000,
+		.end	= 0x00503ff,
+		.name	= "s1",
 	},
 	[S2] = {
 		.start	= 0x0060000,
@@ -558,6 +580,112 @@ static const struct ocelot_stat_layout vsc9959_stats_layout[] = {
 	{ .offset = 0x111,	.name = "drop_green_prio_7", },
 };
 
+struct vcap_field vsc9959_vcap_es0_keys[] = {
+	[VCAP_ES0_EGR_PORT]			= {  0,   3},
+	[VCAP_ES0_IGR_PORT]			= {  3,	  3},
+	[VCAP_ES0_RSV]				= {  6,	  2},
+	[VCAP_ES0_L2_MC]			= {  8,	  1},
+	[VCAP_ES0_L2_BC]			= {  9,	  1},
+	[VCAP_ES0_VID]				= { 10,	 12},
+	[VCAP_ES0_DP]				= { 22,	  1},
+	[VCAP_ES0_PCP]				= { 23,	  3},
+};
+
+struct vcap_field vsc9959_vcap_es0_actions[] = {
+	[VCAP_ES0_ACT_PUSH_OUTER_TAG]		= {  0,  2},
+	[VCAP_ES0_ACT_PUSH_INNER_TAG]		= {  2,  1},
+	[VCAP_ES0_ACT_TAG_A_TPID_SEL]		= {  3,  2},
+	[VCAP_ES0_ACT_TAG_A_VID_SEL]		= {  5,  1},
+	[VCAP_ES0_ACT_TAG_A_PCP_SEL]		= {  6,  2},
+	[VCAP_ES0_ACT_TAG_A_DEI_SEL]		= {  8,  2},
+	[VCAP_ES0_ACT_TAG_B_TPID_SEL]		= { 10,  2},
+	[VCAP_ES0_ACT_TAG_B_VID_SEL]		= { 12,  1},
+	[VCAP_ES0_ACT_TAG_B_PCP_SEL]		= { 13,  2},
+	[VCAP_ES0_ACT_TAG_B_DEI_SEL]		= { 15,  2},
+	[VCAP_ES0_ACT_VID_A_VAL]		= { 17, 12},
+	[VCAP_ES0_ACT_PCP_A_VAL]		= { 29,  3},
+	[VCAP_ES0_ACT_DEI_A_VAL]		= { 32,  1},
+	[VCAP_ES0_ACT_VID_B_VAL]		= { 33, 12},
+	[VCAP_ES0_ACT_PCP_B_VAL]		= { 45,  3},
+	[VCAP_ES0_ACT_DEI_B_VAL]		= { 48,  1},
+	[VCAP_ES0_ACT_RSV]			= { 49, 23},
+	[VCAP_ES0_ACT_HIT_STICKY]		= { 72,  1},
+};
+
+struct vcap_field vsc9959_vcap_is1_keys[] = {
+	[VCAP_IS1_HK_TYPE]			= {  0,   1},
+	[VCAP_IS1_HK_LOOKUP]			= {  1,   2},
+	[VCAP_IS1_HK_IGR_PORT_MASK]		= {  3,   7},
+	[VCAP_IS1_HK_RSV]			= { 10,   9},
+	[VCAP_IS1_HK_OAM_Y1731]			= { 19,   1},
+	[VCAP_IS1_HK_L2_MC]			= { 20,   1},
+	[VCAP_IS1_HK_L2_BC]			= { 21,   1},
+	[VCAP_IS1_HK_IP_MC]			= { 22,   1},
+	[VCAP_IS1_HK_VLAN_TAGGED]		= { 23,   1},
+	[VCAP_IS1_HK_VLAN_DBL_TAGGED]		= { 24,   1},
+	[VCAP_IS1_HK_TPID]			= { 25,   1},
+	[VCAP_IS1_HK_VID]			= { 26,  12},
+	[VCAP_IS1_HK_DEI]			= { 38,   1},
+	[VCAP_IS1_HK_PCP]			= { 39,   3},
+	/* Specific Fields for IS1 Half Key S1_NORMAL */
+	[VCAP_IS1_HK_L2_SMAC]			= { 42,  48},
+	[VCAP_IS1_HK_ETYPE_LEN]			= { 90,   1},
+	[VCAP_IS1_HK_ETYPE]			= { 91,  16},
+	[VCAP_IS1_HK_IP_SNAP]			= {107,   1},
+	[VCAP_IS1_HK_IP4]			= {108,   1},
+	/* Layer-3 Information */
+	[VCAP_IS1_HK_L3_FRAGMENT]		= {109,   1},
+	[VCAP_IS1_HK_L3_FRAG_OFS_GT0]		= {110,   1},
+	[VCAP_IS1_HK_L3_OPTIONS]		= {111,   1},
+	[VCAP_IS1_HK_L3_DSCP]			= {112,   6},
+	[VCAP_IS1_HK_L3_IP4_SIP]		= {118,  32},
+	/* Layer-4 Information */
+	[VCAP_IS1_HK_TCP_UDP]			= {150,   1},
+	[VCAP_IS1_HK_TCP]			= {151,   1},
+	[VCAP_IS1_HK_L4_SPORT]			= {152,  16},
+	[VCAP_IS1_HK_L4_RNG]			= {168,   8},
+	/* Specific Fields for IS1 Half Key S1_5TUPLE_IP4 */
+	[VCAP_IS1_HK_IP4_INNER_TPID]            = { 42,   1},
+	[VCAP_IS1_HK_IP4_INNER_VID]		= { 43,  12},
+	[VCAP_IS1_HK_IP4_INNER_DEI]		= { 55,   1},
+	[VCAP_IS1_HK_IP4_INNER_PCP]		= { 56,   3},
+	[VCAP_IS1_HK_IP4_IP4]			= { 59,   1},
+	[VCAP_IS1_HK_IP4_L3_FRAGMENT]		= { 60,   1},
+	[VCAP_IS1_HK_IP4_L3_FRAG_OFS_GT0]	= { 61,   1},
+	[VCAP_IS1_HK_IP4_L3_OPTIONS]		= { 62,   1},
+	[VCAP_IS1_HK_IP4_L3_DSCP]		= { 63,   6},
+	[VCAP_IS1_HK_IP4_L3_IP4_DIP]		= { 69,  32},
+	[VCAP_IS1_HK_IP4_L3_IP4_SIP]		= {101,  32},
+	[VCAP_IS1_HK_IP4_L3_PROTO]		= {133,   8},
+	[VCAP_IS1_HK_IP4_TCP_UDP]		= {141,   1},
+	[VCAP_IS1_HK_IP4_TCP]			= {142,   1},
+	[VCAP_IS1_HK_IP4_L4_RNG]		= {143,   8},
+	[VCAP_IS1_HK_IP4_IP_PAYLOAD_S1_5TUPLE]	= {151,  32},
+};
+
+struct vcap_field vsc9959_vcap_is1_actions[] = {
+	[VCAP_IS1_ACT_DSCP_ENA]			= {  0,  1},
+	[VCAP_IS1_ACT_DSCP_VAL]			= {  1,  6},
+	[VCAP_IS1_ACT_QOS_ENA]			= {  7,  1},
+	[VCAP_IS1_ACT_QOS_VAL]			= {  8,  3},
+	[VCAP_IS1_ACT_DP_ENA]			= { 11,  1},
+	[VCAP_IS1_ACT_DP_VAL]			= { 12,  1},
+	[VCAP_IS1_ACT_PAG_OVERRIDE_MASK]	= { 13,  8},
+	[VCAP_IS1_ACT_PAG_VAL]			= { 21,  8},
+	[VCAP_IS1_ACT_RSV]			= { 29,  9},
+	[VCAP_IS1_ACT_VID_REPLACE_ENA]		= { 38,  1},
+	[VCAP_IS1_ACT_VID_ADD_VAL]		= { 39, 12},
+	[VCAP_IS1_ACT_FID_SEL]			= { 51,  2},
+	[VCAP_IS1_ACT_FID_VAL]			= { 53, 13},
+	[VCAP_IS1_ACT_PCP_DEI_ENA]		= { 66,  1},
+	[VCAP_IS1_ACT_PCP_VAL]			= { 67,  3},
+	[VCAP_IS1_ACT_DEI_VAL]			= { 70,  1},
+	[VCAP_IS1_ACT_VLAN_POP_CNT_ENA]		= { 71,  1},
+	[VCAP_IS1_ACT_VLAN_POP_CNT]		= { 72,  2},
+	[VCAP_IS1_ACT_CUSTOM_ACE_TYPE_ENA]	= { 74,  4},
+	[VCAP_IS1_ACT_HIT_STICKY]		= { 78,  1},
+};
+
 struct vcap_field vsc9959_vcap_is2_keys[] = {
 	/* Common: 41 bits */
 	[VCAP_IS2_TYPE]				= {  0,   4},
@@ -657,6 +785,46 @@ struct vcap_field vsc9959_vcap_is2_actions[] = {
 };
 
 static const struct vcap_props vsc9959_vcap_props[] = {
+	[VCAP_ES0] = {
+		.tg_width = 1,
+		.sw_count = 1,
+		.entry_count = VSC9959_VCAP_ES0_CNT,
+		.entry_width = 29,
+		.action_count = VSC9959_VCAP_ES0_CNT + 6,
+		.action_width = 72,
+		.action_type_width = 0,
+		.action_table = {
+			[ES0_ACTION_TYPE_NORMAL] = {
+				.width = 72,
+				.count = 1
+			},
+		},
+		.counter_words = 1,
+		.counter_width = 1,
+		.target = S0,
+		.keys = vsc9959_vcap_es0_keys,
+		.actions = vsc9959_vcap_es0_actions,
+	},
+	[VCAP_IS1] = {
+		.tg_width = 2,
+		.sw_count = 4,
+		.entry_count = VSC9959_VCAP_IS1_CNT,
+		.entry_width = VSC9959_VCAP_IS1_ENTRY_WIDTH,
+		.action_count = VSC9959_VCAP_IS1_CNT + 1,
+		.action_width = 312,
+		.action_type_width = 0,
+		.action_table = {
+			[IS1_ACTION_TYPE_NORMAL] = {
+				.width = 78,
+				.count = 4
+			},
+		},
+		.counter_words = 1,
+		.counter_width = 4,
+		.target = S1,
+		.keys = vsc9959_vcap_is1_keys,
+		.actions = vsc9959_vcap_is1_actions,
+	},
 	[VCAP_IS2] = {
 		.tg_width = 2,
 		.sw_count = 4,
@@ -678,6 +846,9 @@ static const struct vcap_props vsc9959_vcap_props[] = {
 		},
 		.counter_words = 4,
 		.counter_width = 32,
+		.target = S2,
+		.keys = vsc9959_vcap_is2_keys,
+		.actions = vsc9959_vcap_is2_actions,
 	},
 };
 
@@ -1207,6 +1378,173 @@ static void vsc9959_mdio_bus_free(struct ocelot *ocelot)
 	mdiobus_unregister(felix->imdio);
 }
 
+static void vsc9959_sched_speed_set(struct ocelot *ocelot, int port,
+				    u32 speed)
+{
+	ocelot_rmw_rix(ocelot,
+		       QSYS_TAG_CONFIG_LINK_SPEED(speed),
+		       QSYS_TAG_CONFIG_LINK_SPEED_M,
+		       QSYS_TAG_CONFIG, port);
+}
+
+static void vsc9959_new_base_time(struct ocelot *ocelot, ktime_t base_time,
+				  u64 cycle_time,
+				  struct timespec64 *new_base_ts)
+{
+	struct timespec64 ts;
+	ktime_t new_base_time;
+	ktime_t current_time;
+
+	ocelot_ptp_gettime64(&ocelot->ptp_info, &ts);
+	current_time = timespec64_to_ktime(ts);
+	new_base_time = base_time;
+
+	if (base_time < current_time) {
+		u64 nr_of_cycles = current_time - base_time;
+
+		do_div(nr_of_cycles, cycle_time);
+		new_base_time += cycle_time * (nr_of_cycles + 1);
+	}
+
+	*new_base_ts = ktime_to_timespec64(new_base_time);
+}
+
+static u32 vsc9959_tas_read_cfg_status(struct ocelot *ocelot)
+{
+	return ocelot_read(ocelot, QSYS_TAS_PARAM_CFG_CTRL);
+}
+
+static void vsc9959_tas_gcl_set(struct ocelot *ocelot, const u32 gcl_ix,
+				struct tc_taprio_sched_entry *entry)
+{
+	ocelot_write(ocelot,
+		     QSYS_GCL_CFG_REG_1_GCL_ENTRY_NUM(gcl_ix) |
+		     QSYS_GCL_CFG_REG_1_GATE_STATE(entry->gate_mask),
+		     QSYS_GCL_CFG_REG_1);
+	ocelot_write(ocelot, entry->interval, QSYS_GCL_CFG_REG_2);
+}
+
+static int vsc9959_qos_port_tas_set(struct ocelot *ocelot, int port,
+				    struct tc_taprio_qopt_offload *taprio)
+{
+	struct timespec64 base_ts;
+	int ret, i;
+	u32 val;
+
+	if (!taprio->enable) {
+		ocelot_rmw_rix(ocelot,
+			       QSYS_TAG_CONFIG_INIT_GATE_STATE(0xFF),
+			       QSYS_TAG_CONFIG_ENABLE |
+			       QSYS_TAG_CONFIG_INIT_GATE_STATE_M,
+			       QSYS_TAG_CONFIG, port);
+
+		return 0;
+	}
+
+	if (taprio->cycle_time > NSEC_PER_SEC ||
+	    taprio->cycle_time_extension >= NSEC_PER_SEC)
+		return -EINVAL;
+
+	if (taprio->num_entries > VSC9959_TAS_GCL_ENTRY_MAX)
+		return -ERANGE;
+
+	ocelot_rmw(ocelot, QSYS_TAS_PARAM_CFG_CTRL_PORT_NUM(port) |
+		   QSYS_TAS_PARAM_CFG_CTRL_ALWAYS_GUARD_BAND_SCH_Q,
+		   QSYS_TAS_PARAM_CFG_CTRL_PORT_NUM_M |
+		   QSYS_TAS_PARAM_CFG_CTRL_ALWAYS_GUARD_BAND_SCH_Q,
+		   QSYS_TAS_PARAM_CFG_CTRL);
+
+	/* Hardware errata -  Admin config could not be overwritten if
+	 * config is pending, need reset the TAS module
+	 */
+	val = ocelot_read(ocelot, QSYS_PARAM_STATUS_REG_8);
+	if (val & QSYS_PARAM_STATUS_REG_8_CONFIG_PENDING)
+		return  -EBUSY;
+
+	ocelot_rmw_rix(ocelot,
+		       QSYS_TAG_CONFIG_ENABLE |
+		       QSYS_TAG_CONFIG_INIT_GATE_STATE(0xFF) |
+		       QSYS_TAG_CONFIG_SCH_TRAFFIC_QUEUES(0xFF),
+		       QSYS_TAG_CONFIG_ENABLE |
+		       QSYS_TAG_CONFIG_INIT_GATE_STATE_M |
+		       QSYS_TAG_CONFIG_SCH_TRAFFIC_QUEUES_M,
+		       QSYS_TAG_CONFIG, port);
+
+	vsc9959_new_base_time(ocelot, taprio->base_time,
+			      taprio->cycle_time, &base_ts);
+	ocelot_write(ocelot, base_ts.tv_nsec, QSYS_PARAM_CFG_REG_1);
+	ocelot_write(ocelot, lower_32_bits(base_ts.tv_sec), QSYS_PARAM_CFG_REG_2);
+	val = upper_32_bits(base_ts.tv_sec);
+	ocelot_write(ocelot,
+		     QSYS_PARAM_CFG_REG_3_BASE_TIME_SEC_MSB(val) |
+		     QSYS_PARAM_CFG_REG_3_LIST_LENGTH(taprio->num_entries),
+		     QSYS_PARAM_CFG_REG_3);
+	ocelot_write(ocelot, taprio->cycle_time, QSYS_PARAM_CFG_REG_4);
+	ocelot_write(ocelot, taprio->cycle_time_extension, QSYS_PARAM_CFG_REG_5);
+
+	for (i = 0; i < taprio->num_entries; i++)
+		vsc9959_tas_gcl_set(ocelot, i, &taprio->entries[i]);
+
+	ocelot_rmw(ocelot, QSYS_TAS_PARAM_CFG_CTRL_CONFIG_CHANGE,
+		   QSYS_TAS_PARAM_CFG_CTRL_CONFIG_CHANGE,
+		   QSYS_TAS_PARAM_CFG_CTRL);
+
+	ret = readx_poll_timeout(vsc9959_tas_read_cfg_status, ocelot, val,
+				 !(val & QSYS_TAS_PARAM_CFG_CTRL_CONFIG_CHANGE),
+				 10, 100000);
+
+	return ret;
+}
+
+int vsc9959_qos_port_cbs_set(struct dsa_switch *ds, int port,
+			     struct tc_cbs_qopt_offload *cbs_qopt)
+{
+	struct ocelot *ocelot = ds->priv;
+	int port_ix = port * 8 + cbs_qopt->queue;
+	u32 cbs = 0;
+	u32 cir = 0;
+
+	if (cbs_qopt->queue >= ds->num_tx_queues)
+		return -EINVAL;
+
+	/* Rate unit is 100 kbps */
+	cir = DIV_ROUND_UP(cbs_qopt->idleslope, 100);
+	/* Burst unit is 4kB */
+	cbs = DIV_ROUND_UP(cbs_qopt->hicredit, 4096);
+	/* Avoid using zero burst size */
+	cbs = (cbs ? cbs : 1);
+	cbs = min_t(u32, GENMASK(5, 0), cbs);
+	ocelot_write_gix(ocelot,
+			 QSYS_CIR_CFG_CIR_RATE(cir) |
+			 QSYS_CIR_CFG_CIR_BURST(cbs),
+			 QSYS_CIR_CFG,
+			 port_ix);
+
+	ocelot_rmw_gix(ocelot,
+		       QSYS_SE_CFG_SE_AVB_ENA,
+		       QSYS_SE_CFG_SE_AVB_ENA,
+		       QSYS_SE_CFG,
+		       port_ix);
+
+	return 0;
+}
+
+static int vsc9959_port_setup_tc(struct dsa_switch *ds, int port,
+				 enum tc_setup_type type,
+				 void *type_data)
+{
+	struct ocelot *ocelot = ds->priv;
+
+	switch (type) {
+	case TC_SETUP_QDISC_TAPRIO:
+		return vsc9959_qos_port_tas_set(ocelot, port, type_data);
+	case TC_SETUP_QDISC_CBS:
+		return vsc9959_qos_port_cbs_set(ds, port, type_data);
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
 struct felix_info felix_info_vsc9959 = {
 	.target_io_res		= vsc9959_target_io_res,
 	.port_io_res		= vsc9959_port_io_res,
@@ -1216,11 +1554,10 @@ struct felix_info felix_info_vsc9959 = {
 	.ops			= &vsc9959_ops,
 	.stats_layout		= vsc9959_stats_layout,
 	.num_stats		= ARRAY_SIZE(vsc9959_stats_layout),
-	.vcap_is2_keys		= vsc9959_vcap_is2_keys,
-	.vcap_is2_actions	= vsc9959_vcap_is2_actions,
 	.vcap			= vsc9959_vcap_props,
 	.shared_queue_sz	= 128 * 1024,
 	.num_ports		= 6,
+	.num_tx_queues		= 8,
 	.switch_pci_bar		= 4,
 	.imdio_pci_bar		= 0,
 	.mdio_bus_alloc		= vsc9959_mdio_bus_alloc,
@@ -1229,4 +1566,6 @@ struct felix_info felix_info_vsc9959 = {
 	.pcs_an_restart		= vsc9959_pcs_an_restart,
 	.pcs_link_state		= vsc9959_pcs_link_state,
 	.prevalidate_phy_mode	= vsc9959_prevalidate_phy_mode,
+	.port_setup_tc          = vsc9959_port_setup_tc,
+	.port_sched_speed_set	= vsc9959_sched_speed_set,
 };
