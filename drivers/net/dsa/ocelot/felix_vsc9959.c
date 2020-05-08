@@ -1507,6 +1507,17 @@ int vsc9959_qos_port_cbs_set(struct dsa_switch *ds, int port,
 	if (cbs_qopt->queue >= ds->num_tx_queues)
 		return -EINVAL;
 
+	if (!cbs_qopt->enable) {
+		ocelot_write_gix(ocelot, QSYS_CIR_CFG_CIR_RATE(0) |
+				 QSYS_CIR_CFG_CIR_BURST(0),
+				 QSYS_CIR_CFG, port_ix);
+
+		ocelot_rmw_gix(ocelot, 0, QSYS_SE_CFG_SE_AVB_ENA,
+			       QSYS_SE_CFG, port_ix);
+
+		return 0;
+	}
+
 	/* Rate unit is 100 kbps */
 	cir = DIV_ROUND_UP(cbs_qopt->idleslope, 100);
 	/* Burst unit is 4kB */
