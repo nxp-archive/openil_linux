@@ -280,6 +280,10 @@
 	};
 };
 
+&mscc_felix {
+	status = "okay";
+};
+
 /* Master for SJA1105 on main board */
 &mscc_felix_port0 {
 	phy-mode = "sgmii";
