@@ -226,6 +226,14 @@
 	};
 };
 
+&enetc_port0 {
+	status = "disabled";
+};
+
+&enetc_port1 {
+	status = "disabled";
+};
+
 &enetc_port2 {
 	status = "okay";
 };
