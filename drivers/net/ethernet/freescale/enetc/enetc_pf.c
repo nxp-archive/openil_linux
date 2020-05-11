@@ -763,12 +763,10 @@ static void enetc_pf_netdev_setup(struct enetc_si *si, struct net_device *ndev,
 	if (enetc_tsn_is_enabled() && (si->hw_features & ENETC_SI_F_QBU))
 		priv->active_offloads |= ENETC_F_QBU;
 
-	if (si->hw_features & ENETC_SI_F_PSFP) {
+	if (si->hw_features & ENETC_SI_F_PSFP && !enetc_psfp_enable(priv)) {
 		priv->active_offloads |= ENETC_F_QCI;
 		ndev->features |= NETIF_F_HW_TC;
 		ndev->hw_features |= NETIF_F_HW_TC;
-		enetc_get_max_cap(priv);
-		enetc_psfp_enable(&si->hw);
 	}
 
 	/* pick up primary MAC address from SI */

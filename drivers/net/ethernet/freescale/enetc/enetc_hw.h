@@ -683,6 +683,14 @@ struct smac_streamid_data {
 	u16	vid_vidm_tg;
 };
 
+struct streamid_data {
+	union {
+		u8 dmac[6];
+		u8 smac[6];
+	};
+	u16     vid_vidm_tg;
+};
+
 /* class 7, command 1, query config , long format */
 /* No need structure define */
 
@@ -820,13 +828,20 @@ struct sgcl_conf {
 	};
 };
 
+/* Stream Gate Control List Entry */
+struct sgce {
+	u32	interval;
+	u8	msdu[3];
+	u8	multi;
+};
+
 /* stream control list class 9 , cmd 1 data buffer */
 struct sgcl_data {
 	u32	btl;
 	u32 bth;
 	u32	ct;
 	u32	cte;
-	/*struct sgce	*sgcl;*/
+	struct sgce	sgcl[0];
 };
 
 /* class 9, command 2, stream gate instant table enery query, short format
@@ -945,12 +960,6 @@ struct tgs_gcl_conf {
 #define ENETC_CBDR_SGL_IPVEN	BIT(3)
 #define ENETC_CBDR_SGL_GTST		BIT(4)
 #define ENETC_CBDR_SGL_IPV_MASK 0xe
-/* Stream Gate Control List Entry */
-struct sgce {
-	u32	interval;
-	u8	msdu[3];
-	u8	multi;
-};
 
 /* gate control list entry */
 struct gce {

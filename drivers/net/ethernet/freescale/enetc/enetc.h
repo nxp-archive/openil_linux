@@ -298,14 +298,11 @@ int enetc_send_cmd(struct enetc_si *si, struct enetc_cbd *cbd);
 int enetc_setup_tc_taprio(struct net_device *ndev, void *type_data);
 void enetc_sched_speed_set(struct net_device *ndev);
 int enetc_setup_tc_cbs(struct net_device *ndev, void *type_data);
-#else
-#define enetc_setup_tc_taprio(ndev, type_data) -EOPNOTSUPP
-#define enetc_sched_speed_set(ndev) (void)0
-#define enetc_setup_tc_cbs(ndev, type_data) -EOPNOTSUPP
-#endif
-#ifdef CONFIG_ENETC_TSN
-void enetc_tsn_pf_init(struct net_device *netdev, struct pci_dev *pdev);
-void enetc_tsn_pf_deinit(struct net_device *netdev);
+int enetc_setup_tc_block_cb(enum tc_setup_type type, void *type_data,
+			    void *cb_priv);
+int enetc_setup_tc_psfp(struct net_device *ndev, void *type_data);
+int enetc_psfp_init(struct enetc_ndev_priv *priv);
+int enetc_psfp_clean(struct enetc_ndev_priv *priv);
 
 static inline void enetc_get_max_cap(struct enetc_ndev_priv *priv)
 {
@@ -325,26 +322,64 @@ static inline void enetc_get_max_cap(struct enetc_ndev_priv *priv)
 	priv->psfp_cap.max_psfp_meter = reg & ENETC_PFMCAPR_MSK;
 }
 
-static inline void enetc_psfp_enable(struct enetc_hw *hw)
+static inline int enetc_psfp_enable(struct enetc_ndev_priv *priv)
 {
+	struct enetc_hw *hw = &priv->si->hw;
+	int err;
+
+	enetc_get_max_cap(priv);
+
+	err = enetc_psfp_init(priv);
+	if (err)
+		return err;
+
 	enetc_wr(hw, ENETC_PPSFPMR, enetc_rd(hw, ENETC_PPSFPMR) |
 		 ENETC_PPSFPMR_PSFPEN | ENETC_PPSFPMR_VS |
 		 ENETC_PPSFPMR_PVC | ENETC_PPSFPMR_PVZC);
+
+	return 0;
 }
 
-static inline void enetc_psfp_disable(struct enetc_hw *hw)
+static inline int enetc_psfp_disable(struct enetc_ndev_priv *priv)
 {
+	struct enetc_hw *hw = &priv->si->hw;
+	int err;
+
+	err = enetc_psfp_clean(priv);
+	if (err)
+		return err;
+
 	enetc_wr(hw, ENETC_PPSFPMR, enetc_rd(hw, ENETC_PPSFPMR) &
 		 ~ENETC_PPSFPMR_PSFPEN & ~ENETC_PPSFPMR_VS &
 		 ~ENETC_PPSFPMR_PVC & ~ENETC_PPSFPMR_PVZC);
+
+	memset(&priv->psfp_cap, 0, sizeof(struct psfp_cap));
+
+	return 0;
 }
+#else
+#define enetc_setup_tc_taprio(ndev, type_data) -EOPNOTSUPP
+#define enetc_sched_speed_set(ndev) (void)0
+#define enetc_setup_tc_cbs(ndev, type_data) -EOPNOTSUPP
+#define enetc_get_max_cap(p)		\
+	memset(&((p)->psfp_cap), 0, sizeof(struct psfp_cap))
+#define enetc_setup_tc_psfp(ndev, type_data) -EOPNOTSUPP
+#define enetc_setup_tc_block_cb NULL
+
+static inline int enetc_psfp_enable(struct enetc_ndev_priv *priv)
+{
+	return 0;
+}
+
+static inline int enetc_psfp_disable(struct enetc_ndev_priv *priv)
+{
+	return 0;
+}
+#endif
+#ifdef CONFIG_ENETC_TSN
+void enetc_tsn_pf_init(struct net_device *netdev, struct pci_dev *pdev);
+void enetc_tsn_pf_deinit(struct net_device *netdev);
 #else
 #define enetc_tsn_pf_init(netdev, pdev) (void)0
 #define enetc_tsn_pf_deinit(netdev) (void)0
-#define enetc_get_max_cap(p)		\
-	memset(&((p)->psfp_cap), 0, sizeof(struct psfp_cap))
-
-#define enetc_psfp_enable(hw) (void)0
-#define enetc_psfp_disable(hw) (void)0
-
 #endif
