@@ -217,6 +217,12 @@ struct dsa_port {
 	 */
 	const struct net_device_ops *orig_ndo_ops;
 
+	/*
+	 * Original master netdev flags in case we need to put it in
+	 * promiscuous mode
+	 */
+	unsigned int orig_master_flags;
+
 	bool setup;
 };
 
@@ -298,6 +304,13 @@ struct dsa_switch {
 	 * interfaces is needed.
 	 */
 	bool			mtu_enforcement_ingress;
+
+	/* Some tagging protocols either mangle or shift the destination MAC
+	 * address, in which case the DSA master would drop packets on ingress
+	 * if what it understands out of the destination MAC address is not in
+	 * its RX filter.
+	 */
+	bool promisc_on_master;
 
 	size_t num_ports;
 };
