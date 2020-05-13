@@ -246,7 +246,9 @@ static int dsa_switch_rcv(struct sk_buff *skb, struct net_device *dev,
 #ifdef CONFIG_PM_SLEEP
 static bool dsa_is_port_initialized(struct dsa_switch *ds, int p)
 {
-	return dsa_is_user_port(ds, p) && ds->ports[p].slave;
+	const struct dsa_port *dp = dsa_to_port(ds, p);
+
+	return dp->type == DSA_PORT_TYPE_USER && dp->slave;
 }
 
 int dsa_switch_suspend(struct dsa_switch *ds)
@@ -258,7 +260,7 @@ int dsa_switch_suspend(struct dsa_switch *ds)
 		if (!dsa_is_port_initialized(ds, i))
 			continue;
 
-		ret = dsa_slave_suspend(ds->ports[i].slave);
+		ret = dsa_slave_suspend(dsa_to_port(ds, i)->slave);
 		if (ret)
 			return ret;
 	}
@@ -285,7 +287,7 @@ int dsa_switch_resume(struct dsa_switch *ds)
 		if (!dsa_is_port_initialized(ds, i))
 			continue;
 
-		ret = dsa_slave_resume(ds->ports[i].slave);
+		ret = dsa_slave_resume(dsa_to_port(ds, i)->slave);
 		if (ret)
 			return ret;
 	}
@@ -376,6 +378,52 @@ void dsa_devlink_params_unregister(struct dsa_switch *ds,
 	devlink_params_unregister(ds->devlink, params, params_count);
 }
 EXPORT_SYMBOL_GPL(dsa_devlink_params_unregister);
+
+int dsa_devlink_resource_register(struct dsa_switch *ds,
+				  const char *resource_name,
+				  u64 resource_size,
+				  u64 resource_id,
+				  u64 parent_resource_id,
+				  const struct devlink_resource_size_params *size_params)
+{
+	return devlink_resource_register(ds->devlink, resource_name,
+					 resource_size, resource_id,
+					 parent_resource_id,
+					 size_params);
+}
+EXPORT_SYMBOL_GPL(dsa_devlink_resource_register);
+
+void dsa_devlink_resources_unregister(struct dsa_switch *ds)
+{
+	devlink_resources_unregister(ds->devlink, NULL);
+}
+EXPORT_SYMBOL_GPL(dsa_devlink_resources_unregister);
+
+void dsa_devlink_resource_occ_get_register(struct dsa_switch *ds,
+					   u64 resource_id,
+					   devlink_resource_occ_get_t *occ_get,
+					   void *occ_get_priv)
+{
+	return devlink_resource_occ_get_register(ds->devlink, resource_id,
+						 occ_get, occ_get_priv);
+}
+EXPORT_SYMBOL_GPL(dsa_devlink_resource_occ_get_register);
+
+void dsa_devlink_resource_occ_get_unregister(struct dsa_switch *ds,
+					     u64 resource_id)
+{
+	devlink_resource_occ_get_unregister(ds->devlink, resource_id);
+}
+EXPORT_SYMBOL_GPL(dsa_devlink_resource_occ_get_unregister);
+
+struct dsa_port *dsa_port_from_netdev(struct net_device *netdev)
+{
+	if (!netdev || !dsa_slave_dev_check(netdev))
+		return ERR_PTR(-ENODEV);
+
+	return dsa_slave_to_port(netdev);
+}
+EXPORT_SYMBOL_GPL(dsa_port_from_netdev);
 
 static int __init dsa_init_module(void)
 {

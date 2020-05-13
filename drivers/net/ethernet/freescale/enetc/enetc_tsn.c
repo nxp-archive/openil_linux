@@ -1092,9 +1092,7 @@ int enetc_qci_sgi_set(struct net_device *ndev, u32 index,
 	sgcl_config->acl_len =
 		(tsn_qci_sgi->admin.control_list_length - 1) & 0x3;
 
-	data_size = sizeof(struct sgcl_data) +
-		(sgcl_config->acl_len + 1) * sizeof(struct sgce);
-
+	data_size = struct_size(sgcl_data, sgcl, sgcl_config->acl_len + 1);
 	sgcl_data = kzalloc(data_size, __GFP_DMA | GFP_KERNEL);
 	if (!sgcl_data)
 		return -ENOMEM;
@@ -1731,7 +1729,7 @@ static int  __enetc_get_max_cap(struct enetc_si *si,
 	return 0;
 }
 
-int enetc_get_max_cap(struct net_device *ndev,
+int enetc_get_max_psfp_cap(struct net_device *ndev,
 		      struct tsn_qci_psfp_stream_param *stream_para)
 {
 	struct enetc_ndev_priv *priv = netdev_priv(ndev);
@@ -1995,7 +1993,7 @@ static struct tsn_ops enetc_tsn_ops_full = {
 	.cb_streamid_set = enetc_cb_streamid_set,
 	.cb_streamid_get = enetc_cb_streamid_get,
 	.cb_streamid_counters_get = enetc_cb_streamid_counters_get,
-	.qci_get_maxcap = enetc_get_max_cap,
+	.qci_get_maxcap = enetc_get_max_psfp_cap,
 	.qci_sfi_set = enetc_qci_sfi_set,
 	.qci_sfi_get = enetc_qci_sfi_get,
 	.qci_sfi_counters_get = enetc_qci_sfi_counters_get,
@@ -2019,7 +2017,7 @@ static struct tsn_ops enetc_tsn_ops_part = {
 	.cb_streamid_set = enetc_cb_streamid_set,
 	.cb_streamid_get = enetc_cb_streamid_get,
 	.cb_streamid_counters_get = enetc_cb_streamid_counters_get,
-	.qci_get_maxcap = enetc_get_max_cap,
+	.qci_get_maxcap = enetc_get_max_psfp_cap,
 	.qci_sfi_set = enetc_qci_sfi_set,
 	.qci_sfi_get = enetc_qci_sfi_get,
 	.qci_sfi_counters_get = enetc_qci_sfi_counters_get,

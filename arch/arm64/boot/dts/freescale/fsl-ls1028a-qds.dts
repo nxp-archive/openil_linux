@@ -264,6 +264,10 @@
 	};
 };
 
+&mscc_felix {
+	status = "okay";
+};
+
 &sai1 {
 	status = "okay";
 };

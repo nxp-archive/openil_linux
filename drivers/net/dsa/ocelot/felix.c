@@ -51,7 +51,8 @@ const struct tsn_ops switch_tsn_ops = {
 #endif
 
 static enum dsa_tag_protocol felix_get_tag_protocol(struct dsa_switch *ds,
-						    int port)
+						    int port,
+						    enum dsa_tag_protocol mp)
 {
 	return DSA_TAG_PROTO_OCELOT;
 }
@@ -451,6 +452,7 @@ static int felix_init_structs(struct felix *felix, int num_phys_ports)
 	ocelot->stats_layout	= felix->info->stats_layout;
 	ocelot->num_stats	= felix->info->num_stats;
 	ocelot->shared_queue_sz	= felix->info->shared_queue_sz;
+	ocelot->num_mact_rows	= felix->info->num_mact_rows;
 	ocelot->vcap		= felix->info->vcap;
 	ocelot->ops		= felix->info->ops;
 
@@ -579,6 +581,7 @@ static int felix_setup(struct dsa_switch *ds)
 			 ANA_PGID_PGID_PGID(GENMASK(ocelot->num_phys_ports, 0)),
 			 ANA_PGID_PGID, PGID_UC);
 
+	ds->mtu_enforcement_ingress = true;
 	/* It looks like the MAC/PCS interrupt register - PM0_IEVENT (0x8040)
 	 * isn't instantiated for the Felix PF.
 	 * In-band AN may take a few ms to complete, so we need to poll.
@@ -836,7 +839,7 @@ static int felix_pci_probe(struct pci_dev *pdev,
 	if (felix->info->port_setup_tc)
 		felix_switch_ops.port_setup_tc = felix->info->port_setup_tc;
 
-	ds = dsa_switch_alloc(&pdev->dev, felix->info->num_ports);
+	ds = kzalloc(sizeof(struct dsa_switch), GFP_KERNEL);
 	if (!ds) {
 		err = -ENOMEM;
 		dev_err(&pdev->dev, "Failed to allocate DSA switch\n");
