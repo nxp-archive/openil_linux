@@ -905,7 +905,11 @@ static void vcap_entry_get(struct ocelot *ocelot, struct ocelot_ace_rule *rule,
 	int row, count;
 	u32 cnt;
 
-	data.tg_sw = VCAP_TG_HALF;
+	if (rule->vcap_id == VCAP_ES0)
+		data.tg_sw = VCAP_TG_FULL;
+	else
+		data.tg_sw = VCAP_TG_HALF;
+
 	count = (1 << (data.tg_sw - 1));
 	row = (ix / count);
 	vcap_row_cmd(ocelot, vcap, row, VCAP_CMD_READ, VCAP_SEL_COUNTER);
@@ -1002,10 +1006,10 @@ int ocelot_ace_rule_get_vcap_id(struct ocelot_acl_block *block,
 		list_for_each_entry(tmp, &block[i].rules, list)
 			if (rule->id == tmp->id) {
 				rule->vcap_id = i;
-				break;
+				return 0;
 			}
 
-	return 0;
+	return -EINVAL;
 }
 
 /* If @on=false, then SNAP, ARP, IP and OAM frames will not match on keys based
@@ -1199,11 +1203,13 @@ int ocelot_ace_rule_offload_del(struct ocelot *ocelot,
 	struct ocelot_acl_block *block;
 	struct ocelot_ace_rule del_ace;
 	struct ocelot_ace_rule *ace;
-	int i, index;
+	int i, index, ret;
 
 	memset(&del_ace, 0, sizeof(del_ace));
 
-	ocelot_ace_rule_get_vcap_id(ocelot->acl_block, rule);
+	ret = ocelot_ace_rule_get_vcap_id(ocelot->acl_block, rule);
+	if (ret < 0)
+		return ret;
 
 	block = &ocelot->acl_block[rule->vcap_id];
 	/* Gets index of the rule */
@@ -1230,9 +1236,11 @@ int ocelot_ace_rule_stats_update(struct ocelot *ocelot,
 {
 	struct ocelot_acl_block *block;
 	struct ocelot_ace_rule *tmp;
-	int index;
+	int index, ret;
 
-	ocelot_ace_rule_get_vcap_id(ocelot->acl_block, rule);
+	ret = ocelot_ace_rule_get_vcap_id(ocelot->acl_block, rule);
+	if (ret < 0)
+		return ret;
 
 	block = &ocelot->acl_block[rule->vcap_id];
 	index = ocelot_ace_rule_get_index_id(block, rule);

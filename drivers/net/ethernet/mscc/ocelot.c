@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2017 Microsemi Corporation
  */
+#include <soc/mscc/ocelot_vcap.h>
 #include <linux/etherdevice.h>
 #include <linux/ethtool.h>
 #include <linux/if_bridge.h>
@@ -2258,6 +2259,7 @@ EXPORT_SYMBOL(ocelot_configure_cpu);
  */
 static struct ocelot_ace_rule ptp_rule = {
 	.prio		= 1,
+	.vcap_id	= VCAP_IS2,
 	.type		= OCELOT_ACE_TYPE_ETYPE,
 	.dmac_mc	= OCELOT_VCAP_BIT_1,
 	.action		= OCELOT_ACL_ACTION_TRAP,
