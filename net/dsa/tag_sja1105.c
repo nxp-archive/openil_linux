@@ -69,12 +69,25 @@ static inline bool sja1105_is_meta_frame(const struct sk_buff *skb)
 	return true;
 }
 
+static bool sja1105_can_use_vlan_as_tags(const struct sk_buff *skb)
+{
+	struct vlan_ethhdr *hdr = vlan_eth_hdr(skb);
+
+	if (hdr->h_vlan_proto == ntohs(ETH_P_SJA1105))
+		return true;
+
+	if (hdr->h_vlan_proto != ntohs(ETH_P_8021Q))
+		return false;
+
+	return vid_is_dsa_8021q(ntohs(hdr->h_vlan_TCI) & VLAN_VID_MASK);
+}
+
 /* This is the first time the tagger sees the frame on RX.
  * Figure out if we can decode it.
  */
 static bool sja1105_filter(const struct sk_buff *skb, struct net_device *dev)
 {
-	if (sja1105_can_use_vlan_as_tags(dev->dsa_ptr->ds))
+	if (sja1105_can_use_vlan_as_tags(skb))
 		return true;
 	if (sja1105_is_link_local(skb))
 		return true;

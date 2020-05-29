@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
-/* Copyright (c) 2016-2018, NXP Semiconductors
+/* Copyright 2016-2018,2020 NXP
  * Copyright (c) 2018, Sensor-Technik Wiedemann GmbH
- * Copyright (c) 2018-2019, Vladimir Oltean <olteanv@gmail.com>
  */
 #include <linux/spi/spi.h>
 #include <linux/packing.h>
@@ -513,6 +512,7 @@ struct sja1105_info sja1105e_info = {
 	.qinq_tpid		= ETH_P_8021Q,
 	.ptp_ts_bits		= 24,
 	.ptpegr_ts_bytes	= 4,
+	.num_cbs_shapers	= SJA1105ET_MAX_CBS_COUNT,
 	.reset_cmd		= sja1105et_reset_cmd,
 	.fdb_add_cmd		= sja1105et_fdb_add,
 	.fdb_del_cmd		= sja1105et_fdb_del,
@@ -528,6 +528,7 @@ struct sja1105_info sja1105t_info = {
 	.qinq_tpid		= ETH_P_8021Q,
 	.ptp_ts_bits		= 24,
 	.ptpegr_ts_bytes	= 4,
+	.num_cbs_shapers	= SJA1105ET_MAX_CBS_COUNT,
 	.reset_cmd		= sja1105et_reset_cmd,
 	.fdb_add_cmd		= sja1105et_fdb_add,
 	.fdb_del_cmd		= sja1105et_fdb_del,
@@ -543,6 +544,7 @@ struct sja1105_info sja1105p_info = {
 	.qinq_tpid		= ETH_P_8021AD,
 	.ptp_ts_bits		= 32,
 	.ptpegr_ts_bytes	= 8,
+	.num_cbs_shapers	= SJA1105PQRS_MAX_CBS_COUNT,
 	.setup_rgmii_delay	= sja1105pqrs_setup_rgmii_delay,
 	.reset_cmd		= sja1105pqrs_reset_cmd,
 	.fdb_add_cmd		= sja1105pqrs_fdb_add,
@@ -559,6 +561,7 @@ struct sja1105_info sja1105q_info = {
 	.qinq_tpid		= ETH_P_8021AD,
 	.ptp_ts_bits		= 32,
 	.ptpegr_ts_bytes	= 8,
+	.num_cbs_shapers	= SJA1105PQRS_MAX_CBS_COUNT,
 	.setup_rgmii_delay	= sja1105pqrs_setup_rgmii_delay,
 	.reset_cmd		= sja1105pqrs_reset_cmd,
 	.fdb_add_cmd		= sja1105pqrs_fdb_add,
@@ -575,6 +578,7 @@ struct sja1105_info sja1105r_info = {
 	.qinq_tpid		= ETH_P_8021AD,
 	.ptp_ts_bits		= 32,
 	.ptpegr_ts_bytes	= 8,
+	.num_cbs_shapers	= SJA1105PQRS_MAX_CBS_COUNT,
 	.setup_rgmii_delay	= sja1105pqrs_setup_rgmii_delay,
 	.reset_cmd		= sja1105pqrs_reset_cmd,
 	.fdb_add_cmd		= sja1105pqrs_fdb_add,
@@ -592,6 +596,7 @@ struct sja1105_info sja1105s_info = {
 	.qinq_tpid		= ETH_P_8021AD,
 	.ptp_ts_bits		= 32,
 	.ptpegr_ts_bytes	= 8,
+	.num_cbs_shapers	= SJA1105PQRS_MAX_CBS_COUNT,
 	.setup_rgmii_delay	= sja1105pqrs_setup_rgmii_delay,
 	.reset_cmd		= sja1105pqrs_reset_cmd,
 	.fdb_add_cmd		= sja1105pqrs_fdb_add,

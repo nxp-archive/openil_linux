@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-/* Copyright (c) 2016-2018, NXP Semiconductors
- * Copyright (c) 2018-2019, Vladimir Oltean <olteanv@gmail.com>
+/* Copyright 2016-2018,2020 NXP
  */
 #include "sja1105_static_config.h"
 #include <linux/crc32.h>

@@ -64,6 +64,4 @@ struct sja1105_port {
 	u16 xmit_tpid;
 };
 
-bool sja1105_can_use_vlan_as_tags(struct dsa_switch *ds);
-
 #endif /* _NET_DSA_SJA1105_H */
