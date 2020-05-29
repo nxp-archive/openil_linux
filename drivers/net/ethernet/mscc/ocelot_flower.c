@@ -47,6 +47,14 @@ static int ocelot_flower_parse_action(struct flow_cls_offload *f,
 				.rate = div_u64(rate, 1000) * 8,
 			};
 			break;
+		case FLOW_ACTION_PRIORITY:
+			if (ace->vcap_id && ace->vcap_id != VCAP_IS1)
+				goto out_mix_disallowed;
+
+			ace->is1_action.qos_ena = true;
+			ace->is1_action.qos_val = a->priority;
+			ace->vcap_id = VCAP_IS1;
+			break;
 		case FLOW_ACTION_VLAN_MANGLE:
 			if (ace->vcap_id && ace->vcap_id != VCAP_IS1)
 				goto out_mix_disallowed;

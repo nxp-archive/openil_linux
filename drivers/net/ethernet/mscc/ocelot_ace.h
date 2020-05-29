@@ -183,6 +183,8 @@ struct ocelot_ace_stats {
 
 struct ocelot_is1_action {
 	bool vlan_modify_ena;
+	bool qos_ena;
+	u8 qos_val;
 	u16 vid;
 	u16 pcp;
 	u8 dei;

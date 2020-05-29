@@ -647,10 +647,12 @@ static void is1_action_set(struct ocelot *ocelot, struct vcap_data *data,
 	const struct vcap_props *vcap = &ocelot->vcap[VCAP_IS1];
 	struct ocelot_is1_action *is1_action = &ace->is1_action;
 
-	if (is1_action->vlan_modify_ena) {
+	if (is1_action->qos_ena) {
 		vcap_action_set(vcap, data, VCAP_IS1_ACT_QOS_ENA, 1);
 		vcap_action_set(vcap, data, VCAP_IS1_ACT_QOS_VAL,
-				is1_action->pcp);
+				is1_action->qos_val);
+	}
+	if (is1_action->vlan_modify_ena) {
 		vcap_action_set(vcap, data, VCAP_IS1_ACT_VID_REPLACE_ENA, 1);
 		vcap_action_set(vcap, data, VCAP_IS1_ACT_VID_ADD_VAL,
 				is1_action->vid);
