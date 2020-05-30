@@ -3589,6 +3589,9 @@ int tc_setup_flow_action(struct flow_action *flow_action,
 		} else if (is_tcf_skbedit_ptype(act)) {
 			entry->id = FLOW_ACTION_PTYPE;
 			entry->ptype = tcf_skbedit_ptype(act);
+		} else if (is_tcf_skbedit_priority(act)) {
+			entry->id = FLOW_ACTION_PRIORITY;
+			entry->priority = tcf_skbedit_priority(act);
 		} else if (is_tcf_gate(act)) {
 			entry->id = FLOW_ACTION_GATE;
 			entry->gate.index = tcf_gate_index(act);
@@ -3600,6 +3603,9 @@ int tc_setup_flow_action(struct flow_action *flow_action,
 			err = tcf_gate_get_entries(entry, act);
 			if (err)
 				goto err_out;
+		} else if (is_tcf_skbedit_priority(act)) {
+			entry->id = FLOW_ACTION_PRIORITY;
+			entry->priority = tcf_skbedit_priority(act);
 		} else {
 			err = -EOPNOTSUPP;
 			goto err_out;

@@ -314,8 +314,7 @@ static void is2_action_set(struct ocelot *ocelot, struct vcap_data *data,
 {
 	const struct vcap_props *vcap = &ocelot->vcap[VCAP_IS2];
 
-	switch (ace->action) {
-	case OCELOT_ACL_ACTION_DROP:
+	if (ace->is2_action.drop_ena) {
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_PORT_MASK, 0);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_MASK_MODE, 1);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_POLICE_ENA, 1);
@@ -323,26 +322,23 @@ static void is2_action_set(struct ocelot *ocelot, struct vcap_data *data,
 				OCELOT_POLICER_DISCARD);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_CPU_QU_NUM, 0);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_CPU_COPY_ENA, 0);
-		break;
-	case OCELOT_ACL_ACTION_TRAP:
+	}
+	if (ace->is2_action.trap_ena) {
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_PORT_MASK, 0);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_MASK_MODE, 1);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_POLICE_ENA, 0);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_POLICE_IDX, 0);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_CPU_QU_NUM, 0);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_CPU_COPY_ENA, 1);
-		break;
-	case OCELOT_ACL_ACTION_POLICE:
+	}
+	if (ace->is2_action.police_ena) {
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_PORT_MASK, 0);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_MASK_MODE, 0);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_POLICE_ENA, 1);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_POLICE_IDX,
-				ace->pol_ix);
+				ace->is2_action.pol_ix);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_CPU_QU_NUM, 0);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_CPU_COPY_ENA, 0);
-		break;
-	default:
-		break;
 	}
 }
 
@@ -649,23 +645,22 @@ static void is1_action_set(struct ocelot *ocelot, struct vcap_data *data,
 			   struct ocelot_ace_rule *ace)
 {
 	const struct vcap_props *vcap = &ocelot->vcap[VCAP_IS1];
+	struct ocelot_is1_action *is1_action = &ace->is1_action;
 
-	switch (ace->action) {
-	case OCELOT_ACL_ACTION_VLAN_MODIFY:
+	if (is1_action->qos_ena) {
 		vcap_action_set(vcap, data, VCAP_IS1_ACT_QOS_ENA, 1);
 		vcap_action_set(vcap, data, VCAP_IS1_ACT_QOS_VAL,
-				ace->vlan_modify.pcp);
+				is1_action->qos_val);
+	}
+	if (is1_action->vlan_modify_ena) {
 		vcap_action_set(vcap, data, VCAP_IS1_ACT_VID_REPLACE_ENA, 1);
 		vcap_action_set(vcap, data, VCAP_IS1_ACT_VID_ADD_VAL,
-				ace->vlan_modify.vid);
+				is1_action->vid);
 		vcap_action_set(vcap, data, VCAP_IS1_ACT_PCP_DEI_ENA, 1);
 		vcap_action_set(vcap, data, VCAP_IS1_ACT_PCP_VAL,
-				ace->vlan_modify.pcp);
+				is1_action->pcp);
 		vcap_action_set(vcap, data, VCAP_IS1_ACT_DEI_VAL,
-				ace->vlan_modify.dei);
-		break;
-	default:
-		break;
+				is1_action->dei);
 	}
 }
 
@@ -838,19 +833,16 @@ static void es0_action_set(struct ocelot *ocelot, struct vcap_data *data,
 			   struct ocelot_ace_rule *ace)
 {
 	const struct vcap_props *vcap = &ocelot->vcap[VCAP_ES0];
+	struct ocelot_es0_action *es0_action = &ace->es0_action;
 
-	switch (ace->action) {
-	case OCELOT_ACL_ACTION_VLAN_PUSH:
+	if (es0_action->vlan_push_ena) {
 		vcap_action_set(vcap, data, VCAP_ES0_ACT_PUSH_OUTER_TAG, 1);
 		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_VID_SEL, 1);
 		vcap_action_set(vcap, data, VCAP_ES0_ACT_VID_A_VAL,
-				ace->vlan_modify.vid);
+				es0_action->vid);
 		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_PCP_SEL, 1);
 		vcap_action_set(vcap, data, VCAP_ES0_ACT_PCP_A_VAL,
-				ace->vlan_modify.pcp);
-		break;
-	default:
-		break;
+				es0_action->pcp);
 	}
 }
 
@@ -946,10 +938,11 @@ static void ocelot_ace_rule_add(struct ocelot *ocelot,
 	struct ocelot_ace_rule *tmp;
 	struct list_head *pos, *n;
 
-	if (rule->action == OCELOT_ACL_ACTION_POLICE) {
+	if (rule->is2_action.police_ena) {
 		block->pol_lpr--;
-		rule->pol_ix = block->pol_lpr;
-		ocelot_ace_policer_add(ocelot, rule->pol_ix, &rule->pol);
+		rule->is2_action.pol_ix = block->pol_lpr;
+		ocelot_ace_policer_add(ocelot, rule->is2_action.pol_ix,
+				       &rule->is2_action.pol);
 	}
 
 	block->count++;
@@ -1162,11 +1155,11 @@ static void ocelot_ace_police_del(struct ocelot *ocelot,
 
 	list_for_each_entry(ace, &block->rules, list) {
 		index++;
-		if (ace->action == OCELOT_ACL_ACTION_POLICE &&
-		    ace->pol_ix < ix) {
-			ace->pol_ix += 1;
-			ocelot_ace_policer_add(ocelot, ace->pol_ix,
-					       &ace->pol);
+		if (ace->is2_action.police_ena &&
+		    ace->is2_action.pol_ix < ix) {
+			ace->is2_action.pol_ix += 1;
+			ocelot_ace_policer_add(ocelot, ace->is2_action.pol_ix,
+					       &ace->is2_action.pol);
 			is2_entry_set(ocelot, index, ace);
 		}
 	}
@@ -1185,9 +1178,9 @@ static void ocelot_ace_rule_del(struct ocelot *ocelot,
 	list_for_each_safe(pos, q, &block->rules) {
 		tmp = list_entry(pos, struct ocelot_ace_rule, list);
 		if (tmp->id == rule->id) {
-			if (tmp->action == OCELOT_ACL_ACTION_POLICE)
+			if (tmp->is2_action.police_ena)
 				ocelot_ace_police_del(ocelot, block,
-						      tmp->pol_ix);
+						      tmp->is2_action.pol_ix);
 
 			list_del(pos);
 			kfree(tmp);

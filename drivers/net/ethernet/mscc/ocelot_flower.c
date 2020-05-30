@@ -12,43 +12,66 @@
 static int ocelot_flower_parse_action(struct flow_cls_offload *f,
 				      struct ocelot_ace_rule *ace)
 {
+	struct netlink_ext_ack *extack = f->common.extack;
 	const struct flow_action_entry *a;
 	s64 burst;
 	u64 rate;
 	int i;
 
-	if (f->rule->action.num_entries != 1)
-		return -EOPNOTSUPP;
-
 	flow_action_for_each(i, a, &f->rule->action) {
 		switch (a->id) {
 		case FLOW_ACTION_DROP:
-			ace->action = OCELOT_ACL_ACTION_DROP;
+			if (ace->vcap_id && ace->vcap_id != VCAP_IS2)
+				goto out_mix_disallowed;
+
+			ace->is2_action.drop_ena = true;
 			ace->vcap_id = VCAP_IS2;
 			break;
 		case FLOW_ACTION_TRAP:
-			ace->action = OCELOT_ACL_ACTION_TRAP;
+			if (ace->vcap_id && ace->vcap_id != VCAP_IS2)
+				goto out_mix_disallowed;
+
+			ace->is2_action.trap_ena = true;
 			ace->vcap_id = VCAP_IS2;
 			break;
 		case FLOW_ACTION_POLICE:
-			ace->action = OCELOT_ACL_ACTION_POLICE;
+			if (ace->vcap_id && ace->vcap_id != VCAP_IS2)
+				goto out_mix_disallowed;
+
+			ace->is2_action.police_ena = true;
 			ace->vcap_id = VCAP_IS2;
 			rate = a->police.rate_bytes_ps;
-			ace->pol.rate = div_u64(rate, 1000) * 8;
 			burst = rate * PSCHED_NS2TICKS(a->police.burst);
-			ace->pol.burst = div_u64(burst, PSCHED_TICKS_PER_SEC);
+			ace->is2_action.pol = (struct ocelot_policer) {
+				.burst = div_u64(burst, PSCHED_TICKS_PER_SEC),
+				.rate = div_u64(rate, 1000) * 8,
+			};
+			break;
+		case FLOW_ACTION_PRIORITY:
+			if (ace->vcap_id && ace->vcap_id != VCAP_IS1)
+				goto out_mix_disallowed;
+
+			ace->is1_action.qos_ena = true;
+			ace->is1_action.qos_val = a->priority;
+			ace->vcap_id = VCAP_IS1;
 			break;
 		case FLOW_ACTION_VLAN_MANGLE:
+			if (ace->vcap_id && ace->vcap_id != VCAP_IS1)
+				goto out_mix_disallowed;
+
 			ace->vcap_id = VCAP_IS1;
-			ace->action = OCELOT_ACL_ACTION_VLAN_MODIFY;
-			ace->vlan_modify.vid = a->vlan.vid;
-			ace->vlan_modify.pcp = a->vlan.prio;
+			ace->is1_action.vlan_modify_ena = true;
+			ace->is1_action.vid = a->vlan.vid;
+			ace->is1_action.pcp = a->vlan.prio;
 			break;
 		case FLOW_ACTION_VLAN_PUSH:
+			if (ace->vcap_id && ace->vcap_id != VCAP_ES0)
+				goto out_mix_disallowed;
+
 			ace->vcap_id = VCAP_ES0;
-			ace->action = OCELOT_ACL_ACTION_VLAN_PUSH;
-			ace->vlan_modify.vid = a->vlan.vid;
-			ace->vlan_modify.pcp = a->vlan.prio;
+			ace->es0_action.vlan_push_ena = true;
+			ace->es0_action.vid = a->vlan.vid;
+			ace->es0_action.pcp = a->vlan.prio;
 			break;
 		default:
 			return -EOPNOTSUPP;
@@ -56,6 +79,11 @@ static int ocelot_flower_parse_action(struct flow_cls_offload *f,
 	}
 
 	return 0;
+
+out_mix_disallowed:
+	NL_SET_ERR_MSG_MOD(extack,
+			   "Cannot mix actions for multiple VCAPs in the same rule");
+	return -EOPNOTSUPP;
 }
 
 static int ocelot_flower_parse(struct flow_cls_offload *f,
