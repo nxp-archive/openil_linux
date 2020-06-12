@@ -318,3 +318,8 @@
 	ethernet = <&enetc_port2>;
 	status = "okay";
 };
+
+&hdptx0 {
+	lane-mapping = <0x4e>;
+	status = "okay";
+};
