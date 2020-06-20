@@ -506,7 +506,7 @@ static struct sja1105_regs sja1105pqrs_regs = {
 	.ptpsyncts = 0x1F,
 };
 
-struct sja1105_info sja1105e_info = {
+const struct sja1105_info sja1105e_info = {
 	.device_id		= SJA1105E_DEVICE_ID,
 	.part_no		= SJA1105ET_PART_NO,
 	.static_ops		= sja1105e_table_ops,
@@ -522,7 +522,8 @@ struct sja1105_info sja1105e_info = {
 	.regs			= &sja1105et_regs,
 	.name			= "SJA1105E",
 };
-struct sja1105_info sja1105t_info = {
+
+const struct sja1105_info sja1105t_info = {
 	.device_id		= SJA1105T_DEVICE_ID,
 	.part_no		= SJA1105ET_PART_NO,
 	.static_ops		= sja1105t_table_ops,
@@ -538,7 +539,8 @@ struct sja1105_info sja1105t_info = {
 	.regs			= &sja1105et_regs,
 	.name			= "SJA1105T",
 };
-struct sja1105_info sja1105p_info = {
+
+const struct sja1105_info sja1105p_info = {
 	.device_id		= SJA1105PR_DEVICE_ID,
 	.part_no		= SJA1105P_PART_NO,
 	.static_ops		= sja1105p_table_ops,
@@ -555,7 +557,8 @@ struct sja1105_info sja1105p_info = {
 	.regs			= &sja1105pqrs_regs,
 	.name			= "SJA1105P",
 };
-struct sja1105_info sja1105q_info = {
+
+const struct sja1105_info sja1105q_info = {
 	.device_id		= SJA1105QS_DEVICE_ID,
 	.part_no		= SJA1105Q_PART_NO,
 	.static_ops		= sja1105q_table_ops,
@@ -572,7 +575,8 @@ struct sja1105_info sja1105q_info = {
 	.regs			= &sja1105pqrs_regs,
 	.name			= "SJA1105Q",
 };
-struct sja1105_info sja1105r_info = {
+
+const struct sja1105_info sja1105r_info = {
 	.device_id		= SJA1105PR_DEVICE_ID,
 	.part_no		= SJA1105R_PART_NO,
 	.static_ops		= sja1105r_table_ops,
@@ -589,7 +593,8 @@ struct sja1105_info sja1105r_info = {
 	.regs			= &sja1105pqrs_regs,
 	.name			= "SJA1105R",
 };
-struct sja1105_info sja1105s_info = {
+
+const struct sja1105_info sja1105s_info = {
 	.device_id		= SJA1105QS_DEVICE_ID,
 	.part_no		= SJA1105S_PART_NO,
 	.static_ops		= sja1105s_table_ops,
