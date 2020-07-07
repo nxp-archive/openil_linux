@@ -99,6 +99,7 @@ static int ocelot_flower_parse(struct flow_cls_offload *f,
 	      BIT(FLOW_DISSECTOR_KEY_BASIC) |
 	      BIT(FLOW_DISSECTOR_KEY_PORTS) |
 	      BIT(FLOW_DISSECTOR_KEY_VLAN) |
+	      BIT(FLOW_DISSECTOR_KEY_CVLAN) |
 	      BIT(FLOW_DISSECTOR_KEY_IPV4_ADDRS) |
 	      BIT(FLOW_DISSECTOR_KEY_IPV6_ADDRS) |
 	      BIT(FLOW_DISSECTOR_KEY_ETH_ADDRS))) {
@@ -207,6 +208,18 @@ static int ocelot_flower_parse(struct flow_cls_offload *f,
 		ace->vlan.vid.mask = match.mask->vlan_id;
 		ace->vlan.pcp.value[0] = match.key->vlan_priority;
 		ace->vlan.pcp.mask[0] = match.mask->vlan_priority;
+		match_protocol = false;
+	}
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CVLAN)) {
+		struct flow_match_vlan match;
+
+		flow_rule_match_cvlan(rule, &match);
+		ace->type = OCELOT_ACE_TYPE_ANY;
+		ace->cvlan.vid.value = match.key->vlan_id;
+		ace->cvlan.vid.mask = match.mask->vlan_id;
+		ace->cvlan.pcp.value[0] = match.key->vlan_priority;
+		ace->cvlan.pcp.mask[0] = match.mask->vlan_priority;
 		match_protocol = false;
 	}
 

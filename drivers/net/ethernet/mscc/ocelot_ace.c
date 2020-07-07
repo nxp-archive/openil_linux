@@ -670,6 +670,7 @@ static void is1_entry_set(struct ocelot *ocelot, int ix,
 	const struct vcap_props *vcap = &ocelot->vcap[VCAP_IS1];
 	u32 val, msk, type, i;
 	struct ocelot_ace_vlan *tag = &ace->vlan;
+	struct ocelot_ace_vlan *ctag = &ace->cvlan;
 	struct ocelot_vcap_u64 payload;
 	struct vcap_data data;
 	int row = ix / 2;
@@ -698,7 +699,19 @@ static void is1_entry_set(struct ocelot *ocelot, int ix,
 		     tag->vid.value, tag->vid.mask);
 	vcap_key_set(vcap, &data, VCAP_IS1_HK_PCP,
 		     tag->pcp.value[0], tag->pcp.mask[0]);
-	type = IS1_TYPE_S1_NORMAL;
+	if (ctag->vid.value != 0) {
+		vcap_key_bit_set(vcap, &data, VCAP_IS1_HK_TPID,
+				 OCELOT_VCAP_BIT_1);
+		vcap_key_bit_set(vcap, &data, VCAP_IS1_HK_VLAN_DBL_TAGGED,
+				 OCELOT_VCAP_BIT_1);
+		vcap_key_set(vcap, &data, VCAP_IS1_HK_IP4_INNER_VID,
+			     ctag->vid.value, ctag->vid.mask);
+		vcap_key_set(vcap, &data, VCAP_IS1_HK_IP4_INNER_PCP,
+			     ctag->pcp.value[0], ctag->pcp.mask[0]);
+		type = IS1_TYPE_S1_5TUPLE_IP4;
+	} else {
+		type = IS1_TYPE_S1_NORMAL;
+	}
 
 	switch (ace->type) {
 	case OCELOT_ACE_TYPE_ETYPE: {

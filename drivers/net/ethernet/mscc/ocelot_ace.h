@@ -218,6 +218,7 @@ struct ocelot_ace_rule {
 	enum ocelot_vcap_bit dmac_mc;
 	enum ocelot_vcap_bit dmac_bc;
 	struct ocelot_ace_vlan vlan;
+	struct ocelot_ace_vlan cvlan;
 
 	enum ocelot_ace_type type;
 	union {
