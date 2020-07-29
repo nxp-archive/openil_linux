@@ -45,6 +45,7 @@ config FSL_ENETC_PTP_CLOCK
 config FSL_ENETC_HW_TIMESTAMPING
 	bool "ENETC hardware timestamping support"
 	depends on FSL_ENETC || FSL_ENETC_VF
+	default y
 	help
 	  Enable hardware timestamping support on the Ethernet packets
 	  using the SO_TIMESTAMPING API. Because the RX BD ring dynamic
