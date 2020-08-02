@@ -26,7 +26,6 @@
 #include "ocelot_rew.h"
 #include "ocelot_qs.h"
 #include "ocelot_tc.h"
-#include "ocelot_dev_gmii.h"
 
 #define OCELOT_BUFFER_CELL_SZ 60
 
@@ -60,9 +59,6 @@ struct ocelot_port_private {
 
 	struct ocelot_port_tc tc;
 };
-
-u32 ocelot_port_readl(struct ocelot_port *port, u32 reg);
-void ocelot_port_writel(struct ocelot_port *port, u32 val, u32 reg);
 
 #define ocelot_field_write(ocelot, reg, val) regmap_field_write((ocelot)->regfields[(reg)], (val))
 #define ocelot_field_read(ocelot, reg, val) regmap_field_read((ocelot)->regfields[(reg)], (val))

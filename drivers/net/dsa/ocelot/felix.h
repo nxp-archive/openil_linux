@@ -37,6 +37,10 @@ struct felix_info {
 				 enum tc_setup_type type, void *type_data);
 	void	(*port_sched_speed_set)(struct ocelot *ocelot, int port,
 					u32 speed);
+	int	(*port_set_preempt)(struct ocelot *ocelot, int port,
+				    struct ethtool_fp *fpcmd);
+	int	(*port_get_preempt)(struct ocelot *ocelot, int port,
+				    struct ethtool_fp *fpcmd);
 };
 
 extern struct felix_info		felix_info_vsc9959;
