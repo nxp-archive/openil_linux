@@ -33,6 +33,7 @@
 #define	IFNAMSIZ	16
 #endif /* __UAPI_DEF_IF_IFNAMSIZ */
 #define	IFALIASZ	256
+#define ALTIFNAMSIZ     128
 #include <linux/hdlc/ioctl.h>
 
 /* For glibc compatibility. An empty enum does not compile. */
@@ -177,6 +178,7 @@ enum {
 enum {
 	IF_LINK_MODE_DEFAULT,
 	IF_LINK_MODE_DORMANT,	/* limit upward transition to dormant */
+	IF_LINK_MODE_TESTING,	/* limit upward transition to testing */
 };
 
 /*

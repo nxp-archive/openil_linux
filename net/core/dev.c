@@ -8854,6 +8854,11 @@ void netif_stacked_transfer_operstate(const struct net_device *rootdev,
 	else
 		netif_dormant_off(dev);
 
+	if (rootdev->operstate == IF_OPER_TESTING)
+		netif_testing_on(dev);
+	else
+		netif_testing_off(dev);
+
 	if (netif_carrier_ok(rootdev))
 		netif_carrier_on(dev);
 	else
@@ -9030,6 +9035,10 @@ int register_netdevice(struct net_device *dev)
 	/* When net_device's are persistent, this will be fatal. */
 	BUG_ON(dev->reg_state != NETREG_UNINITIALIZED);
 	BUG_ON(!net);
+
+	ret = ethtool_check_ops(dev->ethtool_ops);
+	if (ret)
+		return ret;
 
 	spin_lock_init(&dev->addr_list_lock);
 	lockdep_set_class(&dev->addr_list_lock, &dev->addr_list_lock_key);
