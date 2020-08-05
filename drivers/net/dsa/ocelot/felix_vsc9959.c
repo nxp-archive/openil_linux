@@ -2,6 +2,7 @@
 /* Copyright 2017 Microsemi Corporation
  * Copyright 2018-2019 NXP Semiconductors
  */
+#include <soc/mscc/ocelot_dev_gmii.h>
 #include <linux/fsl/enetc_mdio.h>
 #include <soc/mscc/ocelot_vcap.h>
 #include <soc/mscc/ocelot_qsys.h>
@@ -1556,6 +1557,73 @@ static int vsc9959_port_setup_tc(struct dsa_switch *ds, int port,
 	}
 }
 
+static inline void ocelot_port_rmwl(struct ocelot_port *port, u32 val,
+				    u32 mask, u32 reg)
+{
+	u32 cur = ocelot_port_readl(port, reg);
+
+	ocelot_port_writel(port, (cur & (~mask)) | val, reg);
+}
+
+static int vsc9959_port_set_preempt(struct ocelot *ocelot, int port,
+				    struct ethtool_fp *fpcmd)
+{
+	struct ocelot_port *ocelot_port = ocelot->ports[port];
+	int p_queues = fpcmd->preemptible_queues_mask;
+	int mm_fragsize;
+
+	if (fpcmd->min_frag_size < 60 || fpcmd->min_frag_size > 252)
+		return -EINVAL;
+
+	mm_fragsize = DIV_ROUND_UP((fpcmd->min_frag_size + 4), 64) - 1;
+	fpcmd->fp_supported = 1;
+
+	ocelot_port_rmwl(ocelot_port,
+			 DEV_GMII_MM_CONFIG_ENABLE_CONFIG_MM_RX_ENA |
+			 DEV_GMII_MM_CONFIG_ENABLE_CONFIG_MM_TX_ENA,
+			 DEV_GMII_MM_CONFIG_ENABLE_CONFIG_MM_RX_ENA |
+			 DEV_GMII_MM_CONFIG_ENABLE_CONFIG_MM_TX_ENA,
+			 DEV_GMII_MM_CONFIG_ENABLE_CONFIG);
+
+	ocelot_port_rmwl(ocelot_port,
+			 (fpcmd->fp_enabled ?
+			  0 : DEV_GMII_MM_CONFIG_VERIF_CONFIG_PRM_VERIFY_DIS),
+			 DEV_GMII_MM_CONFIG_VERIF_CONFIG_PRM_VERIFY_DIS,
+			 DEV_GMII_MM_CONFIG_VERIF_CONFIG);
+
+	ocelot_rmw_rix(ocelot,
+		       QSYS_PREEMPTION_CFG_MM_ADD_FRAG_SIZE(mm_fragsize) |
+		       QSYS_PREEMPTION_CFG_P_QUEUES(p_queues),
+		       QSYS_PREEMPTION_CFG_MM_ADD_FRAG_SIZE_M |
+		       QSYS_PREEMPTION_CFG_P_QUEUES_M,
+		       QSYS_PREEMPTION_CFG,
+		       port);
+
+	return 0;
+}
+
+static int vsc9959_port_get_preempt(struct ocelot *ocelot, int port,
+				    struct ethtool_fp *fpcmd)
+{
+	struct ocelot_port *ocelot_port = ocelot->ports[port];
+	u8 fragsize;
+	u32 val;
+
+	fpcmd->fp_supported = 1;
+	fpcmd->supported_queues_mask = GENMASK(7, 0);
+
+	val = ocelot_port_readl(ocelot_port, DEV_GMII_MM_CONFIG_VERIF_CONFIG);
+	val &= DEV_GMII_MM_CONFIG_VERIF_CONFIG_PRM_VERIFY_DIS;
+	fpcmd->fp_enabled = (val ? 0 : 1);
+
+	val = ocelot_read(ocelot, QSYS_PREEMPTION_CFG);
+	fpcmd->preemptible_queues_mask = val & QSYS_PREEMPTION_CFG_P_QUEUES_M;
+	fragsize = QSYS_PREEMPTION_CFG_MM_ADD_FRAG_SIZE_X(val);
+	fpcmd->min_frag_size = (fragsize + 1) * 64 - 4;
+
+	return 0;
+}
+
 struct felix_info felix_info_vsc9959 = {
 	.target_io_res		= vsc9959_target_io_res,
 	.port_io_res		= vsc9959_port_io_res,
@@ -1579,5 +1647,7 @@ struct felix_info felix_info_vsc9959 = {
 	.pcs_link_state		= vsc9959_pcs_link_state,
 	.prevalidate_phy_mode	= vsc9959_prevalidate_phy_mode,
 	.port_setup_tc          = vsc9959_port_setup_tc,
+	.port_set_preempt	= vsc9959_port_set_preempt,
+	.port_get_preempt	= vsc9959_port_get_preempt,
 	.port_sched_speed_set	= vsc9959_sched_speed_set,
 };

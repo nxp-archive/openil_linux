@@ -10,11 +10,11 @@
 #include <linux/pci.h>
 #include <linux/iopoll.h>
 #include "ocelot.h"
+#include <soc/mscc/ocelot_dev_gmii.h>
 #include <soc/mscc/ocelot_sys.h>
 #include <soc/mscc/ocelot_ana.h>
 #include <soc/mscc/ocelot_qsys.h>
 #include "ocelot_rew.h"
-#include "ocelot_dev_gmii.h"
 #include "ocelot_tsn.h"
 
 #define MSCC_NUM_OUT_PORT 4 /* Number of physical output ports */
