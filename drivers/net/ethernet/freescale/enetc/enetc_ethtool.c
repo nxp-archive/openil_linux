@@ -649,6 +649,71 @@ static int enetc_get_ts_info(struct net_device *ndev,
 	return 0;
 }
 
+static int enetc_set_preempt(struct net_device *ndev,
+			     struct ethtool_fp *pt)
+{
+	struct enetc_ndev_priv *priv = netdev_priv(ndev);
+	u32 preempt, temp;
+	int i;
+
+	if (!pt)
+		return -EINVAL;
+
+	if (!pt->fp_enabled)
+		preempt = 0x0;
+	else
+		preempt = pt->preemptible_queues_mask;
+
+	temp = enetc_rd(&priv->si->hw, ENETC_QBV_PTGCR_OFFSET);
+	if (temp & ENETC_QBV_TGE)
+		enetc_wr(&priv->si->hw, ENETC_QBV_PTGCR_OFFSET,
+			 temp & (~ENETC_QBV_TGPE));
+
+	for (i = 0; i < 8; i++) {
+		/* 1 Enabled. Traffic is transmitted on the preemptive MAC. */
+		temp = enetc_port_rd(&priv->si->hw, ENETC_PTCFPR(i));
+
+		if ((preempt >> i) & 0x1)
+			enetc_port_wr(&priv->si->hw,
+				      ENETC_PTCFPR(i),
+				      temp | ENETC_FPE);
+		else
+			enetc_port_wr(&priv->si->hw,
+				      ENETC_PTCFPR(i),
+				      temp & ~ENETC_FPE);
+	}
+
+	return 0;
+}
+
+static int enetc_get_preempt(struct net_device *ndev,
+			     struct ethtool_fp *pt)
+{
+	struct enetc_ndev_priv *priv = netdev_priv(ndev);
+	u32 temp;
+	int i;
+
+	if (!pt)
+		return -EINVAL;
+
+	if (enetc_port_rd(&priv->si->hw, ENETC_PFPMR) & ENETC_PFPMR_PMACE)
+		pt->fp_enabled = true;
+	else
+		pt->fp_enabled = false;
+
+	pt->preemptible_queues_mask = 0;
+	for (i = 0; i < 8; i++)
+		if (enetc_port_rd(&priv->si->hw, ENETC_PTCFPR(i)) & 0x80000000)
+			pt->preemptible_queues_mask |= 1 << i;
+
+	pt->fp_supported = !!(priv->si->hw_features & ENETC_SI_F_QBU);
+	pt->supported_queues_mask = 0xff;
+	temp = (enetc_port_rd(&priv->si->hw, ENETC_MMCSR) & 0x18) >> 3;
+	pt->min_frag_size = (temp + 1) * 64;
+
+	return 0;
+}
+
 static const struct ethtool_ops enetc_pf_ethtool_ops = {
 	.get_regs_len = enetc_get_reglen,
 	.get_regs = enetc_get_regs,
@@ -666,6 +731,8 @@ static const struct ethtool_ops enetc_pf_ethtool_ops = {
 	.set_link_ksettings = phy_ethtool_set_link_ksettings,
 	.get_link = ethtool_op_get_link,
 	.get_ts_info = enetc_get_ts_info,
+	.set_preempt = enetc_set_preempt,
+	.get_preempt = enetc_get_preempt,
 };
 
 static const struct ethtool_ops enetc_vf_ethtool_ops = {
