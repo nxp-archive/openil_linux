@@ -19,6 +19,7 @@
 #include "stmmac.h"
 #include "dwmac_dma.h"
 #include "dwxgmac2.h"
+#include "common.h"
 
 #define REG_SPACE_SIZE	0x1060
 #define MAC100_ETHTOOL_NAME	"st_mac100"
@@ -913,6 +914,56 @@ static int stmmac_set_tunable(struct net_device *dev,
 	return ret;
 }
 
+static int stmmac_set_preempt(struct net_device *dev, struct ethtool_fp *fpcmd)
+{
+	struct stmmac_priv *priv = netdev_priv(dev);
+	struct stmmac_fpe fpe;
+
+	if (!priv->dma_cap.fpesel)
+		return -EOPNOTSUPP;
+
+	if (fpcmd->min_frag_size < 60 || fpcmd->min_frag_size > 252)
+		return -EINVAL;
+
+	fpe.p_queues = fpcmd->preemptible_queues_mask;
+	fpe.fragsize = DIV_ROUND_UP((fpcmd->min_frag_size + 4), 64) - 1;
+	fpe.enable = 1;
+
+	if (fpe.p_queues > GENMASK(priv->plat->tx_queues_to_use, 0))
+		return -EINVAL;
+
+	stmmac_fpe_configure(priv, priv->ioaddr, priv->plat->tx_queues_to_use,
+			     priv->plat->rx_queues_to_use, &fpe);
+
+	fpcmd->fp_supported = 1;
+
+	return 0;
+}
+
+static int stmmac_get_preempt(struct net_device *dev, struct ethtool_fp *fpcmd)
+{
+	struct stmmac_priv *priv = netdev_priv(dev);
+	struct stmmac_fpe fpe;
+	int ret;
+
+	ret = stmmac_fpe_configure_get(priv, priv->ioaddr, &fpe);
+	if (ret) {
+		fpcmd->fp_supported = 0;
+		fpcmd->supported_queues_mask = 0;
+		fpcmd->preemptible_queues_mask = 0;
+		fpcmd->min_frag_size = 0;
+
+		return 0;
+	}
+
+	fpcmd->fp_supported = 1;
+	fpcmd->supported_queues_mask = GENMASK(priv->plat->tx_queues_to_use, 0);
+	fpcmd->preemptible_queues_mask = fpe.p_queues;
+	fpcmd->min_frag_size = (fpe.fragsize + 1) * 64 - 4;
+
+	return 0;
+}
+
 static const struct ethtool_ops stmmac_ethtool_ops = {
 	.begin = stmmac_check_if_running,
 	.get_drvinfo = stmmac_ethtool_getdrvinfo,
@@ -944,6 +995,8 @@ static const struct ethtool_ops stmmac_ethtool_ops = {
 	.set_tunable = stmmac_set_tunable,
 	.get_link_ksettings = stmmac_ethtool_get_link_ksettings,
 	.set_link_ksettings = stmmac_ethtool_set_link_ksettings,
+	.set_preempt = stmmac_set_preempt,
+	.get_preempt = stmmac_get_preempt,
 };
 
 void stmmac_set_ethtool_ops(struct net_device *netdev)

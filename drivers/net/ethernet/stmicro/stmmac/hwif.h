@@ -278,6 +278,12 @@ struct stmmac_pps_cfg;
 struct stmmac_rss;
 struct stmmac_est;
 
+struct stmmac_fpe {
+	u8 enable;
+	u8 p_queues;
+	u8 fragsize;
+};
+
 /* Helpers to program the MAC core */
 struct stmmac_ops {
 	/* MAC core initialization */
@@ -377,7 +383,8 @@ struct stmmac_ops {
 	int (*est_configure)(void __iomem *ioaddr, struct stmmac_est *cfg,
 			     unsigned int ptp_rate);
 	void (*fpe_configure)(void __iomem *ioaddr, u32 num_txq, u32 num_rxq,
-			      bool enable);
+			      struct stmmac_fpe *fpe);
+	void (*fpe_configure_get)(void __iomem *ioaddr, struct stmmac_fpe *fpe);
 };
 
 #define stmmac_core_init(__priv, __args...) \
@@ -468,6 +475,8 @@ struct stmmac_ops {
 	stmmac_do_callback(__priv, mac, est_configure, __args)
 #define stmmac_fpe_configure(__priv, __args...) \
 	stmmac_do_void_callback(__priv, mac, fpe_configure, __args)
+#define stmmac_fpe_configure_get(__priv, __args...) \
+	stmmac_do_void_callback(__priv, mac, fpe_configure_get, __args)
 
 /* PTP and HW Timer helpers */
 struct stmmac_hwtimestamp {

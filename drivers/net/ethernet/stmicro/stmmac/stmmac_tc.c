@@ -601,7 +601,7 @@ static int tc_setup_taprio(struct stmmac_priv *priv,
 	u32 size, wid = priv->dma_cap.estwid, dep = priv->dma_cap.estdep;
 	struct plat_stmmacenet_data *plat = priv->plat;
 	struct timespec64 time;
-	bool fpe = false;
+	struct stmmac_fpe fpe;
 	int i, ret = 0;
 	u64 ctr;
 
@@ -665,6 +665,8 @@ static int tc_setup_taprio(struct stmmac_priv *priv,
 	priv->plat->est->gcl_size = size;
 	priv->plat->est->enable = qopt->enable;
 
+	stmmac_fpe_configure_get(priv, priv->ioaddr, &fpe);
+
 	for (i = 0; i < size; i++) {
 		s64 delta_ns = qopt->entries[i].interval;
 		u32 gates = qopt->entries[i].gate_mask;
@@ -676,16 +678,18 @@ static int tc_setup_taprio(struct stmmac_priv *priv,
 
 		switch (qopt->entries[i].command) {
 		case TC_TAPRIO_CMD_SET_GATES:
-			if (fpe)
+			if (fpe.enable)
 				return -EINVAL;
 			break;
 		case TC_TAPRIO_CMD_SET_AND_HOLD:
+			if (!fpe.enable)
+				return -EINVAL;
 			gates |= BIT(0);
-			fpe = true;
 			break;
 		case TC_TAPRIO_CMD_SET_AND_RELEASE:
+			if (!fpe.enable)
+				return -EINVAL;
 			gates &= ~BIT(0);
-			fpe = true;
 			break;
 		default:
 			return -EOPNOTSUPP;
@@ -702,17 +706,6 @@ static int tc_setup_taprio(struct stmmac_priv *priv,
 	ctr = qopt->cycle_time;
 	priv->plat->est->ctr[0] = do_div(ctr, NSEC_PER_SEC);
 	priv->plat->est->ctr[1] = (u32)ctr;
-
-	if (fpe && !priv->dma_cap.fpesel)
-		return -EOPNOTSUPP;
-
-	ret = stmmac_fpe_configure(priv, priv->ioaddr,
-				   priv->plat->tx_queues_to_use,
-				   priv->plat->rx_queues_to_use, fpe);
-	if (ret && fpe) {
-		netdev_err(priv->dev, "failed to enable Frame Preemption\n");
-		return ret;
-	}
 
 	ret = stmmac_est_configure(priv, priv->ioaddr, priv->plat->est,
 				   priv->plat->clk_ptp_rate);
