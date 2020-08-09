@@ -1534,6 +1534,8 @@ static int gfar_get_ts_info(struct net_device *dev,
 }
 
 const struct ethtool_ops gfar_ethtool_ops = {
+	.supported_coalesce_params = ETHTOOL_COALESCE_USECS |
+				     ETHTOOL_COALESCE_MAX_FRAMES,
 	.get_eee = gfar_get_eee,
 	.set_eee = gfar_set_eee,
 	.get_drvinfo = gfar_gdrvinfo,
