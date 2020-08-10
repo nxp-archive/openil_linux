@@ -152,9 +152,9 @@ static int dsa_8021q_vid_apply(struct dsa_switch *ds, int port, u16 vid,
 	struct dsa_port *dp = dsa_to_port(ds, port);
 
 	if (enabled)
-		return dsa_port_vid_add(dp, vid, flags);
+		return dsa_port_vid_add(dp, vid, ETH_P_8021Q, flags);
 
-	return dsa_port_vid_del(dp, vid);
+	return dsa_port_vid_del(dp, vid, ETH_P_8021Q);
 }
 
 /* RX VLAN tagging (left) and TX VLAN tagging (right) setup shown for a single
