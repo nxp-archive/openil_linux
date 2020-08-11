@@ -1396,11 +1396,11 @@ static int dwxgmac3_est_configure(void __iomem *ioaddr, struct stmmac_est *cfg,
 }
 
 static void dwxgmac3_fpe_configure(void __iomem *ioaddr, u32 num_txq,
-				   u32 num_rxq, bool enable)
+				   u32 num_rxq, struct stmmac_fpe *fpe)
 {
 	u32 value;
 
-	if (!enable) {
+	if (!fpe->enable) {
 		value = readl(ioaddr + XGMAC_FPE_CTRL_STS);
 
 		value &= ~XGMAC_EFPE;
