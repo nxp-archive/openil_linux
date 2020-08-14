@@ -333,6 +333,7 @@ static int dsa_slave_vlan_add(struct net_device *dev,
 	 * it doesn't make sense to program a PVID, so clear this flag.
 	 */
 	vlan.flags &= ~BRIDGE_VLAN_INFO_PVID;
+	vlan.proto = ETH_P_8021Q;
 
 	err = dsa_port_vlan_add(dp->cpu_dp, &vlan, trans);
 	if (err)
@@ -1236,11 +1237,38 @@ static int dsa_slave_get_preempt(struct net_device *dev,
 	return ds->ops->get_preempt(ds, p->dp->index, fpcmd);
 }
 
+static bool dsa_slave_skip_vlan_configuration(struct dsa_port *dp,
+					      u16 vlan_proto, u16 vid)
+{
+	struct bridge_vlan_info info;
+	bool change_proto = false;
+	u16 br_proto = 0;
+	int ret;
+
+	/* when changing bridge's vlan protocol, it will change bridge
+	 * port's protocol firstly, then set bridge's protocol. if it's
+	 * changing vlan protocol, should not return -EBUSY.
+	 */
+	ret = br_vlan_get_proto(dp->bridge_dev, &br_proto);
+	if (ret == 0 && br_proto != vlan_proto)
+		change_proto = true;
+
+	/* br_vlan_get_info() returns -EINVAL or -ENOENT if the
+	 * device, respectively the VID is not found, returning
+	 * 0 means success, which is a failure for us here.
+	 */
+	ret = br_vlan_get_info(dp->bridge_dev, vid, &info);
+	if (ret == 0 && !change_proto)
+		return true;
+	else
+		return false;
+}
+
 static int dsa_slave_vlan_rx_add_vid(struct net_device *dev, __be16 proto,
 				     u16 vid)
 {
 	struct dsa_port *dp = dsa_slave_to_port(dev);
-	struct bridge_vlan_info info;
+	u16 vlan_proto = ntohs(proto);
 	int ret;
 
 	/* Check for a possible bridge VLAN entry now since there is no
@@ -1251,20 +1279,15 @@ static int dsa_slave_vlan_rx_add_vid(struct net_device *dev, __be16 proto,
 		    !br_vlan_enabled(dp->bridge_dev))
 			return 0;
 
-		/* br_vlan_get_info() returns -EINVAL or -ENOENT if the
-		 * device, respectively the VID is not found, returning
-		 * 0 means success, which is a failure for us here.
-		 */
-		ret = br_vlan_get_info(dp->bridge_dev, vid, &info);
-		if (ret == 0)
+		if (dsa_slave_skip_vlan_configuration(dp, vlan_proto, vid))
 			return -EBUSY;
 	}
 
-	ret = dsa_port_vid_add(dp, vid, 0);
+	ret = dsa_port_vid_add(dp, vid, vlan_proto, 0);
 	if (ret)
 		return ret;
 
-	ret = dsa_port_vid_add(dp->cpu_dp, vid, 0);
+	ret = dsa_port_vid_add(dp->cpu_dp, vid, ETH_P_8021Q, 0);
 	if (ret)
 		return ret;
 
@@ -1275,8 +1298,7 @@ static int dsa_slave_vlan_rx_kill_vid(struct net_device *dev, __be16 proto,
 				      u16 vid)
 {
 	struct dsa_port *dp = dsa_slave_to_port(dev);
-	struct bridge_vlan_info info;
-	int ret;
+	u16 vlan_proto = ntohs(proto);
 
 	/* Check for a possible bridge VLAN entry now since there is no
 	 * need to emulate the switchdev prepare + commit phase.
@@ -1286,19 +1308,14 @@ static int dsa_slave_vlan_rx_kill_vid(struct net_device *dev, __be16 proto,
 		    !br_vlan_enabled(dp->bridge_dev))
 			return 0;
 
-		/* br_vlan_get_info() returns -EINVAL or -ENOENT if the
-		 * device, respectively the VID is not found, returning
-		 * 0 means success, which is a failure for us here.
-		 */
-		ret = br_vlan_get_info(dp->bridge_dev, vid, &info);
-		if (ret == 0)
+		if (dsa_slave_skip_vlan_configuration(dp, vlan_proto, vid))
 			return -EBUSY;
 	}
 
 	/* Do not deprogram the CPU port as it may be shared with other user
 	 * ports which can be members of this VLAN as well.
 	 */
-	return dsa_port_vid_del(dp, vid);
+	return dsa_port_vid_del(dp, vid, vlan_proto);
 }
 
 struct dsa_hw_port {

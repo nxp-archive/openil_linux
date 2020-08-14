@@ -198,6 +198,8 @@ static int ocelot_port_set_native_vlan(struct ocelot *ocelot, int port,
 				       u16 vid)
 {
 	struct ocelot_port *ocelot_port = ocelot->ports[port];
+	u32 port_tpid = 0;
+	u32 tag_tpid = 0;
 	u32 val = 0;
 
 	if (ocelot_port->vid != vid) {
@@ -211,8 +213,14 @@ static int ocelot_port_set_native_vlan(struct ocelot *ocelot, int port,
 		ocelot_port->vid = vid;
 	}
 
-	ocelot_rmw_gix(ocelot, REW_PORT_VLAN_CFG_PORT_VID(vid),
-		       REW_PORT_VLAN_CFG_PORT_VID_M,
+	if (ocelot->qinq_enable && ocelot_port->qinq_mode)
+		port_tpid = REW_PORT_VLAN_CFG_PORT_TPID(ETH_P_8021AD);
+	else
+		port_tpid = REW_PORT_VLAN_CFG_PORT_TPID(ETH_P_8021Q);
+
+	ocelot_rmw_gix(ocelot, REW_PORT_VLAN_CFG_PORT_VID(vid) | port_tpid,
+		       REW_PORT_VLAN_CFG_PORT_VID_M |
+		       REW_PORT_VLAN_CFG_PORT_TPID_M,
 		       REW_PORT_VLAN_CFG, port);
 
 	if (ocelot_port->vlan_aware && !ocelot_port->vid)
@@ -235,12 +243,19 @@ static int ocelot_port_set_native_vlan(struct ocelot *ocelot, int port,
 		else
 			/* Tag all frames */
 			val = REW_TAG_CFG_TAG_CFG(3);
+
+		if (ocelot->qinq_enable && ocelot_port->qinq_mode)
+			tag_tpid = REW_TAG_CFG_TAG_TPID_CFG(1);
+		else
+			tag_tpid = REW_TAG_CFG_TAG_TPID_CFG(0);
 	} else {
 		/* Port tagging disabled. */
 		val = REW_TAG_CFG_TAG_CFG(0);
+		tag_tpid = REW_TAG_CFG_TAG_TPID_CFG(0);
 	}
-	ocelot_rmw_gix(ocelot, val,
-		       REW_TAG_CFG_TAG_CFG_M,
+
+	ocelot_rmw_gix(ocelot, val | tag_tpid,
+		       REW_TAG_CFG_TAG_CFG_M | REW_TAG_CFG_TAG_TPID_CFG_M,
 		       REW_TAG_CFG, port);
 
 	return 0;
@@ -259,6 +274,15 @@ void ocelot_port_vlan_filtering(struct ocelot *ocelot, int port,
 		      ANA_PORT_VLAN_CFG_VLAN_POP_CNT(1);
 	else
 		val = 0;
+
+	/* if switch is enabled for QinQ, the port for LAN should set
+	 * VLAN_CFG.VLAN_POP_CNT=0 && VLAN_CFG.VLAN_AWARE_ENA=0.
+	 * the port for MAN should set VLAN_CFG.VLAN_POP_CNT=1 &&
+	 * VLAN_CFG.VLAN_AWARE_ENA=1. referring to 4.3.3 in VSC9959_1_00_TS.pdf
+	 */
+	if (ocelot->qinq_enable && !ocelot_port->qinq_mode)
+		val = 0;
+
 	ocelot_rmw_gix(ocelot, val,
 		       ANA_PORT_VLAN_CFG_VLAN_AWARE_ENA |
 		       ANA_PORT_VLAN_CFG_VLAN_POP_CNT_M,
@@ -272,10 +296,14 @@ EXPORT_SYMBOL(ocelot_port_vlan_filtering);
 static void ocelot_port_set_pvid(struct ocelot *ocelot, int port, u16 pvid)
 {
 	struct ocelot_port *ocelot_port = ocelot->ports[port];
+	u32 tag_type = 0;
+
+	if (ocelot->qinq_enable && ocelot_port->qinq_mode)
+		tag_type = ANA_PORT_VLAN_CFG_VLAN_TAG_TYPE;
 
 	ocelot_rmw_gix(ocelot,
-		       ANA_PORT_VLAN_CFG_VLAN_VID(pvid),
-		       ANA_PORT_VLAN_CFG_VLAN_VID_M,
+		       ANA_PORT_VLAN_CFG_VLAN_VID(pvid) | tag_type,
+		       ANA_PORT_VLAN_CFG_VLAN_VID_M | tag_type,
 		       ANA_PORT_VLAN_CFG, port);
 
 	ocelot_port->pvid = pvid;
