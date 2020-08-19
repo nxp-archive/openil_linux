@@ -973,9 +973,9 @@ static int ocelot_ace_rule_get_index_id(struct ocelot_acl_block *block,
 	list_for_each_entry(tmp, &block->rules, list) {
 		++index;
 		if (rule->id == tmp->id)
-			break;
+			return index;
 	}
-	return index;
+	return -ENOENT;
 }
 
 static struct ocelot_ace_rule*
@@ -1189,6 +1189,8 @@ int ocelot_ace_rule_offload_del(struct ocelot *ocelot,
 	block = &ocelot->acl_block[rule->vcap_id];
 	/* Gets index of the rule */
 	index = ocelot_ace_rule_get_index_id(block, rule);
+	if (index < 0)
+		return -ENOENT;
 
 	/* Delete rule */
 	ocelot_ace_rule_del(ocelot, block, rule);
@@ -1219,6 +1221,9 @@ int ocelot_ace_rule_stats_update(struct ocelot *ocelot,
 
 	block = &ocelot->acl_block[rule->vcap_id];
 	index = ocelot_ace_rule_get_index_id(block, rule);
+	if (index < 0)
+		return -ENOENT;
+
 	vcap_entry_get(ocelot, rule, index);
 
 	/* After we get the result we need to clear the counters */
