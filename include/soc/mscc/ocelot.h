@@ -486,7 +486,6 @@ struct ocelot_ops {
 struct ocelot_acl_block {
 	struct list_head rules;
 	int count;
-	int pol_lpr;
 };
 
 struct ocelot_port {
@@ -550,6 +549,9 @@ struct ocelot {
 	struct list_head		multicast;
 
 	struct ocelot_acl_block		acl_block[3];
+
+	struct list_head		policer;
+	int				policer_base;
 
 	const struct vcap_props		*vcap;
 

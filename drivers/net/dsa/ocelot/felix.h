@@ -23,6 +23,7 @@ struct felix_info {
 	const struct vcap_props		*vcap;
 	int				switch_pci_bar;
 	int				imdio_pci_bar;
+	int				policer_base;
 	int	(*mdio_bus_alloc)(struct ocelot *ocelot);
 	void	(*mdio_bus_free)(struct ocelot *ocelot);
 	void	(*pcs_init)(struct ocelot *ocelot, int port,

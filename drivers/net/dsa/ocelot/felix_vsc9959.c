@@ -2303,6 +2303,7 @@ struct felix_info felix_info_vsc9959 = {
 	.num_tx_queues		= 8,
 	.switch_pci_bar		= 4,
 	.imdio_pci_bar		= 0,
+	.policer_base		= VSC9959_POLICER_PSFP_BASE,
 	.mdio_bus_alloc		= vsc9959_mdio_bus_alloc,
 	.mdio_bus_free		= vsc9959_mdio_bus_free,
 	.pcs_init		= vsc9959_pcs_init,
