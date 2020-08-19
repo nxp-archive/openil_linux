@@ -711,6 +711,9 @@ int ocelot_get_max_mtu(struct ocelot *ocelot, int port);
 int ocelot_port_policer_add(struct ocelot *ocelot, int port,
 			    struct ocelot_policer *pol);
 int ocelot_port_policer_del(struct ocelot *ocelot, int port);
+int ocelot_ace_policer_add(struct ocelot *ocelot, u32 pol_ix,
+			   struct ocelot_policer *pol);
+int ocelot_ace_policer_del(struct ocelot *ocelot, u32 pol_ix);
 int ocelot_cls_flower_replace(struct ocelot *ocelot, int port,
 			      struct flow_cls_offload *f, bool ingress);
 int ocelot_cls_flower_destroy(struct ocelot *ocelot, int port,

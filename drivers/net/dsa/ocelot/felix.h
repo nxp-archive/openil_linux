@@ -41,6 +41,13 @@ struct felix_info {
 				    struct ethtool_fp *fpcmd);
 	int	(*port_get_preempt)(struct ocelot *ocelot, int port,
 				    struct ethtool_fp *fpcmd);
+	int	(*flower_replace)(struct ocelot *ocelot, int port,
+				  struct flow_cls_offload *f, bool ingress);
+	int	(*flower_destroy)(struct ocelot *ocelot, int port,
+				  struct flow_cls_offload *f, bool ingress);
+	int	(*flower_stats)(struct ocelot *ocelot, int port,
+				struct flow_cls_offload *f, bool ingress);
+	void	(*psfp_init)(struct ocelot *ocelot);
 };
 
 extern struct felix_info		felix_info_vsc9959;
