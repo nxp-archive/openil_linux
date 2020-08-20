@@ -662,6 +662,13 @@ static void is1_action_set(struct ocelot *ocelot, struct vcap_data *data,
 		vcap_action_set(vcap, data, VCAP_IS1_ACT_DEI_VAL,
 				is1_action->dei);
 	}
+
+	if (ace->is1_action.pop_cnt > 0) {
+		vcap_action_set(vcap, data, VCAP_IS1_ACT_VLAN_POP_CNT_ENA, 1);
+		vcap_action_set(vcap, data, VCAP_IS1_ACT_VLAN_POP_CNT,
+				ace->is1_action.pop_cnt);
+		ace->is1_action.pop_cnt = 0;
+	}
 }
 
 static void is1_entry_set(struct ocelot *ocelot, int ix,

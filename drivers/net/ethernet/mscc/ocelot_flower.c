@@ -82,6 +82,11 @@ static int ocelot_flower_parse_action(struct flow_cls_offload *f,
 				ace->es0_action.proto = proto;
 			}
 			break;
+		case FLOW_ACTION_VLAN_POP:
+			ace->vcap_id = VCAP_IS1;
+			if (ace->is1_action.pop_cnt < 2)
+				ace->is1_action.pop_cnt++;
+			break;
 		default:
 			return -EOPNOTSUPP;
 		}

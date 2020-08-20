@@ -188,6 +188,7 @@ struct ocelot_is1_action {
 	u16 vid;
 	u16 pcp;
 	u8 dei;
+	u8 pop_cnt;
 };
 
 struct ocelot_is2_action {
