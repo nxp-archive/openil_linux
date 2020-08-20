@@ -202,6 +202,10 @@ struct ocelot_es0_action {
 	bool vlan_push_ena;
 	u16 vid;
 	u16 pcp;
+	u16 proto;
+	u16 cvlan_vid;
+	u16 cvlan_pcp;
+	u16 cvlan_proto;
 };
 
 struct ocelot_ace_rule {

@@ -14,6 +14,7 @@ static int ocelot_flower_parse_action(struct flow_cls_offload *f,
 {
 	struct netlink_ext_ack *extack = f->common.extack;
 	const struct flow_action_entry *a;
+	u16 proto;
 	s64 burst;
 	u64 rate;
 	int i;
@@ -70,8 +71,16 @@ static int ocelot_flower_parse_action(struct flow_cls_offload *f,
 
 			ace->vcap_id = VCAP_ES0;
 			ace->es0_action.vlan_push_ena = true;
-			ace->es0_action.vid = a->vlan.vid;
-			ace->es0_action.pcp = a->vlan.prio;
+			proto = ntohs(a->vlan.proto);
+			if (ace->es0_action.vid != 0) {
+				ace->es0_action.cvlan_vid = a->vlan.vid;
+				ace->es0_action.cvlan_pcp = a->vlan.prio;
+				ace->es0_action.cvlan_proto = proto;
+			} else {
+				ace->es0_action.vid = a->vlan.vid;
+				ace->es0_action.pcp = a->vlan.prio;
+				ace->es0_action.proto = proto;
+			}
 			break;
 		default:
 			return -EOPNOTSUPP;

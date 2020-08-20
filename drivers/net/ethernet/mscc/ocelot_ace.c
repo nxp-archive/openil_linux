@@ -848,7 +848,28 @@ static void es0_action_set(struct ocelot *ocelot, struct vcap_data *data,
 	const struct vcap_props *vcap = &ocelot->vcap[VCAP_ES0];
 	struct ocelot_es0_action *es0_action = &ace->es0_action;
 
-	if (es0_action->vlan_push_ena) {
+	if (!es0_action->vlan_push_ena)
+		return;
+
+	if (ace->es0_action.proto == ETH_P_8021AD) {
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_PUSH_OUTER_TAG, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_PUSH_INNER_TAG, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_TPID_SEL, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_VID_SEL, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_VID_A_VAL,
+				es0_action->vid);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_PCP_SEL, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_PCP_A_VAL,
+				es0_action->pcp);
+
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_B_TPID_SEL, 0);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_B_VID_SEL, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_VID_B_VAL,
+				es0_action->cvlan_vid);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_B_PCP_SEL, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_PCP_B_VAL,
+				es0_action->cvlan_pcp);
+	} else {
 		vcap_action_set(vcap, data, VCAP_ES0_ACT_PUSH_OUTER_TAG, 1);
 		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_VID_SEL, 1);
 		vcap_action_set(vcap, data, VCAP_ES0_ACT_VID_A_VAL,
