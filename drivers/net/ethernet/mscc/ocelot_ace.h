@@ -188,6 +188,7 @@ struct ocelot_is1_action {
 	u16 vid;
 	u16 pcp;
 	u8 dei;
+	u8 pop_cnt;
 };
 
 struct ocelot_is2_action {
@@ -202,6 +203,10 @@ struct ocelot_es0_action {
 	bool vlan_push_ena;
 	u16 vid;
 	u16 pcp;
+	u16 proto;
+	u16 cvlan_vid;
+	u16 cvlan_pcp;
+	u16 cvlan_proto;
 };
 
 struct ocelot_ace_rule {
@@ -218,6 +223,7 @@ struct ocelot_ace_rule {
 	enum ocelot_vcap_bit dmac_mc;
 	enum ocelot_vcap_bit dmac_bc;
 	struct ocelot_ace_vlan vlan;
+	struct ocelot_ace_vlan cvlan;
 
 	enum ocelot_ace_type type;
 	union {

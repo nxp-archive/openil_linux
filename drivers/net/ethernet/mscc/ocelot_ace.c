@@ -662,6 +662,13 @@ static void is1_action_set(struct ocelot *ocelot, struct vcap_data *data,
 		vcap_action_set(vcap, data, VCAP_IS1_ACT_DEI_VAL,
 				is1_action->dei);
 	}
+
+	if (ace->is1_action.pop_cnt > 0) {
+		vcap_action_set(vcap, data, VCAP_IS1_ACT_VLAN_POP_CNT_ENA, 1);
+		vcap_action_set(vcap, data, VCAP_IS1_ACT_VLAN_POP_CNT,
+				ace->is1_action.pop_cnt);
+		ace->is1_action.pop_cnt = 0;
+	}
 }
 
 static void is1_entry_set(struct ocelot *ocelot, int ix,
@@ -670,6 +677,7 @@ static void is1_entry_set(struct ocelot *ocelot, int ix,
 	const struct vcap_props *vcap = &ocelot->vcap[VCAP_IS1];
 	u32 val, msk, type, i;
 	struct ocelot_ace_vlan *tag = &ace->vlan;
+	struct ocelot_ace_vlan *ctag = &ace->cvlan;
 	struct ocelot_vcap_u64 payload;
 	struct vcap_data data;
 	int row = ix / 2;
@@ -698,7 +706,19 @@ static void is1_entry_set(struct ocelot *ocelot, int ix,
 		     tag->vid.value, tag->vid.mask);
 	vcap_key_set(vcap, &data, VCAP_IS1_HK_PCP,
 		     tag->pcp.value[0], tag->pcp.mask[0]);
-	type = IS1_TYPE_S1_NORMAL;
+	if (ctag->vid.value != 0) {
+		vcap_key_bit_set(vcap, &data, VCAP_IS1_HK_TPID,
+				 OCELOT_VCAP_BIT_1);
+		vcap_key_bit_set(vcap, &data, VCAP_IS1_HK_VLAN_DBL_TAGGED,
+				 OCELOT_VCAP_BIT_1);
+		vcap_key_set(vcap, &data, VCAP_IS1_HK_IP4_INNER_VID,
+			     ctag->vid.value, ctag->vid.mask);
+		vcap_key_set(vcap, &data, VCAP_IS1_HK_IP4_INNER_PCP,
+			     ctag->pcp.value[0], ctag->pcp.mask[0]);
+		type = IS1_TYPE_S1_5TUPLE_IP4;
+	} else {
+		type = IS1_TYPE_S1_NORMAL;
+	}
 
 	switch (ace->type) {
 	case OCELOT_ACE_TYPE_ETYPE: {
@@ -835,7 +855,28 @@ static void es0_action_set(struct ocelot *ocelot, struct vcap_data *data,
 	const struct vcap_props *vcap = &ocelot->vcap[VCAP_ES0];
 	struct ocelot_es0_action *es0_action = &ace->es0_action;
 
-	if (es0_action->vlan_push_ena) {
+	if (!es0_action->vlan_push_ena)
+		return;
+
+	if (ace->es0_action.proto == ETH_P_8021AD) {
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_PUSH_OUTER_TAG, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_PUSH_INNER_TAG, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_TPID_SEL, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_VID_SEL, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_VID_A_VAL,
+				es0_action->vid);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_PCP_SEL, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_PCP_A_VAL,
+				es0_action->pcp);
+
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_B_TPID_SEL, 0);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_B_VID_SEL, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_VID_B_VAL,
+				es0_action->cvlan_vid);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_B_PCP_SEL, 1);
+		vcap_action_set(vcap, data, VCAP_ES0_ACT_PCP_B_VAL,
+				es0_action->cvlan_pcp);
+	} else {
 		vcap_action_set(vcap, data, VCAP_ES0_ACT_PUSH_OUTER_TAG, 1);
 		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_VID_SEL, 1);
 		vcap_action_set(vcap, data, VCAP_ES0_ACT_VID_A_VAL,
