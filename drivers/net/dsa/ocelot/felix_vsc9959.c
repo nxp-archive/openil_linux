@@ -6,8 +6,10 @@
 #include <linux/fsl/enetc_mdio.h>
 #include <soc/mscc/ocelot_vcap.h>
 #include <soc/mscc/ocelot_qsys.h>
+#include <soc/mscc/ocelot_ana.h>
 #include <soc/mscc/ocelot_sys.h>
 #include <soc/mscc/ocelot_ptp.h>
+#include <net/tc_act/tc_gate.h>
 #include <soc/mscc/ocelot.h>
 #include <net/pkt_sched.h>
 #include <linux/iopoll.h>
@@ -1624,6 +1626,667 @@ static int vsc9959_port_get_preempt(struct ocelot *ocelot, int port,
 	return 0;
 }
 
+#define VSC9959_PSFP_SFID_MAX		175
+#define VSC9959_PSFP_GATE_ID_MAX	183
+#define VSC9959_POLICER_PSFP_BASE	63
+#define VSC9959_POLICER_PSFP_MAX	383
+#define VSC9959_PSFP_GATE_LIST_NUM	4
+#define VSC9959_PSFP_GATE_CYCLETIME_MIN	5000
+
+struct psfp_stream {
+	struct list_head list;
+	u8 disable;
+	u32 id;
+	u32 sfid;
+	u8 dmac[6];
+	u16 vid;
+	int prio;
+};
+
+struct psfp_gate_conf {
+	u32 index;
+	u8 enable;
+	u8 ipv_valid;
+	u8 init_ipv;
+	u64 basetime;
+	u64 cycletime;
+	u64 cycletimext;
+	u32 num_entries;
+	struct action_gate_entry entries[0];
+};
+
+struct psfp_sfi {
+	struct list_head list;
+	refcount_t refcount;
+	u32 index;
+	u8 enable;
+	u8 gate_en;
+	u32 sgid;
+	u8 meter_en;
+	u32 fmid;
+	u8 prio_en;
+	u8 prio;
+	u32 maxsdu;
+};
+
+struct psfp_gate {
+	struct list_head list;
+	refcount_t refcount;
+	u32 index;
+};
+
+struct psfp_stream_counters {
+	u32 match;
+	u32 not_pass_gate;
+	u32 not_pass_sdu;
+	u32 red;
+};
+
+struct psfp_list {
+	struct list_head stream_list;
+	struct list_head gate_list;
+	struct list_head sfi_list;
+};
+
+static struct psfp_list lpsfp;
+
+static u32 vsc9959_sgi_read_cfg_status(struct ocelot *ocelot)
+{
+	return ocelot_read(ocelot, ANA_SG_ACCESS_CTRL);
+}
+
+static int vsc9959_hw_sgi_set(struct ocelot *ocelot, struct psfp_gate_conf *sgi)
+{
+	struct timespec64 base_ts;
+	struct action_gate_entry *e;
+	u32 interval_sum = 0;
+	u32 val;
+	int i;
+
+	if (sgi->index > VSC9959_PSFP_GATE_ID_MAX)
+		return -EINVAL;
+
+	ocelot_write(ocelot, ANA_SG_ACCESS_CTRL_SGID(sgi->index),
+		     ANA_SG_ACCESS_CTRL);
+
+	if (!sgi->enable) {
+		ocelot_rmw(ocelot, ANA_SG_CONFIG_REG_3_INIT_GATE_STATE,
+			   ANA_SG_CONFIG_REG_3_INIT_GATE_STATE |
+			   ANA_SG_CONFIG_REG_3_GATE_ENABLE,
+			   ANA_SG_CONFIG_REG_3);
+
+		return 0;
+	}
+
+	if (sgi->cycletime < VSC9959_PSFP_GATE_CYCLETIME_MIN ||
+	    sgi->cycletime > NSEC_PER_SEC)
+		return -EINVAL;
+
+	if (sgi->num_entries > VSC9959_PSFP_GATE_LIST_NUM)
+		return -EINVAL;
+
+	vsc9959_new_base_time(ocelot, sgi->basetime, sgi->cycletime, &base_ts);
+	ocelot_write(ocelot, base_ts.tv_nsec, ANA_SG_CONFIG_REG_1);
+	val = lower_32_bits(base_ts.tv_sec);
+	ocelot_write(ocelot, val, ANA_SG_CONFIG_REG_2);
+
+	val = upper_32_bits(base_ts.tv_sec);
+	ocelot_write(ocelot,
+		     (sgi->ipv_valid ? ANA_SG_CONFIG_REG_3_IPV_VALID : 0) |
+		     ANA_SG_CONFIG_REG_3_INIT_IPV(sgi->init_ipv) |
+		     ANA_SG_CONFIG_REG_3_GATE_ENABLE |
+		     ANA_SG_CONFIG_REG_3_LIST_LENGTH(sgi->num_entries) |
+		     ANA_SG_CONFIG_REG_3_INIT_GATE_STATE |
+		     ANA_SG_CONFIG_REG_3_BASE_TIME_SEC_MSB(val),
+		     ANA_SG_CONFIG_REG_3);
+
+	ocelot_write(ocelot, sgi->cycletime, ANA_SG_CONFIG_REG_4);
+
+	e = sgi->entries;
+	for (i = 0; i < sgi->num_entries; i++) {
+		u32 ips = (e[i].ipv < 0) ? 0 : (e[i].ipv + 8);
+
+		ocelot_write_rix(ocelot, ANA_SG_GCL_GS_CONFIG_IPS(ips) |
+				 (e[i].gate_state ?
+				  ANA_SG_GCL_GS_CONFIG_GATE_STATE : 0),
+				 ANA_SG_GCL_GS_CONFIG, i);
+
+		interval_sum += e[i].interval;
+		ocelot_write_rix(ocelot, interval_sum, ANA_SG_GCL_TI_CONFIG, i);
+	}
+
+	ocelot_rmw(ocelot, ANA_SG_ACCESS_CTRL_CONFIG_CHANGE,
+		   ANA_SG_ACCESS_CTRL_CONFIG_CHANGE,
+		   ANA_SG_ACCESS_CTRL);
+
+	return readx_poll_timeout(vsc9959_sgi_read_cfg_status, ocelot, val,
+				  (!(ANA_SG_ACCESS_CTRL_CONFIG_CHANGE & val)),
+				  10, 100000);
+}
+
+static u32 vsc9959_sfi_access_status(struct ocelot *ocelot)
+{
+	return ocelot_read(ocelot, ANA_TABLES_SFIDACCESS);
+}
+
+static int vsc9959_hw_sfi_set(struct ocelot *ocelot, struct psfp_sfi *sfi)
+{
+	u32 val;
+
+	if (sfi->index > VSC9959_PSFP_SFID_MAX)
+		return -EINVAL;
+
+	if (!sfi->enable) {
+		ocelot_write(ocelot, ANA_TABLES_SFIDTIDX_SFID_INDEX(sfi->index),
+			     ANA_TABLES_SFIDTIDX);
+
+		val = ANA_TABLES_SFIDACCESS_SFID_TBL_CMD(SFIDACCESS_CMD_WRITE);
+		ocelot_write(ocelot, val, ANA_TABLES_SFIDACCESS);
+
+		return readx_poll_timeout(vsc9959_sfi_access_status, ocelot, val,
+					  (!ANA_TABLES_SFIDACCESS_SFID_TBL_CMD(val)),
+					  10, 100000);
+	}
+
+	if (sfi->sgid > VSC9959_PSFP_GATE_ID_MAX ||
+	    sfi->fmid > VSC9959_POLICER_PSFP_MAX)
+		return -EINVAL;
+
+	ocelot_write(ocelot,
+		     (sfi->gate_en ? ANA_TABLES_SFIDTIDX_SGID_VALID : 0) |
+		     ANA_TABLES_SFIDTIDX_SGID(sfi->sgid) |
+		     (sfi->meter_en ? ANA_TABLES_SFIDTIDX_POL_ENA : 0) |
+		     ANA_TABLES_SFIDTIDX_POL_IDX(sfi->fmid) |
+		     ANA_TABLES_SFIDTIDX_SFID_INDEX(sfi->index),
+		     ANA_TABLES_SFIDTIDX);
+
+	ocelot_write(ocelot,
+		     (sfi->prio_en ? ANA_TABLES_SFIDACCESS_IGR_PRIO_MATCH_ENA : 0) |
+		     ANA_TABLES_SFIDACCESS_IGR_PRIO(sfi->prio) |
+		     ANA_TABLES_SFIDACCESS_MAX_SDU_LEN(sfi->maxsdu) |
+		     ANA_TABLES_SFIDACCESS_SFID_TBL_CMD(SFIDACCESS_CMD_WRITE),
+		     ANA_TABLES_SFIDACCESS);
+
+	return readx_poll_timeout(vsc9959_sfi_access_status, ocelot, val,
+				  (!ANA_TABLES_SFIDACCESS_SFID_TBL_CMD(val)),
+				  10, 100000);
+}
+
+static u32 felix_mact_read_stat(struct ocelot *ocelot)
+{
+	return ocelot_read(ocelot, ANA_TABLES_MACACCESS);
+}
+
+static int felix_mact_wait_for_completion(struct ocelot *ocelot)
+{
+	u32 val;
+
+	return readx_poll_timeout(felix_mact_read_stat, ocelot, val,
+				  (val & ANA_TABLES_MACACCESS_MAC_TABLE_CMD_M) ==
+				  MACACCESS_CMD_IDLE,
+				  10, 100000);
+}
+
+static int vsc9959_stream_mact_update(struct ocelot *ocelot,
+				      struct psfp_stream *stream)
+{
+	u32 macl, mach;
+	u32 reg, regh;
+	int type, ret;
+
+	mach = stream->vid << 16;
+	mach |= stream->dmac[0] << 8;
+	mach |= stream->dmac[1] << 0;
+	macl = stream->dmac[2] << 24;
+	macl |= stream->dmac[3] << 16;
+	macl |= stream->dmac[4] << 8;
+	macl |= stream->dmac[5] << 0;
+
+	ocelot_write(ocelot, macl, ANA_TABLES_MACLDATA);
+	ocelot_write(ocelot, mach, ANA_TABLES_MACHDATA);
+	ocelot_write(ocelot, ANA_TABLES_MACACCESS_VALID |
+		     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(MACACCESS_CMD_READ),
+		     ANA_TABLES_MACACCESS);
+	ret = felix_mact_wait_for_completion(ocelot);
+	if (ret)
+		return ret;
+
+	/* If MAC and VID in MAC table is not exist, which meas this MAC entry
+	 * is not learned in MAC table.
+	 * PSFP desn't support to add a stream with non existent MAC,
+	 * return -EOPNOTSUPP to continue offloading to other modules.
+	 */
+	reg = ocelot_read(ocelot, ANA_TABLES_MACLDATA);
+	regh = ocelot_read(ocelot, ANA_TABLES_MACHDATA);
+	if (reg != macl || regh != mach)
+		return -EOPNOTSUPP;
+
+	ocelot_rmw(ocelot,
+		   (stream->disable ? 0 : ANA_TABLES_STREAMDATA_SFID_VALID) |
+		   ANA_TABLES_STREAMDATA_SFID(stream->sfid),
+		   ANA_TABLES_STREAMDATA_SFID_VALID |
+		   ANA_TABLES_STREAMDATA_SFID_M,
+		   ANA_TABLES_STREAMDATA);
+
+	reg = ocelot_read(ocelot, ANA_TABLES_STREAMDATA);
+	reg &= (ANA_TABLES_STREAMDATA_SFID_VALID | ANA_TABLES_STREAMDATA_SSID_VALID);
+	type = (reg ? MACACCESS_ENTRY_TYPE_LOCKED : MACACCESS_ENTRY_TYPE_NORMAL);
+	ocelot_rmw(ocelot,
+		   ANA_TABLES_MACACCESS_ENTRYTYPE(type) |
+		   ANA_TABLES_MACACCESS_MAC_TABLE_CMD(MACACCESS_CMD_WRITE),
+		   ANA_TABLES_MACACCESS_ENTRYTYPE_M |
+		   ANA_TABLES_MACACCESS_MAC_TABLE_CMD_M,
+		   ANA_TABLES_MACACCESS);
+	ret = felix_mact_wait_for_completion(ocelot);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+static void vsc9959_stream_counters_get(struct ocelot *ocelot, u32 index,
+					struct psfp_stream_counters *counters)
+{
+	ocelot_rmw(ocelot, SYS_STAT_CFG_STAT_VIEW(index),
+		   SYS_STAT_CFG_STAT_VIEW_M,
+		   SYS_STAT_CFG);
+
+	counters->match = ocelot_read_gix(ocelot, SYS_CNT, 0x200);
+	counters->not_pass_gate = ocelot_read_gix(ocelot, SYS_CNT, 0x201);
+	counters->not_pass_sdu = ocelot_read_gix(ocelot, SYS_CNT, 0x202);
+	counters->red = ocelot_read_gix(ocelot, SYS_CNT, 0x203);
+}
+
+static int vsc9959_list_sgi_add(struct ocelot *ocelot,
+				struct psfp_gate_conf *sgi)
+{
+	struct psfp_gate *gate_entry, *tmp;
+	struct list_head *pos, *q;
+	int ret;
+
+	list_for_each_safe(pos, q, &lpsfp.gate_list) {
+		tmp = list_entry(pos, struct psfp_gate, list);
+		if (tmp->index == sgi->index) {
+			refcount_inc(&tmp->refcount);
+			return 0;
+		}
+		if (tmp->index > sgi->index)
+			break;
+	}
+
+	ret = vsc9959_hw_sgi_set(ocelot, sgi);
+	if (ret)
+		return ret;
+
+	gate_entry = kzalloc(sizeof(*gate_entry), GFP_KERNEL);
+	if (!gate_entry)
+		return -ENOMEM;
+
+	gate_entry->index = sgi->index;
+	refcount_set(&gate_entry->refcount, 1);
+	list_add(&gate_entry->list, pos->prev);
+
+	return 0;
+}
+
+static void vsc9959_list_sgi_del(struct ocelot *ocelot, u32 index)
+{
+	struct psfp_gate *tmp;
+	struct psfp_gate_conf sgi;
+	struct list_head *pos, *q;
+	u8 z;
+
+	list_for_each_safe(pos, q, &lpsfp.gate_list) {
+		tmp = list_entry(pos, struct psfp_gate, list);
+		if (tmp->index == index) {
+			z = refcount_dec_and_test(&tmp->refcount);
+			if (z) {
+				sgi.index = index;
+				sgi.enable = 0;
+				vsc9959_hw_sgi_set(ocelot, &sgi);
+				list_del(pos);
+				kfree(tmp);
+			}
+			break;
+		}
+	}
+}
+
+static int vsc9959_list_sfi_add(struct ocelot *ocelot, struct psfp_sfi *sfi)
+{
+	struct psfp_sfi *sfi_node, *tmp;
+	struct list_head *pos, *q;
+	struct list_head *last = &lpsfp.sfi_list;
+	u32 insert = 0;
+	int ret;
+
+	list_for_each_safe(pos, q, &lpsfp.sfi_list) {
+		tmp = list_entry(pos, struct psfp_sfi, list);
+		if (sfi->gate_en == tmp->gate_en &&
+		    tmp->sgid == sfi->sgid && tmp->fmid == sfi->fmid) {
+			sfi->index = tmp->index;
+			refcount_inc(&tmp->refcount);
+			return 0;
+		}
+		if (tmp->index == insert) {
+			last = pos;
+			insert++;
+		}
+	}
+	sfi->index = insert;
+	ret = vsc9959_hw_sfi_set(ocelot, sfi);
+	if (ret)
+		return ret;
+
+	sfi_node = kzalloc(sizeof(*sfi_node), GFP_KERNEL);
+	if (!sfi_node)
+		return -ENOMEM;
+
+	memcpy(sfi_node, sfi, sizeof(*sfi_node));
+	refcount_set(&sfi_node->refcount, 1);
+
+	list_add(&sfi_node->list, last->next);
+
+	return 0;
+}
+
+static void vsc9959_list_sfi_del(struct ocelot *ocelot, u32 index)
+{
+	struct psfp_sfi *tmp;
+	struct list_head *pos, *q;
+	u8 z;
+
+	list_for_each_safe(pos, q, &lpsfp.sfi_list) {
+		tmp = list_entry(pos, struct psfp_sfi, list);
+		if (tmp->index == index) {
+			if (tmp->gate_en)
+				vsc9959_list_sgi_del(ocelot, tmp->sgid);
+			if (tmp->meter_en)
+				ocelot_ace_policer_del(ocelot, tmp->fmid);
+
+			z = refcount_dec_and_test(&tmp->refcount);
+			if (z) {
+				tmp->enable = 0;
+				vsc9959_hw_sfi_set(ocelot, tmp);
+				list_del(pos);
+				kfree(tmp);
+			}
+			break;
+		}
+	}
+}
+
+static int vsc9959_list_stream_add(struct psfp_stream *stream)
+{
+	struct psfp_stream *stream_node;
+	struct list_head *pos;
+
+	stream_node = kzalloc(sizeof(*stream_node), GFP_KERNEL);
+	if (!stream_node)
+		return -ENOMEM;
+
+	memcpy(stream_node, stream, sizeof(*stream_node));
+
+	if (list_empty(&lpsfp.stream_list)) {
+		list_add(&stream_node->list, &lpsfp.stream_list);
+		return 0;
+	}
+
+	pos = &lpsfp.stream_list;
+	list_add(&stream_node->list, pos->prev);
+
+	return 0;
+}
+
+static int vsc9959_list_stream_lookup(struct psfp_stream *stream)
+{
+	struct psfp_stream *tmp;
+	u32 sfid;
+
+	list_for_each_entry(tmp, &lpsfp.stream_list, list) {
+		if (tmp->dmac[0] == stream->dmac[0] &&
+		    tmp->dmac[1] == stream->dmac[1] &&
+		    tmp->dmac[2] == stream->dmac[2] &&
+		    tmp->dmac[3] == stream->dmac[3] &&
+		    tmp->dmac[4] == stream->dmac[4] &&
+		    tmp->dmac[5] == stream->dmac[5] &&
+		    tmp->vid == stream->vid) {
+			sfid = tmp->sfid;
+			return 0;
+		}
+	}
+
+	return -ENOENT;
+}
+
+static struct psfp_stream *vsc9959_list_stream_get(u32 id)
+{
+	struct psfp_stream *tmp;
+	struct list_head *pos, *q;
+
+	list_for_each_safe(pos, q, &lpsfp.stream_list) {
+		tmp = list_entry(pos, struct psfp_stream, list);
+		if (tmp->id == id)
+			return tmp;
+	}
+
+	return NULL;
+}
+
+static int vsc9959_list_stream_del(struct ocelot *ocelot, u32 id)
+{
+	struct psfp_stream *tmp;
+	struct list_head *pos, *q;
+
+	list_for_each_safe(pos, q, &lpsfp.stream_list) {
+		tmp = list_entry(pos, struct psfp_stream, list);
+		if (tmp->id == id) {
+			tmp->disable = 1;
+			vsc9959_list_sfi_del(ocelot, tmp->sfid);
+			vsc9959_stream_mact_update(ocelot, tmp);
+			list_del(pos);
+			kfree(tmp);
+
+			return 0;
+		}
+	}
+
+	return -ENOENT;
+}
+
+static void vsc9959_parse_gate(const struct flow_action_entry *entry,
+			       struct psfp_gate_conf *sgi)
+{
+	struct action_gate_entry *e;
+	int i;
+
+	sgi->index = entry->gate.index;
+	sgi->ipv_valid = (entry->gate.prio < 0) ? 0 : 1;
+	sgi->init_ipv = (sgi->ipv_valid) ? entry->gate.prio : 0;
+	sgi->basetime = entry->gate.basetime;
+	sgi->cycletime = entry->gate.cycletime;
+	sgi->num_entries = entry->gate.num_entries;
+	sgi->enable = 1;
+
+	e = sgi->entries;
+	for (i = 0; i < entry->gate.num_entries; i++) {
+		e[i].gate_state = entry->gate.entries[i].gate_state;
+		e[i].interval = entry->gate.entries[i].interval;
+		e[i].ipv = entry->gate.entries[i].ipv;
+		e[i].maxoctets = entry->gate.entries[i].maxoctets;
+	}
+}
+
+static int vsc9959_flower_parse_key(struct flow_cls_offload *f,
+				    struct psfp_stream *stream)
+{
+	struct flow_rule *rule = flow_cls_offload_flow_rule(f);
+	struct flow_dissector *dissector = rule->match.dissector;
+
+	if (dissector->used_keys &
+	    ~(BIT(FLOW_DISSECTOR_KEY_CONTROL) |
+	      BIT(FLOW_DISSECTOR_KEY_BASIC) |
+	      BIT(FLOW_DISSECTOR_KEY_VLAN) |
+	      BIT(FLOW_DISSECTOR_KEY_ETH_ADDRS)))
+		return -EOPNOTSUPP;
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_ETH_ADDRS)) {
+		struct flow_match_eth_addrs match;
+
+		flow_rule_match_eth_addrs(rule, &match);
+		ether_addr_copy(stream->dmac, match.key->dst);
+		if (!is_zero_ether_addr(match.mask->src))
+			return -EOPNOTSUPP;
+	} else {
+		return -EOPNOTSUPP;
+	}
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN)) {
+		struct flow_match_vlan match;
+
+		flow_rule_match_vlan(rule, &match);
+		if (match.mask->vlan_priority)
+			stream->prio = match.key->vlan_priority;
+		else
+			stream->prio = -1;
+
+		if (!match.mask->vlan_id)
+			return -EOPNOTSUPP;
+		stream->vid = match.key->vlan_id;
+	} else {
+		return -EOPNOTSUPP;
+	}
+
+	stream->id = f->cookie;
+	stream->disable = 0;
+
+	return 0;
+}
+
+int vsc9959_flower_stream_replace(struct ocelot *ocelot, int port,
+				  struct flow_cls_offload *f, bool ingress)
+{
+	struct netlink_ext_ack *extack = f->common.extack;
+	const struct flow_action_entry *a;
+	struct psfp_gate_conf *sgi;
+	struct psfp_stream stream;
+	struct ocelot_policer pol;
+	struct psfp_sfi sfi = {0};
+	int ret, size, i;
+	u64 rate, burst;
+	u32 index;
+
+	ret = vsc9959_flower_parse_key(f, &stream);
+	if (ret)
+		return ret;
+
+	flow_action_for_each(i, a, &f->rule->action) {
+		switch (a->id) {
+		case FLOW_ACTION_GATE:
+			size = struct_size(sgi, entries, a->gate.num_entries);
+			sgi = kzalloc(size, GFP_KERNEL);
+			vsc9959_parse_gate(a, sgi);
+			ret = vsc9959_list_sgi_add(ocelot, sgi);
+			if (ret) {
+				kfree(sgi);
+				return ret;
+			}
+
+			sfi.gate_en = 1;
+			sfi.sgid = sgi->index;
+			kfree(sgi);
+			break;
+		case FLOW_ACTION_POLICE:
+			index = a->police.index + VSC9959_POLICER_PSFP_BASE;
+			if (index > VSC9959_POLICER_PSFP_MAX)
+				return -EINVAL;
+
+			rate = a->police.rate_bytes_ps;
+			burst = rate * PSCHED_NS2TICKS(a->police.burst);
+			pol = (struct ocelot_policer) {
+				.burst = div_u64(burst, PSCHED_TICKS_PER_SEC),
+				.rate = div_u64(rate, 1000) * 8,
+			};
+			ret = ocelot_ace_policer_add(ocelot, index, &pol);
+			if (ret)
+				return ret;
+
+			sfi.meter_en = 1;
+			sfi.fmid = index;
+			sfi.maxsdu = a->police.mtu;
+			break;
+		default:
+			return -EOPNOTSUPP;
+		}
+	}
+
+	sfi.prio_en = (stream.prio < 0 ? 0 : 1);
+	sfi.prio = (sfi.prio_en ? stream.prio : 0);
+	sfi.enable = 1;
+	ret = vsc9959_list_sfi_add(ocelot, &sfi);
+	if (ret) {
+		if (sfi.gate_en)
+			vsc9959_list_sgi_del(ocelot, sfi.sgid);
+		if (sfi.meter_en)
+			ocelot_ace_policer_del(ocelot, sfi.fmid);
+		return ret;
+	}
+
+	/* Check if stream is set. */
+	ret = vsc9959_list_stream_lookup(&stream);
+	if (!ret) {
+		vsc9959_list_sfi_del(ocelot, sfi.index);
+		NL_SET_ERR_MSG_MOD(extack, "Stream is already added");
+
+		return -EEXIST;
+	}
+
+	stream.sfid = sfi.index;
+	ret = vsc9959_stream_mact_update(ocelot, &stream);
+	if (ret) {
+		vsc9959_list_sfi_del(ocelot, sfi.index);
+		return ret;
+	}
+
+	ret = vsc9959_list_stream_add(&stream);
+	if (ret)
+		vsc9959_list_sfi_del(ocelot, sfi.index);
+
+	return ret;
+}
+
+int vsc9959_flower_stream_destroy(struct ocelot *ocelot, int port,
+				  struct flow_cls_offload *f, bool ingress)
+{
+	return vsc9959_list_stream_del(ocelot, f->cookie);
+}
+
+int vsc9959_flower_stream_stats(struct ocelot *ocelot, int port,
+				struct flow_cls_offload *f, bool ingress)
+{
+	struct psfp_stream_counters counters;
+	struct psfp_stream *stream;
+	struct flow_stats stats;
+
+	stream = vsc9959_list_stream_get(f->cookie);
+	if (!stream)
+		return -ENOENT;
+
+	vsc9959_stream_counters_get(ocelot, stream->sfid, &counters);
+	stats.pkts = counters.match;
+
+	flow_stats_update(&f->stats, 0x0, stats.pkts, 0x0);
+
+	return 0;
+}
+
+static void vsc9959_psfp_init(struct ocelot *ocelot)
+{
+	INIT_LIST_HEAD(&lpsfp.stream_list);
+	INIT_LIST_HEAD(&lpsfp.gate_list);
+	INIT_LIST_HEAD(&lpsfp.sfi_list);
+}
+
 struct felix_info felix_info_vsc9959 = {
 	.target_io_res		= vsc9959_target_io_res,
 	.port_io_res		= vsc9959_port_io_res,
@@ -1640,6 +2303,7 @@ struct felix_info felix_info_vsc9959 = {
 	.num_tx_queues		= 8,
 	.switch_pci_bar		= 4,
 	.imdio_pci_bar		= 0,
+	.policer_base		= VSC9959_POLICER_PSFP_BASE,
 	.mdio_bus_alloc		= vsc9959_mdio_bus_alloc,
 	.mdio_bus_free		= vsc9959_mdio_bus_free,
 	.pcs_init		= vsc9959_pcs_init,
@@ -1650,4 +2314,8 @@ struct felix_info felix_info_vsc9959 = {
 	.port_set_preempt	= vsc9959_port_set_preempt,
 	.port_get_preempt	= vsc9959_port_get_preempt,
 	.port_sched_speed_set	= vsc9959_sched_speed_set,
+	.flower_replace		= vsc9959_flower_stream_replace,
+	.flower_destroy		= vsc9959_flower_stream_destroy,
+	.flower_stats		= vsc9959_flower_stream_stats,
+	.psfp_init		= vsc9959_psfp_init,
 };

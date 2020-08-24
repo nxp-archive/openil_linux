@@ -41,6 +41,12 @@ struct qos_policer_conf {
 	u8   ipg; /* Size of IPG when MSCC_QOS_RATE_MODE_LINE is chosen */
 };
 
+struct qos_policer {
+	struct list_head list;
+	refcount_t refcount;
+	u32 pol_ix;
+};
+
 static int qos_policer_conf_set(struct ocelot *ocelot, int port, u32 pol_ix,
 				struct qos_policer_conf *conf)
 {
@@ -233,6 +239,9 @@ int ocelot_ace_policer_add(struct ocelot *ocelot, u32 pol_ix,
 			   struct ocelot_policer *pol)
 {
 	struct qos_policer_conf pp = { 0 };
+	struct list_head *pos, *q;
+	struct qos_policer *tmp;
+	int ret;
 
 	if (!pol)
 		return -EINVAL;
@@ -241,14 +250,52 @@ int ocelot_ace_policer_add(struct ocelot *ocelot, u32 pol_ix,
 	pp.pir = pol->rate;
 	pp.pbs = pol->burst;
 
-	return qos_policer_conf_set(ocelot, 0, pol_ix, &pp);
+	list_for_each_safe(pos, q, &ocelot->policer) {
+		tmp = list_entry(pos, struct qos_policer, list);
+		if (tmp->pol_ix == pol_ix) {
+			refcount_inc(&tmp->refcount);
+			return 0;
+		}
+		if (tmp->pol_ix > pol_ix)
+			break;
+	}
+
+	ret = qos_policer_conf_set(ocelot, 0, pol_ix, &pp);
+	if (ret)
+		return ret;
+
+	tmp = kzalloc(sizeof(*tmp), GFP_KERNEL);
+	if (!tmp)
+		return -ENOMEM;
+	tmp->pol_ix = pol_ix;
+	refcount_set(&tmp->refcount, 1);
+	list_add(&tmp->list, pos->prev);
+
+	return 0;
 }
 
 int ocelot_ace_policer_del(struct ocelot *ocelot, u32 pol_ix)
 {
 	struct qos_policer_conf pp = { 0 };
+	struct list_head *pos, *q;
+	struct qos_policer *tmp;
+	u8 z = 0;
 
-	pp.mode = MSCC_QOS_RATE_MODE_DISABLED;
+	list_for_each_safe(pos, q, &ocelot->policer) {
+		tmp = list_entry(pos, struct qos_policer, list);
+		if (tmp->pol_ix == pol_ix) {
+			z = refcount_dec_and_test(&tmp->refcount);
+			if (z) {
+				list_del(pos);
+				kfree(tmp);
+			}
+		}
+	}
 
-	return qos_policer_conf_set(ocelot, 0, pol_ix, &pp);
+	if (z) {
+		pp.mode = MSCC_QOS_RATE_MODE_DISABLED;
+		return qos_policer_conf_set(ocelot, 0, pol_ix, &pp);
+	}
+
+	return 0;
 }

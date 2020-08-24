@@ -40,6 +40,7 @@ static int ocelot_flower_parse_action(struct flow_cls_offload *f,
 				goto out_mix_disallowed;
 
 			ace->is2_action.police_ena = true;
+			ace->is2_action.pol_ix = a->police.index;
 			ace->vcap_id = VCAP_IS2;
 			rate = a->police.rate_bytes_ps;
 			burst = rate * PSCHED_NS2TICKS(a->police.burst);

@@ -336,7 +336,7 @@ static void is2_action_set(struct ocelot *ocelot, struct vcap_data *data,
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_MASK_MODE, 0);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_POLICE_ENA, 1);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_POLICE_IDX,
-				ace->is2_action.pol_ix);
+				ace->is2_action.pol_ix + ocelot->policer_base);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_CPU_QU_NUM, 0);
 		vcap_action_set(vcap, data, VCAP_IS2_ACT_CPU_COPY_ENA, 0);
 	}
@@ -972,25 +972,27 @@ static void vcap_entry_set(struct ocelot *ocelot, int ix,
 	}
 }
 
-static void ocelot_ace_rule_add(struct ocelot *ocelot,
-				struct ocelot_acl_block *block,
-				struct ocelot_ace_rule *rule)
+static int ocelot_ace_rule_add(struct ocelot *ocelot,
+			       struct ocelot_acl_block *block,
+			       struct ocelot_ace_rule *rule)
 {
 	struct ocelot_ace_rule *tmp;
 	struct list_head *pos, *n;
+	int index;
 
 	if (rule->is2_action.police_ena) {
-		block->pol_lpr--;
-		rule->is2_action.pol_ix = block->pol_lpr;
-		ocelot_ace_policer_add(ocelot, rule->is2_action.pol_ix,
-				       &rule->is2_action.pol);
+		index = rule->is2_action.pol_ix + ocelot->policer_base;
+		if (index >= OCELOT_POLICER_DISCARD)
+			return -EINVAL;
+
+		ocelot_ace_policer_add(ocelot, index, &rule->is2_action.pol);
 	}
 
 	block->count++;
 
 	if (list_empty(&block->rules)) {
 		list_add(&rule->list, &block->rules);
-		return;
+		return 0;
 	}
 
 	list_for_each_safe(pos, n, &block->rules) {
@@ -999,6 +1001,8 @@ static void ocelot_ace_rule_add(struct ocelot *ocelot,
 			break;
 	}
 	list_add(&rule->list, pos->prev);
+
+	return 0;
 }
 
 static int ocelot_ace_rule_get_index_id(struct ocelot_acl_block *block,
@@ -1010,9 +1014,9 @@ static int ocelot_ace_rule_get_index_id(struct ocelot_acl_block *block,
 	list_for_each_entry(tmp, &block->rules, list) {
 		++index;
 		if (rule->id == tmp->id)
-			break;
+			return index;
 	}
-	return index;
+	return -ENOENT;
 }
 
 static struct ocelot_ace_rule*
@@ -1159,7 +1163,7 @@ int ocelot_ace_rule_offload_add(struct ocelot *ocelot,
 {
 	struct ocelot_acl_block *block = &ocelot->acl_block[rule->vcap_id];
 	struct ocelot_ace_rule *ace;
-	int i, index;
+	int i, index, ret;
 
 	if (!ocelot_exclusive_mac_etype_ace_rules(ocelot, rule)) {
 		NL_SET_ERR_MSG_MOD(extack,
@@ -1168,7 +1172,9 @@ int ocelot_ace_rule_offload_add(struct ocelot *ocelot,
 	}
 
 	/* Add rule to the linked list */
-	ocelot_ace_rule_add(ocelot, block, rule);
+	ret = ocelot_ace_rule_add(ocelot, block, rule);
+	if (ret)
+		return ret;
 
 	/* Get the index of the inserted rule */
 	index = ocelot_ace_rule_get_index_id(block, rule);
@@ -1184,45 +1190,21 @@ int ocelot_ace_rule_offload_add(struct ocelot *ocelot,
 	return 0;
 }
 
-static void ocelot_ace_police_del(struct ocelot *ocelot,
-				  struct ocelot_acl_block *block,
-				  u32 ix)
-{
-	struct ocelot_ace_rule *ace;
-	int index = -1;
-
-	if (ix < block->pol_lpr)
-		return;
-
-	list_for_each_entry(ace, &block->rules, list) {
-		index++;
-		if (ace->is2_action.police_ena &&
-		    ace->is2_action.pol_ix < ix) {
-			ace->is2_action.pol_ix += 1;
-			ocelot_ace_policer_add(ocelot, ace->is2_action.pol_ix,
-					       &ace->is2_action.pol);
-			is2_entry_set(ocelot, index, ace);
-		}
-	}
-
-	ocelot_ace_policer_del(ocelot, block->pol_lpr);
-	block->pol_lpr++;
-}
-
 static void ocelot_ace_rule_del(struct ocelot *ocelot,
 				struct ocelot_acl_block *block,
 				struct ocelot_ace_rule *rule)
 {
 	struct ocelot_ace_rule *tmp;
 	struct list_head *pos, *q;
+	int index;
 
 	list_for_each_safe(pos, q, &block->rules) {
 		tmp = list_entry(pos, struct ocelot_ace_rule, list);
 		if (tmp->id == rule->id) {
-			if (tmp->is2_action.police_ena)
-				ocelot_ace_police_del(ocelot, block,
-						      tmp->is2_action.pol_ix);
-
+			if (tmp->is2_action.police_ena) {
+				index = tmp->is2_action.pol_ix + ocelot->policer_base;
+				ocelot_ace_policer_del(ocelot, index);
+			}
 			list_del(pos);
 			kfree(tmp);
 		}
@@ -1248,6 +1230,8 @@ int ocelot_ace_rule_offload_del(struct ocelot *ocelot,
 	block = &ocelot->acl_block[rule->vcap_id];
 	/* Gets index of the rule */
 	index = ocelot_ace_rule_get_index_id(block, rule);
+	if (index < 0)
+		return -ENOENT;
 
 	/* Delete rule */
 	ocelot_ace_rule_del(ocelot, block, rule);
@@ -1278,6 +1262,9 @@ int ocelot_ace_rule_stats_update(struct ocelot *ocelot,
 
 	block = &ocelot->acl_block[rule->vcap_id];
 	index = ocelot_ace_rule_get_index_id(block, rule);
+	if (index < 0)
+		return -ENOENT;
+
 	vcap_entry_get(ocelot, rule, index);
 
 	/* After we get the result we need to clear the counters */
@@ -1330,7 +1317,6 @@ int ocelot_ace_init(struct ocelot *ocelot)
 			 OCELOT_POLICER_DISCARD);
 
 	block = &ocelot->acl_block[VCAP_IS2];
-	block->pol_lpr = OCELOT_POLICER_DISCARD - 1;
 	INIT_LIST_HEAD(&ocelot->acl_block[VCAP_ES0].rules);
 	INIT_LIST_HEAD(&ocelot->acl_block[VCAP_IS1].rules);
 	INIT_LIST_HEAD(&ocelot->acl_block[VCAP_IS2].rules);

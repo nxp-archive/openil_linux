@@ -23,6 +23,7 @@ struct felix_info {
 	const struct vcap_props		*vcap;
 	int				switch_pci_bar;
 	int				imdio_pci_bar;
+	int				policer_base;
 	int	(*mdio_bus_alloc)(struct ocelot *ocelot);
 	void	(*mdio_bus_free)(struct ocelot *ocelot);
 	void	(*pcs_init)(struct ocelot *ocelot, int port,
@@ -41,6 +42,13 @@ struct felix_info {
 				    struct ethtool_fp *fpcmd);
 	int	(*port_get_preempt)(struct ocelot *ocelot, int port,
 				    struct ethtool_fp *fpcmd);
+	int	(*flower_replace)(struct ocelot *ocelot, int port,
+				  struct flow_cls_offload *f, bool ingress);
+	int	(*flower_destroy)(struct ocelot *ocelot, int port,
+				  struct flow_cls_offload *f, bool ingress);
+	int	(*flower_stats)(struct ocelot *ocelot, int port,
+				struct flow_cls_offload *f, bool ingress);
+	void	(*psfp_init)(struct ocelot *ocelot);
 };
 
 extern struct felix_info		felix_info_vsc9959;

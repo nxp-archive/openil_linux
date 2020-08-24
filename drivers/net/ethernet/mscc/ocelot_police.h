@@ -9,9 +9,4 @@
 
 #include "ocelot.h"
 
-int ocelot_ace_policer_add(struct ocelot *ocelot, u32 pol_ix,
-			   struct ocelot_policer *pol);
-
-int ocelot_ace_policer_del(struct ocelot *ocelot, u32 pol_ix);
-
 #endif /* _MSCC_OCELOT_POLICE_H_ */
