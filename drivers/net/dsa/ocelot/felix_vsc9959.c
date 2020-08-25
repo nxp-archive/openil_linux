@@ -14,6 +14,7 @@
 #include <net/pkt_sched.h>
 #include <linux/iopoll.h>
 #include <linux/pci.h>
+#include "felix_tsn.h"
 #include "felix.h"
 
 #define VSC9959_VCAP_IS2_CNT		1024
@@ -1384,10 +1385,33 @@ static void vsc9959_mdio_bus_free(struct ocelot *ocelot)
 static void vsc9959_sched_speed_set(struct ocelot *ocelot, int port,
 				    u32 speed)
 {
+	u8 tas_speed;
+
+	switch (speed) {
+	case SPEED_10:
+		tas_speed = OCELOT_SPEED_10;
+		break;
+	case SPEED_100:
+		tas_speed = OCELOT_SPEED_100;
+		break;
+	case SPEED_1000:
+		tas_speed = OCELOT_SPEED_1000;
+		break;
+	case SPEED_2500:
+		tas_speed = OCELOT_SPEED_2500;
+		break;
+	default:
+		tas_speed = OCELOT_SPEED_1000;
+		break;
+	}
+
 	ocelot_rmw_rix(ocelot,
-		       QSYS_TAG_CONFIG_LINK_SPEED(speed),
+		       QSYS_TAG_CONFIG_LINK_SPEED(tas_speed),
 		       QSYS_TAG_CONFIG_LINK_SPEED_M,
 		       QSYS_TAG_CONFIG, port);
+#ifdef CONFIG_MSCC_FELIX_SWITCH_TSN
+	felix_cbs_reset(ocelot, port, speed);
+#endif
 }
 
 static void vsc9959_new_base_time(struct ocelot *ocelot, ktime_t base_time,
@@ -1557,14 +1581,6 @@ static int vsc9959_port_setup_tc(struct dsa_switch *ds, int port,
 	default:
 		return -EOPNOTSUPP;
 	}
-}
-
-static inline void ocelot_port_rmwl(struct ocelot_port *port, u32 val,
-				    u32 mask, u32 reg)
-{
-	u32 cur = ocelot_port_readl(port, reg);
-
-	ocelot_port_writel(port, (cur & (~mask)) | val, reg);
 }
 
 static int vsc9959_port_set_preempt(struct ocelot *ocelot, int port,
