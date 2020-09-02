@@ -317,6 +317,27 @@ static void felix_phylink_mac_link_up(struct dsa_switch *ds, int port,
 			 QSYS_SWITCH_PORT_MODE, port);
 }
 
+static void felix_port_qos_map_init(struct ocelot *ocelot, int port, int num_tc)
+{
+	int i;
+
+	ocelot_rmw_gix(ocelot,
+		       ANA_PORT_QOS_CFG_QOS_PCP_ENA,
+		       ANA_PORT_QOS_CFG_QOS_PCP_ENA,
+		       ANA_PORT_QOS_CFG,
+		       port);
+
+	for (i = 0; i < num_tc * 2; i++) {
+		ocelot_rmw_ix(ocelot,
+			      (ANA_PORT_PCP_DEI_MAP_DP_PCP_DEI_VAL & i) |
+			      ANA_PORT_PCP_DEI_MAP_QOS_PCP_DEI_VAL(i),
+			      ANA_PORT_PCP_DEI_MAP_DP_PCP_DEI_VAL |
+			      ANA_PORT_PCP_DEI_MAP_QOS_PCP_DEI_VAL_M,
+			      ANA_PORT_PCP_DEI_MAP,
+			      port, i);
+	}
+}
+
 static void felix_get_strings(struct dsa_switch *ds, int port,
 			      u32 stringset, u8 *data)
 {
@@ -668,6 +689,11 @@ static int felix_setup(struct dsa_switch *ds)
 			ocelot_configure_cpu(ocelot, port,
 					     OCELOT_TAG_PREFIX_NONE,
 					     OCELOT_TAG_PREFIX_LONG);
+
+		/* Set the default QoS Classification based on PCP and DEI
+		 * bits of vlan tag.
+		 */
+		felix_port_qos_map_init(ocelot, port, ds->num_tx_queues);
 	}
 
 	/* Include the CPU port module in the forwarding mask for unknown
