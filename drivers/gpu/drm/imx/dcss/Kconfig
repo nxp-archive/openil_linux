@@ -1,5 +1,6 @@
 config DRM_IMX_DCSS
 	tristate "i.MX8MQ DCSS"
+	depends on ARCH_MXC
 	select RESET_CONTROLLER
 	select IMX_IRQSTEER
 	help
