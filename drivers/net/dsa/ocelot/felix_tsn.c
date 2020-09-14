@@ -59,7 +59,8 @@ struct felix_switch_capa {
 
 struct stream_filter {
 	struct list_head list;
-	u32 mact_idx;
+	unsigned char mac[ETH_ALEN];
+	int vid;
 	u32 index;
 	u8 handle;
 };
@@ -494,7 +495,8 @@ static int felix_qbu_get(struct net_device *ndev, struct tsn_preempt_status *c)
 	return 0;
 }
 
-static int stream_table_add(u32 index, u32 mact_idx, u8 handle)
+static int stream_table_add(u32 index, const unsigned char mac[ETH_ALEN],
+			    int vid, u8 handle)
 {
 	struct stream_filter *stream, *tmp;
 	struct list_head *pos, *q;
@@ -502,7 +504,8 @@ static int stream_table_add(u32 index, u32 mact_idx, u8 handle)
 	list_for_each_safe(pos, q, &streamtable) {
 		tmp = list_entry(pos, struct stream_filter, list);
 		if (tmp->index == index) {
-			tmp->mact_idx = mact_idx;
+			ether_addr_copy(tmp->mac, mac);
+			tmp->vid = vid;
 			tmp->handle = handle;
 			return 0;
 		}
@@ -514,7 +517,8 @@ static int stream_table_add(u32 index, u32 mact_idx, u8 handle)
 		return -ENOMEM;
 
 	stream->index = index;
-	stream->mact_idx = mact_idx;
+	ether_addr_copy(stream->mac, mac);
+	stream->vid = vid;
 	stream->handle = handle;
 	list_add(&stream->list, pos->prev);
 
@@ -575,15 +579,7 @@ static int felix_cb_streamid_set(struct net_device *ndev, u32 index, bool enable
 		if (!stream)
 			return -EINVAL;
 
-		m_index = index / 4;
-		bucket = index % 4;
-
-		ret = ocelot_mact_read(ocelot, m_index, bucket, &dst_idx,
-				       &entry);
-		if (ret)
-			return ret;
-
-		ocelot_mact_forget(ocelot, entry.mac, entry.vid);
+		ocelot_mact_forget(ocelot, stream->mac, stream->vid);
 		stream_table_del(index);
 
 		return 0;
@@ -631,7 +627,7 @@ static int felix_cb_streamid_set(struct net_device *ndev, u32 index, bool enable
 
 		idx = m_index * 4 + bucket;
 
-		return stream_table_add(index, m_index, streamid->handle);
+		return stream_table_add(index, mac, vid, streamid->handle);
 	}
 
 	/* The {DMAC, VLAN} pair was in the MAC table (either dynamically
@@ -659,7 +655,7 @@ static int felix_cb_streamid_set(struct net_device *ndev, u32 index, bool enable
 
 	ocelot_mact_write(ocelot, dst_idx, &entry, m_index, bucket);
 
-	return stream_table_add(index, idx, streamid->handle);
+	return stream_table_add(index, mac, vid, streamid->handle);
 }
 
 static int felix_cb_streamid_get(struct net_device *ndev, u32 index,
@@ -687,13 +683,17 @@ static int felix_cb_streamid_get(struct net_device *ndev, u32 index,
 	if (!stream)
 		return -EINVAL;
 
-	m_index = stream->mact_idx / 4;
-	bucket =  stream->mact_idx % 4;
-	streamid->type = 1;
+	ret = ocelot_mact_lookup(ocelot, stream->mac, stream->vid,
+				 &m_index, &bucket);
+	if (ret)
+		return ret;
 
+	/* This is done just to retrieve the @dst */
 	ret = ocelot_mact_read(ocelot, m_index, bucket, &dst, &entry);
 	if (ret)
 		return ret;
+
+	streamid->type = 1;
 
 	fwdmask = ocelot_read_rix(ocelot, ANA_PGID_PGID, dst);
 	streamid->ofac_oport = ANA_PGID_PGID_PGID(fwdmask);
@@ -714,15 +714,18 @@ static int felix_cb_streamid_get(struct net_device *ndev, u32 index,
  * the PGID_FRER multicast PGID. This is to avoid an issue with using a unicast
  * port PGID, where stream splitting stops working when that port goes down.
  */
-static int streamid_multi_forward_set(struct ocelot *ocelot, u32 index,
-				      u8 fwdmask)
+static int streamid_multi_forward_set(struct ocelot *ocelot,
+				      const unsigned char mac[ETH_ALEN],
+				      int vid, u8 fwdmask)
 {
 	int ret, m_index, bucket, fwdport;
 	struct ocelot_mact_entry entry;
 
-	m_index = index / 4;
-	bucket = index % 4;
+	ret = ocelot_mact_lookup(ocelot, mac, vid, &m_index, &bucket);
+	if (ret)
+		return ret;
 
+	/* This is done just to retrieve the @fwdport */
 	ret = ocelot_mact_read(ocelot, m_index, bucket, &fwdport, &entry);
 	if (ret)
 		return ret;
@@ -1533,7 +1536,7 @@ static int felix_seq_gen_set(struct net_device *ndev, u32 index,
 
 	list_for_each_entry(tmp, &streamtable, list)
 		if (tmp->handle == index)
-			streamid_multi_forward_set(ocelot, tmp->mact_idx,
+			streamid_multi_forward_set(ocelot, tmp->mac, tmp->vid,
 						   split_mask);
 
 	ocelot_write(ocelot,
