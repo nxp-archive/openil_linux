@@ -1018,10 +1018,10 @@ nla_put_failure:
 	return -EMSGSIZE;
 }
 
-static int ocelot_mact_read(struct ocelot *ocelot, int port, int row, int col,
+static int ocelot_mact_read(struct ocelot *ocelot, int row, int col, int *dst,
 			    struct ocelot_mact_entry *entry)
 {
-	u32 val, dst, macl, mach;
+	u32 val, macl, mach;
 	char mac[ETH_ALEN];
 
 	/* Set row and column to read from */
@@ -1041,12 +1041,7 @@ static int ocelot_mact_read(struct ocelot *ocelot, int port, int row, int col,
 	if (!(val & ANA_TABLES_MACACCESS_VALID))
 		return -EINVAL;
 
-	/* If the entry read has another port configured as its destination,
-	 * do not report it.
-	 */
-	dst = (val & ANA_TABLES_MACACCESS_DEST_IDX_M) >> 3;
-	if (dst != port)
-		return -EINVAL;
+	*dst = (val & ANA_TABLES_MACACCESS_DEST_IDX_M) >> 3;
 
 	entry->type = ANA_TABLES_MACACCESS_ENTRYTYPE_X(val);
 
@@ -1077,16 +1072,13 @@ int ocelot_fdb_dump(struct ocelot *ocelot, int port,
 		for (j = 0; j < 4; j++) {
 			struct ocelot_mact_entry entry;
 			bool is_static;
-			int ret;
+			int dst, ret;
 
-			ret = ocelot_mact_read(ocelot, port, i, j, &entry);
-			/* If the entry is invalid (wrong port, invalid...),
-			 * skip it.
-			 */
-			if (ret == -EINVAL)
-				continue;
-			else if (ret)
+			ret = ocelot_mact_read(ocelot, i, j, &dst, &entry);
+			if (ret)
 				return ret;
+			if (dst != port)
+				continue;
 
 			is_static = (entry.type == ENTRYTYPE_LOCKED);
 
