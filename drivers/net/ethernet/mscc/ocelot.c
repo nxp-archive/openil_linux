@@ -1048,6 +1048,8 @@ static int ocelot_mact_read(struct ocelot *ocelot, int port, int row, int col,
 	if (dst != port)
 		return -EINVAL;
 
+	entry->type = ANA_TABLES_MACACCESS_ENTRYTYPE_X(val);
+
 	/* Get the entry's MAC address and VLAN id */
 	macl = ocelot_read(ocelot, ANA_TABLES_MACLDATA);
 	mach = ocelot_read(ocelot, ANA_TABLES_MACHDATA);
