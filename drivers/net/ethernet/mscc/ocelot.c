@@ -28,25 +28,6 @@
 #define TABLE_UPDATE_SLEEP_US 10
 #define TABLE_UPDATE_TIMEOUT_US 100000
 
-/* MAC table entry types.
- * ENTRYTYPE_NORMAL is subject to aging.
- * ENTRYTYPE_LOCKED is not subject to aging.
- * ENTRYTYPE_MACv4 is not subject to aging. For IPv4 multicast.
- * ENTRYTYPE_MACv6 is not subject to aging. For IPv6 multicast.
- */
-enum macaccess_entry_type {
-	ENTRYTYPE_NORMAL = 0,
-	ENTRYTYPE_LOCKED,
-	ENTRYTYPE_MACv4,
-	ENTRYTYPE_MACv6,
-};
-
-struct ocelot_mact_entry {
-	u8 mac[ETH_ALEN];
-	u16 vid;
-	enum macaccess_entry_type type;
-};
-
 static inline u32 ocelot_mact_read_macaccess(struct ocelot *ocelot)
 {
 	return ocelot_read(ocelot, ANA_TABLES_MACACCESS);
@@ -85,10 +66,9 @@ static void ocelot_mact_select(struct ocelot *ocelot,
 
 }
 
-static int ocelot_mact_learn(struct ocelot *ocelot, int port,
-			     const unsigned char mac[ETH_ALEN],
-			     unsigned int vid,
-			     enum macaccess_entry_type type)
+int ocelot_mact_learn(struct ocelot *ocelot, int port,
+		      const unsigned char mac[ETH_ALEN],
+		      unsigned int vid, enum macaccess_entry_type type)
 {
 	ocelot_mact_select(ocelot, mac, vid);
 
@@ -101,10 +81,10 @@ static int ocelot_mact_learn(struct ocelot *ocelot, int port,
 
 	return ocelot_mact_wait_for_completion(ocelot);
 }
+EXPORT_SYMBOL(ocelot_mact_learn);
 
-static int ocelot_mact_forget(struct ocelot *ocelot,
-			      const unsigned char mac[ETH_ALEN],
-			      unsigned int vid)
+int ocelot_mact_forget(struct ocelot *ocelot, const unsigned char mac[ETH_ALEN],
+		       unsigned int vid)
 {
 	ocelot_mact_select(ocelot, mac, vid);
 
@@ -115,6 +95,54 @@ static int ocelot_mact_forget(struct ocelot *ocelot,
 
 	return ocelot_mact_wait_for_completion(ocelot);
 }
+EXPORT_SYMBOL(ocelot_mact_forget);
+
+int ocelot_mact_lookup(struct ocelot *ocelot, const unsigned char mac[ETH_ALEN],
+		       unsigned int vid, int *row, int *col)
+{
+	int val;
+
+	ocelot_mact_select(ocelot, mac, vid);
+
+	/* Issue a read command with MACACCESS_VALID=1. */
+	ocelot_write(ocelot, ANA_TABLES_MACACCESS_VALID |
+		     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(MACACCESS_CMD_READ),
+		     ANA_TABLES_MACACCESS);
+
+	if (ocelot_mact_wait_for_completion(ocelot))
+		return -ETIMEDOUT;
+
+	/* Read back the entry flags */
+	val = ocelot_read(ocelot, ANA_TABLES_MACACCESS);
+	if (!(val & ANA_TABLES_MACACCESS_VALID))
+		return -ENOENT;
+
+	ocelot_field_read(ocelot, ANA_TABLES_MACTINDX_M_INDEX, row);
+	ocelot_field_read(ocelot, ANA_TABLES_MACTINDX_BUCKET, col);
+
+	return 0;
+}
+EXPORT_SYMBOL(ocelot_mact_lookup);
+
+/* Like ocelot_mact_learn, except at a specific row and col. */
+void ocelot_mact_write(struct ocelot *ocelot, int port,
+		       const struct ocelot_mact_entry *entry,
+		       int row, int col)
+{
+	ocelot_mact_select(ocelot, entry->mac, entry->vid);
+
+	ocelot_field_write(ocelot, ANA_TABLES_MACTINDX_M_INDEX, row);
+	ocelot_field_write(ocelot, ANA_TABLES_MACTINDX_BUCKET, col);
+
+	ocelot_write(ocelot, ANA_TABLES_MACACCESS_VALID |
+		     ANA_TABLES_MACACCESS_ENTRYTYPE(entry->type) |
+		     ANA_TABLES_MACACCESS_DEST_IDX(port) |
+		     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(MACACCESS_CMD_WRITE),
+		     ANA_TABLES_MACACCESS);
+
+	ocelot_mact_wait_for_completion(ocelot);
+}
+EXPORT_SYMBOL(ocelot_mact_write);
 
 static void ocelot_mact_init(struct ocelot *ocelot)
 {
@@ -1018,10 +1046,10 @@ nla_put_failure:
 	return -EMSGSIZE;
 }
 
-static int ocelot_mact_read(struct ocelot *ocelot, int port, int row, int col,
-			    struct ocelot_mact_entry *entry)
+int ocelot_mact_read(struct ocelot *ocelot, int row, int col, int *dst,
+		     struct ocelot_mact_entry *entry)
 {
-	u32 val, dst, macl, mach;
+	u32 val, macl, mach;
 	char mac[ETH_ALEN];
 
 	/* Set row and column to read from */
@@ -1041,12 +1069,9 @@ static int ocelot_mact_read(struct ocelot *ocelot, int port, int row, int col,
 	if (!(val & ANA_TABLES_MACACCESS_VALID))
 		return -EINVAL;
 
-	/* If the entry read has another port configured as its destination,
-	 * do not report it.
-	 */
-	dst = (val & ANA_TABLES_MACACCESS_DEST_IDX_M) >> 3;
-	if (dst != port)
-		return -EINVAL;
+	*dst = (val & ANA_TABLES_MACACCESS_DEST_IDX_M) >> 3;
+
+	entry->type = ANA_TABLES_MACACCESS_ENTRYTYPE_X(val);
 
 	/* Get the entry's MAC address and VLAN id */
 	macl = ocelot_read(ocelot, ANA_TABLES_MACLDATA);
@@ -1064,6 +1089,7 @@ static int ocelot_mact_read(struct ocelot *ocelot, int port, int row, int col,
 
 	return 0;
 }
+EXPORT_SYMBOL(ocelot_mact_read);
 
 int ocelot_fdb_dump(struct ocelot *ocelot, int port,
 		    dsa_fdb_dump_cb_t *cb, void *data)
@@ -1075,16 +1101,13 @@ int ocelot_fdb_dump(struct ocelot *ocelot, int port,
 		for (j = 0; j < 4; j++) {
 			struct ocelot_mact_entry entry;
 			bool is_static;
-			int ret;
+			int dst, ret;
 
-			ret = ocelot_mact_read(ocelot, port, i, j, &entry);
-			/* If the entry is invalid (wrong port, invalid...),
-			 * skip it.
-			 */
-			if (ret == -EINVAL)
-				continue;
-			else if (ret)
+			ret = ocelot_mact_read(ocelot, i, j, &dst, &entry);
+			if (ret)
 				return ret;
+			if (dst != port)
+				continue;
 
 			is_static = (entry.type == ENTRYTYPE_LOCKED);
 

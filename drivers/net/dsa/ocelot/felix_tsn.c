@@ -59,7 +59,8 @@ struct felix_switch_capa {
 
 struct stream_filter {
 	struct list_head list;
-	u32 mact_idx;
+	unsigned char mac[ETH_ALEN];
+	int vid;
 	u32 index;
 	u8 handle;
 };
@@ -494,7 +495,8 @@ static int felix_qbu_get(struct net_device *ndev, struct tsn_preempt_status *c)
 	return 0;
 }
 
-static int stream_table_add(u32 index, u32 mact_idx, u8 handle)
+static int stream_table_add(u32 index, const unsigned char mac[ETH_ALEN],
+			    int vid, u8 handle)
 {
 	struct stream_filter *stream, *tmp;
 	struct list_head *pos, *q;
@@ -502,7 +504,8 @@ static int stream_table_add(u32 index, u32 mact_idx, u8 handle)
 	list_for_each_safe(pos, q, &streamtable) {
 		tmp = list_entry(pos, struct stream_filter, list);
 		if (tmp->index == index) {
-			tmp->mact_idx = mact_idx;
+			ether_addr_copy(tmp->mac, mac);
+			tmp->vid = vid;
 			tmp->handle = handle;
 			return 0;
 		}
@@ -514,7 +517,8 @@ static int stream_table_add(u32 index, u32 mact_idx, u8 handle)
 		return -ENOMEM;
 
 	stream->index = index;
-	stream->mact_idx = mact_idx;
+	ether_addr_copy(stream->mac, mac);
+	stream->vid = vid;
 	stream->handle = handle;
 	list_add(&stream->list, pos->prev);
 
@@ -547,50 +551,18 @@ static struct stream_filter *stream_table_get(u32 index)
 	return NULL;
 }
 
-static int lookup_mactable(struct ocelot *ocelot, u16 vid, u64 mac)
-{
-	u32 mach, macl;
-	u32 reg1, reg2;
-	u32 index, bucket;
-
-	macl = mac & 0xffffffff;
-	mach = (mac >> 32) & 0xffff;
-	ocelot_write(ocelot, macl, ANA_TABLES_MACLDATA);
-	ocelot_write(ocelot, ANA_TABLES_MACHDATA_VID(vid) |
-		     ANA_TABLES_MACHDATA_MACHDATA(mach),
-		     ANA_TABLES_MACHDATA);
-
-	ocelot_write(ocelot, ANA_TABLES_MACACCESS_VALID |
-		     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(MACACCESS_CMD_READ),
-		     ANA_TABLES_MACACCESS);
-
-	reg1 = ocelot_read(ocelot, ANA_TABLES_MACLDATA);
-	reg2 = ocelot_read(ocelot, ANA_TABLES_MACHDATA);
-	if (reg1 != macl || reg2 != (mach | ANA_TABLES_MACHDATA_VID(vid)))
-		return -EEXIST;
-
-	regmap_field_read(ocelot->regfields[ANA_TABLES_MACTINDX_BUCKET],
-			  &bucket);
-	regmap_field_read(ocelot->regfields[ANA_TABLES_MACTINDX_M_INDEX],
-			  &index);
-
-	index = index * 4 + bucket;
-
-	return index;
-}
-
 static int felix_cb_streamid_set(struct net_device *ndev, u32 index, bool enable,
 				 struct tsn_cb_streamid *streamid)
 {
+	struct ocelot_mact_entry entry;
 	struct stream_filter *stream;
+	u32 m_index, bucket, dst_idx;
+	unsigned char mac[ETH_ALEN];
 	int idx, sfid, ssid, port;
-	u32 reg, m_index, bucket;
-	u32 macl, mach, dst_idx;
-	struct regmap_field *rf;
 	struct ocelot *ocelot;
 	struct dsa_port *dp;
 	u16 vid;
-	u64 mac;
+	int ret;
 
 	dp = dsa_port_from_netdev(ndev);
 	ocelot = dp->ds->priv;
@@ -607,22 +579,7 @@ static int felix_cb_streamid_set(struct net_device *ndev, u32 index, bool enable
 		if (!stream)
 			return -EINVAL;
 
-		m_index = stream->mact_idx / 4;
-		bucket =  stream->mact_idx % 4;
-		rf = ocelot->regfields[ANA_TABLES_MACTINDX_BUCKET];
-		regmap_field_write(rf, bucket);
-		rf = ocelot->regfields[ANA_TABLES_MACTINDX_M_INDEX];
-		regmap_field_write(rf, m_index);
-
-		/*READ command MACACCESS.VALID(11 bit) must be 0 */
-		ocelot_write(ocelot,
-			     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(MACACCESS_CMD_READ),
-			     ANA_TABLES_MACACCESS);
-
-		ocelot_write(ocelot,
-			     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(MACACCESS_CMD_FORGET),
-			     ANA_TABLES_MACACCESS);
-
+		ocelot_mact_forget(ocelot, stream->mac, stream->vid);
 		stream_table_del(index);
 
 		return 0;
@@ -644,19 +601,17 @@ static int felix_cb_streamid_set(struct net_device *ndev, u32 index, bool enable
 	ssid = (streamid->handle < FELIX_FRER_SSID_NUM ?
 		streamid->handle : (FELIX_FRER_SSID_NUM - 1));
 
-	mac = streamid->para.nid.dmac;
-	macl = mac & 0xffffffff;
-	mach = (mac >> 32) & 0xffff;
+	u64_to_ether_addr(streamid->para.nid.dmac, mac);
 	vid = streamid->para.nid.vid;
 
-	idx = lookup_mactable(ocelot, vid, mac);
+	ret = ocelot_mact_lookup(ocelot, mac, vid, &m_index, &bucket);
+	if (ret && ret != -ENOENT)
+		return ret;
 
-	if (idx < 0) {
-		ocelot_write(ocelot, macl, ANA_TABLES_MACLDATA);
-		ocelot_write(ocelot, ANA_TABLES_MACHDATA_VID(vid) |
-			     ANA_TABLES_MACHDATA_MACHDATA(mach),
-			     ANA_TABLES_MACHDATA);
-
+	if (ret == -ENOENT) {
+		/* The MAC table doesn't contain this entry, learn it as static
+		 * and annotate it with a SSID and a SFID.
+		 */
 		ocelot_write(ocelot,
 			     ANA_TABLES_STREAMDATA_SFID_VALID |
 			     ANA_TABLES_STREAMDATA_SFID(sfid) |
@@ -664,26 +619,27 @@ static int felix_cb_streamid_set(struct net_device *ndev, u32 index, bool enable
 			     ANA_TABLES_STREAMDATA_SSID(ssid),
 			     ANA_TABLES_STREAMDATA);
 
-		dst_idx = port;
-		ocelot_write(ocelot, ANA_TABLES_MACACCESS_VALID |
-			     ANA_TABLES_MACACCESS_ENTRYTYPE(1) |
-			     ANA_TABLES_MACACCESS_DEST_IDX(dst_idx) |
-			     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(MACACCESS_CMD_LEARN),
-			     ANA_TABLES_MACACCESS);
+		ocelot_mact_learn(ocelot, port, mac, vid, ENTRYTYPE_LOCKED);
 
-		ocelot_write(ocelot, ANA_TABLES_MACACCESS_VALID |
-			     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(MACACCESS_CMD_READ),
-			     ANA_TABLES_MACACCESS);
+		ret = ocelot_mact_lookup(ocelot, mac, vid, &m_index, &bucket);
+		if (ret)
+			return ret;
 
-		regmap_field_read(ocelot->regfields[ANA_TABLES_MACTINDX_BUCKET],
-				  &bucket);
-		regmap_field_read(ocelot->regfields[ANA_TABLES_MACTINDX_M_INDEX],
-				  &m_index);
+		idx = m_index * 4 + bucket;
 
-		m_index = m_index * 4 + bucket;
-
-		return stream_table_add(index, m_index, streamid->handle);
+		return stream_table_add(index, mac, vid, streamid->handle);
 	}
+
+	/* The {DMAC, VLAN} pair was in the MAC table (either dynamically
+	 * learned or installed statically by the CPU). Read back the entry,
+	 * and re-write it while annotating it with a SSID and a SFID.
+	 */
+	idx = m_index * 4 + bucket;
+
+	/* This is done just to retrieve the @dst_idx */
+	ret = ocelot_mact_read(ocelot, m_index, bucket, &dst_idx, &entry);
+	if (ret)
+		return ret;
 
 	ocelot_write(ocelot,
 		     ANA_TABLES_STREAMDATA_SFID_VALID |
@@ -692,27 +648,26 @@ static int felix_cb_streamid_set(struct net_device *ndev, u32 index, bool enable
 		     ANA_TABLES_STREAMDATA_SSID(ssid),
 		     ANA_TABLES_STREAMDATA);
 
-	reg = ocelot_read(ocelot, ANA_TABLES_MACACCESS);
-	dst_idx = ANA_TABLES_MACACCESS_DEST_IDX_X(reg);
-	ocelot_write(ocelot, ANA_TABLES_MACACCESS_VALID |
-		     ANA_TABLES_MACACCESS_ENTRYTYPE(1) |
-		     ANA_TABLES_MACACCESS_DEST_IDX(dst_idx) |
-		     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(MACACCESS_CMD_WRITE),
-		     ANA_TABLES_MACACCESS);
+	/* Whatever the entry type was before,
+	 * make sure that now it's static
+	 */
+	entry.type = ENTRYTYPE_LOCKED;
 
-	return stream_table_add(index, idx, streamid->handle);
+	ocelot_mact_write(ocelot, dst_idx, &entry, m_index, bucket);
+
+	return stream_table_add(index, mac, vid, streamid->handle);
 }
 
 static int felix_cb_streamid_get(struct net_device *ndev, u32 index,
 				 struct tsn_cb_streamid *streamid)
 {
+	struct ocelot_mact_entry entry;
 	struct stream_filter *stream;
 	struct ocelot *ocelot;
 	struct dsa_port *dp;
+	u32 val, dst, fwdmask;
 	u32 m_index, bucket;
-	u32 val, dst, reg;
-	u32 ldmac, hdmac;
-	u64 dmac;
+	int ret;
 
 	dp = dsa_port_from_netdev(ndev);
 	ocelot = dp->ds->priv;
@@ -728,34 +683,23 @@ static int felix_cb_streamid_get(struct net_device *ndev, u32 index,
 	if (!stream)
 		return -EINVAL;
 
-	m_index = stream->mact_idx / 4;
-	bucket =  stream->mact_idx % 4;
+	ret = ocelot_mact_lookup(ocelot, stream->mac, stream->vid,
+				 &m_index, &bucket);
+	if (ret)
+		return ret;
+
+	/* This is done just to retrieve the @dst */
+	ret = ocelot_mact_read(ocelot, m_index, bucket, &dst, &entry);
+	if (ret)
+		return ret;
+
 	streamid->type = 1;
-	regmap_field_write(ocelot->regfields[ANA_TABLES_MACTINDX_BUCKET],
-			   bucket);
-	regmap_field_write(ocelot->regfields[ANA_TABLES_MACTINDX_M_INDEX],
-			   m_index);
 
-	/*READ command MACACCESS.VALID(11 bit) must be 0 */
-	ocelot_write(ocelot,
-		     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(MACACCESS_CMD_READ),
-		     ANA_TABLES_MACACCESS);
+	fwdmask = ocelot_read_rix(ocelot, ANA_PGID_PGID, dst);
+	streamid->ofac_oport = ANA_PGID_PGID_PGID(fwdmask);
 
-	val = ocelot_read(ocelot, ANA_TABLES_MACACCESS);
-	dst = ANA_TABLES_MACACCESS_DEST_IDX_X(val);
-	reg = ocelot_read_rix(ocelot, ANA_PGID_PGID, dst);
-	streamid->ofac_oport = ANA_PGID_PGID_PGID(reg);
-
-	/*Get the entry's MAC address and VLAN id*/
-	ldmac = ocelot_read(ocelot, ANA_TABLES_MACLDATA);
-	val = ocelot_read(ocelot, ANA_TABLES_MACHDATA);
-	val &= 0x1fffffff;
-	hdmac = val & 0xffff;
-	dmac = hdmac;
-	dmac = (dmac << 32) | ldmac;
-	streamid->para.nid.dmac = dmac;
-
-	streamid->para.nid.vid = ANA_TABLES_MACHDATA_VID_X(val);
+	streamid->para.nid.dmac = ether_addr_to_u64(entry.mac);
+	streamid->para.nid.vid = entry.vid;
 
 	val = ocelot_read(ocelot, ANA_TABLES_STREAMDATA);
 	if (!(val & ANA_TABLES_STREAMDATA_SFID_VALID))
@@ -766,37 +710,29 @@ static int felix_cb_streamid_get(struct net_device *ndev, u32 index,
 	return 0;
 }
 
-static int streamid_multi_forward_set(struct ocelot *ocelot, u32 index,
-				      u8 fwdmask)
+/* Modify all 802.1CB stream entries that are configured for splitting to use
+ * the PGID_FRER multicast PGID. This is to avoid an issue with using a unicast
+ * port PGID, where stream splitting stops working when that port goes down.
+ */
+static int streamid_multi_forward_set(struct ocelot *ocelot,
+				      const unsigned char mac[ETH_ALEN],
+				      int vid, u8 fwdmask)
 {
-	u32 m_index, bucket;
-	u8 fwdport;
-	u32 val;
+	int ret, m_index, bucket, fwdport;
+	struct ocelot_mact_entry entry;
 
-	m_index = index / 4;
-	bucket =  index % 4;
+	ret = ocelot_mact_lookup(ocelot, mac, vid, &m_index, &bucket);
+	if (ret)
+		return ret;
 
-	regmap_field_write(ocelot->regfields[ANA_TABLES_MACTINDX_BUCKET],
-			   bucket);
-	regmap_field_write(ocelot->regfields[ANA_TABLES_MACTINDX_M_INDEX],
-			   m_index);
+	/* This is done just to retrieve the @fwdport */
+	ret = ocelot_mact_read(ocelot, m_index, bucket, &fwdport, &entry);
+	if (ret)
+		return ret;
 
-	/*READ command MACACCESS.VALID(11 bit) must be 0 */
-	ocelot_write(ocelot,
-		     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(MACACCESS_CMD_READ),
-		     ANA_TABLES_MACACCESS);
+	fwdmask |= BIT(fwdport);
 
-	val = ocelot_read(ocelot, ANA_TABLES_MACACCESS);
-	fwdport = ANA_TABLES_MACACCESS_DEST_IDX_X(val);
-
-	fwdmask |= (1 << fwdport);
-
-	ocelot_write(ocelot, ANA_TABLES_MACACCESS_VALID |
-		     ANA_TABLES_MACACCESS_ENTRYTYPE(1) |
-		     ANA_TABLES_MACACCESS_DEST_IDX(PGID_FRER) |
-		     ANA_TABLES_MACACCESS_MAC_TABLE_CMD(MACACCESS_CMD_WRITE),
-		     ANA_TABLES_MACACCESS);
-
+	ocelot_mact_write(ocelot, PGID_FRER, &entry, m_index, bucket);
 	ocelot_write_rix(ocelot, fwdmask, ANA_PGID_PGID, PGID_FRER);
 
 	return 0;
@@ -1600,7 +1536,7 @@ static int felix_seq_gen_set(struct net_device *ndev, u32 index,
 
 	list_for_each_entry(tmp, &streamtable, list)
 		if (tmp->handle == index)
-			streamid_multi_forward_set(ocelot, tmp->mact_idx,
+			streamid_multi_forward_set(ocelot, tmp->mac, tmp->vid,
 						   split_mask);
 
 	ocelot_write(ocelot,
