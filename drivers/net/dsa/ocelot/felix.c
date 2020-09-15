@@ -234,20 +234,8 @@ static void felix_phylink_mac_config(struct dsa_switch *ds, int port,
 				     const struct phylink_link_state *state)
 {
 	struct ocelot *ocelot = ds->priv;
-	struct ocelot_port *ocelot_port = ocelot->ports[port];
 	struct felix *felix = ocelot_to_felix(ocelot);
 	u32 mac_fc_cfg;
-
-	/* Take port out of reset by clearing the MAC_TX_RST, MAC_RX_RST and
-	 * PORT_RST bits in DEV_CLOCK_CFG. Note that the way this system is
-	 * integrated is that the MAC speed is fixed and it's the PCS who is
-	 * performing the rate adaptation, so we have to write "1000Mbps" into
-	 * the LINK_SPEED field of DEV_CLOCK_CFG (which is also its default
-	 * value).
-	 */
-	ocelot_port_writel(ocelot_port,
-			   DEV_CLOCK_CFG_LINK_SPEED(OCELOT_SPEED_1000),
-			   DEV_CLOCK_CFG);
 
 	switch (state->speed) {
 	case SPEED_10:
@@ -301,10 +289,25 @@ static void felix_phylink_mac_link_down(struct dsa_switch *ds, int port,
 {
 	struct ocelot *ocelot = ds->priv;
 	struct ocelot_port *ocelot_port = ocelot->ports[port];
+	int err;
 
-	ocelot_port_writel(ocelot_port, 0, DEV_MAC_ENA_CFG);
+	ocelot_port_rmwl(ocelot_port, 0, DEV_MAC_ENA_CFG_RX_ENA,
+			 DEV_MAC_ENA_CFG);
+
 	ocelot_rmw_rix(ocelot, 0, QSYS_SWITCH_PORT_MODE_PORT_ENA,
 		       QSYS_SWITCH_PORT_MODE, port);
+
+	err = ocelot_port_flush(ocelot, port);
+	if (err)
+		dev_err(ocelot->dev, "failed to flush port %d: %d\n",
+			port, err);
+
+	/* Put the port in reset. */
+	ocelot_port_writel(ocelot_port,
+			   DEV_CLOCK_CFG_MAC_TX_RST |
+			   DEV_CLOCK_CFG_MAC_RX_RST |
+			   DEV_CLOCK_CFG_LINK_SPEED(OCELOT_SPEED_1000),
+			   DEV_CLOCK_CFG);
 }
 
 static void felix_phylink_mac_link_up(struct dsa_switch *ds, int port,
@@ -332,6 +335,17 @@ static void felix_phylink_mac_link_up(struct dsa_switch *ds, int port,
 			 QSYS_SWITCH_PORT_MODE_SCH_NEXT_CFG(1) |
 			 QSYS_SWITCH_PORT_MODE_PORT_ENA,
 			 QSYS_SWITCH_PORT_MODE, port);
+
+	/* Take port out of reset by clearing the MAC_TX_RST, MAC_RX_RST and
+	 * PORT_RST bits in DEV_CLOCK_CFG. Note that the way this system is
+	 * integrated is that the MAC speed is fixed and it's the PCS who is
+	 * performing the rate adaptation, so we have to write "1000Mbps" into
+	 * the LINK_SPEED field of DEV_CLOCK_CFG (which is also its default
+	 * value).
+	 */
+	ocelot_port_writel(ocelot_port,
+			   DEV_CLOCK_CFG_LINK_SPEED(OCELOT_SPEED_1000),
+			   DEV_CLOCK_CFG);
 }
 
 static void felix_port_qos_map_init(struct ocelot *ocelot, int port, int num_tc)

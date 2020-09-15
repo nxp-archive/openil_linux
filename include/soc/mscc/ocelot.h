@@ -693,6 +693,7 @@ int ocelot_get_sset_count(struct ocelot *ocelot, int port, int sset);
 int ocelot_get_ts_info(struct ocelot *ocelot, int port,
 		       struct ethtool_ts_info *info);
 void ocelot_set_ageing_time(struct ocelot *ocelot, unsigned int msecs);
+int ocelot_port_flush(struct ocelot *ocelot, int port);
 void ocelot_adjust_link(struct ocelot *ocelot, int port,
 			struct phy_device *phydev);
 void ocelot_port_vlan_filtering(struct ocelot *ocelot, int port,
