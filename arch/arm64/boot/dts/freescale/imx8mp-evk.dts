@@ -232,8 +232,8 @@
 	pinctrl-0 = <&pinctrl_eqos>;
 	phy-mode = "rgmii-id";
 	phy-handle = <&ethphy0>;
-	rx-fifo-depth = <40960>;
-	tx-fifo-depth = <40960>;
+	rx-fifo-depth = <8192>;
+	tx-fifo-depth = <8192>;
 	snps,force_thresh_dma_mode;
 	snps,mtl-tx-config = <&txnode>;
 	snps,mtl-rx-config = <&rxnode>;
