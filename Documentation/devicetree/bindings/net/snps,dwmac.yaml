@@ -156,7 +156,7 @@ properties:
             * snps,route-dcbcp, DCB Control Packets
             * snps,route-up, Untagged Packets
             * snps,route-multi-broad, Multicast & Broadcast Packets
-          * snps,priority, RX queue priority (Range 0x0 to 0xF)
+          * snps,priority, bitmask of the User Priorities values assigned to the queue
 
   snps,mtl-tx-config:
     $ref: /schemas/types.yaml#definitions/phandle
@@ -183,7 +183,8 @@ properties:
             * snps,idle_slope, unlock on WoL
             * snps,high_credit, max write outstanding req. limit
             * snps,low_credit, max read outstanding req. limit
-          * snps,priority, TX queue priority (Range 0x0 to 0xF)
+          * snps,priority, bitmask of the User Priorities assigned to the queue. Used
+            when PFC packets are received.
 
   snps,reset-gpio:
     deprecated: true
