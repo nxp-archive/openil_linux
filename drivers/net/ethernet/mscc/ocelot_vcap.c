@@ -1024,7 +1024,8 @@ static int ocelot_vcap_block_get_filter_index(struct ocelot_vcap_block *block,
 }
 
 static struct ocelot_vcap_filter*
-ocelot_vcap_block_find_filter(struct ocelot_vcap_block *block, int index)
+ocelot_vcap_block_find_filter_by_index(struct ocelot_vcap_block *block,
+				       int index)
 {
 	struct ocelot_vcap_filter *tmp;
 	int i = 0;
@@ -1052,6 +1053,18 @@ int ocelot_vcap_get_vcap_id(struct ocelot_vcap_block *block,
 			}
 
 	return -EINVAL;
+}
+
+struct ocelot_vcap_filter *
+ocelot_vcap_block_find_filter_by_id(struct ocelot_vcap_block *block, int id)
+{
+	struct ocelot_vcap_filter *filter;
+
+	list_for_each_entry(filter, &block->rules, list)
+		if (filter->id == id)
+			return filter;
+
+	return NULL;
 }
 
 /* If @on=false, then SNAP, ARP, IP and OAM frames will not match on keys based
@@ -1136,7 +1149,7 @@ ocelot_exclusive_mac_etype_filter_rules(struct ocelot *ocelot,
 	if (ocelot_vcap_is_problematic_mac_etype(filter)) {
 		/* Search for any non-MAC_ETYPE rules on the port */
 		for (i = 0; i < block->count; i++) {
-			tmp = ocelot_vcap_block_find_filter(block, i);
+			tmp = ocelot_vcap_block_find_filter_by_index(block, i);
 			if (tmp->ingress_port_mask & filter->ingress_port_mask &&
 			    ocelot_vcap_is_problematic_non_mac_etype(tmp))
 				return false;
@@ -1148,7 +1161,7 @@ ocelot_exclusive_mac_etype_filter_rules(struct ocelot *ocelot,
 	} else if (ocelot_vcap_is_problematic_non_mac_etype(filter)) {
 		/* Search for any MAC_ETYPE rules on the port */
 		for (i = 0; i < block->count; i++) {
-			tmp = ocelot_vcap_block_find_filter(block, i);
+			tmp = ocelot_vcap_block_find_filter_by_index(block, i);
 			if (tmp->ingress_port_mask & filter->ingress_port_mask &&
 			    ocelot_vcap_is_problematic_mac_etype(tmp))
 				return false;
@@ -1187,7 +1200,7 @@ int ocelot_vcap_filter_add(struct ocelot *ocelot,
 	for (i = block->count - 1; i > index; i--) {
 		struct ocelot_vcap_filter *tmp;
 
-		tmp = ocelot_vcap_block_find_filter(block, i);
+		tmp = ocelot_vcap_block_find_filter_by_index(block, i);
 		vcap_entry_set(ocelot, i, tmp);
 	}
 
@@ -1245,7 +1258,7 @@ int ocelot_vcap_filter_del(struct ocelot *ocelot,
 	for (i = index; i < block->count; i++) {
 		struct ocelot_vcap_filter *tmp;
 
-		tmp = ocelot_vcap_block_find_filter(block, i);
+		tmp = ocelot_vcap_block_find_filter_by_index(block, i);
 		vcap_entry_set(ocelot, i, tmp);
 	}
 
@@ -1275,7 +1288,7 @@ int ocelot_vcap_filter_stats_update(struct ocelot *ocelot,
 	vcap_entry_get(ocelot, filter, index);
 
 	/* After we get the result we need to clear the counters */
-	tmp = ocelot_vcap_block_find_filter(block, index);
+	tmp = ocelot_vcap_block_find_filter_by_index(block, index);
 	tmp->stats.pkts = 0;
 	vcap_entry_set(ocelot, index, tmp);
 
