@@ -23,7 +23,7 @@
 #include <net/switchdev.h>
 
 #include "ocelot.h"
-#include "ocelot_ace.h"
+#include "ocelot_vcap.h"
 
 #define TABLE_UPDATE_SLEEP_US 10
 #define TABLE_UPDATE_TIMEOUT_US 100000
