@@ -2055,7 +2055,7 @@ static void vsc9959_list_sfi_del(struct ocelot *ocelot, u32 index)
 			if (tmp->gate_en)
 				vsc9959_list_sgi_del(ocelot, tmp->sgid);
 			if (tmp->meter_en)
-				ocelot_ace_policer_del(ocelot, tmp->fmid);
+				ocelot_vcap_policer_del(ocelot, tmp->fmid);
 
 			z = refcount_dec_and_test(&tmp->refcount);
 			if (z) {
@@ -2260,7 +2260,7 @@ int vsc9959_flower_stream_replace(struct ocelot *ocelot, int port,
 				.burst = div_u64(burst, PSCHED_TICKS_PER_SEC),
 				.rate = div_u64(rate, 1000) * 8,
 			};
-			ret = ocelot_ace_policer_add(ocelot, index, &pol);
+			ret = ocelot_vcap_policer_add(ocelot, index, &pol);
 			if (ret)
 				return ret;
 
@@ -2281,7 +2281,7 @@ int vsc9959_flower_stream_replace(struct ocelot *ocelot, int port,
 		if (sfi.gate_en)
 			vsc9959_list_sgi_del(ocelot, sfi.sgid);
 		if (sfi.meter_en)
-			ocelot_ace_policer_del(ocelot, sfi.fmid);
+			ocelot_vcap_policer_del(ocelot, sfi.fmid);
 		return ret;
 	}
 

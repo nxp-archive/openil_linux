@@ -2308,16 +2308,16 @@ EXPORT_SYMBOL(ocelot_configure_cpu);
 /* Entry for PTP over Ethernet (etype 0x88f7)
  * Action: trap to CPU port
  */
-static struct ocelot_ace_rule ptp_rule = {
+static struct ocelot_vcap_filter ptp_rule = {
 	.prio		= 1,
 	.vcap_id	= VCAP_IS2,
-	.type		= OCELOT_ACE_TYPE_ETYPE,
+	.key_type	= OCELOT_VCAP_KEY_ETYPE,
 	.dmac_mc	= OCELOT_VCAP_BIT_1,
 	.is2_action.trap_ena = true,
-	.frame.etype.etype.value[0]	= 0x88,
-	.frame.etype.etype.value[1]	= 0xf7,
-	.frame.etype.etype.mask[0]	= 0xff,
-	.frame.etype.etype.mask[1]	= 0xff,
+	.key.etype.etype.value[0]	= 0x88,
+	.key.etype.etype.value[1]	= 0xf7,
+	.key.etype.etype.mask[0]	= 0xff,
+	.key.etype.etype.mask[1]	= 0xff,
 };
 
 int ocelot_init(struct ocelot *ocelot)
@@ -2358,7 +2358,7 @@ int ocelot_init(struct ocelot *ocelot)
 	INIT_LIST_HEAD(&ocelot->policer);
 	ocelot_mact_init(ocelot);
 	ocelot_vlan_init(ocelot);
-	ocelot_ace_init(ocelot);
+	ocelot_vcap_init(ocelot);
 
 	for (port = 0; port < ocelot->num_phys_ports; port++) {
 		/* Clear all counters (5 groups) */
@@ -2463,7 +2463,7 @@ int ocelot_init(struct ocelot *ocelot)
 		ptp_rule.ingress_port_mask =
 			GENMASK(ocelot->num_phys_ports - 1, 0);
 		ptp_rule.ingress_port_mask &= ~BIT(ocelot->npi);
-		ocelot_ace_rule_offload_add(ocelot, &ptp_rule, NULL);
+		ocelot_vcap_filter_add(ocelot, &ptp_rule, NULL);
 	}
 
 	return 0;

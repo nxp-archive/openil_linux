@@ -10,7 +10,7 @@
 #include "ocelot_vcap.h"
 
 static int ocelot_flower_parse_action(struct flow_cls_offload *f,
-				      struct ocelot_ace_rule *ace)
+				      struct ocelot_vcap_filter *filter)
 {
 	struct netlink_ext_ack *extack = f->common.extack;
 	const struct flow_action_entry *a;
@@ -22,71 +22,71 @@ static int ocelot_flower_parse_action(struct flow_cls_offload *f,
 	flow_action_for_each(i, a, &f->rule->action) {
 		switch (a->id) {
 		case FLOW_ACTION_DROP:
-			if (ace->vcap_id && ace->vcap_id != VCAP_IS2)
+			if (filter->vcap_id && filter->vcap_id != VCAP_IS2)
 				goto out_mix_disallowed;
 
-			ace->is2_action.drop_ena = true;
-			ace->vcap_id = VCAP_IS2;
+			filter->is2_action.drop_ena = true;
+			filter->vcap_id = VCAP_IS2;
 			break;
 		case FLOW_ACTION_TRAP:
-			if (ace->vcap_id && ace->vcap_id != VCAP_IS2)
+			if (filter->vcap_id && filter->vcap_id != VCAP_IS2)
 				goto out_mix_disallowed;
 
-			ace->is2_action.trap_ena = true;
-			ace->vcap_id = VCAP_IS2;
+			filter->is2_action.trap_ena = true;
+			filter->vcap_id = VCAP_IS2;
 			break;
 		case FLOW_ACTION_POLICE:
-			if (ace->vcap_id && ace->vcap_id != VCAP_IS2)
+			if (filter->vcap_id && filter->vcap_id != VCAP_IS2)
 				goto out_mix_disallowed;
 
-			ace->is2_action.police_ena = true;
-			ace->is2_action.pol_ix = a->police.index;
-			ace->vcap_id = VCAP_IS2;
+			filter->is2_action.police_ena = true;
+			filter->is2_action.pol_ix = a->police.index;
+			filter->vcap_id = VCAP_IS2;
 			rate = a->police.rate_bytes_ps;
 			burst = rate * PSCHED_NS2TICKS(a->police.burst);
-			ace->is2_action.pol = (struct ocelot_policer) {
+			filter->is2_action.pol = (struct ocelot_policer) {
 				.burst = div_u64(burst, PSCHED_TICKS_PER_SEC),
 				.rate = div_u64(rate, 1000) * 8,
 			};
 			break;
 		case FLOW_ACTION_PRIORITY:
-			if (ace->vcap_id && ace->vcap_id != VCAP_IS1)
+			if (filter->vcap_id && filter->vcap_id != VCAP_IS1)
 				goto out_mix_disallowed;
 
-			ace->is1_action.qos_ena = true;
-			ace->is1_action.qos_val = a->priority;
-			ace->vcap_id = VCAP_IS1;
+			filter->is1_action.qos_ena = true;
+			filter->is1_action.qos_val = a->priority;
+			filter->vcap_id = VCAP_IS1;
 			break;
 		case FLOW_ACTION_VLAN_MANGLE:
-			if (ace->vcap_id && ace->vcap_id != VCAP_IS1)
+			if (filter->vcap_id && filter->vcap_id != VCAP_IS1)
 				goto out_mix_disallowed;
 
-			ace->vcap_id = VCAP_IS1;
-			ace->is1_action.vlan_modify_ena = true;
-			ace->is1_action.vid = a->vlan.vid;
-			ace->is1_action.pcp = a->vlan.prio;
+			filter->vcap_id = VCAP_IS1;
+			filter->is1_action.vlan_modify_ena = true;
+			filter->is1_action.vid = a->vlan.vid;
+			filter->is1_action.pcp = a->vlan.prio;
 			break;
 		case FLOW_ACTION_VLAN_PUSH:
-			if (ace->vcap_id && ace->vcap_id != VCAP_ES0)
+			if (filter->vcap_id && filter->vcap_id != VCAP_ES0)
 				goto out_mix_disallowed;
 
-			ace->vcap_id = VCAP_ES0;
-			ace->es0_action.vlan_push_ena = true;
+			filter->vcap_id = VCAP_ES0;
+			filter->es0_action.vlan_push_ena = true;
 			proto = ntohs(a->vlan.proto);
-			if (ace->es0_action.vid != 0) {
-				ace->es0_action.cvlan_vid = a->vlan.vid;
-				ace->es0_action.cvlan_pcp = a->vlan.prio;
-				ace->es0_action.cvlan_proto = proto;
+			if (filter->es0_action.vid != 0) {
+				filter->es0_action.cvlan_vid = a->vlan.vid;
+				filter->es0_action.cvlan_pcp = a->vlan.prio;
+				filter->es0_action.cvlan_proto = proto;
 			} else {
-				ace->es0_action.vid = a->vlan.vid;
-				ace->es0_action.pcp = a->vlan.prio;
-				ace->es0_action.proto = proto;
+				filter->es0_action.vid = a->vlan.vid;
+				filter->es0_action.pcp = a->vlan.prio;
+				filter->es0_action.proto = proto;
 			}
 			break;
 		case FLOW_ACTION_VLAN_POP:
-			ace->vcap_id = VCAP_IS1;
-			if (ace->is1_action.pop_cnt < 2)
-				ace->is1_action.pop_cnt++;
+			filter->vcap_id = VCAP_IS1;
+			if (filter->is1_action.pop_cnt < 2)
+				filter->is1_action.pop_cnt++;
 			break;
 		default:
 			return -EOPNOTSUPP;
@@ -102,7 +102,7 @@ out_mix_disallowed:
 }
 
 static int ocelot_flower_parse(struct flow_cls_offload *f,
-			       struct ocelot_ace_rule *ace)
+			       struct ocelot_vcap_filter *filter)
 {
 	struct flow_rule *rule = flow_cls_offload_flow_rule(f);
 	struct flow_dissector *dissector = rule->match.dissector;
@@ -144,14 +144,14 @@ static int ocelot_flower_parse(struct flow_cls_offload *f,
 			return -EOPNOTSUPP;
 
 		flow_rule_match_eth_addrs(rule, &match);
-		ace->type = OCELOT_ACE_TYPE_ETYPE;
-		ether_addr_copy(ace->frame.etype.dmac.value,
+		filter->key_type = OCELOT_VCAP_KEY_ETYPE;
+		ether_addr_copy(filter->key.etype.dmac.value,
 				match.key->dst);
-		ether_addr_copy(ace->frame.etype.smac.value,
+		ether_addr_copy(filter->key.etype.smac.value,
 				match.key->src);
-		ether_addr_copy(ace->frame.etype.dmac.mask,
+		ether_addr_copy(filter->key.etype.dmac.mask,
 				match.mask->dst);
-		ether_addr_copy(ace->frame.etype.smac.mask,
+		ether_addr_copy(filter->key.etype.smac.mask,
 				match.mask->src);
 		goto finished_key_parsing;
 	}
@@ -161,18 +161,18 @@ static int ocelot_flower_parse(struct flow_cls_offload *f,
 
 		flow_rule_match_basic(rule, &match);
 		if (ntohs(match.key->n_proto) == ETH_P_IP) {
-			ace->type = OCELOT_ACE_TYPE_IPV4;
-			ace->frame.ipv4.proto.value[0] =
+			filter->key_type = OCELOT_VCAP_KEY_IPV4;
+			filter->key.ipv4.proto.value[0] =
 				match.key->ip_proto;
-			ace->frame.ipv4.proto.mask[0] =
+			filter->key.ipv4.proto.mask[0] =
 				match.mask->ip_proto;
 			match_protocol = false;
 		}
 		if (ntohs(match.key->n_proto) == ETH_P_IPV6) {
-			ace->type = OCELOT_ACE_TYPE_IPV6;
-			ace->frame.ipv6.proto.value[0] =
+			filter->key_type = OCELOT_VCAP_KEY_IPV6;
+			filter->key.ipv6.proto.value[0] =
 				match.key->ip_proto;
-			ace->frame.ipv6.proto.mask[0] =
+			filter->key.ipv6.proto.mask[0] =
 				match.mask->ip_proto;
 			match_protocol = false;
 		}
@@ -184,16 +184,16 @@ static int ocelot_flower_parse(struct flow_cls_offload *f,
 		u8 *tmp;
 
 		flow_rule_match_ipv4_addrs(rule, &match);
-		tmp = &ace->frame.ipv4.sip.value.addr[0];
+		tmp = &filter->key.ipv4.sip.value.addr[0];
 		memcpy(tmp, &match.key->src, 4);
 
-		tmp = &ace->frame.ipv4.sip.mask.addr[0];
+		tmp = &filter->key.ipv4.sip.mask.addr[0];
 		memcpy(tmp, &match.mask->src, 4);
 
-		tmp = &ace->frame.ipv4.dip.value.addr[0];
+		tmp = &filter->key.ipv4.dip.value.addr[0];
 		memcpy(tmp, &match.key->dst, 4);
 
-		tmp = &ace->frame.ipv4.dip.mask.addr[0];
+		tmp = &filter->key.ipv4.dip.mask.addr[0];
 		memcpy(tmp, &match.mask->dst, 4);
 		match_protocol = false;
 	}
@@ -207,10 +207,10 @@ static int ocelot_flower_parse(struct flow_cls_offload *f,
 		struct flow_match_ports match;
 
 		flow_rule_match_ports(rule, &match);
-		ace->frame.ipv4.sport.value = ntohs(match.key->src);
-		ace->frame.ipv4.sport.mask = ntohs(match.mask->src);
-		ace->frame.ipv4.dport.value = ntohs(match.key->dst);
-		ace->frame.ipv4.dport.mask = ntohs(match.mask->dst);
+		filter->key.ipv4.sport.value = ntohs(match.key->src);
+		filter->key.ipv4.sport.mask = ntohs(match.mask->src);
+		filter->key.ipv4.dport.value = ntohs(match.key->dst);
+		filter->key.ipv4.dport.mask = ntohs(match.mask->dst);
 		match_protocol = false;
 	}
 
@@ -218,11 +218,11 @@ static int ocelot_flower_parse(struct flow_cls_offload *f,
 		struct flow_match_vlan match;
 
 		flow_rule_match_vlan(rule, &match);
-		ace->type = OCELOT_ACE_TYPE_ANY;
-		ace->vlan.vid.value = match.key->vlan_id;
-		ace->vlan.vid.mask = match.mask->vlan_id;
-		ace->vlan.pcp.value[0] = match.key->vlan_priority;
-		ace->vlan.pcp.mask[0] = match.mask->vlan_priority;
+		filter->key_type = OCELOT_VCAP_KEY_ANY;
+		filter->vlan.vid.value = match.key->vlan_id;
+		filter->vlan.vid.mask = match.mask->vlan_id;
+		filter->vlan.pcp.value[0] = match.key->vlan_priority;
+		filter->vlan.pcp.mask[0] = match.mask->vlan_priority;
 		match_protocol = false;
 	}
 
@@ -230,11 +230,11 @@ static int ocelot_flower_parse(struct flow_cls_offload *f,
 		struct flow_match_vlan match;
 
 		flow_rule_match_cvlan(rule, &match);
-		ace->type = OCELOT_ACE_TYPE_ANY;
-		ace->cvlan.vid.value = match.key->vlan_id;
-		ace->cvlan.vid.mask = match.mask->vlan_id;
-		ace->cvlan.pcp.value[0] = match.key->vlan_priority;
-		ace->cvlan.pcp.mask[0] = match.mask->vlan_priority;
+		filter->key_type = OCELOT_VCAP_KEY_ANY;
+		filter->cvlan.vid.value = match.key->vlan_id;
+		filter->cvlan.vid.mask = match.mask->vlan_id;
+		filter->cvlan.pcp.value[0] = match.key->vlan_priority;
+		filter->cvlan.pcp.mask[0] = match.mask->vlan_priority;
 		match_protocol = false;
 	}
 
@@ -243,89 +243,88 @@ finished_key_parsing:
 		/* TODO: support SNAP, LLC etc */
 		if (proto < ETH_P_802_3_MIN)
 			return -EOPNOTSUPP;
-		ace->type = OCELOT_ACE_TYPE_ETYPE;
-		*(u16 *)ace->frame.etype.etype.value = htons(proto);
-		*(u16 *)ace->frame.etype.etype.mask = 0xffff;
+		filter->key_type = OCELOT_VCAP_KEY_ETYPE;
+		*(u16 *)filter->key.etype.etype.value = htons(proto);
+		*(u16 *)filter->key.etype.etype.mask = 0xffff;
 	}
-	/* else, a rule of type OCELOT_ACE_TYPE_ANY is implicitly added */
+	/* else, a rule of type OCELOT_VCAP_TYPE_ANY is implicitly added */
 
-	ace->prio = f->common.prio;
-	ace->id = f->cookie;
-	return ocelot_flower_parse_action(f, ace);
+	filter->prio = f->common.prio;
+	filter->id = f->cookie;
+	return ocelot_flower_parse_action(f, filter);
 }
 
-static
-struct ocelot_ace_rule *ocelot_ace_rule_create(struct ocelot *ocelot, int port,
-					       bool ingress,
-					       struct flow_cls_offload *f)
+static struct ocelot_vcap_filter
+	*ocelot_vcap_filter_create(struct ocelot *ocelot, int port,
+				   bool ingress, struct flow_cls_offload *f)
 {
-	struct ocelot_ace_rule *ace;
+	struct ocelot_vcap_filter *filter;
 
-	ace = kzalloc(sizeof(*ace), GFP_KERNEL);
-	if (!ace)
+	filter = kzalloc(sizeof(*filter), GFP_KERNEL);
+	if (!filter)
 		return NULL;
 
 	if (ingress)
-		ace->ingress_port_mask = BIT(port);
+		filter->ingress_port_mask = BIT(port);
 	else
-		ace->egress_port = port;
-	return ace;
+		filter->egress_port = port;
+	return filter;
 }
 
 int ocelot_cls_flower_replace(struct ocelot *ocelot, int port,
 			      struct flow_cls_offload *f, bool ingress)
 {
-	struct ocelot_ace_rule *ace;
+	struct ocelot_vcap_filter *filter;
 	int ret;
 
-	ace = ocelot_ace_rule_create(ocelot, port, ingress, f);
-	if (!ace)
+	filter = ocelot_vcap_filter_create(ocelot, port, ingress, f);
+	if (!filter)
 		return -ENOMEM;
 
-	ret = ocelot_flower_parse(f, ace);
+	ret = ocelot_flower_parse(f, filter);
 	if (ret) {
-		kfree(ace);
+		kfree(filter);
 		return ret;
 	}
 
-	return ocelot_ace_rule_offload_add(ocelot, ace, f->common.extack);
+	return ocelot_vcap_filter_add(ocelot, filter, f->common.extack);
 }
 EXPORT_SYMBOL_GPL(ocelot_cls_flower_replace);
 
 int ocelot_cls_flower_destroy(struct ocelot *ocelot, int port,
 			      struct flow_cls_offload *f, bool ingress)
 {
-	struct ocelot_ace_rule ace;
+	struct ocelot_vcap_filter filter;
 
-	ace.prio = f->common.prio;
-	ace.id = f->cookie;
+	filter.prio = f->common.prio;
+	filter.id = f->cookie;
 	if (ingress)
-		ace.vcap_id = VCAP_IS2;
+		filter.vcap_id = VCAP_IS2;
 	else
-		ace.vcap_id = VCAP_ES0;
+		filter.vcap_id = VCAP_ES0;
 
-	return ocelot_ace_rule_offload_del(ocelot, &ace);
+	return ocelot_vcap_filter_del(ocelot, &filter);
 }
 EXPORT_SYMBOL_GPL(ocelot_cls_flower_destroy);
 
 int ocelot_cls_flower_stats(struct ocelot *ocelot, int port,
 			    struct flow_cls_offload *f, bool ingress)
 {
-	struct ocelot_ace_rule ace;
+	struct ocelot_vcap_filter filter;
 	int ret;
 
-	ace.prio = f->common.prio;
-	ace.id = f->cookie;
+	filter.prio = f->common.prio;
+	filter.id = f->cookie;
 	if (ingress)
-		ace.vcap_id = VCAP_IS2;
+		filter.vcap_id = VCAP_IS2;
 	else
-		ace.vcap_id = VCAP_ES0;
+		filter.vcap_id = VCAP_ES0;
 
-	ret = ocelot_ace_rule_stats_update(ocelot, &ace);
+	ret = ocelot_vcap_filter_stats_update(ocelot, &filter);
 	if (ret)
 		return ret;
 
-	flow_stats_update(&f->stats, 0x0, ace.stats.pkts, 0x0);
+	flow_stats_update(&f->stats, 0x0, filter.stats.pkts, 0x0);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(ocelot_cls_flower_stats);
