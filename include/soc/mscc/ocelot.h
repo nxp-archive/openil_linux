@@ -483,7 +483,7 @@ struct ocelot_ops {
 	int (*reset)(struct ocelot *ocelot);
 };
 
-struct ocelot_acl_block {
+struct ocelot_vcap_block {
 	struct list_head rules;
 	int count;
 };
@@ -548,7 +548,7 @@ struct ocelot {
 
 	struct list_head		multicast;
 
-	struct ocelot_acl_block		acl_block[3];
+	struct ocelot_vcap_block	block[3];
 
 	struct list_head		policer;
 	int				policer_base;
@@ -706,9 +706,9 @@ int ocelot_get_max_mtu(struct ocelot *ocelot, int port);
 int ocelot_port_policer_add(struct ocelot *ocelot, int port,
 			    struct ocelot_policer *pol);
 int ocelot_port_policer_del(struct ocelot *ocelot, int port);
-int ocelot_ace_policer_add(struct ocelot *ocelot, u32 pol_ix,
-			   struct ocelot_policer *pol);
-int ocelot_ace_policer_del(struct ocelot *ocelot, u32 pol_ix);
+int ocelot_vcap_policer_add(struct ocelot *ocelot, u32 pol_ix,
+			    struct ocelot_policer *pol);
+int ocelot_vcap_policer_del(struct ocelot *ocelot, u32 pol_ix);
 int ocelot_cls_flower_replace(struct ocelot *ocelot, int port,
 			      struct flow_cls_offload *f, bool ingress);
 int ocelot_cls_flower_destroy(struct ocelot *ocelot, int port,

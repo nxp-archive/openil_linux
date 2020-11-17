@@ -3,8 +3,8 @@
  * Copyright (c) 2019 Microsemi Corporation
  */
 
-#ifndef _MSCC_OCELOT_ACE_H_
-#define _MSCC_OCELOT_ACE_H_
+#ifndef _MSCC_OCELOT_VCAP_H_
+#define _MSCC_OCELOT_VCAP_H_
 
 #include "ocelot.h"
 #include "ocelot_police.h"
@@ -76,31 +76,31 @@ struct ocelot_vcap_udp_tcp {
 	u16 mask;
 };
 
-enum ocelot_ace_type {
-	OCELOT_ACE_TYPE_ANY,
-	OCELOT_ACE_TYPE_ETYPE,
-	OCELOT_ACE_TYPE_LLC,
-	OCELOT_ACE_TYPE_SNAP,
-	OCELOT_ACE_TYPE_ARP,
-	OCELOT_ACE_TYPE_IPV4,
-	OCELOT_ACE_TYPE_IPV6
+enum ocelot_vcap_key_type {
+	OCELOT_VCAP_KEY_ANY,
+	OCELOT_VCAP_KEY_ETYPE,
+	OCELOT_VCAP_KEY_LLC,
+	OCELOT_VCAP_KEY_SNAP,
+	OCELOT_VCAP_KEY_ARP,
+	OCELOT_VCAP_KEY_IPV4,
+	OCELOT_VCAP_KEY_IPV6
 };
 
-struct ocelot_ace_vlan {
+struct ocelot_vcap_key_vlan {
 	struct ocelot_vcap_vid vid;    /* VLAN ID (12 bit) */
 	struct ocelot_vcap_u8  pcp;    /* PCP (3 bit) */
 	enum ocelot_vcap_bit dei;    /* DEI */
 	enum ocelot_vcap_bit tagged; /* Tagged/untagged frame */
 };
 
-struct ocelot_ace_frame_etype {
+struct ocelot_vcap_key_etype {
 	struct ocelot_vcap_u48 dmac;
 	struct ocelot_vcap_u48 smac;
 	struct ocelot_vcap_u16 etype;
 	struct ocelot_vcap_u16 data; /* MAC data */
 };
 
-struct ocelot_ace_frame_llc {
+struct ocelot_vcap_key_llc {
 	struct ocelot_vcap_u48 dmac;
 	struct ocelot_vcap_u48 smac;
 
@@ -108,7 +108,7 @@ struct ocelot_ace_frame_llc {
 	struct ocelot_vcap_u32 llc;
 };
 
-struct ocelot_ace_frame_snap {
+struct ocelot_vcap_key_snap {
 	struct ocelot_vcap_u48 dmac;
 	struct ocelot_vcap_u48 smac;
 
@@ -116,7 +116,7 @@ struct ocelot_ace_frame_snap {
 	struct ocelot_vcap_u40 snap;
 };
 
-struct ocelot_ace_frame_arp {
+struct ocelot_vcap_key_arp {
 	struct ocelot_vcap_u48 smac;
 	enum ocelot_vcap_bit arp;	/* Opcode ARP/RARP */
 	enum ocelot_vcap_bit req;	/* Opcode request/reply */
@@ -133,7 +133,7 @@ struct ocelot_ace_frame_arp {
 	struct ocelot_vcap_ipv4 dip;     /* Target IP address */
 };
 
-struct ocelot_ace_frame_ipv4 {
+struct ocelot_vcap_key_ipv4 {
 	enum ocelot_vcap_bit ttl;      /* TTL zero */
 	enum ocelot_vcap_bit fragment; /* Fragment */
 	enum ocelot_vcap_bit options;  /* Header options */
@@ -155,7 +155,7 @@ struct ocelot_ace_frame_ipv4 {
 	enum ocelot_vcap_bit seq_zero;       /* TCP sequence number is zero */
 };
 
-struct ocelot_ace_frame_ipv6 {
+struct ocelot_vcap_key_ipv6 {
 	struct ocelot_vcap_u8 proto; /* IPv6 protocol */
 	struct ocelot_vcap_u128 sip; /* IPv6 source (byte 0-7 ignored) */
 	struct ocelot_vcap_u128 dip; /* IPv6 destination (byte 0-7 ignored) */
@@ -175,7 +175,7 @@ struct ocelot_ace_frame_ipv6 {
 	enum ocelot_vcap_bit seq_zero;       /* TCP sequence number is zero */
 };
 
-struct ocelot_ace_stats {
+struct ocelot_vcap_stats {
 	u64 bytes;
 	u64 pkts;
 	u64 used;
@@ -209,50 +209,50 @@ struct ocelot_es0_action {
 	u16 cvlan_proto;
 };
 
-struct ocelot_ace_rule {
+struct ocelot_vcap_filter {
 	struct list_head list;
 
 	u16 prio;
 	u32 id;
 	u8 vcap_id;
 
-	struct ocelot_ace_stats stats;
+	struct ocelot_vcap_stats stats;
 	unsigned long ingress_port_mask;
 	u8 egress_port;
 
 	enum ocelot_vcap_bit dmac_mc;
 	enum ocelot_vcap_bit dmac_bc;
-	struct ocelot_ace_vlan vlan;
-	struct ocelot_ace_vlan cvlan;
+	struct ocelot_vcap_key_vlan vlan;
+	struct ocelot_vcap_key_vlan cvlan;
 
-	enum ocelot_ace_type type;
+	enum ocelot_vcap_key_type key_type;
 	union {
 		/* ocelot_ACE_TYPE_ANY: No specific fields */
-		struct ocelot_ace_frame_etype etype;
-		struct ocelot_ace_frame_llc llc;
-		struct ocelot_ace_frame_snap snap;
-		struct ocelot_ace_frame_arp arp;
-		struct ocelot_ace_frame_ipv4 ipv4;
-		struct ocelot_ace_frame_ipv6 ipv6;
-	} frame;
+		struct ocelot_vcap_key_etype etype;
+		struct ocelot_vcap_key_llc llc;
+		struct ocelot_vcap_key_snap snap;
+		struct ocelot_vcap_key_arp arp;
+		struct ocelot_vcap_key_ipv4 ipv4;
+		struct ocelot_vcap_key_ipv6 ipv6;
+	} key;
 
 	struct ocelot_is1_action is1_action;
 	struct ocelot_is2_action is2_action;
 	struct ocelot_es0_action es0_action;
 };
 
-int ocelot_ace_rule_offload_add(struct ocelot *ocelot,
-				struct ocelot_ace_rule *rule,
-				struct netlink_ext_ack *extack);
-int ocelot_ace_rule_offload_del(struct ocelot *ocelot,
-				struct ocelot_ace_rule *rule);
-int ocelot_ace_rule_stats_update(struct ocelot *ocelot,
-				 struct ocelot_ace_rule *rule);
+int ocelot_vcap_filter_add(struct ocelot *ocelot,
+			   struct ocelot_vcap_filter *rule,
+			   struct netlink_ext_ack *extack);
+int ocelot_vcap_filter_del(struct ocelot *ocelot,
+			   struct ocelot_vcap_filter *rule);
+int ocelot_vcap_filter_stats_update(struct ocelot *ocelot,
+				    struct ocelot_vcap_filter *rule);
 
-int ocelot_ace_init(struct ocelot *ocelot);
+int ocelot_vcap_init(struct ocelot *ocelot);
 
 int ocelot_setup_tc_cls_flower(struct ocelot_port_private *priv,
 			       struct flow_cls_offload *f,
 			       bool ingress);
 
-#endif /* _MSCC_OCELOT_ACE_H_ */
+#endif /* _MSCC_OCELOT_VCAP_H_ */
