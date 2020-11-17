@@ -6,7 +6,7 @@
 
 #include <soc/mscc/ocelot.h>
 #include "ocelot_tc.h"
-#include "ocelot_ace.h"
+#include "ocelot_vcap.h"
 #include <net/pkt_cls.h>
 
 static int ocelot_setup_tc_cls_matchall(struct ocelot_port_private *priv,
