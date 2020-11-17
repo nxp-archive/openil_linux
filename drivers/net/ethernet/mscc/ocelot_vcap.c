@@ -1235,17 +1235,12 @@ static void ocelot_vcap_block_remove_filter(struct ocelot *ocelot,
 int ocelot_vcap_filter_del(struct ocelot *ocelot,
 			   struct ocelot_vcap_filter *filter)
 {
-	struct ocelot_vcap_block *block;
+	struct ocelot_vcap_block *block = &ocelot->block[filter->vcap_id];
 	struct ocelot_vcap_filter del_filter;
-	int i, index, ret;
+	int i, index;
 
 	memset(&del_filter, 0, sizeof(del_filter));
 
-	ret = ocelot_vcap_get_vcap_id(ocelot->block, filter);
-	if (ret < 0)
-		return ret;
-
-	block = &ocelot->block[filter->vcap_id];
 	/* Gets index of the rule */
 	index = ocelot_vcap_block_get_filter_index(block, filter);
 	if (index < 0)
@@ -1272,15 +1267,10 @@ int ocelot_vcap_filter_del(struct ocelot *ocelot,
 int ocelot_vcap_filter_stats_update(struct ocelot *ocelot,
 				    struct ocelot_vcap_filter *filter)
 {
-	struct ocelot_vcap_block *block;
+	struct ocelot_vcap_block *block = &ocelot->block[filter->vcap_id];
 	struct ocelot_vcap_filter *tmp;
-	int index, ret;
+	int index;
 
-	ret = ocelot_vcap_get_vcap_id(ocelot->block, filter);
-	if (ret < 0)
-		return ret;
-
-	block = &ocelot->block[filter->vcap_id];
 	index = ocelot_vcap_block_get_filter_index(block, filter);
 	if (index < 0)
 		return -ENOENT;
