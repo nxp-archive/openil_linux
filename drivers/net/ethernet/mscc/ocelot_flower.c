@@ -9,12 +9,13 @@
 
 #include "ocelot_vcap.h"
 
-static int ocelot_flower_parse_action(struct flow_cls_offload *f,
+static int ocelot_flower_parse_action(struct ocelot *ocelot,
+				      struct flow_cls_offload *f,
 				      struct ocelot_vcap_filter *filter)
 {
 	struct netlink_ext_ack *extack = f->common.extack;
 	const struct flow_action_entry *a;
-	u16 proto;
+	enum ocelot_tag_tpid_sel tpid;
 	s64 burst;
 	u64 rate;
 	int i;
@@ -22,83 +23,83 @@ static int ocelot_flower_parse_action(struct flow_cls_offload *f,
 	flow_action_for_each(i, a, &f->rule->action) {
 		switch (a->id) {
 		case FLOW_ACTION_DROP:
-			if (filter->vcap_id && filter->vcap_id != VCAP_IS2)
-				goto out_mix_disallowed;
-
-			filter->is2_action.drop_ena = true;
+			filter->action.mask_mode = OCELOT_MASK_MODE_PERMIT_DENY;
+			filter->action.port_mask = 0;
+			filter->action.police_ena = true;
+			filter->action.pol_ix = OCELOT_POLICER_DISCARD;
 			filter->vcap_id = VCAP_IS2;
 			break;
 		case FLOW_ACTION_TRAP:
-			if (filter->vcap_id && filter->vcap_id != VCAP_IS2)
-				goto out_mix_disallowed;
-
-			filter->is2_action.trap_ena = true;
+			filter->action.mask_mode = OCELOT_MASK_MODE_PERMIT_DENY;
+			filter->action.port_mask = 0;
+			filter->action.cpu_copy_ena = true;
+			filter->action.cpu_qu_num = 0;
 			filter->vcap_id = VCAP_IS2;
 			break;
 		case FLOW_ACTION_POLICE:
-			if (filter->vcap_id && filter->vcap_id != VCAP_IS2)
-				goto out_mix_disallowed;
-
-			filter->is2_action.police_ena = true;
-			filter->is2_action.pol_ix = a->police.index;
+			filter->action.police_ena = true;
 			filter->vcap_id = VCAP_IS2;
+			filter->action.pol_ix = a->police.index + ocelot->policer_base;
 			rate = a->police.rate_bytes_ps;
 			burst = rate * PSCHED_NS2TICKS(a->police.burst);
-			filter->is2_action.pol = (struct ocelot_policer) {
+			filter->action.pol = (struct ocelot_policer) {
 				.burst = div_u64(burst, PSCHED_TICKS_PER_SEC),
 				.rate = div_u64(rate, 1000) * 8,
 			};
 			break;
 		case FLOW_ACTION_PRIORITY:
-			if (filter->vcap_id && filter->vcap_id != VCAP_IS1)
-				goto out_mix_disallowed;
-
-			filter->is1_action.qos_ena = true;
-			filter->is1_action.qos_val = a->priority;
+			filter->action.qos_ena = true;
+			filter->action.qos_val = a->priority;
 			filter->vcap_id = VCAP_IS1;
 			break;
 		case FLOW_ACTION_VLAN_MANGLE:
-			if (filter->vcap_id && filter->vcap_id != VCAP_IS1)
-				goto out_mix_disallowed;
-
 			filter->vcap_id = VCAP_IS1;
-			filter->is1_action.vlan_modify_ena = true;
-			filter->is1_action.vid = a->vlan.vid;
-			filter->is1_action.pcp = a->vlan.prio;
+			filter->action.vid_replace_ena = true;
+			filter->action.pcp_dei_ena = true;
+			filter->action.vid = a->vlan.vid;
+			filter->action.pcp = a->vlan.prio;
 			break;
 		case FLOW_ACTION_VLAN_PUSH:
-			if (filter->vcap_id && filter->vcap_id != VCAP_ES0)
-				goto out_mix_disallowed;
-
 			filter->vcap_id = VCAP_ES0;
-			filter->es0_action.vlan_push_ena = true;
-			proto = ntohs(a->vlan.proto);
-			if (filter->es0_action.vid != 0) {
-				filter->es0_action.cvlan_vid = a->vlan.vid;
-				filter->es0_action.cvlan_pcp = a->vlan.prio;
-				filter->es0_action.cvlan_proto = proto;
-			} else {
-				filter->es0_action.vid = a->vlan.vid;
-				filter->es0_action.pcp = a->vlan.prio;
-				filter->es0_action.proto = proto;
+			switch (ntohs(a->vlan.proto)) {
+			case ETH_P_8021Q:
+				tpid = OCELOT_TAG_TPID_SEL_8021Q;
+				filter->action.tag_a_tpid_sel = tpid;
+				filter->action.push_outer_tag = OCELOT_ES0_TAG;
+				filter->action.tag_a_vid_sel = 1;
+				filter->action.vid_a_val = a->vlan.vid;
+				filter->action.pcp_a_val = a->vlan.prio;
+				break;
+			case ETH_P_8021AD:
+				tpid = OCELOT_TAG_TPID_SEL_8021AD;
+				filter->action.tag_b_tpid_sel = tpid;
+				filter->action.push_inner_tag = OCELOT_ES0_TAG;
+				filter->action.tag_b_vid_sel = 1;
+				filter->action.vid_b_val = a->vlan.vid;
+				filter->action.pcp_b_val = a->vlan.prio;
+				break;
+			default:
+				NL_SET_ERR_MSG_MOD(extack,
+						   "Cannot push custom TPID");
 			}
 			break;
 		case FLOW_ACTION_VLAN_POP:
 			filter->vcap_id = VCAP_IS1;
-			if (filter->is1_action.pop_cnt < 2)
-				filter->is1_action.pop_cnt++;
+			filter->action.vlan_pop_cnt_ena = true;
+			filter->action.vlan_pop_cnt++;
+			if (filter->action.vlan_pop_cnt > 2) {
+				NL_SET_ERR_MSG_MOD(extack,
+						    "Cannot pop more than 2 VLAN headers");
+				return -EOPNOTSUPP;
+			}
 			break;
 		default:
+			NL_SET_ERR_MSG_MOD(extack, "Cannot offload action");
 			return -EOPNOTSUPP;
 		}
 	}
 
 	return 0;
-
-out_mix_disallowed:
-	NL_SET_ERR_MSG_MOD(extack,
-			   "Cannot mix actions for multiple VCAPs in the same rule");
-	return -EOPNOTSUPP;
 }
 
 static int ocelot_flower_parse_key(struct flow_cls_offload *f,
@@ -252,7 +253,8 @@ finished_key_parsing:
 	return 0;
 }
 
-static int ocelot_flower_parse(struct flow_cls_offload *f,
+static int ocelot_flower_parse(struct ocelot *ocelot,
+			       struct flow_cls_offload *f,
 			       struct ocelot_vcap_filter *filter)
 {
 	int ret;
@@ -260,7 +262,7 @@ static int ocelot_flower_parse(struct flow_cls_offload *f,
 	filter->prio = f->common.prio;
 	filter->id = f->cookie;
 
-	ret = ocelot_flower_parse_action(f, filter);
+	ret = ocelot_flower_parse_action(ocelot, f, filter);
 	if (ret)
 		return ret;
 
@@ -294,7 +296,7 @@ int ocelot_cls_flower_replace(struct ocelot *ocelot, int port,
 	if (!filter)
 		return -ENOMEM;
 
-	ret = ocelot_flower_parse(f, filter);
+	ret = ocelot_flower_parse(ocelot, f, filter);
 	if (ret) {
 		kfree(filter);
 		return ret;
