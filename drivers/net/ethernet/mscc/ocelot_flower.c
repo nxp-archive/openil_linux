@@ -9,36 +9,217 @@
 
 #include "ocelot_vcap.h"
 
-static int ocelot_flower_parse_action(struct ocelot *ocelot,
+/* Arbitrarily chosen constants for encoding the VCAP block and lookup number
+ * into the chain number. This is UAPI.
+ */
+#define VCAP_BLOCK			10000
+#define VCAP_LOOKUP			1000
+#define VCAP_IS1_NUM_LOOKUPS		3
+#define VCAP_IS2_NUM_LOOKUPS		2
+#define VCAP_IS2_NUM_PAG		256
+#define VCAP_IS1_CHAIN(lookup)		\
+	(1 * VCAP_BLOCK + (lookup) * VCAP_LOOKUP)
+#define VCAP_IS2_CHAIN(lookup, pag)	\
+	(2 * VCAP_BLOCK + (lookup) * VCAP_LOOKUP + (pag))
+
+static int ocelot_chain_to_block(int chain, bool ingress)
+{
+	int lookup, pag;
+
+	if (!ingress) {
+		if (chain == 0)
+			return VCAP_ES0;
+		return -EOPNOTSUPP;
+	}
+
+	/* Backwards compatibility with older, single-chain tc-flower
+	 * offload support in Ocelot
+	 */
+	if (chain == 0)
+		return VCAP_IS2;
+
+	for (lookup = 0; lookup < VCAP_IS1_NUM_LOOKUPS; lookup++)
+		if (chain == VCAP_IS1_CHAIN(lookup))
+			return VCAP_IS1;
+
+	for (lookup = 0; lookup < VCAP_IS2_NUM_LOOKUPS; lookup++)
+		for (pag = 0; pag < VCAP_IS2_NUM_PAG; pag++)
+			if (chain == VCAP_IS2_CHAIN(lookup, pag))
+				return VCAP_IS2;
+
+	return -EOPNOTSUPP;
+}
+
+/* Caller must ensure this is a valid IS1 or IS2 chain first,
+ * by calling ocelot_chain_to_block.
+ */
+static int ocelot_chain_to_lookup(int chain)
+{
+	return (chain / VCAP_LOOKUP) % 10;
+}
+
+/* Caller must ensure this is a valid IS2 chain first,
+ * by calling ocelot_chain_to_block.
+ */
+static int ocelot_chain_to_pag(int chain)
+{
+	int lookup = ocelot_chain_to_lookup(chain);
+
+	/* calculate PAG value as chain index relative to the first PAG */
+	return chain - VCAP_IS2_CHAIN(lookup, 0);
+}
+
+static bool ocelot_is_goto_target_valid(int goto_target, int chain,
+					bool ingress)
+{
+	int pag;
+
+	/* Can't offload GOTO in VCAP ES0 */
+	if (!ingress)
+		return (goto_target < 0);
+
+	/* Non-optional GOTOs */
+	if (chain == 0)
+		/* VCAP IS1 can be skipped, either partially or completely */
+		return (goto_target == VCAP_IS1_CHAIN(0) ||
+			goto_target == VCAP_IS1_CHAIN(1) ||
+			goto_target == VCAP_IS1_CHAIN(2) ||
+			goto_target == VCAP_IS2_CHAIN(0, 0) ||
+			goto_target == VCAP_IS2_CHAIN(1, 0));
+
+	if (chain == VCAP_IS1_CHAIN(0))
+		return (goto_target == VCAP_IS1_CHAIN(1));
+
+	if (chain == VCAP_IS1_CHAIN(1))
+		return (goto_target == VCAP_IS1_CHAIN(2));
+
+	/* Lookup 2 of VCAP IS1 can really support non-optional GOTOs,
+	 * using a Policy Association Group (PAG) value, which is an 8-bit
+	 * value encoding a VCAP IS2 target chain.
+	 */
+	if (chain == VCAP_IS1_CHAIN(2)) {
+		for (pag = 0; pag < VCAP_IS2_NUM_PAG; pag++)
+			if (goto_target == VCAP_IS2_CHAIN(0, pag))
+				return true;
+
+		return false;
+	}
+
+	/* Non-optional GOTO from VCAP IS2 lookup 0 to lookup 1.
+	 * We cannot change the PAG at this point.
+	 */
+	for (pag = 0; pag < VCAP_IS2_NUM_PAG; pag++)
+		if (chain == VCAP_IS2_CHAIN(0, pag))
+			return (goto_target == VCAP_IS2_CHAIN(1, pag));
+
+	/* VCAP IS2 lookup 1 cannot jump anywhere */
+	return false;
+}
+
+static struct ocelot_vcap_filter *
+ocelot_find_vcap_filter_that_points_at(struct ocelot *ocelot, int chain)
+{
+	struct ocelot_vcap_filter *filter;
+	struct ocelot_vcap_block *block;
+	int vcap_id;
+
+	vcap_id = ocelot_chain_to_block(chain, true);
+	if (vcap_id < 0)
+		return NULL;
+
+	if (vcap_id == VCAP_IS2) {
+		block = &ocelot->block[VCAP_IS1];
+
+		list_for_each_entry(filter, &block->rules, list)
+			if (filter->type == OCELOT_VCAP_FILTER_PAG &&
+			    filter->goto_target == chain)
+				return filter;
+	}
+
+	list_for_each_entry(filter, &ocelot->dummy_rules, list)
+		if (filter->goto_target == chain)
+			return filter;
+
+	return NULL;
+}
+
+static int ocelot_flower_parse_action(struct ocelot *ocelot, bool ingress,
 				      struct flow_cls_offload *f,
 				      struct ocelot_vcap_filter *filter)
 {
 	struct netlink_ext_ack *extack = f->common.extack;
+	bool allow_missing_goto_target = false;
 	const struct flow_action_entry *a;
 	enum ocelot_tag_tpid_sel tpid;
+	int i, chain;
 	s64 burst;
 	u64 rate;
-	int i;
+
+	chain = f->common.chain_index;
+	filter->vcap_id = ocelot_chain_to_block(chain, ingress);
+	if (filter->vcap_id < 0) {
+		NL_SET_ERR_MSG_MOD(extack, "Cannot offload to this chain");
+		return -EOPNOTSUPP;
+	}
+	if (filter->vcap_id == VCAP_IS1 || filter->vcap_id == VCAP_IS2)
+		filter->lookup = ocelot_chain_to_lookup(chain);
+
+	if (filter->vcap_id == VCAP_IS2)
+		filter->pag = ocelot_chain_to_pag(chain);
+
+	filter->goto_target = -1;
+	filter->type = OCELOT_VCAP_FILTER_DUMMY;
 
 	flow_action_for_each(i, a, &f->rule->action) {
 		switch (a->id) {
 		case FLOW_ACTION_DROP:
+			if (filter->vcap_id != VCAP_IS2) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "Drop action can only be offloaded to VCAP IS2");
+				return -EOPNOTSUPP;
+			}
+			if (filter->goto_target != -1) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "Last action must be GOTO");
+				return -EOPNOTSUPP;
+			}
+			filter->type = OCELOT_VCAP_FILTER_OFFLOAD;
 			filter->action.mask_mode = OCELOT_MASK_MODE_PERMIT_DENY;
 			filter->action.port_mask = 0;
 			filter->action.police_ena = true;
 			filter->action.pol_ix = OCELOT_POLICER_DISCARD;
-			filter->vcap_id = VCAP_IS2;
 			break;
 		case FLOW_ACTION_TRAP:
+			if (filter->vcap_id != VCAP_IS2) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "Trap action can only be offloaded to VCAP IS2");
+				return -EOPNOTSUPP;
+			}
+			if (filter->goto_target != -1) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "Last action must be GOTO");
+				return -EOPNOTSUPP;
+			}
+			filter->type = OCELOT_VCAP_FILTER_OFFLOAD;
 			filter->action.mask_mode = OCELOT_MASK_MODE_PERMIT_DENY;
 			filter->action.port_mask = 0;
 			filter->action.cpu_copy_ena = true;
 			filter->action.cpu_qu_num = 0;
-			filter->vcap_id = VCAP_IS2;
 			break;
 		case FLOW_ACTION_POLICE:
+			if (filter->vcap_id != VCAP_IS2 ||
+			    filter->lookup != 0) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "Police action can only be offloaded to VCAP IS2 lookup 0");
+				return -EOPNOTSUPP;
+			}
+			if (filter->goto_target != -1) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "Last action must be GOTO");
+				return -EOPNOTSUPP;
+			}
+			filter->type = OCELOT_VCAP_FILTER_OFFLOAD;
 			filter->action.police_ena = true;
-			filter->vcap_id = VCAP_IS2;
 			filter->action.pol_ix = a->police.index + ocelot->policer_base;
 			rate = a->police.rate_bytes_ps;
 			burst = rate * PSCHED_NS2TICKS(a->police.burst);
@@ -48,19 +229,44 @@ static int ocelot_flower_parse_action(struct ocelot *ocelot,
 			};
 			break;
 		case FLOW_ACTION_PRIORITY:
+			if (filter->vcap_id != VCAP_IS1) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "Priority action can only be offloaded to VCAP IS1");
+				return -EOPNOTSUPP;
+			}
+			if (filter->goto_target != -1) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "Last action must be GOTO");
+				return -EOPNOTSUPP;
+			}
+			filter->type = OCELOT_VCAP_FILTER_OFFLOAD;
 			filter->action.qos_ena = true;
 			filter->action.qos_val = a->priority;
-			filter->vcap_id = VCAP_IS1;
 			break;
 		case FLOW_ACTION_VLAN_MANGLE:
-			filter->vcap_id = VCAP_IS1;
+			if (filter->vcap_id != VCAP_IS1) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "VLAN modify action can only be offloaded to VCAP IS1");
+				return -EOPNOTSUPP;
+			}
+			if (filter->goto_target != -1) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "Last action must be GOTO");
+				return -EOPNOTSUPP;
+			}
+			filter->type = OCELOT_VCAP_FILTER_OFFLOAD;
 			filter->action.vid_replace_ena = true;
 			filter->action.pcp_dei_ena = true;
 			filter->action.vid = a->vlan.vid;
 			filter->action.pcp = a->vlan.prio;
 			break;
 		case FLOW_ACTION_VLAN_PUSH:
-			filter->vcap_id = VCAP_ES0;
+			if (filter->vcap_id != VCAP_ES0) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "VLAN push action can only be offloaded to VCAP ES0");
+				return -EOPNOTSUPP;
+			}
+			filter->type = OCELOT_VCAP_FILTER_OFFLOAD;
 			switch (ntohs(a->vlan.proto)) {
 			case ETH_P_8021Q:
 				tpid = OCELOT_TAG_TPID_SEL_8021Q;
@@ -84,7 +290,17 @@ static int ocelot_flower_parse_action(struct ocelot *ocelot,
 			}
 			break;
 		case FLOW_ACTION_VLAN_POP:
-			filter->vcap_id = VCAP_IS1;
+			if (filter->vcap_id != VCAP_IS1) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "VLAN pop action can only be offloaded to VCAP IS1");
+				return -EOPNOTSUPP;
+			}
+			if (filter->goto_target != -1) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "Last action must be GOTO");
+				return -EOPNOTSUPP;
+			}
+			filter->type = OCELOT_VCAP_FILTER_OFFLOAD;
 			filter->action.vlan_pop_cnt_ena = true;
 			filter->action.vlan_pop_cnt++;
 			if (filter->action.vlan_pop_cnt > 2) {
@@ -93,16 +309,43 @@ static int ocelot_flower_parse_action(struct ocelot *ocelot,
 				return -EOPNOTSUPP;
 			}
 			break;
+		case FLOW_ACTION_GOTO:
+			filter->goto_target = a->chain_index;
+
+			if (filter->vcap_id == VCAP_IS1 && filter->lookup == 2) {
+				int pag = ocelot_chain_to_pag(filter->goto_target);
+
+				filter->action.pag_override_mask = 0xff;
+				filter->action.pag_val = pag;
+				filter->type = OCELOT_VCAP_FILTER_PAG;
+			}
+			break;
 		default:
 			NL_SET_ERR_MSG_MOD(extack, "Cannot offload action");
 			return -EOPNOTSUPP;
 		}
 	}
 
+	if (filter->goto_target == -1) {
+		if ((filter->vcap_id == VCAP_IS2 && filter->lookup == 1) ||
+		    chain == 0) {
+			allow_missing_goto_target = true;
+		} else {
+			NL_SET_ERR_MSG_MOD(extack, "Missing GOTO action");
+			return -EOPNOTSUPP;
+		}
+	}
+
+	if (!ocelot_is_goto_target_valid(filter->goto_target, chain, ingress) &&
+	    !allow_missing_goto_target) {
+		NL_SET_ERR_MSG_MOD(extack, "Cannot offload this GOTO target");
+		return -EOPNOTSUPP;
+	}
+
 	return 0;
 }
 
-static int ocelot_flower_parse_key(struct flow_cls_offload *f,
+static int ocelot_flower_parse_key(struct flow_cls_offload *f, bool ingress,
 				   struct ocelot_vcap_filter *filter)
 {
 	struct flow_rule *rule = flow_cls_offload_flow_rule(f);
@@ -253,7 +496,7 @@ finished_key_parsing:
 	return 0;
 }
 
-static int ocelot_flower_parse(struct ocelot *ocelot,
+static int ocelot_flower_parse(struct ocelot *ocelot, bool ingress,
 			       struct flow_cls_offload *f,
 			       struct ocelot_vcap_filter *filter)
 {
@@ -262,11 +505,28 @@ static int ocelot_flower_parse(struct ocelot *ocelot,
 	filter->prio = f->common.prio;
 	filter->id = f->cookie;
 
-	ret = ocelot_flower_parse_action(ocelot, f, filter);
+	ret = ocelot_flower_parse_action(ocelot, ingress, f, filter);
 	if (ret)
 		return ret;
 
-	return ocelot_flower_parse_key(f, filter);
+	return ocelot_flower_parse_key(f, ingress, filter);
+}
+
+static int ocelot_vcap_dummy_filter_add(struct ocelot *ocelot,
+					struct ocelot_vcap_filter *filter)
+{
+	list_add(&filter->list, &ocelot->dummy_rules);
+
+	return 0;
+}
+
+static int ocelot_vcap_dummy_filter_del(struct ocelot *ocelot,
+					struct ocelot_vcap_filter *filter)
+{
+	list_del(&filter->list);
+	kfree(filter);
+
+	return 0;
 }
 
 static struct ocelot_vcap_filter
@@ -289,18 +549,31 @@ static struct ocelot_vcap_filter
 int ocelot_cls_flower_replace(struct ocelot *ocelot, int port,
 			      struct flow_cls_offload *f, bool ingress)
 {
+	struct netlink_ext_ack *extack = f->common.extack;
 	struct ocelot_vcap_filter *filter;
+	int chain = f->common.chain_index;
 	int ret;
+
+	if (chain && !ocelot_find_vcap_filter_that_points_at(ocelot, chain)) {
+		NL_SET_ERR_MSG_MOD(extack, "No default GOTO action points to this chain");
+		return -EOPNOTSUPP;
+	}
 
 	filter = ocelot_vcap_filter_create(ocelot, port, ingress, f);
 	if (!filter)
 		return -ENOMEM;
 
-	ret = ocelot_flower_parse(ocelot, f, filter);
+	ret = ocelot_flower_parse(ocelot, ingress, f, filter);
 	if (ret) {
 		kfree(filter);
 		return ret;
 	}
+
+	/* The non-optional GOTOs for the TCAM skeleton don't need
+	 * to be actually offloaded.
+	 */
+	if (filter->type == OCELOT_VCAP_FILTER_DUMMY)
+		return ocelot_vcap_dummy_filter_add(ocelot, filter);
 
 	return ocelot_vcap_filter_add(ocelot, filter, f->common.extack);
 }
@@ -311,16 +584,19 @@ int ocelot_cls_flower_destroy(struct ocelot *ocelot, int port,
 {
 	struct ocelot_vcap_block *block;
 	struct ocelot_vcap_filter *filter;
-	int i;
+	int vcap_id;
 
-	for (i = 0; i < VCAP_CORE_MAX; i++) {
-		block = &ocelot->block[i];
-		filter = ocelot_vcap_block_find_filter_by_id(block, f->cookie);
-		if (filter)
-			break;
-	}
+	vcap_id = ocelot_chain_to_block(f->common.chain_index, ingress);
+	if (vcap_id < 0)
+		return 0;
+	block = &ocelot->block[vcap_id];
+
+	filter = ocelot_vcap_block_find_filter_by_id(block, f->cookie);
 	if (!filter)
 		return 0;
+
+	if (filter->type == OCELOT_VCAP_FILTER_DUMMY)
+		return ocelot_vcap_dummy_filter_del(ocelot, filter);
 
 	return ocelot_vcap_filter_del(ocelot, filter);
 }
@@ -331,15 +607,15 @@ int ocelot_cls_flower_stats(struct ocelot *ocelot, int port,
 {
 	struct ocelot_vcap_block *block;
 	struct ocelot_vcap_filter *filter;
-	int ret, i;
+	int ret, vcap_id;
 
-	for (i = 0; i < VCAP_CORE_MAX; i++) {
-		block = &ocelot->block[i];
-		filter = ocelot_vcap_block_find_filter_by_id(block, f->cookie);
-		if (filter)
-			break;
-	}
-	if (!filter)
+	vcap_id = ocelot_chain_to_block(f->common.chain_index, ingress);
+	if (vcap_id < 0)
+		return 0;
+	block = &ocelot->block[vcap_id];
+
+	filter = ocelot_vcap_block_find_filter_by_id(block, f->cookie);
+	if (!filter || filter->type == OCELOT_VCAP_FILTER_DUMMY)
 		return 0;
 
 	ret = ocelot_vcap_filter_stats_update(ocelot, filter);

@@ -250,9 +250,17 @@ struct ocelot_vcap_stats {
 	u64 used;
 };
 
+enum ocelot_vcap_filter_type {
+	OCELOT_VCAP_FILTER_DUMMY,
+	OCELOT_VCAP_FILTER_PAG,
+	OCELOT_VCAP_FILTER_OFFLOAD,
+};
+
 struct ocelot_vcap_filter {
 	struct list_head list;
 
+	enum ocelot_vcap_filter_type type;
+	int goto_target;
 	int vcap_id;
 	int lookup;
 	u8 pag;
