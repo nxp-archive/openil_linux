@@ -17396,6 +17396,7 @@ L:	netdev@vger.kernel.org
 S:	Maintained
 F:	drivers/net/dsa/ocelot/*
 F:	net/dsa/tag_ocelot.c
+F:	tools/testing/selftests/drivers/net/ocelot/*
 
 VIVID VIRTUAL VIDEO DRIVER
 M:	Hans Verkuil <hverkuil@xs4all.nl>
