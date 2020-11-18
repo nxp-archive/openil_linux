@@ -12,15 +12,14 @@
 /* Arbitrarily chosen constants for encoding the VCAP block and lookup number
  * into the chain number. This is UAPI.
  */
-#define VCAP_BLOCK			10000
 #define VCAP_LOOKUP			1000
 #define VCAP_IS1_NUM_LOOKUPS		3
 #define VCAP_IS2_NUM_LOOKUPS		2
 #define VCAP_IS2_NUM_PAG		256
 #define VCAP_IS1_CHAIN(lookup)		\
-	(1 * VCAP_BLOCK + (lookup) * VCAP_LOOKUP)
+	(OCELOT_INGRESS_IS1 * OCELOT_HW_BLOCK + (lookup) * VCAP_LOOKUP)
 #define VCAP_IS2_CHAIN(lookup, pag)	\
-	(2 * VCAP_BLOCK + (lookup) * VCAP_LOOKUP + (pag))
+	(OCELOT_INGRESS_IS2 * OCELOT_HW_BLOCK + (lookup) * VCAP_LOOKUP + (pag))
 
 static int ocelot_chain_to_block(int chain, bool ingress)
 {
@@ -85,7 +84,8 @@ static bool ocelot_is_goto_target_valid(int goto_target, int chain,
 			goto_target == VCAP_IS1_CHAIN(1) ||
 			goto_target == VCAP_IS1_CHAIN(2) ||
 			goto_target == VCAP_IS2_CHAIN(0, 0) ||
-			goto_target == VCAP_IS2_CHAIN(1, 0));
+			goto_target == VCAP_IS2_CHAIN(1, 0) ||
+			goto_target == OCELOT_PSFP_CHAIN);
 
 	if (chain == VCAP_IS1_CHAIN(0))
 		return (goto_target == VCAP_IS1_CHAIN(1));
@@ -112,7 +112,11 @@ static bool ocelot_is_goto_target_valid(int goto_target, int chain,
 		if (chain == VCAP_IS2_CHAIN(0, pag))
 			return (goto_target == VCAP_IS2_CHAIN(1, pag));
 
-	/* VCAP IS2 lookup 1 cannot jump anywhere */
+	/* VCAP IS2 lookup 1 can goto to PSFP block if hardware support */
+	for (pag = 0; pag < VCAP_IS2_NUM_PAG; pag++)
+		if (chain == VCAP_IS2_CHAIN(1, pag))
+			return (goto_target == OCELOT_PSFP_CHAIN);
+
 	return false;
 }
 

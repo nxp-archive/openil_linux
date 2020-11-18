@@ -477,6 +477,16 @@ enum ocelot_tag_prefix {
 	OCELOT_TAG_PREFIX_LONG,
 };
 
+enum ocelot_ingress_blocks {
+	OCELOT_INGRESS_DEFAULT		= 0,
+	OCELOT_INGRESS_IS1,
+	OCELOT_INGRESS_IS2,
+	OCELOT_INGRESS_PSFP,
+};
+
+#define OCELOT_HW_BLOCK		10000
+#define OCELOT_PSFP_CHAIN	(OCELOT_INGRESS_PSFP * OCELOT_HW_BLOCK)
+
 struct ocelot;
 
 struct ocelot_ops {
