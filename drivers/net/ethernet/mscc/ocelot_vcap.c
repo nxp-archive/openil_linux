@@ -10,7 +10,6 @@
 #include "ocelot_police.h"
 #include "ocelot_vcap.h"
 
-#define OCELOT_POLICER_DISCARD 0x17f
 #define ENTRY_WIDTH 32
 
 enum vcap_sel {
@@ -317,33 +316,15 @@ static void is2_action_set(struct ocelot *ocelot, struct vcap_data *data,
 			   struct ocelot_vcap_filter *filter)
 {
 	const struct vcap_props *vcap = &ocelot->vcap[VCAP_IS2];
+	struct ocelot_vcap_action *a = &filter->action;
 
-	if (filter->is2_action.drop_ena) {
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_PORT_MASK, 0);
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_MASK_MODE, 1);
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_POLICE_ENA, 1);
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_POLICE_IDX,
-				OCELOT_POLICER_DISCARD);
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_CPU_QU_NUM, 0);
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_CPU_COPY_ENA, 0);
-	}
-	if (filter->is2_action.trap_ena) {
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_PORT_MASK, 0);
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_MASK_MODE, 1);
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_POLICE_ENA, 0);
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_POLICE_IDX, 0);
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_CPU_QU_NUM, 0);
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_CPU_COPY_ENA, 1);
-	}
-	if (filter->is2_action.police_ena) {
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_PORT_MASK, 0);
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_MASK_MODE, 0);
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_POLICE_ENA, 1);
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_POLICE_IDX,
-				filter->is2_action.pol_ix + ocelot->policer_base);
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_CPU_QU_NUM, 0);
-		vcap_action_set(vcap, data, VCAP_IS2_ACT_CPU_COPY_ENA, 0);
-	}
+	vcap_action_set(vcap, data, VCAP_IS2_ACT_MASK_MODE, a->mask_mode);
+	vcap_action_set(vcap, data, VCAP_IS2_ACT_PORT_MASK, a->port_mask);
+	vcap_action_set(vcap, data, VCAP_IS2_ACT_POLICE_ENA, a->police_ena);
+	vcap_action_set(vcap, data, VCAP_IS2_ACT_POLICE_IDX,
+			a->pol_ix);
+	vcap_action_set(vcap, data, VCAP_IS2_ACT_CPU_QU_NUM, a->cpu_qu_num);
+	vcap_action_set(vcap, data, VCAP_IS2_ACT_CPU_COPY_ENA, a->cpu_copy_ena);
 }
 
 static void is2_entry_set(struct ocelot *ocelot, int ix,
@@ -649,30 +630,23 @@ static void is1_action_set(struct ocelot *ocelot, struct vcap_data *data,
 			   struct ocelot_vcap_filter *filter)
 {
 	const struct vcap_props *vcap = &ocelot->vcap[VCAP_IS1];
-	struct ocelot_is1_action *is1_action = &filter->is1_action;
+	const struct ocelot_vcap_action *a = &filter->action;
 
-	if (is1_action->qos_ena) {
-		vcap_action_set(vcap, data, VCAP_IS1_ACT_QOS_ENA, 1);
-		vcap_action_set(vcap, data, VCAP_IS1_ACT_QOS_VAL,
-				is1_action->qos_val);
-	}
-	if (is1_action->vlan_modify_ena) {
-		vcap_action_set(vcap, data, VCAP_IS1_ACT_VID_REPLACE_ENA, 1);
-		vcap_action_set(vcap, data, VCAP_IS1_ACT_VID_ADD_VAL,
-				is1_action->vid);
-		vcap_action_set(vcap, data, VCAP_IS1_ACT_PCP_DEI_ENA, 1);
-		vcap_action_set(vcap, data, VCAP_IS1_ACT_PCP_VAL,
-				is1_action->pcp);
-		vcap_action_set(vcap, data, VCAP_IS1_ACT_DEI_VAL,
-				is1_action->dei);
-	}
-
-	if (filter->is1_action.pop_cnt > 0) {
-		vcap_action_set(vcap, data, VCAP_IS1_ACT_VLAN_POP_CNT_ENA, 1);
-		vcap_action_set(vcap, data, VCAP_IS1_ACT_VLAN_POP_CNT,
-				filter->is1_action.pop_cnt);
-		filter->is1_action.pop_cnt = 0;
-	}
+	vcap_action_set(vcap, data, VCAP_IS1_ACT_VID_REPLACE_ENA,
+			a->vid_replace_ena);
+	vcap_action_set(vcap, data, VCAP_IS1_ACT_VID_ADD_VAL, a->vid);
+	vcap_action_set(vcap, data, VCAP_IS1_ACT_VLAN_POP_CNT_ENA,
+			a->vlan_pop_cnt_ena);
+	vcap_action_set(vcap, data, VCAP_IS1_ACT_VLAN_POP_CNT,
+			a->vlan_pop_cnt);
+	vcap_action_set(vcap, data, VCAP_IS1_ACT_PCP_DEI_ENA, a->pcp_dei_ena);
+	vcap_action_set(vcap, data, VCAP_IS1_ACT_PCP_VAL, a->pcp);
+	vcap_action_set(vcap, data, VCAP_IS1_ACT_DEI_VAL, a->dei);
+	vcap_action_set(vcap, data, VCAP_IS1_ACT_QOS_ENA, a->qos_ena);
+	vcap_action_set(vcap, data, VCAP_IS1_ACT_QOS_VAL, a->qos_val);
+	vcap_action_set(vcap, data, VCAP_IS1_ACT_PAG_OVERRIDE_MASK,
+			a->pag_override_mask);
+	vcap_action_set(vcap, data, VCAP_IS1_ACT_PAG_VAL, a->pag_val);
 }
 
 static void is1_entry_set(struct ocelot *ocelot, int ix,
@@ -857,38 +831,28 @@ static void es0_action_set(struct ocelot *ocelot, struct vcap_data *data,
 			   struct ocelot_vcap_filter *filter)
 {
 	const struct vcap_props *vcap = &ocelot->vcap[VCAP_ES0];
-	struct ocelot_es0_action *es0_action = &filter->es0_action;
+	const struct ocelot_vcap_action *a = &filter->action;
 
-	if (!es0_action->vlan_push_ena)
-		return;
-
-	if (filter->es0_action.proto == ETH_P_8021AD) {
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_PUSH_OUTER_TAG, 1);
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_PUSH_INNER_TAG, 1);
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_TPID_SEL, 1);
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_VID_SEL, 1);
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_VID_A_VAL,
-				es0_action->vid);
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_PCP_SEL, 1);
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_PCP_A_VAL,
-				es0_action->pcp);
-
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_B_TPID_SEL, 0);
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_B_VID_SEL, 1);
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_VID_B_VAL,
-				es0_action->cvlan_vid);
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_B_PCP_SEL, 1);
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_PCP_B_VAL,
-				es0_action->cvlan_pcp);
-	} else {
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_PUSH_OUTER_TAG, 1);
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_VID_SEL, 1);
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_VID_A_VAL,
-				es0_action->vid);
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_PCP_SEL, 1);
-		vcap_action_set(vcap, data, VCAP_ES0_ACT_PCP_A_VAL,
-				es0_action->pcp);
-	}
+	vcap_action_set(vcap, data, VCAP_ES0_ACT_PUSH_OUTER_TAG,
+			a->push_outer_tag);
+	vcap_action_set(vcap, data, VCAP_ES0_ACT_PUSH_INNER_TAG,
+			a->push_inner_tag);
+	vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_TPID_SEL,
+			a->tag_a_tpid_sel);
+	vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_VID_SEL,
+			a->tag_a_vid_sel);
+	vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_A_PCP_SEL,
+			a->tag_a_pcp_sel);
+	vcap_action_set(vcap, data, VCAP_ES0_ACT_VID_A_VAL, a->vid_a_val);
+	vcap_action_set(vcap, data, VCAP_ES0_ACT_PCP_A_VAL, a->pcp_a_val);
+	vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_B_TPID_SEL,
+			a->tag_b_tpid_sel);
+	vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_B_VID_SEL,
+			a->tag_b_vid_sel);
+	vcap_action_set(vcap, data, VCAP_ES0_ACT_TAG_B_PCP_SEL,
+			a->tag_b_pcp_sel);
+	vcap_action_set(vcap, data, VCAP_ES0_ACT_VID_B_VAL, a->vid_b_val);
+	vcap_action_set(vcap, data, VCAP_ES0_ACT_PCP_B_VAL, a->pcp_b_val);
 }
 
 static void es0_entry_set(struct ocelot *ocelot, int ix,
@@ -984,12 +948,12 @@ static int ocelot_vcap_filter_add_to_block(struct ocelot *ocelot,
 	struct list_head *pos, *n;
 	int index;
 
-	if (filter->is2_action.police_ena) {
-		index = filter->is2_action.pol_ix + ocelot->policer_base;
-		if (index >= OCELOT_POLICER_DISCARD)
+	if (filter->vcap_id == VCAP_IS2 && filter->action.police_ena) {
+		index = filter->action.pol_ix;
+		if (index > OCELOT_POLICER_DISCARD)
 			return -EINVAL;
 
-		ocelot_vcap_policer_add(ocelot, index, &filter->is2_action.pol);
+		ocelot_vcap_policer_add(ocelot, index, &filter->action.pol);
 	}
 
 	block->count++;
@@ -1220,8 +1184,8 @@ static void ocelot_vcap_block_remove_filter(struct ocelot *ocelot,
 	list_for_each_safe(pos, q, &block->rules) {
 		tmp = list_entry(pos, struct ocelot_vcap_filter, list);
 		if (tmp->id == filter->id) {
-			if (tmp->is2_action.police_ena) {
-				index = tmp->is2_action.pol_ix + ocelot->policer_base;
+			if (tmp->action.police_ena) {
+				index = tmp->action.pol_ix;
 				ocelot_vcap_policer_del(ocelot, index);
 			}
 			list_del(pos);
