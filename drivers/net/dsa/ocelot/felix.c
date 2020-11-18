@@ -814,12 +814,11 @@ static int felix_cls_flower_add(struct dsa_switch *ds, int port,
 {
 	struct ocelot *ocelot = ds->priv;
 	struct felix *felix = ocelot_to_felix(ocelot);
-	int ret;
 
 	if (felix->info->flower_replace) {
-		ret = felix->info->flower_replace(ocelot, port, cls, ingress);
-		if (ret != -EOPNOTSUPP)
-			return ret;
+		if (cls->common.chain_index == OCELOT_PSFP_CHAIN)
+			return felix->info->flower_replace(ocelot, port, cls,
+							   ingress);
 	}
 
 	return ocelot_cls_flower_replace(ocelot, port, cls, ingress);
