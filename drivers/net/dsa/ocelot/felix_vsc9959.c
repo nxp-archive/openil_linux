@@ -2236,6 +2236,11 @@ int vsc9959_flower_stream_replace(struct ocelot *ocelot, int port,
 	flow_action_for_each(i, a, &f->rule->action) {
 		switch (a->id) {
 		case FLOW_ACTION_GATE:
+			if (f->common.chain_index != OCELOT_PSFP_CHAIN) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "Gate action only be offloaded to PSFP chain");
+				return -EOPNOTSUPP;
+			}
 			size = struct_size(sgi, entries, a->gate.num_entries);
 			sgi = kzalloc(size, GFP_KERNEL);
 			vsc9959_parse_gate(a, sgi);
@@ -2250,6 +2255,11 @@ int vsc9959_flower_stream_replace(struct ocelot *ocelot, int port,
 			kfree(sgi);
 			break;
 		case FLOW_ACTION_POLICE:
+			if (f->common.chain_index != OCELOT_PSFP_CHAIN) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "Police action only be offloaded to PSFP chain");
+				return -EOPNOTSUPP;
+			}
 			index = a->police.index + VSC9959_POLICER_PSFP_BASE;
 			if (index > VSC9959_POLICER_PSFP_MAX)
 				return -EINVAL;
