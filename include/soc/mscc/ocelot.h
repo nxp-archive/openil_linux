@@ -550,6 +550,8 @@ struct ocelot {
 
 	struct ocelot_vcap_block	block[3];
 
+	struct list_head                dummy_rules;
+
 	struct list_head		policer;
 	int				policer_base;
 
