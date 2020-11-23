@@ -1316,6 +1316,8 @@ static int vsc9959_prevalidate_phy_mode(struct ocelot *ocelot, int port,
 
 static const struct ocelot_ops vsc9959_ops = {
 	.reset			= vsc9959_reset,
+	.port_to_netdev		= felix_port_to_netdev,
+	.netdev_to_port		= felix_netdev_to_port,
 };
 
 static int vsc9959_mdio_bus_alloc(struct ocelot *ocelot)
