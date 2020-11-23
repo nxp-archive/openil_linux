@@ -235,7 +235,7 @@ int ocelot_port_policer_del(struct ocelot *ocelot, int port)
 }
 EXPORT_SYMBOL(ocelot_port_policer_del);
 
-int ocelot_ace_policer_add(struct ocelot *ocelot, u32 pol_ix,
+int ocelot_vcap_policer_add(struct ocelot *ocelot, u32 pol_ix,
 			   struct ocelot_policer *pol)
 {
 	struct qos_policer_conf pp = { 0 };
@@ -274,7 +274,7 @@ int ocelot_ace_policer_add(struct ocelot *ocelot, u32 pol_ix,
 	return 0;
 }
 
-int ocelot_ace_policer_del(struct ocelot *ocelot, u32 pol_ix)
+int ocelot_vcap_policer_del(struct ocelot *ocelot, u32 pol_ix)
 {
 	struct qos_policer_conf pp = { 0 };
 	struct list_head *pos, *q;

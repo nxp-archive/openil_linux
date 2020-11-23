@@ -67,4 +67,14 @@ struct felix {
 	struct phy_device		**pcs;
 };
 
+void vsc9959_new_base_time(struct ocelot *ocelot, ktime_t base_time,
+			   u64 cycle_time, struct timespec64 *new_base_ts);
+int felix_flower_stream_replace(struct ocelot *ocelot, int port,
+				struct flow_cls_offload *f, bool ingress);
+int felix_flower_stream_destroy(struct ocelot *ocelot, int port,
+				struct flow_cls_offload *f, bool ingress);
+int felix_flower_stream_stats(struct ocelot *ocelot, int port,
+			      struct flow_cls_offload *f, bool ingress);
+void felix_psfp_init(struct ocelot *ocelot);
+
 #endif
