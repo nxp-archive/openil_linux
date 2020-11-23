@@ -500,4 +500,9 @@ config IMX_INTMUX
 	select IRQ_DOMAIN
 	help
 	 Enables the IRQ MUX for NXP IMX platforms
+
+config BAREMETAL
+    bool
+    depends on ARM_GIC || ARM_GIC_V3
+
 endmenu
