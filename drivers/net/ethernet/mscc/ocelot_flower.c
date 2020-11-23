@@ -351,17 +351,68 @@ static int ocelot_flower_parse_action(struct ocelot *ocelot, bool ingress,
 	return 0;
 }
 
-static int ocelot_flower_parse_key(struct flow_cls_offload *f, bool ingress,
+static int ocelot_flower_parse_indev(struct ocelot *ocelot, int port,
+				     struct flow_cls_offload *f,
+				     struct ocelot_vcap_filter *filter)
+{
+	struct flow_rule *rule = flow_cls_offload_flow_rule(f);
+	struct netlink_ext_ack *extack = f->common.extack;
+	struct net_device *dev, *indev;
+	struct flow_match_meta match;
+	int ingress_port;
+
+	flow_rule_match_meta(rule, &match);
+
+	if (!match.mask->ingress_ifindex)
+		return 0;
+
+	if (match.mask->ingress_ifindex != 0xFFFFFFFF) {
+		NL_SET_ERR_MSG_MOD(extack, "Unsupported ingress ifindex mask");
+		return -EOPNOTSUPP;
+	}
+
+	dev = ocelot->ops->port_to_netdev(ocelot, port);
+	if (!dev)
+		return -EINVAL;
+
+	indev = __dev_get_by_index(dev_net(dev), match.key->ingress_ifindex);
+	if (!indev) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "Can't find the ingress port to match on");
+		return -ENOENT;
+	}
+
+	ingress_port = ocelot->ops->netdev_to_port(indev);
+	if (ingress_port < 0) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "Can only offload an ocelot ingress port");
+		return -EOPNOTSUPP;
+	}
+	if (ingress_port == port) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "Ingress port is equal to the egress port");
+		return -EINVAL;
+	}
+
+	filter->ingress_port = ingress_port;
+
+	return 0;
+}
+
+static int ocelot_flower_parse_key(struct ocelot *ocelot, int port,
+				   struct flow_cls_offload *f, bool ingress,
 				   struct ocelot_vcap_filter *filter)
 {
 	struct flow_rule *rule = flow_cls_offload_flow_rule(f);
 	struct flow_dissector *dissector = rule->match.dissector;
 	u16 proto = ntohs(f->common.protocol);
 	bool match_protocol = true;
+	int ret;
 
 	if (dissector->used_keys &
 	    ~(BIT(FLOW_DISSECTOR_KEY_CONTROL) |
 	      BIT(FLOW_DISSECTOR_KEY_BASIC) |
+	      BIT(FLOW_DISSECTOR_KEY_META) |
 	      BIT(FLOW_DISSECTOR_KEY_PORTS) |
 	      BIT(FLOW_DISSECTOR_KEY_VLAN) |
 	      BIT(FLOW_DISSECTOR_KEY_CVLAN) |
@@ -369,6 +420,13 @@ static int ocelot_flower_parse_key(struct flow_cls_offload *f, bool ingress,
 	      BIT(FLOW_DISSECTOR_KEY_IPV6_ADDRS) |
 	      BIT(FLOW_DISSECTOR_KEY_ETH_ADDRS))) {
 		return -EOPNOTSUPP;
+	}
+
+	/* For VCAP ES0 (egress rewriter) we can match on the ingress port */
+	if (!ingress) {
+		ret = ocelot_flower_parse_indev(ocelot, port, f, filter);
+		if (ret)
+			return ret;
 	}
 
 	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CONTROL)) {
@@ -502,7 +560,7 @@ finished_key_parsing:
 	return 0;
 }
 
-static int ocelot_flower_parse(struct ocelot *ocelot, bool ingress,
+static int ocelot_flower_parse(struct ocelot *ocelot, int port, bool ingress,
 			       struct flow_cls_offload *f,
 			       struct ocelot_vcap_filter *filter)
 {
@@ -515,7 +573,7 @@ static int ocelot_flower_parse(struct ocelot *ocelot, bool ingress,
 	if (ret)
 		return ret;
 
-	return ocelot_flower_parse_key(f, ingress, filter);
+	return ocelot_flower_parse_key(ocelot, port, f, ingress, filter);
 }
 
 static int ocelot_vcap_dummy_filter_add(struct ocelot *ocelot,
@@ -569,7 +627,7 @@ int ocelot_cls_flower_replace(struct ocelot *ocelot, int port,
 	if (!filter)
 		return -ENOMEM;
 
-	ret = ocelot_flower_parse(ocelot, ingress, f, filter);
+	ret = ocelot_flower_parse(ocelot, port, ingress, f, filter);
 	if (ret) {
 		kfree(filter);
 		return ret;
