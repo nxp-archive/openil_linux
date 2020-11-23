@@ -155,7 +155,7 @@ static int ocelot_flower_parse_action(struct ocelot *ocelot, bool ingress,
 	bool allow_missing_goto_target = false;
 	const struct flow_action_entry *a;
 	enum ocelot_tag_tpid_sel tpid;
-	int i, chain;
+	int i, chain, egress_port;
 	s64 burst;
 	u64 rate;
 
@@ -294,6 +294,27 @@ static int ocelot_flower_parse_action(struct ocelot *ocelot, bool ingress,
 				NL_SET_ERR_MSG_MOD(extack,
 						   "Cannot push custom TPID");
 			}
+			break;
+		case FLOW_ACTION_REDIRECT:
+			if (filter->vcap_id != VCAP_IS2) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "Redirect action can only be offloaded to VCAP IS2");
+				return -EOPNOTSUPP;
+			}
+			if (filter->goto_target != -1) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "Last action must be GOTO");
+				return -EOPNOTSUPP;
+			}
+			egress_port = ocelot->ops->netdev_to_port(a->dev);
+			if (egress_port < 0) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "Destination not an ocelot port");
+				return -EOPNOTSUPP;
+			}
+			filter->action.mask_mode = OCELOT_MASK_MODE_REDIRECT;
+			filter->action.port_mask = BIT(egress_port);
+			filter->type = OCELOT_VCAP_FILTER_OFFLOAD;
 			break;
 		case FLOW_ACTION_VLAN_POP:
 			if (filter->vcap_id != VCAP_IS1) {
