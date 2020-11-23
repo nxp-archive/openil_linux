@@ -14,8 +14,8 @@
 #include <asm/sysreg.h>
 
 #ifdef CONFIG_BAREMETAL
-/* the IPI for baremetal is number 8 */
-#define NR_IPI  9
+/* the IPI for baremetal is number 9 */
+#define NR_IPI 10
 #else
 #define NR_IPI 7
 #endif

@@ -671,10 +671,12 @@ static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs
             ¦*/
             /* FIXME: use the fixed source coreID from core1 */
             irqsrc = 1;
+            /*linux core is 0 core, so iterate from 1 core.*/
+            for(irqsrc = 1; irqsrc < CONFIG_NR_CPUS; irqsrc++ )
             ipi_baremetal_handle(irqnr, irqsrc);
-			handle_IPI(irqnr, regs);
         }
-#else
+#endif
+
 #ifdef CONFIG_SMP
 		/*
 		 * Unlike GICv2, we don't need an smp_rmb() here.
@@ -686,7 +688,6 @@ static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs
 		handle_IPI(irqnr, regs);
 #else
 		WARN_ONCE(true, "Unexpected SGI received!\n");
-#endif
 #endif
 	}
 }
