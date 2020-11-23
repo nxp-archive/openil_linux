@@ -272,6 +272,7 @@ struct ocelot_vcap_filter {
 	/* For VCAP IS1 and IS2 */
 	unsigned long ingress_port_mask;
 	/* For VCAP ES0 */
+	u8 ingress_port;
 	u8 egress_port;
 
 	enum ocelot_vcap_bit dmac_mc;

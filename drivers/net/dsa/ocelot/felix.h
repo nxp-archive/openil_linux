@@ -76,5 +76,7 @@ int felix_flower_stream_destroy(struct ocelot *ocelot, int port,
 int felix_flower_stream_stats(struct ocelot *ocelot, int port,
 			      struct flow_cls_offload *f, bool ingress);
 void felix_psfp_init(struct ocelot *ocelot);
+struct net_device *felix_port_to_netdev(struct ocelot *ocelot, int port);
+int felix_netdev_to_port(struct net_device *dev);
 
 #endif
