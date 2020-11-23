@@ -912,6 +912,7 @@ static void es0_entry_set(struct ocelot *ocelot, int ix,
 	if (filter->prio != 0)
 		data.tg |= data.tg_value;
 
+	vcap_key_set(vcap, &data, VCAP_ES0_IGR_PORT, filter->ingress_port, msk);
 	vcap_key_set(vcap, &data, VCAP_ES0_EGR_PORT, filter->egress_port, msk);
 	vcap_key_bit_set(vcap, &data, VCAP_ES0_L2_MC, filter->dmac_mc);
 	vcap_key_bit_set(vcap, &data, VCAP_ES0_L2_BC, filter->dmac_bc);
