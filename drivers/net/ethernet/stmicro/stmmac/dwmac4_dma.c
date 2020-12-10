@@ -269,6 +269,7 @@ static void dwmac4_dma_tx_chan_op_mode(void __iomem *ioaddr, int mode,
 {
 	u32 mtl_tx_op = readl(ioaddr + MTL_CHAN_TX_OP_MODE(channel));
 	unsigned int tqs = fifosz / 256 - 1;
+	unsigned int value;
 
 	if (mode == SF_DMA_MODE) {
 		pr_debug("GMAC: enable TX store and forward mode\n");
@@ -276,6 +277,13 @@ static void dwmac4_dma_tx_chan_op_mode(void __iomem *ioaddr, int mode,
 		mtl_tx_op |= MTL_OP_MODE_TSF;
 	} else {
 		pr_debug("GMAC: disabling TX SF (threshold %d)\n", mode);
+		/* Operating on second frame cannot be set on threshold mode.
+		 * Low priority queue will be blocked and transmit timeout if
+		 * OSF bit is set. */
+		value = readl(ioaddr + DMA_CHAN_TX_CONTROL(channel));
+		writel(value & ~DMA_CONTROL_OSP,
+		       ioaddr + DMA_CHAN_TX_CONTROL(channel));
+
 		mtl_tx_op &= ~MTL_OP_MODE_TSF;
 		mtl_tx_op &= MTL_OP_MODE_TTC_MASK;
 		/* Set the transmit threshold */
