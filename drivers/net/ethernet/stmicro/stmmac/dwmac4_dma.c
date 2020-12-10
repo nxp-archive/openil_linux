@@ -93,8 +93,9 @@ static void dwmac4_dma_init_tx_chan(void __iomem *ioaddr,
 	value = readl(ioaddr + DMA_CHAN_TX_CONTROL(chan));
 	value = value | (txpbl << DMA_BUS_MODE_PBL_SHIFT);
 
-	/* Enable OSP to get best performance */
-	value |= DMA_CONTROL_OSP;
+	/* Enable OSP on channel 0 to get best performance */
+	if (chan == 0)
+		value |= DMA_CONTROL_OSP;
 
 	writel(value, ioaddr + DMA_CHAN_TX_CONTROL(chan));
 
