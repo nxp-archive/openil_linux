@@ -681,6 +681,7 @@ void ocelot_configure_cpu(struct ocelot *ocelot, int npi,
 int ocelot_init(struct ocelot *ocelot);
 void ocelot_deinit(struct ocelot *ocelot);
 void ocelot_init_port(struct ocelot *ocelot, int port);
+void ocelot_setup_ptp_traps(struct ocelot *ocelot);
 
 /* DSA callbacks */
 void ocelot_port_enable(struct ocelot *ocelot, int port,

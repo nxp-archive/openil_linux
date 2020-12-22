@@ -696,6 +696,8 @@ static int felix_setup(struct dsa_switch *ds)
 		felix_port_qos_map_init(ocelot, port, ds->num_tx_queues);
 	}
 
+	ocelot_setup_ptp_traps(ocelot);
+
 	/* Include the CPU port module in the forwarding mask for unknown
 	 * unicast - the hardware default value for ANA_FLOODING_FLD_UNICAST
 	 * excludes BIT(ocelot->num_phys_ports), and so does ocelot_init, since
