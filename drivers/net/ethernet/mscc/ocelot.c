@@ -2325,6 +2325,19 @@ static struct ocelot_vcap_filter ptp_rule = {
 	.key.etype.etype.mask[1]	= 0xff,
 };
 
+void ocelot_setup_ptp_traps(struct ocelot *ocelot)
+{
+	if (!ocelot->ptp)
+		return;
+
+	/* Available on all ingress port except CPU port */
+	ptp_rule.ingress_port_mask =
+		GENMASK(ocelot->num_phys_ports - 1, 0);
+	ptp_rule.ingress_port_mask &= ~BIT(ocelot->npi);
+	ocelot_vcap_filter_add(ocelot, &ptp_rule, NULL);
+}
+EXPORT_SYMBOL(ocelot_setup_ptp_traps);
+
 int ocelot_init(struct ocelot *ocelot)
 {
 	char queue_name[32];
@@ -2463,12 +2476,6 @@ int ocelot_init(struct ocelot *ocelot)
 				"Timestamp initialization failed\n");
 			return ret;
 		}
-
-		/* Available on all ingress port except CPU port */
-		ptp_rule.ingress_port_mask =
-			GENMASK(ocelot->num_phys_ports - 1, 0);
-		ptp_rule.ingress_port_mask &= ~BIT(ocelot->npi);
-		ocelot_vcap_filter_add(ocelot, &ptp_rule, NULL);
 	}
 
 	return 0;
