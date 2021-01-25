@@ -1284,9 +1284,11 @@ static int clk_disable_unused(void)
 		return 0;
 	}
 
+	/*temporarily remove these lines because of disabling slave cores clock..*/
 	clk_prepare_lock();
 
 	hlist_for_each_entry(core, &clk_root_list, child_node)
+	if(strcmp(core->name,"osc_24m"))
 		clk_disable_unused_subtree(core);
 
 	hlist_for_each_entry(core, &clk_orphan_list, child_node)

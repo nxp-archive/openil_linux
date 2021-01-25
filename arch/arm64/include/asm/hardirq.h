@@ -13,7 +13,16 @@
 #include <asm/kvm_arm.h>
 #include <asm/sysreg.h>
 
-#define NR_IPI	7
+#ifdef CONFIG_BAREMETAL
+/* the IPI for baremetal is number 9 */
+#ifdef CONFIG_IMX8M_BAREMETAL
+#define NR_IPI 10
+#else
+#define NR_IPI 9
+#endif
+#else
+#define NR_IPI 7
+#endif
 
 typedef struct {
 	unsigned int __softirq_pending;

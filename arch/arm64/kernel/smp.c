@@ -74,8 +74,25 @@ enum ipi_msg_type {
 	IPI_CPU_CRASH_STOP,
 	IPI_TIMER,
 	IPI_IRQ_WORK,
+#ifdef CONFIG_BAREMETAL
+	IPI_WAKEUP,
+#ifdef CONFIG_IMX8M_BAREMETAL
+	IPI_BAREMETAL_COMM = 9
+#else
+	IPI_BAREMETAL_COMM = 8
+#endif
+#else
 	IPI_WAKEUP
+#endif
 };
+
+#ifdef CONFIG_BAREMETAL
+inline int ipi_baremetal(void)
+{
+    return IPI_BAREMETAL_COMM;
+}
+EXPORT_SYMBOL_GPL(ipi_baremetal);
+#endif
 
 #ifdef CONFIG_HOTPLUG_CPU
 static int op_cpu_kill(unsigned int cpu);
@@ -773,6 +790,9 @@ static const char *ipi_types[NR_IPI] __tracepoint_string = {
 	S(IPI_TIMER, "Timer broadcast interrupts"),
 	S(IPI_IRQ_WORK, "IRQ work interrupts"),
 	S(IPI_WAKEUP, "CPU wake-up interrupts"),
+#ifdef CONFIG_BAREMETAL
+    S(IPI_BAREMETAL_COMM, "Baremetal inter-core interrupts"),
+#endif
 };
 
 static void smp_cross_call(const struct cpumask *target, unsigned int ipinr)
@@ -891,6 +911,10 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 	case IPI_RESCHEDULE:
 		scheduler_ipi();
 		break;
+#ifdef CONFIG_BAREMETAL
+    case IPI_BAREMETAL_COMM:
+        break;
+#endif
 
 	case IPI_CALL_FUNC:
 		irq_enter();

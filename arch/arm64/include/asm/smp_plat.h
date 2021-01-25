@@ -40,4 +40,7 @@ static inline int get_logical_index(u64 mpidr)
 	return -EINVAL;
 }
 
+#ifdef CONFIG_BAREMETAL
+int ipi_baremetal(void);
+#endif
 #endif /* __ASM_SMP_PLAT_H */
