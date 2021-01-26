@@ -52,6 +52,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mm-evk.dtb imx8mm-evk-rpmsg.dtb imx8mm-evk-rm67191
 			  imx8mm-ddr4-evk.dtb imx8mm-evk-root.dtb imx8mm-evk-inmate.dtb \
 			  imx8mm-ddr4-evk-rm67191.dtb imx8mm-evk-revb-qca-wifi.dtb imx8mm-ddr4-evk-revb.dtb \
 			  imx8mm-ddr4-evk-revb-rm67191.dtb imx8mm-ddr3l-val.dtb \
+			  imx8mm-evk-baremetal.dtb imx8mm-evk-revb-baremetal.dtb \
 			  imx8mm-evk-pcie-ep.dtb imx8mm-ddr4-evk-pcie-ep.dtb \
 			  imx8mm-evk-usd-wifi.dtb \
 			  imx8mm-evk-qca-wifi.dtb
@@ -72,6 +73,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk.dtb imx8mp-evk-root.dtb imx8mp-evk-inmate.d
 			  imx8mp-evk-jdi-wuxga-lvds-panel.dtb imx8mp-ab2.dtb imx8mp-evk-sof-wm8960.dtb \
 			  imx8mp-evk-dsp.dtb imx8mp-evk-ov2775.dtb imx8mp-evk-basler.dtb imx8mp-evk-pcie-ep.dtb \
 			  imx8mp-evk-spdif-lb.dtb imx8mp-evk-dsp-lpa.dtb imx8mp-evk-ov2775-ov5640.dtb \
+			  imx8mp-evk-baremetal.dtb \
 			  imx8mp-evk-basler-ov5640.dtb imx8mp-evk-dual-ov2775.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-ddr4-evk.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mq-evk.dtb imx8mq-evk-rpmsg.dtb imx8mq-evk-pcie1-m2.dtb imx8mq-evk-usd-wifi.dtb \
