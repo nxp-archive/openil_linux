@@ -153,10 +153,20 @@ static int enetc_map_tx_buffs(struct enetc_bdr *tx_ring, struct sk_buff *skb,
 
 	if (enetc_tx_csum(skb, &temp_bd))
 		flags |= ENETC_TXBD_FLAGS_CSUM | ENETC_TXBD_FLAGS_L4CS;
+	else if (tx_ring->tsd_enable)
+		flags |= ENETC_TXBD_FLAGS_TSE | ENETC_TXBD_FLAGS_TXSTART;
 
 	/* first BD needs frm_len and offload flags set */
 	temp_bd.frm_len = cpu_to_le16(skb->len);
 	temp_bd.flags = flags;
+
+	if (flags & ENETC_TXBD_FLAGS_TSE) {
+		u32 temp;
+
+		temp = (skb->skb_mstamp_ns >> 5 & ENETC_TXBD_TXSTART_MASK)
+			| (flags << ENETC_TXBD_FLAGS_OFFSET);
+		temp_bd.txstart = cpu_to_le32(temp);
+	}
 
 	if (flags & ENETC_TXBD_FLAGS_EX) {
 		u8 e_flags = 0;
@@ -336,6 +346,12 @@ static void enetc_tstamp_tx(struct sk_buff *skb, u64 tstamp)
 	if (skb_shinfo(skb)->tx_flags & SKBTX_IN_PROGRESS) {
 		memset(&shhwtstamps, 0, sizeof(shhwtstamps));
 		shhwtstamps.hwtstamp = ns_to_ktime(tstamp);
+		/* Ensure skb_mstamp_ns, which might have been populated with
+		 * the txtime, is not mistaken for a software timestamp,
+		 * because this will prevent the dispatch of our hardware
+		 * timestamp to the socket.
+		 */
+		skb->tstamp = ktime_set(0, 0);
 		skb_tstamp_tx(skb, &shhwtstamps);
 	}
 }
@@ -1544,6 +1560,8 @@ int enetc_setup_tc(struct net_device *ndev, enum tc_setup_type type,
 		return enetc_setup_tc_taprio(ndev, type_data);
 	case TC_SETUP_QDISC_CBS:
 		return enetc_setup_tc_cbs(ndev, type_data);
+	case TC_SETUP_QDISC_ETF:
+		return enetc_setup_tc_txtime(ndev, type_data);
 	case TC_SETUP_BLOCK:
 		return enetc_setup_tc_psfp(ndev, type_data);
 	default:

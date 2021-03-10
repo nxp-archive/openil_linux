@@ -75,6 +75,7 @@ struct enetc_bdr {
 	struct enetc_ring_stats stats;
 
 	dma_addr_t bd_dma_base;
+	u8 tsd_enable; /* Time specific departure */
 } ____cacheline_aligned_in_smp;
 
 static inline void enetc_bdr_idx_inc(struct enetc_bdr *bdr, int *i)
@@ -298,6 +299,7 @@ int enetc_send_cmd(struct enetc_si *si, struct enetc_cbd *cbd);
 int enetc_setup_tc_taprio(struct net_device *ndev, void *type_data);
 void enetc_sched_speed_set(struct net_device *ndev);
 int enetc_setup_tc_cbs(struct net_device *ndev, void *type_data);
+int enetc_setup_tc_txtime(struct net_device *ndev, void *type_data);
 int enetc_setup_tc_block_cb(enum tc_setup_type type, void *type_data,
 			    void *cb_priv);
 int enetc_setup_tc_psfp(struct net_device *ndev, void *type_data);
@@ -361,6 +363,7 @@ static inline int enetc_psfp_disable(struct enetc_ndev_priv *priv)
 #define enetc_setup_tc_taprio(ndev, type_data) -EOPNOTSUPP
 #define enetc_sched_speed_set(ndev) (void)0
 #define enetc_setup_tc_cbs(ndev, type_data) -EOPNOTSUPP
+#define enetc_setup_tc_txtime(ndev, type_data) -EOPNOTSUPP
 #define enetc_get_max_cap(p)		\
 	memset(&((p)->psfp_cap), 0, sizeof(struct psfp_cap))
 #define enetc_setup_tc_psfp(ndev, type_data) -EOPNOTSUPP
