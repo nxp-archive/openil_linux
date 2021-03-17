@@ -274,21 +274,21 @@ static int ocelot_flower_parse_action(struct ocelot *ocelot, bool ingress,
 			switch (ntohs(a->vlan.proto)) {
 			case ETH_P_8021Q:
 				tpid = OCELOT_TAG_TPID_SEL_8021Q;
-				filter->action.tag_a_tpid_sel = tpid;
-				filter->action.push_outer_tag = OCELOT_ES0_TAG;
-				filter->action.tag_a_vid_sel = 1;
-				filter->action.tag_a_pcp_sel = 1;
-				filter->action.vid_a_val = a->vlan.vid;
-				filter->action.pcp_a_val = a->vlan.prio;
-				break;
-			case ETH_P_8021AD:
-				tpid = OCELOT_TAG_TPID_SEL_8021AD;
 				filter->action.tag_b_tpid_sel = tpid;
 				filter->action.push_inner_tag = OCELOT_ES0_TAG;
 				filter->action.tag_b_vid_sel = 1;
 				filter->action.tag_b_pcp_sel = 1;
 				filter->action.vid_b_val = a->vlan.vid;
 				filter->action.pcp_b_val = a->vlan.prio;
+				break;
+			case ETH_P_8021AD:
+				tpid = OCELOT_TAG_TPID_SEL_8021AD;
+				filter->action.tag_a_tpid_sel = tpid;
+				filter->action.push_outer_tag = OCELOT_ES0_TAG;
+				filter->action.tag_a_vid_sel = 1;
+				filter->action.tag_a_pcp_sel = 1;
+				filter->action.vid_a_val = a->vlan.vid;
+				filter->action.pcp_a_val = a->vlan.prio;
 				break;
 			default:
 				NL_SET_ERR_MSG_MOD(extack,
