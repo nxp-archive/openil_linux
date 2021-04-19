@@ -828,6 +828,7 @@ static int felix_qci_sfi_get(struct net_device *ndev, u32 index,
 	struct ocelot *ocelot;
 	struct dsa_port *dp;
 	u32 sfid = index;
+	int enable = 1;
 	int i, port;
 
 	dp = dsa_port_from_netdev(ndev);
@@ -850,8 +851,10 @@ static int felix_qci_sfi_get(struct net_device *ndev, u32 index,
 		     ANA_TABLES_SFIDACCESS);
 
 	val = ocelot_read(ocelot, ANA_TABLES_SFIDTIDX);
-	if (!(val & ANA_TABLES_SFIDTIDX_SGID_VALID))
-		return -EINVAL;
+	if (!(val & ANA_TABLES_SFIDTIDX_SGID_VALID)) {
+		enable = 0;
+		return enable;
+	}
 
 	sfi->stream_gate_instance_id = ANA_TABLES_SFIDTIDX_SGID_X(val);
 	fmeter_id = ANA_TABLES_SFIDTIDX_POL_IDX_X(val);
@@ -871,12 +874,12 @@ static int felix_qci_sfi_get(struct net_device *ndev, u32 index,
 		if ((val & ANA_PORT_SFID_CFG_SFID_VALID) &&
 		    sfid == ANA_PORT_SFID_CFG_SFID(val)) {
 			sfi->stream_handle_spec = -1;
-			return 0;
+			return enable;
 		}
 	}
 
 	sfi->stream_handle_spec = sfid;
-	return 0;
+	return enable;
 }
 
 static int felix_qci_sfi_counters_get(struct net_device *ndev, u32 index,
